@@ -82,14 +82,32 @@ export async function listarFotosDoEvento(
   return { fotos: pagina, proximoCursor: temMais ? ultima.id : null };
 }
 
-/** Foto visível de um evento publicado, ou `null`. */
-export async function buscarFotoPublica(
-  fotoId: string,
-): Promise<{ foto: Foto; evento: EventoResumo } | null> {
+export type FotoPublica = {
+  foto: Foto;
+  evento: EventoResumo;
+  /** Posição da foto no evento, começando em 1. */
+  posicao: number;
+  anteriorId: string | null;
+  proximaId: string | null;
+};
+
+/** Foto visível de um evento publicado, com as vizinhas para navegação, ou `null`. */
+export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | null> {
   const foto = fotos.find((f) => f.id === fotoId && fotoVisivel(f));
   if (!foto) return null;
   const evento = eventos.find((e) => e.id === foto.eventoId && e.status === "publicado");
-  return evento ? { foto, evento: resumir(evento) } : null;
+  if (!evento) return null;
+  const doEvento = fotos
+    .filter((f) => f.eventoId === evento.id && fotoVisivel(f))
+    .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
+  const indice = doEvento.findIndex((f) => f.id === foto.id);
+  return {
+    foto,
+    evento: resumir(evento),
+    posicao: indice + 1,
+    anteriorId: doEvento[indice - 1]?.id ?? null,
+    proximaId: doEvento[indice + 1]?.id ?? null,
+  };
 }
 
 /**
