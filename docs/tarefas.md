@@ -32,6 +32,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Prévia e miniatura com marca d'água gravada nos pixels, com Sharp (`src/servicos/imagens.ts`); fotos de exemplo geradas com ela (`npm run exemplos:gerar`)
 - [x] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias `[Média]`
 - [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca"
+- [x] Carrinho no navegador, com itens de vários eventos e preços recalculados no servidor a cada vez
 
 ## Em andamento
 
@@ -63,7 +64,6 @@ Concluída (ver **Concluído**).
 
 ## Fase 3 — Carrinho e checkout (pagamento simulado)
 
-- [ ] Carrinho, com itens de vários eventos
 - [ ] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
 - [ ] Pedido criado como `pendente` e confirmação simulada (troca pelo gateway na Fase 13)
 - [ ] Tela de confirmação do pedido
