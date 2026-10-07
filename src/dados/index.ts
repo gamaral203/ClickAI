@@ -368,14 +368,24 @@ export async function buscarItemDoPedido(
   return null;
 }
 
+export type OriginalParaDownload = {
+  /** Endereço temporário do original. */
+  url: string;
+  /** Nome com que o arquivo é salvo: evento + nome original, ex. corrida-x-IMG_4000.jpg. */
+  nomeArquivo: string;
+};
+
 /**
- * Endereço temporário do original. Hoje, a imagem de exemplo sem marca d'água; na Fase 12,
- * uma URL assinada do R2 válida por 15 minutos. Vale também para item excluído depois da
- * venda: quem comprou continua baixando (docs/arquitetura.md, exclusão lógica).
+ * Original de um item. Hoje, a imagem de exemplo sem marca d'água; na Fase 12, uma URL
+ * assinada do R2 válida por 15 minutos, já com Content-Disposition de anexo e este nome.
+ * Vale também para item excluído depois da venda: quem comprou continua baixando
+ * (docs/arquitetura.md, exclusão lógica).
  */
-export async function gerarUrlDoOriginal(fotoId: string): Promise<string | null> {
+export async function buscarOriginal(fotoId: string): Promise<OriginalParaDownload | null> {
   const foto = fotos.find((f) => f.id === fotoId);
-  return foto ? urlOriginalDeExemplo(foto) : null;
+  const evento = foto && eventos.find((e) => e.id === foto.eventoId);
+  if (!foto || !evento) return null;
+  return { url: urlOriginalDeExemplo(foto), nomeArquivo: `${evento.slug}-${foto.nomeArquivo}` };
 }
 
 export async function registrarDownload(itemPedidoId: string, ip: string | null) {

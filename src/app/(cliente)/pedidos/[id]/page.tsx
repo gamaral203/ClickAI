@@ -123,8 +123,9 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
               </span>
               {pedido.status === "pago" ? (
                 <span className="flex flex-col items-end gap-1">
-                  {/* <a> e não <Link>: a rota responde com um redirecionamento para o arquivo. */}
+                  {/* <a> e não <Link>: a rota devolve o arquivo como anexo, não uma página. */}
                   <a
+                    download
                     href={`/api/download/${item.id}?token=${encodeURIComponent(dados.data.token)}`}
                     className={buttonVariants({ variant: "outline", size: "touch" })}
                   >
