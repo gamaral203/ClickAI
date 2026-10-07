@@ -14,9 +14,13 @@ O que já funciona:
 - Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação, com senha ou só após a busca)
 - Página da foto com a prévia grande, preço e navegação para a foto anterior e a próxima
 - Prévias e miniaturas com a marca d'água gravada nos pixels, rotação do EXIF corrigida e metadados (GPS, câmera) removidos
+- Carrinho, checkout e pagamento simulado; download do original só para pedido pago
+- Cadastro, login (sessão simulada), confirmação de e-mail, Minhas compras e perfil do fotógrafo
 - Headers de segurança e validação com Zod de tudo que vem do navegador
 
 O andamento completo, fase por fase, está em [docs/tarefas.md](docs/tarefas.md).
+
+**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos), `admin@exemplo.com`. Pedidos, contas criadas e alterações ficam na memória do servidor e somem quando ele reinicia.
 
 ## Como rodar
 
