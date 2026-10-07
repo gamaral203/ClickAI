@@ -35,10 +35,12 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Carrinho no navegador, com itens de vários eventos e preços recalculados no servidor a cada vez
 - [x] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
 - [x] Divisão da venda entre plataforma, dono do evento e colaborador, com a sobra de centavos para o autor `[Média]`
+- [x] Pedido criado como `pendente` e confirmação simulada, idempotente como o webhook (troca pelo gateway na Fase 13)
+- [x] Página do pedido acessada pelo link com token, com aguardando pagamento, confirmado e expirado
 
 ## Em andamento
 
-- [ ] Carrinho e checkout com pagamento simulado (Fase 3)
+- [ ] Minhas compras e download (Fase 4)
 
 ## Decisões de produto em aberto
 
@@ -66,8 +68,8 @@ Concluída (ver **Concluído**).
 
 ## Fase 3 — Carrinho e checkout (pagamento simulado)
 
-- [ ] Pedido criado como `pendente` e confirmação simulada (troca pelo gateway na Fase 13)
-- [ ] Tela de confirmação do pedido
+Concluída (ver **Concluído**).
+
 
 ## Fase 4 — Minhas compras e download (simulado)
 
