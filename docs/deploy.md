@@ -62,3 +62,15 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 - **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
 - **Job de pedidos:** agende `GET /api/jobs/pedidos` de hora em hora, com o cabeçalho `Authorization: Bearer <CRON_SECRET>`. O cron da Vercel faz isso no plano Pro; no Hobby ele só roda uma vez por dia. Alternativa: o Inngest, previsto na arquitetura (Fase 13).
+
+## 7. Máquina nova (para quem vai programar)
+
+O `.env.local` não vai para o git. Numa máquina nova:
+
+1. `git clone https://github.com/gamaral203/ClickAI` e `npm install`.
+2. `npm run dev` já funciona sem nenhuma variável: o banco é o PGlite em memória, com os dados de exemplo (contas de exemplo em [README](../README.md)).
+3. Para usar as mesmas variáveis da Vercel: `npx vercel login`, `npx vercel link --project clickai --scope amaralgabriel357-9380s-projects --yes` e `npx vercel env pull .env.local`.
+4. **Depois do `env pull`, edite o `.env.local`:** em `GESTORES`, troque cada `$` por `\$`. O Next trata `$` como variável e, sem o escape, os gestores não são criados (aparece "GESTORES fora do formato esperado" no terminal). Na Vercel o valor fica como está.
+5. Sem `DATABASE_URL` no `.env.local`, o app usa o PGlite. Com ela (depois do `env pull`, quando o Neon existir), o desenvolvimento local usa o banco de verdade: cuidado, é o mesmo banco da produção, a não ser que a integração da Neon crie um banco separado para desenvolvimento.
+6. Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build`.
+

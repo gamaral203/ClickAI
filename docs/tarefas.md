@@ -99,6 +99,12 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
 ## Em andamento
 
+- [ ] **Fase 11 (banco), parada em 07/10/2026.** O código está pronto na branch `feat/fase-11-banco` (PR em rascunho), testado sobre o PGlite. Para terminar, nesta ordem:
+  1. Aceitar os termos da Neon no painel da Vercel: <https://vercel.com/amaralgabriel357-9380s-projects/~/integrations/accept-terms/neon?source=cli>.
+  2. Criar o banco: `vercel integration add neon -m region=gru1 -m auth=false --plan free_v3 -n clickai-db --no-env-pull --scope amaralgabriel357-9380s-projects`. A Vercel cadastra o `DATABASE_URL` no projeto.
+  3. Fazer o merge do PR da Fase 11. O deploy roda `npm run db:migrar` antes do build: aplica a migração e grava os dados de exemplo no banco vazio.
+  4. Conferir no site (`clickai-hazel.vercel.app`): login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
+  5. Cadastrar o webhook do Mercado Pago (ver [deploy.md](deploy.md), item 6).
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
 ## Decisões de produto em aberto
