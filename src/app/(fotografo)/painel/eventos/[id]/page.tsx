@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { ArrowLeft, CheckCircle2, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
+import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
@@ -12,7 +13,9 @@ import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { buscarEventoDoFotografo, listarCategorias, listarItensDoPainel } from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
+import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora } from "@/lib/formatar";
+import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -44,10 +47,12 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   // Evento de outro fotógrafo dá "não encontrado", igual a um id que não existe.
   const evento = ehIdValido(id) ? await buscarEventoDoFotografo(id, conta.id) : null;
   if (!evento) notFound();
-  const { criado } = await searchParams;
+  const { criado, publicado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
   const itens = (await listarItensDoPainel(evento.id, conta.id)) ?? [];
+  const urlPublica = urlDoSite(`/eventos/${evento.slug}`);
+  const qrCode = evento.status === "publicado" ? await gerarQrCode(urlPublica) : null;
 
   return (
     <>
@@ -58,6 +63,15 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         >
           <CheckCircle2 aria-hidden="true" className="size-5" />
           Evento criado como rascunho. Envie as fotos e publique quando estiver pronto.
+        </p>
+      )}
+      {publicado === "1" && evento.status === "publicado" && (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-lg bg-accent p-3 text-accent-foreground"
+        >
+          <CheckCircle2 aria-hidden="true" className="size-5" />
+          Evento publicado. Agora é só divulgar o link ou o QR Code abaixo.
         </p>
       )}
 
@@ -89,6 +103,17 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           liberacaoManualPendente={liberacaoManualPendente}
         />
       </header>
+
+      {qrCode && (
+        <CompartilharEvento
+          url={urlPublica}
+          titulo={evento.titulo}
+          slug={evento.slug}
+          visibilidade={evento.visibilidade}
+          qrSvg={qrCode.svg}
+          qrPngDataUrl={qrCode.pngDataUrl}
+        />
+      )}
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>

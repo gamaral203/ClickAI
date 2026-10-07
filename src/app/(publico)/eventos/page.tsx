@@ -7,7 +7,7 @@ import { CartaoEvento } from "@/components/galeria/cartao-evento";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { listarEventosPublicados } from "@/dados";
+import { listarEventosPublicados, listarOpcoesFiltroEventos } from "@/dados";
 import { lerFiltroEventos } from "@/lib/validacao";
 
 export const metadata: Metadata = {
@@ -27,23 +27,30 @@ export default function PaginaEventos({ searchParams }: PageProps<"/eventos">) {
   );
 }
 
+/** Mesmo visual do <Input>, para os filtros funcionarem como formulário comum, sem JavaScript. */
+const classeSelect =
+  "h-11 w-full min-w-0 rounded-lg border border-input bg-background px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30";
+
 async function EventosFiltrados({
   searchParams,
 }: {
   searchParams: PageProps<"/eventos">["searchParams"];
 }) {
   const filtro = lerFiltroEventos(await searchParams);
-  const eventos = await listarEventosPublicados(filtro);
-  const filtrando = Boolean(filtro.busca || filtro.data);
+  const [eventos, opcoes] = await Promise.all([
+    listarEventosPublicados(filtro),
+    listarOpcoesFiltroEventos(),
+  ]);
+  const filtrando = Boolean(filtro.busca || filtro.data || filtro.categoria || filtro.cidade);
 
   return (
     <>
       <form
         action="/eventos"
         role="search"
-        className="flex flex-col gap-4 sm:flex-row sm:items-end"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] lg:items-end"
       >
-        <div className="flex flex-1 flex-col gap-2">
+        <div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-1">
           <Label htmlFor="busca">Nome do evento, cidade ou fotógrafo</Label>
           <Input
             id="busca"
@@ -55,7 +62,39 @@ async function EventosFiltrados({
             className="h-11"
           />
         </div>
-        <div className="flex flex-col gap-2 sm:w-48">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="categoria">Categoria</Label>
+          <select
+            id="categoria"
+            name="categoria"
+            defaultValue={filtro.categoria ?? ""}
+            className={classeSelect}
+          >
+            <option value="">Todas</option>
+            {opcoes.categorias.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="cidade">Cidade</Label>
+          <select
+            id="cidade"
+            name="cidade"
+            defaultValue={filtro.cidade ?? ""}
+            className={classeSelect}
+          >
+            <option value="">Todas</option>
+            {opcoes.cidades.map((c) => (
+              <option key={`${c.nome}-${c.estado}`} value={c.nome}>
+                {c.nome} – {c.estado}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-2">
           <Label htmlFor="data">Data</Label>
           <Input id="data" name="data" type="date" defaultValue={filtro.data} className="h-11" />
         </div>
@@ -91,7 +130,7 @@ async function EventosFiltrados({
         <div className="rounded-xl border border-dashed p-10 text-center">
           <p className="font-medium">Nenhum evento encontrado.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Confira a grafia ou tente buscar só pela cidade ou pela data.
+            Confira a grafia ou tire algum dos filtros.
           </p>
         </div>
       )}

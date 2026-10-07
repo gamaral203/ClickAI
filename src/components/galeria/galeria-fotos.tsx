@@ -7,15 +7,31 @@ import { Loader2 } from "lucide-react";
 
 import { carregarMaisFotos } from "@/app/(publico)/eventos/[slug]/acoes";
 import { Button } from "@/components/ui/button";
+import type { FiltroGaleria } from "@/dados";
 import type { Foto, PaginaDeFotos } from "@/dados/tipos";
 
 type Props = {
   slug: string;
   tituloEvento: string;
   paginaInicial: PaginaDeFotos;
+  /** Filtro da primeira página, repetido ao carregar as seguintes. */
+  filtro?: FiltroGaleria;
+  /** Texto quando a página inicial vem vazia. */
+  vazio?: { titulo: string; detalhe: string };
 };
 
-export function GaleriaFotos({ slug, tituloEvento, paginaInicial }: Props) {
+const VAZIO_PADRAO = {
+  titulo: "Ainda não há fotos neste evento.",
+  detalhe: "O fotógrafo pode estar enviando agora. Volte daqui a pouco.",
+};
+
+export function GaleriaFotos({
+  slug,
+  tituloEvento,
+  paginaInicial,
+  filtro,
+  vazio = VAZIO_PADRAO,
+}: Props) {
   const [fotos, setFotos] = useState<Foto[]>(paginaInicial.fotos);
   const [cursor, setCursor] = useState(paginaInicial.proximoCursor);
   const [erro, setErro] = useState(false);
@@ -26,7 +42,7 @@ export function GaleriaFotos({ slug, tituloEvento, paginaInicial }: Props) {
     setErro(false);
     startTransition(async () => {
       try {
-        const pagina = await carregarMaisFotos(slug, cursor);
+        const pagina = await carregarMaisFotos(slug, cursor, filtro);
         setFotos((atuais) => [...atuais, ...pagina.fotos]);
         setCursor(pagina.proximoCursor);
       } catch {
@@ -38,10 +54,8 @@ export function GaleriaFotos({ slug, tituloEvento, paginaInicial }: Props) {
   if (fotos.length === 0) {
     return (
       <div className="rounded-xl border border-dashed p-10 text-center">
-        <p className="font-medium">Ainda não há fotos neste evento.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          O fotógrafo pode estar enviando agora. Volte daqui a pouco.
-        </p>
+        <p className="font-medium">{vazio.titulo}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{vazio.detalhe}</p>
       </div>
     );
   }

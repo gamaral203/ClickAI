@@ -6,7 +6,7 @@
 // Cada evento existe para exercitar uma regra da arquitetura; o comentário ao lado diz qual.
 // Nomes, CPFs e contas são fictícios.
 
-import { createHash } from "node:crypto";
+import { gerarHashSenha } from "@/lib/senha";
 
 import type {
   Categoria,
@@ -295,14 +295,11 @@ const meiaRio = eventoPorSlug("meia-maratona-rio-2026");
 const noturnaPoa = eventoPorSlug("corrida-noturna-poa-5k-2026");
 
 /**
- * Hash das senhas dos eventos com visibilidade "senha", fora do tipo público `Evento`.
- * O banco usará um hash de senha de verdade (argon2/bcrypt) na Fase 11.
+ * Hash das senhas dos eventos com visibilidade "senha", fora do tipo público `Evento`. Mesmo
+ * formato (scrypt) que o painel grava, para a senha de exemplo conferir na tela de senha.
  */
 export const senhasEventos = new Map<string, string>([
-  [
-    eventoPorSlug("formatura-direito-puc-rio-2026").id,
-    createHash("sha256").update("formatura2026").digest("hex"),
-  ],
+  [eventoPorSlug("formatura-direito-puc-rio-2026").id, gerarHashSenha("formatura2026")],
 ]);
 
 // ---------------------------------------------------------------- Pastas e colaboradores

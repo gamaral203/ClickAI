@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 
 import {
   apagarSessao,
@@ -52,6 +53,9 @@ export async function usuarioAtual(): Promise<Usuario | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const sessao = await buscarSessao(hash(token));
+  // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição; sem isto o
+  // Next acusa erro ao pré-renderizar o cabeçalho (por exemplo, na página "não encontrado").
+  await connection();
   if (!sessao || sessao.expiraEm < Date.now()) return null;
   return buscarUsuario(sessao.usuarioId);
 }

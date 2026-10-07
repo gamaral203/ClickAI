@@ -38,4 +38,13 @@ export const {
 // Chave própria: um servidor de desenvolvimento já rodando ganha os rostos sem reiniciar.
 export const rostos = compartilhado("rostos-exemplo", () => iniciais.rostos);
 
+/**
+ * Acessos liberados pela senha do evento. Chave: hash do token do cookie. Guarda o hash da
+ * senha da época: se o fotógrafo trocar a senha, os acessos antigos deixam de valer.
+ */
+export const acessosEvento = compartilhado(
+  "acessos-evento",
+  () => new Map<string, { eventoId: string; senhaHash: string; expiraEm: number }>(),
+);
+
 export { urlOriginalDeExemplo } from "./dados";
