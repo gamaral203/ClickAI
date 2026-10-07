@@ -1,6 +1,6 @@
 // Usuários de exemplo, gravados pela semente do banco (src/db/semente.ts). Todos usam a senha
-// "clicouai123". As contas de exemplo da equipe (gestor e atendente) não entram na produção da
-// Vercel, porque a senha delas é pública (README): lá a equipe entra pelas contas de GESTORES.
+// "clicouai123". A conta de exemplo da equipe (gestor) não entra na produção da Vercel, porque a
+// senha dela é pública (README): lá a equipe entra pelas contas de GESTORES.
 
 import { gerarHashSenha } from "@/lib/senha";
 
@@ -37,10 +37,7 @@ export function usuariosDeExemplo(incluirEquipe: boolean): UsuarioInterno[] {
     usuarioDeExemplo(3, "Equipe Clique Esportes", "clique@exemplo.com", "fotografo", senhaHash),
     usuarioDeExemplo(4, "Ana Souza", "ana@exemplo.com", "cliente", senhaHash),
     ...(incluirEquipe
-      ? [
-          usuarioDeExemplo(5, "Equipe ClicouAí", "admin@exemplo.com", "admin", senhaHash),
-          usuarioDeExemplo(6, "Bruno Atendimento", "atendente@exemplo.com", "atendente", senhaHash),
-        ]
+      ? [usuarioDeExemplo(5, "Equipe ClicouAí", "admin@exemplo.com", "admin", senhaHash)]
       : []),
   ];
 }

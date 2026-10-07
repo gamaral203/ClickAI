@@ -7,7 +7,7 @@ import { listarDenuncias, type StatusDenuncia } from "@/dados";
 import { ROTULO_STATUS, rotuloDoMotivo } from "@/lib/denuncias";
 import { formatarDataEHora } from "@/lib/formatar";
 import { cn } from "@/lib/utils";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Denúncias", robots: { index: false, follow: false } };
 
@@ -31,7 +31,7 @@ export default function PaginaDenuncias({ searchParams }: PageProps<"/admin/denu
 }
 
 async function Conteudo({ searchParams }: Pick<PageProps<"/admin/denuncias">, "searchParams">) {
-  await exigirEquipe("/admin/denuncias");
+  await exigirGestor("/admin/denuncias");
   const { status } = await searchParams;
   const filtro = FILTROS.find((f) => f.valor === status)?.valor ?? null;
   const denuncias = await listarDenuncias(filtro ?? undefined);

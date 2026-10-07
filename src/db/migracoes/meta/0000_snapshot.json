@@ -1,5 +1,5 @@
 {
-  "id": "222b0121-514d-4d15-90ad-d79b2414029b",
+  "id": "f62b2ee2-732f-48db-9675-cc4ca55612d8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1862,6 +1862,185 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.metricas": {
+      "name": "metricas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "tipo_metrica",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evento_id": {
+          "name": "evento_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "foto_id": {
+          "name": "foto_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "em": {
+          "name": "em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "metricas_evento_id_tipo_em_index": {
+          "name": "metricas_evento_id_tipo_em_index",
+          "columns": [
+            {
+              "expression": "evento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tipo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "em",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "metricas_foto_id_index": {
+          "name": "metricas_foto_id_index",
+          "columns": [
+            {
+              "expression": "foto_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "metricas_evento_id_eventos_id_fk": {
+          "name": "metricas_evento_id_eventos_id_fk",
+          "tableFrom": "metricas",
+          "tableTo": "eventos",
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "metricas_foto_id_fotos_id_fk": {
+          "name": "metricas_foto_id_fotos_id_fk",
+          "tableFrom": "metricas",
+          "tableTo": "fotos",
+          "columnsFrom": ["foto_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.modelos_evento": {
+      "name": "modelos_evento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "fotografo_id": {
+          "name": "fotografo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "modelos_evento_fotografo_id_index": {
+          "name": "modelos_evento_fotografo_id_index",
+          "columns": [
+            {
+              "expression": "fotografo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "modelos_evento_fotografo_id_fotografos_id_fk": {
+          "name": "modelos_evento_fotografo_id_fotografos_id_fk",
+          "tableFrom": "modelos_evento",
+          "tableTo": "fotografos",
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.numeros": {
       "name": "numeros",
       "schema": "",
@@ -2629,7 +2808,7 @@
     "public.papel": {
       "name": "papel",
       "schema": "public",
-      "values": ["cliente", "fotografo", "atendente", "admin"]
+      "values": ["cliente", "fotografo", "admin"]
     },
     "public.status_denuncia": {
       "name": "status_denuncia",
@@ -2670,6 +2849,11 @@
       "name": "tipo_mensagem",
       "schema": "public",
       "values": ["entrega", "lembrete", "denuncia"]
+    },
+    "public.tipo_metrica": {
+      "name": "tipo_metrica",
+      "schema": "public",
+      "values": ["visita_evento", "visita_foto", "carrinho"]
     },
     "public.tipo_preco_pacote": {
       "name": "tipo_preco_pacote",

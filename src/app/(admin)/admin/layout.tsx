@@ -2,14 +2,14 @@ import Link from "next/link";
 
 const itens = [
   { href: "/admin", rotulo: "Visão geral" },
-  { href: "/admin/vendas", rotulo: "Vendas" },
+  { href: "/admin/vendas", rotulo: "Financeiro" },
   { href: "/admin/saques", rotulo: "Saques" },
   { href: "/admin/denuncias", rotulo: "Denúncias" },
   { href: "/admin/mensagens", rotulo: "Mensagens" },
   { href: "/admin/usuarios", rotulo: "Usuários" },
 ];
 
-// O menu não decide quem entra: cada página e ação da gestão confere o papel (exigirEquipe).
+// O menu não decide quem entra: cada página e ação da gestão confere o papel (exigirGestor).
 export default function LayoutGestao({ children }: LayoutProps<"/admin">) {
   return (
     <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-[200px_minmax(0,1fr)]">

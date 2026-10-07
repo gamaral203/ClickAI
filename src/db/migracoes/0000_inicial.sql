@@ -4,7 +4,7 @@ CREATE TYPE "public"."liberacao" AS ENUM('automatica', 'manual', 'agendada');-->
 CREATE TYPE "public"."metodo_pagamento" AS ENUM('pix', 'cartao');--> statement-breakpoint
 CREATE TYPE "public"."minimo_cupom" AS ENUM('nenhum', 'valor', 'quantidade');--> statement-breakpoint
 CREATE TYPE "public"."ordenacao" AS ENUM('envio', 'captura', 'nome_arquivo', 'aleatoria');--> statement-breakpoint
-CREATE TYPE "public"."papel" AS ENUM('cliente', 'fotografo', 'atendente', 'admin');--> statement-breakpoint
+CREATE TYPE "public"."papel" AS ENUM('cliente', 'fotografo', 'admin');--> statement-breakpoint
 CREATE TYPE "public"."status_denuncia" AS ENUM('recebida', 'em_analise', 'procedente', 'improcedente');--> statement-breakpoint
 CREATE TYPE "public"."status_evento" AS ENUM('rascunho', 'publicado', 'revisao', 'arquivado');--> statement-breakpoint
 CREATE TYPE "public"."status_foto" AS ENUM('processando', 'pronta', 'erro');--> statement-breakpoint
@@ -13,6 +13,7 @@ CREATE TYPE "public"."status_saque" AS ENUM('processando', 'pago', 'falhou');-->
 CREATE TYPE "public"."tipo_cupom" AS ENUM('percentual', 'valor', 'fotos_gratis');--> statement-breakpoint
 CREATE TYPE "public"."tipo_item" AS ENUM('foto', 'video');--> statement-breakpoint
 CREATE TYPE "public"."tipo_mensagem" AS ENUM('entrega', 'lembrete', 'denuncia');--> statement-breakpoint
+CREATE TYPE "public"."tipo_metrica" AS ENUM('visita_evento', 'visita_foto', 'carrinho');--> statement-breakpoint
 CREATE TYPE "public"."tipo_preco_pacote" AS ENUM('fixo', 'por_foto');--> statement-breakpoint
 CREATE TYPE "public"."visibilidade" AS ENUM('publico', 'nao_listado', 'senha');--> statement-breakpoint
 CREATE TABLE "acessos_evento" (
@@ -213,6 +214,22 @@ CREATE TABLE "mensagens" (
 	"criado_em" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "metricas" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tipo" "tipo_metrica" NOT NULL,
+	"evento_id" uuid NOT NULL,
+	"foto_id" uuid,
+	"em" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "modelos_evento" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"fotografo_id" uuid NOT NULL,
+	"nome" text NOT NULL,
+	"config" jsonb NOT NULL,
+	"criado_em" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "numeros" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"foto_id" uuid NOT NULL,
@@ -320,6 +337,9 @@ ALTER TABLE "lancamentos" ADD CONSTRAINT "lancamentos_item_pedido_id_itens_pedid
 ALTER TABLE "lancamentos" ADD CONSTRAINT "lancamentos_saque_id_saques_id_fk" FOREIGN KEY ("saque_id") REFERENCES "public"."saques"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lojas" ADD CONSTRAINT "lojas_fotografo_id_fotografos_id_fk" FOREIGN KEY ("fotografo_id") REFERENCES "public"."fotografos"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mensagens" ADD CONSTRAINT "mensagens_pedido_id_pedidos_id_fk" FOREIGN KEY ("pedido_id") REFERENCES "public"."pedidos"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metricas" ADD CONSTRAINT "metricas_evento_id_eventos_id_fk" FOREIGN KEY ("evento_id") REFERENCES "public"."eventos"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metricas" ADD CONSTRAINT "metricas_foto_id_fotos_id_fk" FOREIGN KEY ("foto_id") REFERENCES "public"."fotos"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "modelos_evento" ADD CONSTRAINT "modelos_evento_fotografo_id_fotografos_id_fk" FOREIGN KEY ("fotografo_id") REFERENCES "public"."fotografos"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "numeros" ADD CONSTRAINT "numeros_foto_id_fotos_id_fk" FOREIGN KEY ("foto_id") REFERENCES "public"."fotos"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pacotes" ADD CONSTRAINT "pacotes_evento_id_eventos_id_fk" FOREIGN KEY ("evento_id") REFERENCES "public"."eventos"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pastas" ADD CONSTRAINT "pastas_evento_id_eventos_id_fk" FOREIGN KEY ("evento_id") REFERENCES "public"."eventos"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -352,6 +372,9 @@ CREATE UNIQUE INDEX "lojas_fotografo_id_index" ON "lojas" USING btree ("fotograf
 CREATE UNIQUE INDEX "lojas_subdominio_index" ON "lojas" USING btree ("subdominio");--> statement-breakpoint
 CREATE UNIQUE INDEX "lojas_dominio_proprio_index" ON "lojas" USING btree ("dominio_proprio");--> statement-breakpoint
 CREATE INDEX "mensagens_criado_em_index" ON "mensagens" USING btree ("criado_em");--> statement-breakpoint
+CREATE INDEX "metricas_evento_id_tipo_em_index" ON "metricas" USING btree ("evento_id","tipo","em");--> statement-breakpoint
+CREATE INDEX "metricas_foto_id_index" ON "metricas" USING btree ("foto_id");--> statement-breakpoint
+CREATE INDEX "modelos_evento_fotografo_id_index" ON "modelos_evento" USING btree ("fotografo_id");--> statement-breakpoint
 CREATE INDEX "numeros_numero_foto_id_index" ON "numeros" USING btree ("numero","foto_id");--> statement-breakpoint
 CREATE INDEX "numeros_foto_id_index" ON "numeros" USING btree ("foto_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pacotes_evento_id_index" ON "pacotes" USING btree ("evento_id");--> statement-breakpoint

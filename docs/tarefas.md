@@ -56,7 +56,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] `.env.example` com as variáveis do Mercado Pago
 - [x] Eventos recentes e busca direto na página inicial; carrossel com fotos horizontais no computador e as verticais no celular
 - [x] Login com Google (OAuth com PKCE), ligado à conta de mesmo e-mail, com conta de vendedor pelo botão "Vender fotos com Google" e gestores por `ADMIN_EMAILS`
-- [x] Papéis cliente, fotógrafo, atendente e gestor, conferidos no servidor; cada papel cai na sua área depois do login
+- [x] Papéis cliente, fotógrafo e gestor, conferidos no servidor; cada papel cai na sua área depois do login
 - [x] Painel de gestão (`/admin`): visão geral com entradas, saídas, receita e o que é devido por vendedor; todas as vendas; histórico de saques; usuários com troca de papel (só gestor)
 - [x] Busca por selfie na página do evento: consentimento, selfie reduzida no navegador, só em memória no servidor, limite por IP; Amazon Rekognition com credenciais da AWS ou rostos de exemplo sem elas `[R-alta]`
 - [x] Busca por número de peito
@@ -91,7 +91,16 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Sentry no servidor, no edge e no navegador, ligado pela `SENTRY_DSN`; os eventos saem sem tokens, cookies, corpo das requisições e dados pessoais, e sem Session Replay
 - [x] Domínio próprio das lojas: o fotógrafo conecta no painel, o site cadastra pela API da Vercel e verifica o DNS (simulado sem credenciais); o `proxy.ts` abre a loja no domínio verificado
 - [x] Guia de deploy e contas ([deploy.md](deploy.md))
-- [x] Primeiro deploy na Vercel (`clickai-hazel.vercel.app`), com gestores da equipe pela variável `GESTORES` (só hashes de senha) e sem as contas de exemplo de gestor e atendente em produção
+- [x] Primeiro deploy na Vercel (`clickai-hazel.vercel.app`), com gestores da equipe pela variável `GESTORES` (só hashes de senha) e sem a conta de exemplo de gestor em produção
+- [x] Prioridades do Daniel (fotógrafo termina o evento, sobe, publica e vende sem perder tempo):
+  - Dashboard do fotógrafo em `/painel`: vendas do dia e do mês, saldo disponível, a receber, ticket médio e conversão (30 dias)
+  - Métricas sem dado pessoal (visita ao evento, visita à foto, adição ao carrinho), uma vez por aba, com limite por IP em `/api/metricas`
+  - Desempenho em `/painel/desempenho`: visitas, carrinhos, pedidos, itens, conversão e faturamento por evento, e as fotos que mais vendem
+  - Financeiro transparente: no extrato, quanto o cliente pagou, a sua parte, a taxa, o líquido e a previsão de repasse de cada venda
+  - Duplicar evento (com descontos e pacote) e modelos de configuração, usados em Novo evento
+  - Envio de fotos em lotes de 25 com barra de progresso, "Continuar envio" se a conexão cair, e fotos repetidas puladas pelo SHA-256 do arquivo
+  - Divulgação: mensagem pronta editável para o WhatsApp e imagens automáticas de story (1080×1920) e feed (1080×1350) com o QR Code
+  - Já existiam: reconhecimento facial e por número, pacotes, desconto progressivo, cupons, carrinho abandonado, QR Code, link e equipe com divisão automática
 - [x] Decisão: banco Neon (Postgres), pelo Marketplace da Vercel, região `gru1`
 - [x] Schema do banco em `src/db/schema.ts` (Drizzle), com as tabelas e os índices da arquitetura e as tabelas que só existiam em memória (confirmação de e-mail, acessos por senha de evento, mensagens); primeira migração em `src/db/migracoes`
 - [x] Camada de dados sobre o banco, com as mesmas funções: Neon pela URL com pooler (driver serverless, com transações) e PGlite em memória sem `DATABASE_URL` `[R-alta]`
@@ -99,10 +108,10 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
 ## Em andamento
 
-- [ ] **Fase 11 (banco), parada em 07/10/2026.** O código está pronto na branch `feat/fase-11-banco` (PR em rascunho), testado sobre o PGlite. Para terminar, nesta ordem:
+- [ ] **Fase 11 (banco), parada em 07/10/2026.** O código está na `main` (PR #11), testado sobre o PGlite. Sem o Neon, a produção roda com o PGlite em cada servidor da Vercel: os dados de exemplo aparecem, mas pedidos e mudanças ainda se perdem entre servidores. Para terminar, nesta ordem:
   1. Aceitar os termos da Neon no painel da Vercel: <https://vercel.com/amaralgabriel357-9380s-projects/~/integrations/accept-terms/neon?source=cli>.
   2. Criar o banco: `vercel integration add neon -m region=gru1 -m auth=false --plan free_v3 -n clickai-db --no-env-pull --scope amaralgabriel357-9380s-projects`. A Vercel cadastra o `DATABASE_URL` no projeto.
-  3. Fazer o merge do PR da Fase 11. O deploy roda `npm run db:migrar` antes do build: aplica a migração e grava os dados de exemplo no banco vazio.
+  3. Fazer um novo deploy de produção (`vercel redeploy` do último deploy, ou um push na `main`). O build roda `npm run db:migrar`: aplica a migração e grava os dados de exemplo no banco vazio.
   4. Conferir no site (`clickai-hazel.vercel.app`): login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
   5. Cadastrar o webhook do Mercado Pago (ver [deploy.md](deploy.md), item 6).
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
@@ -117,6 +126,16 @@ Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e w
 - [ ] Provedor de reconhecimento facial e numérico: serviço pronto ou modelo próprio?
 - [ ] WhatsApp: Cloud API da Meta ou parceiro? Quem paga as mensagens?
 - [ ] Worker de vídeo: Fly.io ou Railway?
+
+## Diferenciais para depois (ideias do Daniel)
+
+Não entram no MVP; ficam registrados para quando o básico estiver rodando com fotos reais.
+
+- [ ] IA para marcar fotos desfocadas ou quase repetidas (rajadas) no envio, para o fotógrafo descartar antes de publicar
+- [ ] Sugestão automática de preço por evento, a partir das vendas de eventos parecidos
+- [ ] Fotos patrocinadas ou gratuitas dentro do mesmo evento (o patrocinador paga, o participante baixa de graça)
+- [ ] Assistente de vendas que sugere ações para faturar mais (ex.: "ative o pacote", "divulgue de novo no WhatsApp")
+- [ ] Criação de evento em etapas curtas (assistente passo a passo), além dos modelos e da cópia de evento que já existem
 
 # Parte A — Produto com dados de exemplo
 

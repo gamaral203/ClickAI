@@ -11,7 +11,7 @@ import { ROTULO_STATUS, rotuloDoMotivo } from "@/lib/denuncias";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { formatarDataEHora } from "@/lib/formatar";
 import { ehIdValido } from "@/lib/validacao";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Denúncia", robots: { index: false, follow: false } };
 
@@ -33,7 +33,7 @@ export default function PaginaDenuncia({ params }: PageProps<"/admin/denuncias/[
 }
 
 async function Conteudo({ params }: Pick<PageProps<"/admin/denuncias/[id]">, "params">) {
-  const usuario = await exigirEquipe("/admin/denuncias");
+  const usuario = await exigirGestor("/admin/denuncias");
   const { id } = await params;
   const d = ehIdValido(id) ? await buscarDenuncia(id) : null;
   if (!d) notFound();

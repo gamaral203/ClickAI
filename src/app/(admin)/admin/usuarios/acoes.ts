@@ -3,21 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { definirPapelDoUsuario, exigirEquipe } from "@/servicos/sessao";
+import { definirPapelDoUsuario, exigirGestor } from "@/servicos/sessao";
 
 export type EstadoPapel = { ok?: boolean; erro?: string };
 
 const entrada = z.object({
   usuarioId: z.uuid(),
-  papel: z.enum(["cliente", "fotografo", "atendente", "admin"]),
+  papel: z.enum(["cliente", "fotografo", "admin"]),
 });
 
-/** Só o gestor (admin) muda papéis; o atendente só vê. */
+/** Muda o papel de um usuário. Só gestores chegam aqui. */
 export async function mudarPapelAcao(
   _anterior: EstadoPapel,
   formulario: FormData,
 ): Promise<EstadoPapel> {
-  const gestor = await exigirEquipe("/admin/usuarios", true);
+  const gestor = await exigirGestor("/admin/usuarios");
   const dados = entrada.safeParse(Object.fromEntries(formulario));
   if (!dados.success) return { erro: "Escolha um papel válido." };
   const resultado = await definirPapelDoUsuario(gestor, dados.data.usuarioId, dados.data.papel);

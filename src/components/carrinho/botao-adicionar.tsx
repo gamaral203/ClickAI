@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Check, ShoppingCart } from "lucide-react";
 
+import { enviarMetrica } from "@/components/metricas/registrar";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 import { adicionarAoCarrinho, MAXIMO_ITENS, useCarrinho } from "./carrinho";
@@ -28,7 +29,14 @@ export function BotaoAdicionar({ fotoId }: { fotoId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <Button size="touch" disabled={cheio} onClick={() => adicionarAoCarrinho(fotoId)}>
+      <Button
+        size="touch"
+        disabled={cheio}
+        onClick={() => {
+          adicionarAoCarrinho(fotoId);
+          enviarMetrica({ tipo: "carrinho", fotoId });
+        }}
+      >
         <ShoppingCart aria-hidden="true" data-icon="inline-start" />
         Adicionar ao carrinho
       </Button>

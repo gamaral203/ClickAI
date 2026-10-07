@@ -306,7 +306,14 @@ export async function excluirItem(fotoId: string, fotografoId: string): Promise<
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
-export type LancamentoDoExtrato = Lancamento & { eventoTitulo: string; pagoEm: string | null };
+export type LancamentoDoExtrato = Lancamento & {
+  eventoTitulo: string;
+  pagoEm: string | null;
+  /** O que o cliente pagou pelo item, já com desconto (transparência no extrato). */
+  valorPagoCentavos: number;
+  /** "autor": a foto é do fotógrafo; "dono": a parte dele como dono do evento de um colaborador. */
+  papel: "autor" | "dono";
+};
 
 /**
  * Lançamentos do fotógrafo com o evento e a data da venda, do mais recente para o mais
@@ -323,6 +330,9 @@ export async function listarLancamentosDoFotografo(
       lancamento: t.lancamentos,
       eventoTitulo: t.eventos.titulo,
       pagoEm: t.pedidos.pagoEm,
+      precoCentavos: t.itensPedido.precoCentavos,
+      descontoCentavos: t.itensPedido.descontoCentavos,
+      autorId: t.itensPedido.fotografoId,
     })
     .from(t.lancamentos)
     .innerJoin(t.itensPedido, eq(t.itensPedido.id, t.lancamentos.itemPedidoId))
@@ -335,6 +345,8 @@ export async function listarLancamentosDoFotografo(
       ...paraLancamento(l.lancamento),
       eventoTitulo: l.eventoTitulo,
       pagoEm: iso(l.pagoEm),
+      valorPagoCentavos: l.precoCentavos - l.descontoCentavos,
+      papel: l.autorId === fotografoId ? ("autor" as const) : ("dono" as const),
     }))
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
 }

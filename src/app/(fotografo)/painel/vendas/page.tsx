@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Vendas", robots: { index: false, fol
 export default function PaginaVendas() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold tracking-tight">Vendas e saques</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Financeiro</h1>
       <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}>
         <Conteudo />
       </Suspense>
@@ -161,32 +161,56 @@ async function Conteudo() {
                 <tr>
                   <th className="px-4 py-3 font-medium">Venda</th>
                   <th className="px-4 py-3 font-medium">Evento</th>
-                  <th className="px-4 py-3 font-medium">Situação</th>
-                  <th className="px-4 py-3 text-right font-medium">Valor bruto</th>
+                  <th className="px-4 py-3 text-right font-medium">Cliente pagou</th>
+                  <th className="px-4 py-3 text-right font-medium">Sua parte</th>
+                  <th className="px-4 py-3 text-right font-medium">Taxa ({conta.comissaoPct}%)</th>
+                  <th className="px-4 py-3 text-right font-medium">Líquido</th>
+                  <th className="px-4 py-3 font-medium">Previsão de repasse</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {lancamentos.map((l) => (
-                  <tr key={l.id}>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {l.pagoEm ? formatarDataEHora(l.pagoEm) : "—"}
-                    </td>
-                    <td className="px-4 py-3">{l.eventoTitulo}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{situacao(l, agora)}</td>
-                    <td
-                      className={`px-4 py-3 text-right font-semibold tabular-nums ${l.valorCentavos < 0 ? "text-destructive" : ""}`}
-                    >
-                      {formatarPreco(l.valorCentavos)}
-                    </td>
-                  </tr>
-                ))}
+                {lancamentos.map((l) => {
+                  const taxa = Math.max(0, Math.floor((l.valorCentavos * conta.comissaoPct) / 100));
+                  return (
+                    <tr key={l.id}>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {l.pagoEm ? formatarDataEHora(l.pagoEm) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex flex-col">
+                          {l.eventoTitulo}
+                          {l.papel === "dono" && (
+                            <span className="text-xs text-muted-foreground">
+                              Sua parte como dono (foto de colaborador)
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {formatarPreco(l.valorPagoCentavos)}
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-right tabular-nums ${l.valorCentavos < 0 ? "text-destructive" : ""}`}
+                      >
+                        {formatarPreco(l.valorCentavos)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">− {formatarPreco(taxa)}</td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                        {formatarPreco(l.valorCentavos - taxa)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">{situacao(l, agora)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
         <p className="text-sm text-muted-foreground">
-          Cada linha é a sua parte de um item vendido, antes da taxa da plataforma. Quando um
-          colaborador vende no seu evento, a sua parte como dono também aparece aqui.
+          Cada linha é um item vendido: o que o cliente pagou, a sua parte (todo o valor, ou a sua
+          comissão quando a foto é de um colaborador no seu evento), a taxa da plataforma e o que
+          você recebe no saque normal. No saque antecipado, o que ainda não tem 30 dias paga 1% a
+          mais.
         </p>
       </section>
     </>

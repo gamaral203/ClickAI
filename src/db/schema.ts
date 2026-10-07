@@ -23,7 +23,7 @@ const momento = () => data().notNull().defaultNow();
 
 // ---------------------------------------------------------------- Enums
 
-export const papel = pgEnum("papel", ["cliente", "fotografo", "atendente", "admin"]);
+export const papel = pgEnum("papel", ["cliente", "fotografo", "admin"]);
 export const statusEvento = pgEnum("status_evento", [
   "rascunho",
   "publicado",
@@ -56,6 +56,7 @@ export const statusDenuncia = pgEnum("status_denuncia", [
 ]);
 export const canalMensagem = pgEnum("canal_mensagem", ["email", "whatsapp"]);
 export const tipoMensagem = pgEnum("tipo_mensagem", ["entrega", "lembrete", "denuncia"]);
+export const tipoMetrica = pgEnum("tipo_metrica", ["visita_evento", "visita_foto", "carrinho"]);
 
 // ---------------------------------------------------------------- Núcleo
 
@@ -501,4 +502,36 @@ export const mensagens = pgTable(
     criadoEm: momento(),
   },
   (t) => [index().on(t.criadoEm)],
+);
+
+// ---------------------------------------------------------------- Crescimento do fotógrafo
+
+/** Visita ou adição ao carrinho, sem nenhum dado de quem visitou (só o que e quando). */
+export const metricas = pgTable(
+  "metricas",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    tipo: tipoMetrica().notNull(),
+    eventoId: uuid()
+      .notNull()
+      .references(() => eventos.id, { onDelete: "cascade" }),
+    fotoId: uuid().references(() => fotos.id, { onDelete: "cascade" }),
+    em: momento(),
+  },
+  (t) => [index().on(t.eventoId, t.tipo, t.em), index().on(t.fotoId)],
+);
+
+/** Configuração de evento reaproveitável (local, preços, visibilidade…), por fotógrafo. */
+export const modelosEvento = pgTable(
+  "modelos_evento",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    fotografoId: uuid()
+      .notNull()
+      .references(() => fotografos.id, { onDelete: "cascade" }),
+    nome: text().notNull(),
+    config: jsonb().$type<import("@/dados/tipos").ConfigModelo>().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.fotografoId)],
 );
