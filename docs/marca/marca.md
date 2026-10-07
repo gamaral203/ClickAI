@@ -27,4 +27,14 @@ Ainda faltam: versão em SVG, ícone só com a câmera (favicon e app) e versão
 
 ## Uso no código
 
-Quando o projeto Next.js for criado, as cores entram como variáveis do tema do Tailwind/shadcn (`--primary` = azul, `--accent` = limão), e a logo vai para `public/`.
+As cores estão em [`src/app/globals.css`](../../src/app/globals.css) como variáveis do tema do shadcn/Tailwind:
+
+| Token | Valor | Classe Tailwind | Uso |
+|---|---|---|---|
+| `--primary` | azul `#2362FE`, texto branco | `bg-primary`, `text-primary` | Botões principais, links |
+| `--highlight` | limão `#BCFA34`, texto `#14200A` | `bg-highlight text-highlight-foreground` | Selos e destaques |
+| `--accent` | azul bem claro `#E8EFFF` | `bg-accent` | Hover de menus e botões (usado pelo shadcn) |
+
+O limão não fica no `--accent` porque o shadcn usa esse token no hover de vários componentes, e a interface inteira ficaria verde. Nunca usar `text-highlight` sobre fundo claro.
+
+Fonte: Plus Jakarta Sans (via `next/font`), geométrica e arredondada como a logo.
