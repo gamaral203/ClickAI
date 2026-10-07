@@ -7,6 +7,8 @@
 
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 
@@ -30,7 +32,7 @@ import {
   urlOriginalDeExemplo,
 } from "./exemplo/banco";
 import { downloads, itensPorPedido, lancamentos, mensagens, pedidos } from "./exemplo/pedidos";
-import { confirmacoes, sessoes, usuarios } from "./exemplo/usuarios";
+import { confirmacoes, usuarios } from "./exemplo/usuarios";
 import type {
   Cupom,
   Evento,
@@ -829,9 +831,9 @@ export async function ligarContaGoogle(usuarioId: string, googleId: string): Pro
   if (!u || (u.googleId !== null && u.googleId !== googleId)) return false;
   if (u.emailConfirmadoEm === null) {
     // Conta criada com senha e nunca confirmada: pode ter sido criada por outra pessoa com este
-    // e-mail, esperando a dona dele entrar com o Google. A senha e as sessões abertas caem.
+    // e-mail, esperando a dona dele entrar com o Google. A senha cai, e com ela as sessões
+    // abertas: a versão da sessão (versaoDaSessao) muda junto.
     u.senhaHash = null;
-    for (const [hash, sessao] of sessoes) if (sessao.usuarioId === usuarioId) sessoes.delete(hash);
   }
   u.googleId = googleId;
   u.emailConfirmadoEm ??= new Date().toISOString();
@@ -846,16 +848,17 @@ export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Prom
   return true;
 }
 
-export async function salvarSessao(tokenHash: string, usuarioId: string, expiraEm: number) {
-  sessoes.set(tokenHash, { usuarioId, expiraEm });
-}
-
-export async function buscarSessao(tokenHash: string) {
-  return sessoes.get(tokenHash) ?? null;
-}
-
-export async function apagarSessao(tokenHash: string) {
-  sessoes.delete(tokenHash);
+/**
+ * Versão da sessão do usuário: muda quando a senha muda ou cai. O cookie de sessão leva esta
+ * versão, e um cookie com versão antiga deixa de valer. `null` se o usuário não existe.
+ */
+export async function versaoDaSessao(usuarioId: string): Promise<string | null> {
+  const u = usuarios.get(usuarioId);
+  if (!u) return null;
+  return createHash("sha256")
+    .update(`${u.senhaHash ?? "sem-senha"}|${u.googleId ?? ""}`)
+    .digest("base64url")
+    .slice(0, 16);
 }
 
 export async function salvarConfirmacaoEmail(
