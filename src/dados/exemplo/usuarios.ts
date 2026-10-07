@@ -30,13 +30,12 @@ function usuarioDeExemplo(
   };
 }
 
-type Sessao = { usuarioId: string; expiraEm: number };
 type Confirmacao = { usuarioId: string; expiraEm: number };
 
 /** Produção pública na Vercel: sem as contas de exemplo com acesso à gestão. */
 const producao = process.env.VERCEL_ENV === "production";
 
-export const { usuarios, sessoes, confirmacoes } = compartilhado("usuarios-exemplo", () => ({
+export const { usuarios, confirmacoes } = compartilhado("usuarios-exemplo", () => ({
   /** Os três primeiros são os donos dos fotógrafos de exemplo (mesmo usuarioId). */
   usuarios: new Map(
     [
@@ -53,8 +52,6 @@ export const { usuarios, sessoes, confirmacoes } = compartilhado("usuarios-exemp
       ...lerGestores(process.env.GESTORES),
     ].map((u) => [u.id, u]),
   ),
-  /** Chave: hash do token da sessão. */
-  sessoes: new Map<string, Sessao>(),
   /** Chave: hash do token de confirmação de e-mail. */
   confirmacoes: new Map<string, Confirmacao>(),
 }));

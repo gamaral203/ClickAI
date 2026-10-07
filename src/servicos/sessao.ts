@@ -7,8 +7,6 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
 import {
-  apagarSessao,
-  buscarSessao,
   buscarUsuario,
   buscarUsuarioParaLogin,
   buscarUsuarioPorGoogle,
@@ -21,13 +19,14 @@ import {
   marcarEmailConfirmado,
   mudarPapelDoUsuario,
   salvarConfirmacaoEmail,
-  salvarSessao,
   slugDeFotografoEmUso,
+  versaoDaSessao,
   vincularPedidosDeConvidado,
   type FotografoConta,
   type Papel,
   type Usuario,
 } from "@/dados";
+import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { emailEhGestor, type PerfilGoogle } from "@/lib/google";
 import { gerarHashSenha, HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
@@ -48,22 +47,31 @@ function novoToken() {
   return randomBytes(32).toString("base64url");
 }
 
+// A sessão é um cookie assinado (APP_SECRET) com o id do usuário, a versão da conta e a
+// validade. Qualquer servidor confere sem depender de memória: na Vercel, cada requisição pode
+// cair numa instância diferente, e a sessão guardada só na memória de uma se perdia na outra.
+// Sair apaga o cookie; trocar ou perder a senha muda a versão e derruba os cookies antigos.
+// Na Fase 11, o Better Auth assume, com sessões no banco.
+const PROPOSITO_SESSAO = "sessao";
+
 /** Usuário da sessão atual, ou `null`. Lê o cookie: chamar dentro de <Suspense>. */
 export async function usuarioAtual(): Promise<Usuario | null> {
   const token = (await cookies()).get(COOKIE)?.value;
-  if (!token) return null;
-  const sessao = await buscarSessao(hash(token));
+  if (!token || token.length > 1000) return null;
   // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição; sem isto o
   // Next acusa erro ao pré-renderizar o cabeçalho (por exemplo, na página "não encontrado").
   await connection();
-  if (!sessao || sessao.expiraEm < Date.now()) return null;
-  return buscarUsuario(sessao.usuarioId);
+  const dados = conferirAssinatura(PROPOSITO_SESSAO, token) as { u?: unknown; v?: unknown } | null;
+  if (typeof dados?.u !== "string" || typeof dados.v !== "string") return null;
+  if ((await versaoDaSessao(dados.u)) !== dados.v) return null;
+  return buscarUsuario(dados.u);
 }
 
 async function iniciarSessao(usuarioId: string) {
-  const token = novoToken();
+  const versao = await versaoDaSessao(usuarioId);
+  if (!versao) return;
   const expiraEm = Date.now() + DURACAO_SESSAO_MS;
-  await salvarSessao(hash(token), usuarioId, expiraEm);
+  const token = assinar(PROPOSITO_SESSAO, { u: usuarioId, v: versao }, DURACAO_SESSAO_MS);
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -86,10 +94,7 @@ export async function entrar(email: string, senha: string): Promise<Usuario | nu
 }
 
 export async function sair() {
-  const loja = await cookies();
-  const token = loja.get(COOKIE)?.value;
-  if (token) await apagarSessao(hash(token));
-  loja.delete(COOKIE);
+  (await cookies()).delete(COOKIE);
 }
 
 export type ResultadoCadastro =
