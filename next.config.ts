@@ -1,9 +1,26 @@
 import type { NextConfig } from "next";
 
+// Headers de segurança aplicados a todas as rotas (ver docs/skills.md, vibe-code-security).
+// A CSP completa de scripts (com nonce) fica para depois, quando os scripts do gateway e do
+// Sentry estiverem definidos; por enquanto só as diretivas que não quebram nada.
+const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+  },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  poweredByHeader: false,
+  // Já é o padrão do Next.js; fica explícito para ninguém ligar sem querer.
+  productionBrowserSourceMaps: false,
   turbopack: {
     rules: {
       "*.css": {
@@ -11,6 +28,9 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
   },
 };
 
