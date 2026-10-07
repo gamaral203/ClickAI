@@ -20,11 +20,11 @@ import {
 
 /** O Pix (e o pedido pendente) expira em 1 hora. */
 const VALIDADE_PEDIDO_MS = 60 * 60 * 1000;
-/** Prazo para o dinheiro ficar disponível ao fotógrafo: Pix na hora, cartão em 30 dias. */
-const PRAZO_DISPONIVEL_MS: Record<MetodoPagamento, number> = {
-  pix: 0,
-  cartao: 30 * 24 * 60 * 60 * 1000,
-};
+const DIA_MS = 24 * 60 * 60 * 1000;
+/** Prazo para a venda entrar no saque normal (com 10%), seja Pix ou cartão. */
+export const PRAZO_SAQUE_MS = 30 * DIA_MS;
+/** Prazo para a venda entrar no saque antecipado (com 10% + 1%). */
+export const PRAZO_ANTECIPACAO_MS = DIA_MS;
 
 export type DadosComprador = {
   /** Cliente logado que faz a compra; `null` para convidado. */
@@ -37,20 +37,17 @@ export type DadosComprador = {
 };
 
 /**
- * Divide o preço de um item. A plataforma fica com a comissão; do restante, se o autor é um
- * colaborador, o dono do evento fica com a parte dele. Os centavos de arredondamento ficam com
- * o autor, e a soma sempre fecha com o preço (docs/riscos.md, divisão perde centavos).
+ * Divide o preço de um item entre o autor e, se o autor é um colaborador, o dono do evento.
+ * A comissão da plataforma não sai aqui: cada um paga a sua no saque (src/servicos/saques.ts).
+ * Os centavos de arredondamento ficam com o autor, e a soma sempre fecha com o preço
+ * (docs/riscos.md, divisão perde centavos).
  */
 export function dividirItem(precoCentavos: number, regra: RegraDeDivisao) {
-  const plataforma = Math.floor((precoCentavos * regra.comissaoPlataformaPct) / 100);
-  const restante = precoCentavos - plataforma;
   const dono =
-    regra.autorId === regra.donoEventoId ? 0 : Math.floor((restante * regra.comissaoDonoPct) / 100);
-  return {
-    valorPlataformaCentavos: plataforma,
-    valorDonoEventoCentavos: dono,
-    valorFotografoCentavos: restante - dono,
-  };
+    regra.autorId === regra.donoEventoId
+      ? 0
+      : Math.floor((precoCentavos * regra.comissaoDonoPct) / 100);
+  return { valorDonoEventoCentavos: dono, valorFotografoCentavos: precoCentavos - dono };
 }
 
 function hashToken(token: string) {
@@ -125,6 +122,7 @@ export async function criarPedido(
     tokenAcessoHash: hashToken(token),
     acessoExpiraEm: null,
     gatewayId: null,
+    pix: null,
     lembreteEnviadoEm: null,
   };
 
@@ -153,8 +151,13 @@ export async function buscarPedidoComAcesso(pedidoId: string, credencial: Creden
   if (!encontrado || !podeAcessar(encontrado.pedido, credencial)) return null;
 
   const { pedido } = encontrado;
-  if (pedido.status === "pendente" && new Date(pedido.expiraEm).getTime() < Date.now()) {
-    // Antes de expirar, o job real confere no gateway se o pagamento não chegou (Fase 13).
+  // Pedido com cobrança no gateway só expira depois de conferir lá se o pagamento não chegou
+  // (src/servicos/pagamentos.ts); o sem cobrança expira direto.
+  if (
+    pedido.status === "pendente" &&
+    pedido.gatewayId === null &&
+    new Date(pedido.expiraEm).getTime() < Date.now()
+  ) {
     await mudarStatusPedido(pedido.id, "pendente", "expirado");
     return buscarPedido(pedidoId);
   }
@@ -162,7 +165,8 @@ export async function buscarPedidoComAcesso(pedidoId: string, credencial: Creden
 }
 
 /**
- * Confirma o pagamento. É o que o webhook do gateway vai chamar (Fase 13); hoje, a simulação.
+ * Confirma o pagamento. Quem chama: o webhook do Mercado Pago e a conferência do servidor na
+ * API dele (src/servicos/pagamentos.ts), ou a simulação quando não há credenciais.
  * Idempotente: só o primeiro aviso muda `pendente` para `pago` e cria os lançamentos; avisos
  * repetidos ou fora de ordem não fazem nada (docs/riscos.md, prioridade alta).
  */
@@ -175,9 +179,8 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
 
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado) return false;
-  const disponivelEm = new Date(
-    agora + PRAZO_DISPONIVEL_MS[encontrado.pedido.metodo],
-  ).toISOString();
+  const disponivelEm = new Date(agora + PRAZO_SAQUE_MS).toISOString();
+  const antecipavelEm = new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
   const regras = await buscarRegrasDeDivisao(encontrado.itens.map((i) => i.fotoId));
 
   const novos: Lancamento[] = encontrado.itens.flatMap((item) => {
@@ -189,7 +192,8 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
         itemPedidoId: item.id,
         valorCentavos: item.valorFotografoCentavos,
         disponivelEm,
-        repasseId: null,
+        antecipavelEm,
+        saqueId: null,
       },
     ];
     if (regra && item.valorDonoEventoCentavos > 0) {
@@ -199,7 +203,8 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
         itemPedidoId: item.id,
         valorCentavos: item.valorDonoEventoCentavos,
         disponivelEm,
-        repasseId: null,
+        antecipavelEm,
+        saqueId: null,
       });
     }
     return lancamentos;

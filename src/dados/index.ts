@@ -67,7 +67,7 @@ function diaEmBrasilia(iso: string) {
 }
 
 function perfilPublico(conta: FotografoConta): Fotografo {
-  // Nunca devolver a conta inteira: CPF/CNPJ e conta de recebimento não saem daqui.
+  // Nunca devolver a conta inteira: CPF/CNPJ e chave Pix não saem daqui.
   return {
     id: conta.id,
     nomePublico: conta.nomePublico,
@@ -274,13 +274,15 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
 
 // ---------------------------------------------------------------- Pedidos
 
-/** Quem recebe por um item: o autor da foto, o dono do evento e a comissão da plataforma. */
+/**
+ * Quem recebe por um item: o autor da foto e o dono do evento. A comissão da plataforma não
+ * entra aqui: ela sai no saque de cada um.
+ */
 export type RegraDeDivisao = {
   fotoId: string;
   autorId: string;
   donoEventoId: string;
-  comissaoPlataformaPct: number;
-  /** Parte do dono sobre o restante, quando o autor é colaborador; 0 quando o autor é o dono. */
+  /** Parte do dono sobre o preço, quando o autor é colaborador; 0 quando o autor é o dono. */
   comissaoDonoPct: number;
 };
 
@@ -299,7 +301,6 @@ export async function buscarRegrasDeDivisao(fotoIds: string[]): Promise<RegraDeD
         fotoId,
         autorId: foto.enviadaPor,
         donoEventoId: dono.id,
-        comissaoPlataformaPct: dono.comissaoPct,
         comissaoDonoPct: colaborador?.comissaoDonoPct ?? 0,
       },
     ];
@@ -333,6 +334,24 @@ export async function mudarStatusPedido(
   const pedido = pedidos.get(id);
   if (!pedido || pedido.status !== de) return false;
   pedidos.set(id, { ...pedido, ...extra, status: para });
+  return true;
+}
+
+/**
+ * Liga o pedido pendente à order criada no Mercado Pago, só se a order atual ainda for a
+ * `anterior` (como um `UPDATE … WHERE gateway_id IS NOT DISTINCT FROM $anterior`). Na primeira
+ * cobrança `anterior` é `null`; numa nova tentativa de cartão, é a order recusada. Devolve se
+ * gravou; `false` quer dizer que outra requisição chegou antes.
+ */
+export async function ligarPedidoAoGateway(
+  id: string,
+  anterior: string | null,
+  gatewayId: string,
+  pix: PedidoInterno["pix"],
+): Promise<boolean> {
+  const pedido = pedidos.get(id);
+  if (!pedido || pedido.status !== "pendente" || pedido.gatewayId !== anterior) return false;
+  pedidos.set(id, { ...pedido, gatewayId, pix: structuredClone(pix) });
   return true;
 }
 
@@ -556,27 +575,15 @@ export async function criarContaDeFotografo(dados: {
     capa: null,
     redesSociais: {},
     cpfCnpj: "",
-    contaRecebimentoId: null,
+    chavePix: null,
     comissaoPct: 10,
-    frequenciaRepasse: "semanal",
-    diaRepasse: 5,
   };
   fotografos.push(conta);
   return structuredClone(conta);
 }
 
 export type AlteracoesPerfil = Partial<
-  Pick<
-    FotografoConta,
-    | "nomePublico"
-    | "slug"
-    | "bio"
-    | "redesSociais"
-    | "cpfCnpj"
-    | "contaRecebimentoId"
-    | "frequenciaRepasse"
-    | "diaRepasse"
-  >
+  Pick<FotografoConta, "nomePublico" | "slug" | "bio" | "redesSociais" | "cpfCnpj" | "chavePix">
 >;
 
 /** Atualiza só a conta ligada a este usuário: nunca por um id vindo do navegador. */

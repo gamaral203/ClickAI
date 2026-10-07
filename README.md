@@ -14,7 +14,8 @@ O que já funciona:
 - Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação, com senha ou só após a busca)
 - Página da foto com a prévia grande, preço e navegação para a foto anterior e a próxima
 - Prévias e miniaturas com a marca d'água gravada nos pixels, rotação do EXIF corrigida e metadados (GPS, câmera) removidos
-- Carrinho, checkout e pagamento simulado; download do original só para pedido pago
+- Carrinho e checkout com Mercado Pago (Pix e cartão dentro do site, webhook e conferência na API) ou pagamento simulado sem credenciais; download do original só para pedido pago
+- Vendas e saques do fotógrafo: saldo bruto, saque normal (30 dias, 10%) e antecipado (1 dia, 11%) por Pix para o CPF/CNPJ, simulado sem credenciais
 - Cadastro, login (sessão simulada), confirmação de e-mail, Minhas compras e perfil do fotógrafo
 - Headers de segurança e validação com Zod de tudo que vem do navegador
 
@@ -31,7 +32,13 @@ npm install
 npm run dev
 ```
 
-Abra http://localhost:3000. Não há variáveis de ambiente nem banco para configurar na Parte A.
+Abra http://localhost:3000. Não há banco para configurar na Parte A.
+
+**Mercado Pago (opcional):** sem credenciais, o pagamento e o saque são simulados. Para testar com o Mercado Pago, copie `.env.example` para `.env.local` e preencha as credenciais de **teste** da aplicação. Com elas:
+
+- o checkout gera o QR Code Pix de verdade e o cartão usa o formulário do Mercado Pago (cartões de teste em Suas integrações > Cartões de teste);
+- a página do pedido confere o pagamento na API a cada 5 segundos, então funciona em `localhost` mesmo sem o webhook;
+- para receber o webhook na sua máquina, exponha a porta com um túnel (ex.: `ngrok http 3000`) e cadastre `https://<túnel>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
 
 | Comando                  | O que faz                                                                                                         |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -51,7 +58,7 @@ Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 5 categorias
 
 ## Stack
 
-Next.js 16 (App Router, Cache Components) + TypeScript, Tailwind CSS 4 + shadcn/ui (Base UI), Zod e Sharp. Na Parte B entram PostgreSQL com Drizzle, Cloudflare R2, FFmpeg (worker de vídeo), reconhecimento facial e numérico, Inngest, Better Auth, Mercado Pago ou Asaas, Resend e a API oficial do WhatsApp. Detalhes e motivos em [docs/arquitetura.md](docs/arquitetura.md).
+Next.js 16 (App Router, Cache Components) + TypeScript, Tailwind CSS 4 + shadcn/ui (Base UI), Zod, Sharp e Mercado Pago (Orders e Payouts). Na Parte B entram PostgreSQL com Drizzle, Cloudflare R2, FFmpeg (worker de vídeo), reconhecimento facial e numérico, Inngest, Better Auth, Resend e a API oficial do WhatsApp. Detalhes e motivos em [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Estrutura
 
@@ -81,7 +88,7 @@ A estrutura completa planejada, com cliente, painel do fotógrafo, admin, loja p
 
 - [Arquitetura](docs/arquitetura.md): stack, armazenamento, modelo de dados, fluxos, segurança e decisões em aberto
 - [Referência de produto: Fotto](docs/referencias/fotto.md): como funciona a plataforma que usamos de referência
-- [Riscos e erros possíveis](docs/riscos.md): 30 riscos mapeados, com prioridade e como evitar
+- [Riscos e erros possíveis](docs/riscos.md): 34 riscos mapeados, com prioridade e como evitar
 - [Tarefas](docs/tarefas.md): o que já foi feito e o que falta, por fase
 - [Marca](docs/marca/marca.md): logo, cores e regras de contraste
 - [Skills](docs/skills.md): skills do Claude Code usadas no projeto

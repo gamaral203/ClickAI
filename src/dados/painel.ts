@@ -8,8 +8,16 @@ import { connection } from "next/server";
 
 import { categorias, eventos, fotografos, fotos, senhasEventos } from "./exemplo/banco";
 import imagens from "./exemplo/imagens.json";
-import { itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
-import type { Categoria, Evento, Foto, Lancamento, StatusEvento } from "./tipos";
+import { itensPorPedido, lancamentos, pedidos, saques } from "./exemplo/pedidos";
+import type {
+  Categoria,
+  Evento,
+  Foto,
+  Lancamento,
+  Saque,
+  StatusEvento,
+  StatusSaque,
+} from "./tipos";
 
 /** Evento como o painel lista: com contagens e sem a senha. */
 export type EventoDoPainel = Evento & {
@@ -200,22 +208,19 @@ export async function excluirItem(fotoId: string, fotografoId: string): Promise<
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
-export type ExtratoDoFotografo = {
-  disponivelCentavos: number;
-  aReceberCentavos: number;
-  lancamentos: (Lancamento & { eventoTitulo: string; pagoEm: string | null; liberado: boolean })[];
-};
+export type LancamentoDoExtrato = Lancamento & { eventoTitulo: string; pagoEm: string | null };
 
 /**
- * Saldo e extrato. Disponível: lançamentos já liberados e ainda sem repasse; a receber: os que
- * ainda não chegaram em `disponivelEm` (cartão leva 30 dias).
+ * Lançamentos do fotógrafo com o evento e a data da venda, do mais recente para o mais
+ * antigo. O cálculo de saldo e de saque fica em src/servicos/saques.ts.
  */
-export async function extratoDoFotografo(fotografoId: string): Promise<ExtratoDoFotografo> {
-  // Hora lida aqui, como o NOW() do banco faria; espera a requisição (Cache Components).
+export async function listarLancamentosDoFotografo(
+  fotografoId: string,
+): Promise<LancamentoDoExtrato[]> {
+  // Hora lida depois pelo chamador; espera a requisição (Cache Components).
   await connection();
-  const agora = Date.now();
-  const meus = lancamentos.filter((l) => l.fotografoId === fotografoId);
-  const detalhados = meus
+  return lancamentos
+    .filter((l) => l.fotografoId === fotografoId)
     .map((l) => {
       let eventoTitulo = "";
       let pagoEm: string | null = null;
@@ -226,23 +231,63 @@ export async function extratoDoFotografo(fotografoId: string): Promise<ExtratoDo
         eventoTitulo = eventos.find((e) => e.id === foto?.eventoId)?.titulo ?? "";
         pagoEm = pedidos.get(pedidoId)?.pagoEm ?? null;
       }
-      const liberado = new Date(l.disponivelEm).getTime() <= agora;
-      return { ...structuredClone(l), eventoTitulo, pagoEm, liberado };
+      return { ...structuredClone(l), eventoTitulo, pagoEm };
     })
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
-
-  const semRepasse = meus.filter((l) => l.repasseId === null);
-  const liberado = (l: Lancamento) => new Date(l.disponivelEm).getTime() <= agora;
-  return {
-    disponivelCentavos: semRepasse.filter(liberado).reduce((s, l) => s + l.valorCentavos, 0),
-    aReceberCentavos: semRepasse
-      .filter((l) => !liberado(l))
-      .reduce((s, l) => s + l.valorCentavos, 0),
-    lancamentos: detalhados,
-  };
 }
 
-/** Fotógrafo tem conta de recebimento? Condição para publicar evento (docs/riscos.md). */
+/** Fotógrafo tem chave Pix confirmada? Condição para publicar evento e sacar (docs/riscos.md). */
 export async function temContaDeRecebimento(fotografoId: string) {
-  return Boolean(fotografos.find((f) => f.id === fotografoId)?.contaRecebimentoId);
+  return Boolean(fotografos.find((f) => f.id === fotografoId)?.chavePix);
+}
+
+// ---------------------------------------------------------------- Saques
+
+/**
+ * Cria o saque e prende nele os lançamentos, tudo ou nada: se algum lançamento já estiver em
+ * outro saque (dois cliques ao mesmo tempo), nada muda. No banco, é uma transação com
+ * `SELECT … FOR UPDATE` nos lançamentos.
+ */
+export async function reservarLancamentosParaSaque(saque: Saque, lancamentoIds: string[]) {
+  const alvo = lancamentos.filter((l) => lancamentoIds.includes(l.id));
+  const livres =
+    alvo.length === lancamentoIds.length &&
+    alvo.every((l) => l.fotografoId === saque.fotografoId && l.saqueId === null);
+  if (!livres) return false;
+  for (const l of alvo) l.saqueId = saque.id;
+  saques.push(structuredClone(saque));
+  return true;
+}
+
+/** Muda o status do saque só a partir do status esperado. Devolve se mudou. */
+export async function mudarStatusSaque(
+  saqueId: string,
+  de: StatusSaque,
+  para: StatusSaque,
+  extra: Partial<Pick<Saque, "gatewayId" | "pagoEm">> = {},
+): Promise<boolean> {
+  const saque = saques.find((s) => s.id === saqueId);
+  if (!saque || saque.status !== de) return false;
+  Object.assign(saque, extra, { status: para });
+  return true;
+}
+
+/** Saque que falhou devolve os lançamentos ao saldo, para o fotógrafo tentar de novo. */
+export async function soltarLancamentosDoSaque(saqueId: string) {
+  for (const l of lancamentos) if (l.saqueId === saqueId) l.saqueId = null;
+}
+
+export async function listarSaquesDoFotografo(fotografoId: string): Promise<Saque[]> {
+  return structuredClone(
+    saques
+      .filter((s) => s.fotografoId === fotografoId)
+      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
+  );
+}
+
+/** Saques ainda em processamento, para conferir o status no Mercado Pago. */
+export async function listarSaquesProcessando(fotografoId: string): Promise<Saque[]> {
+  return structuredClone(
+    saques.filter((s) => s.fotografoId === fotografoId && s.status === "processando"),
+  );
 }

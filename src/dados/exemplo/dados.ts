@@ -40,10 +40,8 @@ export const fotografos: FotografoConta[] = [
     capa: null,
     redesSociais: { instagram: "liaramos.foto" },
     cpfCnpj: "00.000.000/0001-00",
-    contaRecebimentoId: "conta-exemplo-1",
+    chavePix: "00000000000100",
     comissaoPct: 10,
-    frequenciaRepasse: "semanal",
-    diaRepasse: 5,
   },
   {
     id: uuid("f1a7c0de", 2),
@@ -55,10 +53,8 @@ export const fotografos: FotografoConta[] = [
     capa: null,
     redesSociais: { site: "https://exemplo.com.br" },
     cpfCnpj: "000.000.000-00",
-    contaRecebimentoId: "conta-exemplo-2",
+    chavePix: "00000000000",
     comissaoPct: 10,
-    frequenciaRepasse: "mensal",
-    diaRepasse: 10,
   },
   {
     id: uuid("f1a7c0de", 3),
@@ -70,11 +66,9 @@ export const fotografos: FotografoConta[] = [
     capa: null,
     redesSociais: {},
     cpfCnpj: "00.000.000/0002-00",
-    // Sem conta de recebimento: não pode publicar evento novo (docs/riscos.md).
-    contaRecebimentoId: null,
+    // Sem chave Pix confirmada: não pode publicar evento novo nem sacar (docs/riscos.md).
+    chavePix: null,
     comissaoPct: 10,
-    frequenciaRepasse: "diaria",
-    diaRepasse: null,
   },
 ];
 

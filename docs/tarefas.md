@@ -34,8 +34,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca"
 - [x] Carrinho no navegador, com itens de vários eventos e preços recalculados no servidor a cada vez
 - [x] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
-- [x] Divisão da venda entre plataforma, dono do evento e colaborador, com a sobra de centavos para o autor `[Média]`
-- [x] Pedido criado como `pendente` e confirmação simulada, idempotente como o webhook (troca pelo gateway na Fase 13)
+- [x] Divisão da venda entre dono do evento e colaborador, com a sobra de centavos para o autor; a comissão da plataforma sai no saque `[Média]`
+- [x] Pedido criado como `pendente` e confirmação idempotente; simulada quando não há credenciais do Mercado Pago
 - [x] Página do pedido acessada pelo link com token, com aguardando pagamento, confirmado e expirado
 - [x] Download só de item de pedido pago, conferindo o token daquele pedido; qualquer recusa dá o mesmo 404 `[R-alta]`
 - [x] Acesso de convidado por token (link do pedido, guardado só como hash)
@@ -43,13 +43,17 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Cadastro, login e saída de cliente e fotógrafo com sessão simulada (senha com scrypt, cookie HttpOnly, token guardado só como hash) até a Fase 11
 - [x] Confirmação de e-mail (link simulado até a Fase 13) e vínculo das compras de convidado com o mesmo e-mail só depois de confirmado
 - [x] Área "Minhas compras" com pedidos pagos (download pela sessão) e pendentes (concluir pagamento); compra de cliente logado fica ligada à conta e o checkout já vem preenchido
-- [x] Cadastro de fotógrafo: perfil público (nome, endereço, bio, Instagram, site), CPF/CNPJ validado e conta de recebimento simulada, no painel com checklist do que falta para vender
+- [x] Cadastro de fotógrafo: perfil público (nome, endereço, bio, Instagram, site), CPF/CNPJ validado e chave Pix de saque (o próprio CPF/CNPJ, confirmado), no painel com checklist do que falta para vender
 - [x] Gestão de eventos no painel: criar (rascunho), editar todas as configurações (datas em horário de Brasília, preços, visibilidade com senha guardada só como hash, liberação, ordenação), publicar, arquivar e liberar agora; `revisao` só a equipe muda
-- [x] Só publicar evento com conta de recebimento conectada `[Média]`
+- [x] Só publicar evento com chave Pix confirmada `[Média]`
 - [x] Envio de fotos em lote no painel (simulado até a Fase 12): arrastar e soltar, JPEG conferido pelo conteúdo, até 30 MB e 500 por envio, conferido também no servidor
 - [x] Gestão das fotos do evento com exclusão lógica (`excluida_em`): sai da galeria, mas quem comprou continua baixando `[Média]`
-- [x] Vendas no painel: saldo disponível, a receber (cartão em 30 dias) e extrato por venda, incluindo a parte do dono quando um colaborador vende
-- [x] Frequência de repasse: diária, semanal (segunda a sexta) ou mensal (dia 1 a 28)
+- [x] Vendas no painel: saldo disponível, antecipável e a liberar, e extrato por venda, incluindo a parte do dono quando um colaborador vende
+- [x] Decisão: Mercado Pago, com pagamento dentro do site e sem split; comissão de 10% descontada no saque; saque antecipado com 1% a mais
+- [x] Mercado Pago: Pix (QR Code na página do pedido) e cartão (Card Payment Brick, à vista) pela API de Orders, com idempotência e valor sempre do servidor
+- [x] Webhook do Mercado Pago com assinatura `x-signature` conferida, status lido na API e conferência da order pela página do pedido (cobre webhook atrasado e `localhost`) `[R-alta]`
+- [x] Saque do fotógrafo por Pix (Payouts, ambiente de teste): normal em 30 dias com 10%, antecipado a partir de 1 dia com 11%, só para a chave do próprio CPF/CNPJ, idempotente e sem liberar o saldo em caso de timeout `[R-alta]`
+- [x] `.env.example` com as variáveis do Mercado Pago
 
 ## Em andamento
 
@@ -57,11 +61,9 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Decisões de produto em aberto
 
-Podem ser fechadas a qualquer momento; as de gateway, banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, o que a Fotto fez.
+Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, o que a Fotto fez.
 
-- [ ] Gateway: Mercado Pago ou Asaas? Split automático ou repasse pela plataforma? (repasse automático diário, semanal ou mensal)
 - [ ] Banco gerenciado: Supabase ou Neon?
-- [ ] Comissão da plataforma: percentual fixo ou por plano do fotógrafo? (10% fixos)
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (só eventos)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (indeterminado)
 - [ ] Acesso do cliente logado e do convidado: para sempre ou com prazo? (para sempre)
@@ -165,17 +167,19 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
-- [ ] Cobrança Pix (expira em 1 hora) ou cartão, com split no gateway
-- [ ] Webhook com assinatura validada e idempotente, somando o uso do cupom na mesma transação `[R-alta]`
-- [ ] Job que expira pedidos pendentes e confere no gateway antes
+- [ ] Saque em produção: implementar o header `X-signature` do Payouts (confirmar o algoritmo com o Mercado Pago) `[R-alta]`
+- [ ] Cadastrar o webhook de produção e conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado)
+- [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
+- [ ] Job que expira pedidos pendentes e confere no Mercado Pago antes (hoje só a página do pedido confere)
+- [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
+- [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
 - [ ] E-mail de confirmação com o link de downloads (Resend)
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado
 - [ ] Liberação agendada e aviso aos colaboradores por e-mail
-- [ ] Repasse automático diário, semanal ou mensal (se não houver split)
 
 ## Fase 14 — Antes do lançamento
 
-- [ ] Revisar os 8 riscos de prioridade alta
+- [ ] Revisar os 10 riscos de prioridade alta
 - [ ] CSP completa de scripts (com nonce), depois de definir os scripts do gateway, do Sentry e do Google Analytics/Tag Manager das lojas
 - [ ] Rodar o checklist da `vibe-code-security` ([skills.md](skills.md))
 - [ ] Rate limit em login, cadastro, busca facial, envio de e-mail e geração de URLs assinadas

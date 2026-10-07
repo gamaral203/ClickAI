@@ -179,14 +179,14 @@ async function slugDisponivel(d: { titulo: string; inicioEm: string }) {
 const idEvento = z.uuid();
 
 /**
- * Publica um evento em rascunho ou arquivado. Exige conta de recebimento: sem ela, a parte do
- * fotógrafo não teria para onde ir (docs/riscos.md, conta não configurada para o split).
+ * Publica um evento em rascunho ou arquivado. Exige chave Pix confirmada: sem ela, o fotógrafo
+ * não teria como sacar o que vender (docs/riscos.md, fotógrafo sem chave Pix confirmada).
  */
 export async function publicarEventoAcao(eventoId: string): Promise<{ erro?: string }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   if (!(await temContaDeRecebimento(conta.id))) {
-    return { erro: "Conecte a conta de recebimento antes de publicar." };
+    return { erro: "Confirme sua chave Pix em Perfil e recebimento antes de publicar." };
   }
   const publicou =
     (await mudarStatusDoEvento(eventoId, conta.id, "rascunho", "publicado")) ||
