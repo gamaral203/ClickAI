@@ -70,7 +70,6 @@ Concluída (ver **Concluído**).
 
 Concluída (ver **Concluído**).
 
-
 ## Fase 4 — Minhas compras e download (simulado)
 
 - [ ] Área "Minhas compras", com pedidos, fotos e carrinho pendente
