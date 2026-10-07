@@ -66,7 +66,7 @@ flowchart TB
     end
 
     R2["Cloudflare R2<br/>originais (privado)<br/>prévias e miniaturas"]
-    DB["PostgreSQL<br/>Supabase ou Neon<br/>região São Paulo"]
+    DB["PostgreSQL<br/>Neon<br/>região São Paulo"]
     I["Inngest<br/>fila e jobs agendados"]
     W["Worker de vídeo<br/>FFmpeg"]
     RF["Provedor de reconhecimento<br/>facial e numérico"]
@@ -391,7 +391,7 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (Fotto: só eventos reais, banco de imagens proibido)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
 - [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
-- [ ] Banco gerenciado: Supabase ou Neon?
+- [x] Banco gerenciado: Neon, criado pelo Marketplace da Vercel na região `gru1`. Integrado ao projeto, sem login nem storage embutidos (usamos os nossos e o R2). No desenvolvimento local e nos testes, sem `DATABASE_URL`, o app usa o PGlite (Postgres em memória) com as mesmas migrações.
 - [ ] Reconhecimento: confirmar a região do Amazon Rekognition (transferência internacional de dado biométrico, LGPD) e escolher o provedor de OCR para os números de peito.
 - [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?
 - [ ] Onde roda o worker de vídeo: Fly.io ou Railway?

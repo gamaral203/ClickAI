@@ -1,6 +1,6 @@
-// Camada de dados do app. As telas só importam daqui, nunca de ./exemplo nem do banco
-// direto: na Fase 11 (docs/tarefas.md) esta implementação de exemplo é trocada pela do
-// Drizzle mantendo as mesmas assinaturas.
+// Camada de dados do app. As telas só importam daqui, nunca do banco direto. Desde a Fase 11
+// lê e grava no Postgres (src/db): Neon na Vercel, PGlite em memória no desenvolvimento local e
+// nos testes. As assinaturas são as mesmas da implementação de exemplo que veio antes.
 //
 // As regras de quem vê o quê ficam aqui, e não nas telas, para valerem em qualquer caminho
 // (página, Server Action, link direto para uma foto).
@@ -9,30 +9,30 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { and, asc, desc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 
+import { obterBanco } from "@/db";
+import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 
+import { eventosDosCupons } from "./comum";
 import {
-  acessosEvento,
-  categorias,
-  colaboradores,
-  cupons,
-  eventos,
-  faixasDesconto,
-  fotografos,
-  fotos,
-  numeros,
-  pacotes,
-  pastas,
-  rostos,
-  senhasEventos,
-  urlOriginalDeExemplo,
-} from "./exemplo/banco";
-import { downloads, itensPorPedido, lancamentos, mensagens, pedidos } from "./exemplo/pedidos";
-import { confirmacoes, usuarios } from "./exemplo/usuarios";
+  deIso,
+  iso,
+  paraCupom,
+  paraEvento,
+  paraFaixa,
+  paraFoto,
+  paraFotografo,
+  paraItem,
+  paraMensagem,
+  paraPacote,
+  paraPedido,
+  paraUsuario,
+} from "./mapas";
 import type {
   Cupom,
   Evento,
@@ -60,7 +60,7 @@ const FUSO = "America/Sao_Paulo";
 
 /**
  * Hora atual. Espera a requisição antes (`connection`), porque com Cache Components o Next
- * não deixa ler o relógio durante a pré-renderização. No banco, a comparação vira NOW().
+ * não deixa ler o relógio durante a pré-renderização.
  */
 async function agora() {
   await connection();
@@ -68,9 +68,7 @@ async function agora() {
 }
 
 /** Item que pode aparecer para o público: pronto e não excluído. */
-function itemVisivel(foto: Foto) {
-  return foto.status === "pronta" && foto.excluidaEm === null;
-}
+const itemVisivel = and(eq(t.fotos.status, "pronta"), isNull(t.fotos.excluidaEm));
 
 function normalizar(texto: string) {
   return texto
@@ -137,13 +135,19 @@ async function acessoPorSenha(evento: Evento) {
   if (evento.visibilidade !== "senha") return false;
   const token = (await cookies()).get(cookieDoEvento(evento.id))?.value;
   if (!token) return false;
-  const acesso = acessosEvento.get(hashDoToken(token));
-  return (
-    acesso !== undefined &&
-    acesso.eventoId === evento.id &&
-    acesso.expiraEm > Date.now() &&
-    acesso.senhaHash === senhasEventos.get(evento.id)
-  );
+  const banco = await obterBanco();
+  const [acesso] = await banco
+    .select({ expiraEm: t.acessosEvento.expiraEm, senhaAceita: t.acessosEvento.senhaHash })
+    .from(t.acessosEvento)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.acessosEvento.eventoId))
+    .where(
+      and(
+        eq(t.acessosEvento.tokenHash, hashDoToken(token)),
+        eq(t.acessosEvento.eventoId, evento.id),
+        eq(t.acessosEvento.senhaHash, t.eventos.senhaHash),
+      ),
+    );
+  return acesso !== undefined && acesso.expiraEm.getTime() > Date.now();
 }
 
 /** Situação da galeria para quem está fazendo esta requisição (lê o cookie da senha). */
@@ -151,15 +155,58 @@ async function situacaoParaVisitante(evento: Evento) {
   return situacaoGaleria(evento, await agora(), await acessoPorSenha(evento));
 }
 
-function itensVisiveisDoEvento(evento: Evento) {
-  const doEvento = fotos.filter((f) => f.eventoId === evento.id && itemVisivel(f));
-  return ordenar(doEvento, evento);
+async function eventoPorId(eventoId: string, soPublicado = true): Promise<Evento | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.eventos)
+    .where(
+      soPublicado
+        ? and(eq(t.eventos.id, eventoId), eq(t.eventos.status, "publicado"))
+        : eq(t.eventos.id, eventoId),
+    );
+  return linha ? paraEvento(linha) : null;
+}
+
+/** Colunas que bastam para ordenar e filtrar a galeria, sem trazer o item inteiro. */
+type ChaveItem = Pick<
+  Foto,
+  "id" | "tipo" | "pastaId" | "nomeArquivo" | "criadoEm" | "capturadaEm"
+> & { largura: number; altura: number; urlMiniatura: string };
+
+/**
+ * Itens visíveis do evento, na ordem da galeria, só com as colunas de ordenar e filtrar. A
+ * ordem natural do nome do arquivo (IMG_2 antes de IMG_10) e a "aleatória" estável por evento
+ * são feitas aqui; o item inteiro é buscado só para a página pedida.
+ */
+async function chavesVisiveisDoEvento(evento: Evento): Promise<ChaveItem[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      id: t.fotos.id,
+      tipo: t.fotos.tipo,
+      pastaId: t.fotos.pastaId,
+      nomeArquivo: t.fotos.nomeArquivo,
+      criadoEm: t.fotos.criadoEm,
+      capturadaEm: t.fotos.capturadaEm,
+      largura: t.fotos.largura,
+      altura: t.fotos.altura,
+      urlMiniatura: t.fotos.urlMiniatura,
+    })
+    .from(t.fotos)
+    .where(and(eq(t.fotos.eventoId, evento.id), itemVisivel));
+  const itens = linhas.map((l) => ({
+    ...l,
+    criadoEm: iso(l.criadoEm),
+    capturadaEm: iso(l.capturadaEm),
+  }));
+  return ordenar(itens, evento);
 }
 
 /** Ordem da galeria, escolhida pelo fotógrafo. Sempre estável, para o cursor funcionar. */
-function ordenar(itens: Foto[], evento: Evento) {
-  const desempate = (a: Foto, b: Foto) => a.id.localeCompare(b.id);
-  const chave: Record<Evento["ordenacao"], (a: Foto, b: Foto) => number> = {
+function ordenar<T extends ChaveItem>(itens: T[], evento: Evento) {
+  const desempate = (a: T, b: T) => a.id.localeCompare(b.id);
+  const chave: Record<Evento["ordenacao"], (a: T, b: T) => number> = {
     envio: (a, b) => a.criadoEm.localeCompare(b.criadoEm),
     captura: (a, b) => (a.capturadaEm ?? a.criadoEm).localeCompare(b.capturadaEm ?? b.criadoEm),
     nome_arquivo: (a, b) => a.nomeArquivo.localeCompare(b.nomeArquivo, "pt-BR", { numeric: true }),
@@ -175,26 +222,71 @@ function embaralhar(id: string, semente: string) {
   return h >>> 0;
 }
 
-function resumir(evento: Evento, situacao: SituacaoGaleria): EventoResumo {
-  const conta = fotografos.find((f) => f.id === evento.fotografoId);
-  const categoria = categorias.find((c) => c.id === evento.categoriaId);
-  if (!conta || !categoria)
-    throw new Error(`Evento ${evento.id} com fotógrafo ou categoria inválidos`);
-  const visiveis = itensVisiveisDoEvento(evento);
-  // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
-  const capa = situacao.tipo === "aberta" ? visiveis[0] : undefined;
-  return {
-    ...evento,
-    fotografo: perfilPublico(conta),
-    categoria,
-    totalItens: visiveis.length,
-    totalFotos: visiveis.filter((f) => f.tipo === "foto").length,
-    totalVideos: visiveis.filter((f) => f.tipo === "video").length,
-    capaMiniatura: capa
-      ? { urlMiniatura: capa.urlMiniatura, largura: capa.largura, altura: capa.altura }
-      : null,
-    situacaoGaleria: situacao,
-  };
+/** Fotos completas pelos ids, na ordem pedida. */
+async function fotosPorIds(ids: string[]): Promise<Foto[]> {
+  if (ids.length === 0) return [];
+  const banco = await obterBanco();
+  const linhas = await banco.select().from(t.fotos).where(inArray(t.fotos.id, ids));
+  const porId = new Map(linhas.map((l) => [l.id, paraFoto(l)]));
+  return ids.flatMap((id) => porId.get(id) ?? []);
+}
+
+async function resumir(
+  eventosLista: Evento[],
+  situacoes: SituacaoGaleria[],
+): Promise<EventoResumo[]> {
+  if (eventosLista.length === 0) return [];
+  const banco = await obterBanco();
+  const [contas, cats, contagens] = await Promise.all([
+    banco
+      .select()
+      .from(t.fotografos)
+      .where(inArray(t.fotografos.id, [...new Set(eventosLista.map((e) => e.fotografoId))])),
+    banco.select().from(t.categorias),
+    banco
+      .select({
+        eventoId: t.fotos.eventoId,
+        fotos: sql<number>`count(*) filter (where ${t.fotos.tipo} = 'foto')::int`,
+        videos: sql<number>`count(*) filter (where ${t.fotos.tipo} = 'video')::int`,
+      })
+      .from(t.fotos)
+      .where(
+        and(
+          inArray(
+            t.fotos.eventoId,
+            eventosLista.map((e) => e.id),
+          ),
+          itemVisivel,
+        ),
+      )
+      .groupBy(t.fotos.eventoId),
+  ]);
+  return Promise.all(
+    eventosLista.map(async (evento, i) => {
+      const conta = contas.find((f) => f.id === evento.fotografoId);
+      const categoria = cats.find((c) => c.id === evento.categoriaId);
+      if (!conta || !categoria) {
+        throw new Error(`Evento ${evento.id} com fotógrafo ou categoria inválidos`);
+      }
+      const situacao = situacoes[i];
+      const contagem = contagens.find((c) => c.eventoId === evento.id);
+      // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
+      const capa =
+        situacao.tipo === "aberta" ? (await chavesVisiveisDoEvento(evento))[0] : undefined;
+      return {
+        ...evento,
+        fotografo: perfilPublico(paraFotografo(conta)),
+        categoria,
+        totalItens: (contagem?.fotos ?? 0) + (contagem?.videos ?? 0),
+        totalFotos: contagem?.fotos ?? 0,
+        totalVideos: contagem?.videos ?? 0,
+        capaMiniatura: capa
+          ? { urlMiniatura: capa.urlMiniatura, largura: capa.largura, altura: capa.altura }
+          : null,
+        situacaoGaleria: situacao,
+      };
+    }),
+  );
 }
 
 export type FiltroEventos = {
@@ -210,10 +302,15 @@ export type FiltroEventos = {
   fotografoId?: string;
 };
 
-function eventosListados() {
-  return eventos.filter(
-    (e) => e.status === "publicado" && e.listado && e.visibilidade !== "nao_listado",
-  );
+const eventoListado = and(
+  eq(t.eventos.status, "publicado"),
+  eq(t.eventos.listado, true),
+  ne(t.eventos.visibilidade, "nao_listado"),
+);
+
+async function eventosListados(): Promise<Evento[]> {
+  const banco = await obterBanco();
+  return (await banco.select().from(t.eventos).where(eventoListado)).map(paraEvento);
 }
 
 /**
@@ -223,16 +320,28 @@ function eventosListados() {
 export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promise<EventoResumo[]> {
   const instante = await agora();
   const termo = filtro.busca ? normalizar(filtro.busca.trim()) : "";
-  const categoriaId = filtro.categoria
-    ? (categorias.find((c) => c.slug === filtro.categoria)?.id ?? "nenhuma")
-    : null;
   const cidade = filtro.cidade ? normalizar(filtro.cidade) : null;
-  return eventosListados()
+  const banco = await obterBanco();
+  const categoriaId = filtro.categoria
+    ? ((
+        await banco
+          .select({ id: t.categorias.id })
+          .from(t.categorias)
+          .where(eq(t.categorias.slug, filtro.categoria))
+      )[0]?.id ?? null)
+    : undefined;
+  if (categoriaId === null) return [];
+
+  const escolhidos = (await eventosListados())
     .filter((e) => !filtro.data || diaEmBrasilia(e.inicioEm) === filtro.data)
     .filter((e) => !categoriaId || e.categoriaId === categoriaId)
     .filter((e) => !cidade || normalizar(e.cidade) === cidade)
-    .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId)
-    .map((e) => resumir(e, situacaoGaleria(e, instante)))
+    .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId);
+  const resumos = await resumir(
+    escolhidos,
+    escolhidos.map((e) => situacaoGaleria(e, instante)),
+  );
+  return resumos
     .filter(
       (e) =>
         !termo ||
@@ -250,11 +359,13 @@ export type OpcoesFiltroEventos = {
 
 /** Categorias e cidades que têm evento na lista pública, para os filtros (sem opção vazia). */
 export async function listarOpcoesFiltroEventos(): Promise<OpcoesFiltroEventos> {
-  const listados = eventosListados();
+  const banco = await obterBanco();
+  const listados = await eventosListados();
   const categoriaIds = new Set(listados.map((e) => e.categoriaId));
   const cidades = new Map(listados.map((e) => [normalizar(e.cidade), e]));
+  const cats = await banco.select().from(t.categorias);
   return {
-    categorias: categorias
+    categorias: cats
       .filter((c) => categoriaIds.has(c.id))
       .map((c) => ({ slug: c.slug, nome: c.nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
@@ -264,15 +375,17 @@ export async function listarOpcoesFiltroEventos(): Promise<OpcoesFiltroEventos> 
   };
 }
 
-/** Slugs de todos os eventos publicados, para pré-renderizar no build (sem ler o relógio). */
-export async function listarSlugsPublicados(): Promise<string[]> {
-  return eventos.filter((e) => e.status === "publicado").map((e) => e.slug);
-}
-
 /** Evento publicado pelo slug (inclusive não listado ou com senha), ou `null`. */
 export async function buscarEventoPublicado(slug: string): Promise<EventoResumo | null> {
-  const evento = eventos.find((e) => e.slug === slug && e.status === "publicado");
-  return evento ? resumir(evento, await situacaoParaVisitante(evento)) : null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.eventos)
+    .where(and(eq(t.eventos.slug, slug), eq(t.eventos.status, "publicado")));
+  if (!linha) return null;
+  const evento = paraEvento(linha);
+  const [resumo] = await resumir([evento], [await situacaoParaVisitante(evento)]);
+  return resumo;
 }
 
 /**
@@ -280,10 +393,14 @@ export async function buscarEventoPublicado(slug: string): Promise<EventoResumo 
  * mesmo tempo (compara com um hash falso), para a resposta não revelar nada.
  */
 export async function conferirSenhaDoEvento(eventoId: string, senha: string): Promise<boolean> {
-  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
-  const hash = evento?.visibilidade === "senha" ? senhasEventos.get(evento.id) : undefined;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ visibilidade: t.eventos.visibilidade, senhaHash: t.eventos.senhaHash })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.status, "publicado")));
+  const hash = linha?.visibilidade === "senha" ? linha.senhaHash : null;
   const confere = senhaConfere(senha, hash ?? HASH_FALSO);
-  return hash !== undefined && confere;
+  return hash !== null && confere;
 }
 
 /** Libera o evento para o token do cookie (guardado só como hash) até `expiraEm`. */
@@ -292,9 +409,16 @@ export async function registrarAcessoAoEvento(
   eventoId: string,
   expiraEm: number,
 ) {
-  const senhaHash = senhasEventos.get(eventoId);
-  if (!senhaHash) return;
-  acessosEvento.set(tokenHash, { eventoId, senhaHash, expiraEm });
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ senhaHash: t.eventos.senhaHash })
+    .from(t.eventos)
+    .where(eq(t.eventos.id, eventoId));
+  if (!linha?.senhaHash) return;
+  await banco
+    .insert(t.acessosEvento)
+    .values({ tokenHash, eventoId, senhaHash: linha.senhaHash, expiraEm: new Date(expiraEm) })
+    .onConflictDoNothing();
 }
 
 /**
@@ -310,18 +434,36 @@ export type FiltroGaleria = {
   pasta?: string;
 };
 
-function idsIdentificados() {
-  return new Set([...rostos.map((r) => r.fotoId), ...numeros.map((n) => n.fotoId)]);
+/** Itens do evento em que o reconhecimento achou rosto ou número. */
+async function idsIdentificados(eventoId: string) {
+  const banco = await obterBanco();
+  const [comRosto, comNumero] = await Promise.all([
+    banco
+      .selectDistinct({ fotoId: t.rostos.fotoId })
+      .from(t.rostos)
+      .innerJoin(t.fotos, eq(t.fotos.id, t.rostos.fotoId))
+      .where(eq(t.fotos.eventoId, eventoId)),
+    banco
+      .selectDistinct({ fotoId: t.numeros.fotoId })
+      .from(t.numeros)
+      .innerJoin(t.fotos, eq(t.fotos.id, t.numeros.fotoId))
+      .where(eq(t.fotos.eventoId, eventoId)),
+  ]);
+  return new Set([...comRosto, ...comNumero].map((l) => l.fotoId));
 }
 
-function filtrarGaleria(itens: Foto[], evento: Evento, filtro: FiltroGaleria) {
+async function filtrarGaleria<T extends ChaveItem>(
+  itens: T[],
+  evento: Evento,
+  filtro: FiltroGaleria,
+) {
   let resultado = itens;
   if (evento.filtroHorario && filtro.hora) {
     const hora = filtro.hora;
     resultado = resultado.filter((f) => f.capturadaEm && horaEmBrasilia(f.capturadaEm) === hora);
   }
   if (evento.listarNaoIdentificadas && filtro.naoIdentificadas) {
-    const identificados = idsIdentificados();
+    const identificados = await idsIdentificados(evento.id);
     resultado = resultado.filter((f) => !identificados.has(f.id));
   }
   if (filtro.pasta) resultado = resultado.filter((f) => f.pastaId === filtro.pasta);
@@ -339,11 +481,12 @@ export type OpcoesGaleria = {
 
 /** Opções de filtro da galeria aberta, para quem pode vê-la agora. */
 export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaleria> {
-  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
+  const evento = await eventoPorId(eventoId);
   if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
     return { horas: null, naoIdentificadas: null, pastas: [] };
   }
-  const itens = itensVisiveisDoEvento(evento);
+  const banco = await obterBanco();
+  const itens = await chavesVisiveisDoEvento(evento);
   let horas: OpcoesGaleria["horas"] = null;
   if (evento.filtroHorario) {
     const contagem = new Map<string, number>();
@@ -356,14 +499,17 @@ export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaler
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([hora, total]) => ({ hora, total }));
   }
+  const pastas = await banco
+    .select()
+    .from(t.pastas)
+    .where(eq(t.pastas.eventoId, evento.id))
+    .orderBy(asc(t.pastas.ordem));
   return {
     horas,
     naoIdentificadas: evento.listarNaoIdentificadas
-      ? filtrarGaleria(itens, evento, { naoIdentificadas: true }).length
+      ? (await filtrarGaleria(itens, evento, { naoIdentificadas: true })).length
       : null,
     pastas: pastas
-      .filter((p) => p.eventoId === evento.id)
-      .sort((a, b) => a.ordem - b.ordem)
       .map((p) => ({
         id: p.id,
         nome: p.nome,
@@ -386,17 +532,20 @@ export async function listarFotosDoEvento(
     filtro = {},
   }: { cursor?: string | null; limite?: number; filtro?: FiltroGaleria } = {},
 ): Promise<PaginaDeFotos> {
-  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
+  const evento = await eventoPorId(eventoId);
   if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
     return { fotos: [], proximoCursor: null };
   }
-  const itens = filtrarGaleria(itensVisiveisDoEvento(evento), evento, filtro);
+  const itens = await filtrarGaleria(await chavesVisiveisDoEvento(evento), evento, filtro);
   // Cursor desconhecido dá findIndex -1, então começa do início em vez de dar página vazia.
   const inicio = cursor ? itens.findIndex((f) => f.id === cursor) + 1 : 0;
   const pagina = itens.slice(inicio, inicio + limite);
   const ultima = pagina.at(-1);
   const temMais = ultima !== undefined && itens.at(-1)?.id !== ultima.id;
-  return { fotos: pagina, proximoCursor: temMais ? ultima.id : null };
+  return {
+    fotos: await fotosPorIds(pagina.map((f) => f.id)),
+    proximoCursor: temMais ? ultima.id : null,
+  };
 }
 
 export type FotoPublica = {
@@ -410,7 +559,7 @@ export type FotoPublica = {
   proximaId: string | null;
 };
 
-export function precoDoItem(foto: Foto, evento: Evento) {
+export function precoDoItem(foto: Pick<Foto, "precoCentavos" | "tipo">, evento: Evento) {
   return (
     foto.precoCentavos ??
     (foto.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos)
@@ -425,12 +574,17 @@ export function precoDoItem(foto: Foto, evento: Evento) {
  * - Aguardando liberação ou com senha: não abre.
  */
 export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | null> {
-  const foto = fotos.find((f) => f.id === fotoId && itemVisivel(f));
-  if (!foto) return null;
-  const evento = eventos.find((e) => e.id === foto.eventoId && e.status === "publicado");
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.fotos)
+    .where(and(eq(t.fotos.id, fotoId), itemVisivel));
+  if (!linha) return null;
+  const foto = paraFoto(linha);
+  const evento = await eventoPorId(foto.eventoId);
   if (!evento) return null;
 
-  const resumo = resumir(evento, await situacaoParaVisitante(evento));
+  const [resumo] = await resumir([evento], [await situacaoParaVisitante(evento)]);
   const situacao = resumo.situacaoGaleria.tipo;
   if (situacao === "aguardando_liberacao" || situacao === "senha") return null;
 
@@ -438,7 +592,7 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
   if (situacao === "so_apos_busca") {
     return { ...base, posicao: null, anteriorId: null, proximaId: null };
   }
-  const itens = itensVisiveisDoEvento(evento);
+  const itens = await chavesVisiveisDoEvento(evento);
   const indice = itens.findIndex((f) => f.id === foto.id);
   return {
     ...base,
@@ -455,7 +609,7 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
  * liberação ou com senha (sem a senha aceita) não abrem nem pela busca.
  */
 async function eventoBuscavel(eventoId: string) {
-  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
+  const evento = await eventoPorId(eventoId);
   if (!evento) return null;
   const situacao = (await situacaoParaVisitante(evento)).tipo;
   return situacao === "aberta" || situacao === "so_apos_busca" ? evento : null;
@@ -466,19 +620,34 @@ export async function fotosEncontradas(eventoId: string, fotoIds: string[]): Pro
   const evento = await eventoBuscavel(eventoId);
   if (!evento) return [];
   const alvo = new Set(fotoIds);
-  return structuredClone(itensVisiveisDoEvento(evento).filter((f) => alvo.has(f.id)));
+  const ids = (await chavesVisiveisDoEvento(evento)).filter((f) => alvo.has(f.id)).map((f) => f.id);
+  return fotosPorIds(ids);
 }
 
 /** O evento tem números de peito reconhecidos? (Mostra a busca por número.) */
 export async function eventoTemNumeros(eventoId: string): Promise<boolean> {
-  const doEvento = new Set(fotos.filter((f) => f.eventoId === eventoId).map((f) => f.id));
-  return numeros.some((n) => doEvento.has(n.fotoId));
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.numeros.id })
+    .from(t.numeros)
+    .innerJoin(t.fotos, eq(t.fotos.id, t.numeros.fotoId))
+    .where(eq(t.fotos.eventoId, eventoId))
+    .limit(1);
+  return linha !== undefined;
 }
 
 /** Itens do evento em que o número de peito foi reconhecido. */
 export async function fotosPorNumero(eventoId: string, numero: string): Promise<Foto[]> {
-  const ids = numeros.filter((n) => n.numero === numero).map((n) => n.fotoId);
-  return fotosEncontradas(eventoId, ids);
+  const banco = await obterBanco();
+  const linhas = await banco
+    .selectDistinct({ fotoId: t.numeros.fotoId })
+    .from(t.numeros)
+    .innerJoin(t.fotos, eq(t.fotos.id, t.numeros.fotoId))
+    .where(and(eq(t.numeros.numero, numero), eq(t.fotos.eventoId, eventoId)));
+  return fotosEncontradas(
+    eventoId,
+    linhas.map((l) => l.fotoId),
+  );
 }
 
 /**
@@ -486,12 +655,14 @@ export async function fotosPorNumero(eventoId: string, numero: string): Promise<
  * provedor real, a busca vai direto à coleção do evento no provedor.
  */
 export async function rostosDeExemploDoEvento(eventoId: string): Promise<string[][]> {
-  const doEvento = new Set(fotos.filter((f) => f.eventoId === eventoId).map((f) => f.id));
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ fotoId: t.rostos.fotoId, rosto: t.rostos.rostoIdProvedor })
+    .from(t.rostos)
+    .innerJoin(t.fotos, eq(t.fotos.id, t.rostos.fotoId))
+    .where(eq(t.fotos.eventoId, eventoId));
   const porPessoa = new Map<string, string[]>();
-  for (const r of rostos) {
-    if (!doEvento.has(r.fotoId)) continue;
-    porPessoa.set(r.rostoId, [...(porPessoa.get(r.rostoId) ?? []), r.fotoId]);
-  }
+  for (const r of linhas) porPessoa.set(r.rosto, [...(porPessoa.get(r.rosto) ?? []), r.fotoId]);
   return [...porPessoa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, ids]) => ids);
 }
 
@@ -508,15 +679,21 @@ export type ItemParaCompra = {
  * não liberados são ignorados.
  */
 export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaCompra[]> {
+  const unicos = [...new Set(ids)];
+  if (unicos.length === 0) return [];
   const instante = await agora();
-  const unicos = new Set(ids);
-  return fotos
-    .filter((f) => unicos.has(f.id) && itemVisivel(f))
-    .flatMap((foto) => {
-      const evento = eventos.find((e) => e.id === foto.eventoId && e.status === "publicado");
-      if (!evento || situacaoGaleria(evento, instante).tipo === "aguardando_liberacao") return [];
-      return [{ foto, evento, precoCentavos: precoDoItem(foto, evento) }];
-    });
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ foto: t.fotos, evento: t.eventos })
+    .from(t.fotos)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .where(and(inArray(t.fotos.id, unicos), itemVisivel, eq(t.eventos.status, "publicado")));
+  return linhas.flatMap((l) => {
+    const foto = paraFoto(l.foto);
+    const evento = paraEvento(l.evento);
+    if (situacaoGaleria(evento, instante).tipo === "aguardando_liberacao") return [];
+    return [{ foto, evento, precoCentavos: precoDoItem(foto, evento) }];
+  });
 }
 
 // ---------------------------------------------------------------- Descontos
@@ -529,33 +706,58 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
 export async function buscarRegrasDeDesconto(
   eventoIds: string[],
 ): Promise<{ faixas: FaixaDesconto[]; pacotes: Pacote[] }> {
-  const alvo = new Set(eventoIds);
-  const donos = new Set(eventos.filter((e) => alvo.has(e.id)).map((e) => e.fotografoId));
-  return structuredClone({
-    faixas: faixasDesconto.filter((f) =>
-      f.eventoId === null ? donos.has(f.fotografoId) : alvo.has(f.eventoId),
-    ),
-    pacotes: pacotes.filter((p) => alvo.has(p.eventoId)),
-  });
+  if (eventoIds.length === 0) return { faixas: [], pacotes: [] };
+  const banco = await obterBanco();
+  const donos = (
+    await banco
+      .select({ id: t.eventos.fotografoId })
+      .from(t.eventos)
+      .where(inArray(t.eventos.id, eventoIds))
+  ).map((l) => l.id);
+  const [faixas, pacotes] = await Promise.all([
+    banco
+      .select()
+      .from(t.faixasDesconto)
+      .where(
+        or(
+          inArray(t.faixasDesconto.eventoId, eventoIds),
+          and(isNull(t.faixasDesconto.eventoId), inArray(t.faixasDesconto.fotografoId, donos)),
+        ),
+      ),
+    banco.select().from(t.pacotes).where(inArray(t.pacotes.eventoId, eventoIds)),
+  ]);
+  return { faixas: faixas.map(paraFaixa), pacotes: pacotes.map(paraPacote) };
 }
 
 /** Cupom pelo código, sem diferenciar maiúsculas; `null` se não existe. */
 export async function buscarCupomPorCodigo(codigo: string): Promise<Cupom | null> {
-  const alvo = codigo.trim().toUpperCase();
-  const cupom = cupons.find((c) => c.codigo.toUpperCase() === alvo);
-  return cupom ? structuredClone(cupom) : null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.cupons)
+    .where(eq(sql`upper(${t.cupons.codigo})`, codigo.trim().toUpperCase()));
+  if (!linha) return null;
+  return paraCupom(linha, (await eventosDosCupons([linha.id])).get(linha.id) ?? []);
 }
 
 /**
- * Soma um uso ao cupom, só se ainda houver uso disponível, como um
- * `UPDATE cupons SET usos = usos + 1 WHERE id = … AND (usos_max IS NULL OR usos < usos_max)`.
- * Roda junto com a confirmação do pagamento (docs/riscos.md: cupom usado além do limite).
+ * Soma um uso ao cupom, só se ainda houver uso disponível
+ * (`… WHERE id = … AND (usos_max IS NULL OR usos < usos_max)`). Roda junto com a confirmação
+ * do pagamento (docs/riscos.md: cupom usado além do limite).
  */
 export async function registrarUsoDoCupom(cupomId: string): Promise<boolean> {
-  const cupom = cupons.find((c) => c.id === cupomId);
-  if (!cupom || (cupom.usosMax !== null && cupom.usos >= cupom.usosMax)) return false;
-  cupom.usos++;
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.cupons)
+    .set({ usos: sql`${t.cupons.usos} + 1` })
+    .where(
+      and(
+        eq(t.cupons.id, cupomId),
+        or(isNull(t.cupons.usosMax), lt(t.cupons.usos, t.cupons.usosMax)),
+      ),
+    )
+    .returning({ id: t.cupons.id });
+  return atualizados.length > 0;
 }
 
 // ---------------------------------------------------------------- Pedidos
@@ -573,43 +775,76 @@ export type RegraDeDivisao = {
 };
 
 export async function buscarRegrasDeDivisao(fotoIds: string[]): Promise<RegraDeDivisao[]> {
+  if (fotoIds.length === 0) return [];
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      fotoId: t.fotos.id,
+      autorId: t.fotos.enviadaPor,
+      donoEventoId: t.eventos.fotografoId,
+      comissao: t.colaboradores.comissaoDonoPct,
+    })
+    .from(t.fotos)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .leftJoin(
+      t.colaboradores,
+      and(
+        eq(t.colaboradores.eventoId, t.fotos.eventoId),
+        eq(t.colaboradores.fotografoId, t.fotos.enviadaPor),
+      ),
+    )
+    .where(inArray(t.fotos.id, fotoIds));
   return fotoIds.flatMap((fotoId) => {
-    const foto = fotos.find((f) => f.id === fotoId);
-    const evento = foto && eventos.find((e) => e.id === foto.eventoId);
-    const dono = evento && fotografos.find((f) => f.id === evento.fotografoId);
-    if (!foto || !evento || !dono) return [];
-    const colaborador =
-      foto.enviadaPor !== dono.id
-        ? colaboradores.find((c) => c.eventoId === evento.id && c.fotografoId === foto.enviadaPor)
-        : undefined;
+    const l = linhas.find((x) => x.fotoId === fotoId);
+    if (!l) return [];
     return [
       {
         fotoId,
-        autorId: foto.enviadaPor,
-        donoEventoId: dono.id,
-        comissaoDonoPct: colaborador?.comissaoDonoPct ?? 0,
+        autorId: l.autorId,
+        donoEventoId: l.donoEventoId,
+        comissaoDonoPct: l.autorId === l.donoEventoId ? 0 : (l.comissao ?? 0),
       },
     ];
   });
 }
 
+function linhaDoPedido(p: PedidoInterno): typeof t.pedidos.$inferInsert {
+  const { pix, ...resto } = p;
+  return {
+    ...resto,
+    acessoExpiraEm: deIso(p.acessoExpiraEm),
+    expiraEm: deIso(p.expiraEm),
+    pagoEm: deIso(p.pagoEm),
+    lembreteEnviadoEm: deIso(p.lembreteEnviadoEm),
+    criadoEm: deIso(p.criadoEm),
+    pixCopiaECola: pix?.copiaECola ?? null,
+    pixQrCodeBase64: pix?.qrCodeBase64 ?? null,
+  };
+}
+
+/** Grava o pedido e os itens juntos: ou os dois, ou nenhum. */
 export async function salvarPedido(pedido: PedidoInterno, itens: ItemPedido[]) {
-  pedidos.set(pedido.id, structuredClone(pedido));
-  itensPorPedido.set(pedido.id, structuredClone(itens));
+  const banco = await obterBanco();
+  await banco.transaction(async (tx) => {
+    await tx.insert(t.pedidos).values(linhaDoPedido(pedido));
+    if (itens.length > 0) await tx.insert(t.itensPedido).values(itens);
+  });
 }
 
 export async function buscarPedido(
   id: string,
 ): Promise<{ pedido: PedidoInterno; itens: ItemPedido[] } | null> {
-  const pedido = pedidos.get(id);
-  if (!pedido) return null;
-  return { pedido: structuredClone(pedido), itens: structuredClone(itensPorPedido.get(id) ?? []) };
+  const banco = await obterBanco();
+  const [linha] = await banco.select().from(t.pedidos).where(eq(t.pedidos.id, id));
+  if (!linha) return null;
+  const itens = await banco.select().from(t.itensPedido).where(eq(t.itensPedido.pedidoId, id));
+  return { pedido: paraPedido(linha), itens: itens.map(paraItem) };
 }
 
 /**
- * Muda o status só se o pedido ainda estiver no status esperado, como um
- * `UPDATE pedidos SET status = … WHERE id = … AND status = …` no banco. Devolve se mudou.
- * É o que deixa o webhook idempotente (docs/riscos.md, prioridade alta).
+ * Muda o status só se o pedido ainda estiver no status esperado
+ * (`UPDATE pedidos SET status = … WHERE id = … AND status = …`). Devolve se mudou. É o que
+ * deixa o webhook idempotente (docs/riscos.md, prioridade alta).
  */
 export async function mudarStatusPedido(
   id: string,
@@ -617,17 +852,24 @@ export async function mudarStatusPedido(
   para: StatusPedido,
   extra: Partial<Pick<PedidoInterno, "pagoEm" | "gatewayId">> = {},
 ): Promise<boolean> {
-  const pedido = pedidos.get(id);
-  if (!pedido || pedido.status !== de) return false;
-  pedidos.set(id, { ...pedido, ...extra, status: para });
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.pedidos)
+    .set({
+      status: para,
+      ...("pagoEm" in extra ? { pagoEm: deIso(extra.pagoEm ?? null) } : {}),
+      ...("gatewayId" in extra ? { gatewayId: extra.gatewayId } : {}),
+    })
+    .where(and(eq(t.pedidos.id, id), eq(t.pedidos.status, de)))
+    .returning({ id: t.pedidos.id });
+  return atualizados.length > 0;
 }
 
 /**
  * Liga o pedido pendente à order criada no Mercado Pago, só se a order atual ainda for a
- * `anterior` (como um `UPDATE … WHERE gateway_id IS NOT DISTINCT FROM $anterior`). Na primeira
- * cobrança `anterior` é `null`; numa nova tentativa de cartão, é a order recusada. Devolve se
- * gravou; `false` quer dizer que outra requisição chegou antes.
+ * `anterior` (`… WHERE gateway_id IS NOT DISTINCT FROM $anterior`). Na primeira cobrança
+ * `anterior` é `null`; numa nova tentativa de cartão, é a order recusada. Devolve se gravou;
+ * `false` quer dizer que outra requisição chegou antes.
  */
 export async function ligarPedidoAoGateway(
   id: string,
@@ -635,26 +877,43 @@ export async function ligarPedidoAoGateway(
   gatewayId: string,
   pix: PedidoInterno["pix"],
 ): Promise<boolean> {
-  const pedido = pedidos.get(id);
-  if (!pedido || pedido.status !== "pendente" || pedido.gatewayId !== anterior) return false;
-  pedidos.set(id, { ...pedido, gatewayId, pix: structuredClone(pix) });
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.pedidos)
+    .set({
+      gatewayId,
+      pixCopiaECola: pix?.copiaECola ?? null,
+      pixQrCodeBase64: pix?.qrCodeBase64 ?? null,
+    })
+    .where(
+      and(
+        eq(t.pedidos.id, id),
+        eq(t.pedidos.status, "pendente"),
+        anterior === null ? isNull(t.pedidos.gatewayId) : eq(t.pedidos.gatewayId, anterior),
+      ),
+    )
+    .returning({ id: t.pedidos.id });
+  return atualizados.length > 0;
 }
 
 /** Pedidos `pendente` cujo prazo de pagamento já passou (`pedidos(status, expira_em)`). */
 export async function listarPendentesVencidos(instante: number): Promise<PedidoInterno[]> {
-  return structuredClone(
-    [...pedidos.values()].filter(
-      (p) => p.status === "pendente" && new Date(p.expiraEm).getTime() < instante,
-    ),
-  );
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.pedidos)
+    .where(and(eq(t.pedidos.status, "pendente"), lt(t.pedidos.expiraEm, new Date(instante))));
+  return linhas.map(paraPedido);
 }
 
 /** Pedidos expirados que ainda não receberam o lembrete de carrinho abandonado. */
 export async function listarExpiradosSemLembrete(): Promise<PedidoInterno[]> {
-  return structuredClone(
-    [...pedidos.values()].filter((p) => p.status === "expirado" && p.lembreteEnviadoEm === null),
-  );
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.pedidos)
+    .where(and(eq(t.pedidos.status, "expirado"), isNull(t.pedidos.lembreteEnviadoEm)));
+  return linhas.map(paraPedido);
 }
 
 /**
@@ -662,42 +921,73 @@ export async function listarExpiradosSemLembrete(): Promise<PedidoInterno[]> {
  * NULL`): dois jobs ao mesmo tempo não mandam o lembrete duas vezes. Devolve se marcou.
  */
 export async function marcarLembreteEnviado(pedidoId: string): Promise<boolean> {
-  const pedido = pedidos.get(pedidoId);
-  if (!pedido || pedido.lembreteEnviadoEm !== null) return false;
-  pedido.lembreteEnviadoEm = new Date().toISOString();
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.pedidos)
+    .set({ lembreteEnviadoEm: new Date() })
+    .where(and(eq(t.pedidos.id, pedidoId), isNull(t.pedidos.lembreteEnviadoEm)))
+    .returning({ id: t.pedidos.id });
+  return atualizados.length > 0;
 }
 
 export async function registrarMensagem(mensagem: Omit<Mensagem, "id" | "criadoEm">) {
-  mensagens.push({
-    ...structuredClone(mensagem),
-    id: crypto.randomUUID(),
-    criadoEm: new Date().toISOString(),
-  });
+  const banco = await obterBanco();
+  await banco.insert(t.mensagens).values(mensagem);
 }
 
 /** Mensagens enviadas, da mais recente para a mais antiga (painel de gestão). */
 export async function listarMensagens(limite = 100): Promise<Mensagem[]> {
-  return structuredClone(mensagens.slice(-limite).reverse());
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.mensagens)
+    .orderBy(desc(t.mensagens.criadoEm))
+    .limit(limite);
+  return linhas.map(paraMensagem);
 }
 
 export async function salvarLancamentos(novos: Lancamento[]) {
-  lancamentos.push(...structuredClone(novos));
+  if (novos.length === 0) return;
+  const banco = await obterBanco();
+  await banco.insert(t.lancamentos).values(
+    novos.map((l) => ({
+      ...l,
+      disponivelEm: deIso(l.disponivelEm),
+      antecipavelEm: deIso(l.antecipavelEm),
+    })),
+  );
 }
 
 /** Itens de um pedido com o que a tela de confirmação mostra. */
 export async function detalharItensDoPedido(itens: ItemPedido[]) {
+  if (itens.length === 0) return [];
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      fotoId: t.fotos.id,
+      tipo: t.fotos.tipo,
+      urlMiniatura: t.fotos.urlMiniatura,
+      eventoTitulo: t.eventos.titulo,
+      eventoSlug: t.eventos.slug,
+    })
+    .from(t.fotos)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .where(
+      inArray(
+        t.fotos.id,
+        itens.map((i) => i.fotoId),
+      ),
+    );
   return itens.flatMap((item) => {
-    const foto = fotos.find((f) => f.id === item.fotoId);
-    const evento = foto && eventos.find((e) => e.id === foto.eventoId);
-    if (!foto || !evento) return [];
+    const l = linhas.find((x) => x.fotoId === item.fotoId);
+    if (!l) return [];
     return [
       {
         item,
-        tipo: foto.tipo,
-        urlMiniatura: foto.urlMiniatura,
-        eventoTitulo: evento.titulo,
-        eventoSlug: evento.slug,
+        tipo: l.tipo,
+        urlMiniatura: l.urlMiniatura,
+        eventoTitulo: l.eventoTitulo,
+        eventoSlug: l.eventoSlug,
       },
     ];
   });
@@ -709,12 +999,13 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
 export async function buscarItemDoPedido(
   itemId: string,
 ): Promise<{ item: ItemPedido; pedido: PedidoInterno } | null> {
-  for (const [pedidoId, itens] of itensPorPedido) {
-    const item = itens.find((i) => i.id === itemId);
-    const pedido = item && pedidos.get(pedidoId);
-    if (item && pedido) return { item: structuredClone(item), pedido: structuredClone(pedido) };
-  }
-  return null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ item: t.itensPedido, pedido: t.pedidos })
+    .from(t.itensPedido)
+    .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+    .where(eq(t.itensPedido.id, itemId));
+  return linha ? { item: paraItem(linha.item), pedido: paraPedido(linha.pedido) } : null;
 }
 
 export type OriginalParaDownload = {
@@ -731,28 +1022,35 @@ export type OriginalParaDownload = {
  * (docs/arquitetura.md, exclusão lógica).
  */
 export async function buscarOriginal(fotoId: string): Promise<OriginalParaDownload | null> {
-  const foto = fotos.find((f) => f.id === fotoId);
-  const evento = foto && eventos.find((e) => e.id === foto.eventoId);
-  if (!foto || !evento) return null;
-  return { url: urlOriginalDeExemplo(foto), nomeArquivo: `${evento.slug}-${foto.nomeArquivo}` };
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({
+      chave: t.fotos.chaveOriginal,
+      nome: t.fotos.nomeArquivo,
+      slug: t.eventos.slug,
+    })
+    .from(t.fotos)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .where(eq(t.fotos.id, fotoId));
+  if (!linha?.chave) return null;
+  return { url: linha.chave, nomeArquivo: `${linha.slug}-${linha.nome}` };
 }
 
 export async function registrarDownload(itemPedidoId: string, ip: string | null) {
-  downloads.push({
-    id: crypto.randomUUID(),
-    itemPedidoId,
-    baixadoEm: new Date().toISOString(),
-    ip,
-  });
+  const banco = await obterBanco();
+  await banco.insert(t.downloads).values({ itemPedidoId, ip });
 }
 
 export async function contarDownloads(itemPedidoIds: string[]) {
-  const ids = new Set(itemPedidoIds);
   const contagem = new Map<string, number>();
-  for (const d of downloads) {
-    if (ids.has(d.itemPedidoId))
-      contagem.set(d.itemPedidoId, (contagem.get(d.itemPedidoId) ?? 0) + 1);
-  }
+  if (itemPedidoIds.length === 0) return contagem;
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ item: t.downloads.itemPedidoId, total: sql<number>`count(*)::int` })
+    .from(t.downloads)
+    .where(inArray(t.downloads.itemPedidoId, itemPedidoIds))
+    .groupBy(t.downloads.itemPedidoId);
+  for (const l of linhas) contagem.set(l.item, l.total);
   return contagem;
 }
 
@@ -775,15 +1073,24 @@ function normalizarEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+async function usuarioPorId(id: string): Promise<UsuarioInterno | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco.select().from(t.usuarios).where(eq(t.usuarios.id, id));
+  return linha ? paraUsuario(linha) : null;
+}
+
 /** Usuário com o hash da senha, só para o login conferir. Nunca entregar às telas. */
 export async function buscarUsuarioParaLogin(email: string): Promise<UsuarioInterno | null> {
-  const alvo = normalizarEmail(email);
-  for (const u of usuarios.values()) if (u.email === alvo) return structuredClone(u);
-  return null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.usuarios)
+    .where(eq(t.usuarios.email, normalizarEmail(email)));
+  return linha ? paraUsuario(linha) : null;
 }
 
 export async function buscarUsuario(id: string): Promise<Usuario | null> {
-  const u = usuarios.get(id);
+  const u = await usuarioPorId(id);
   return u ? usuarioPublico(u) : null;
 }
 
@@ -800,26 +1107,26 @@ export async function criarUsuario(dados: {
   /** O Google já confirmou o e-mail; no cadastro com senha, o link de confirmação confirma. */
   emailConfirmado?: boolean;
 }): Promise<Usuario> {
-  const agora = new Date().toISOString();
-  const usuario: UsuarioInterno = {
-    id: crypto.randomUUID(),
-    nome: dados.nome,
-    email: normalizarEmail(dados.email),
-    telefone: null,
-    papel: dados.papel,
-    senhaHash: dados.senhaHash,
-    googleId: dados.googleId ?? null,
-    emailConfirmadoEm: dados.emailConfirmado ? agora : null,
-    criadoEm: agora,
-  };
-  usuarios.set(usuario.id, usuario);
-  return usuarioPublico(usuario);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .insert(t.usuarios)
+    .values({
+      nome: dados.nome,
+      email: normalizarEmail(dados.email),
+      papel: dados.papel,
+      senhaHash: dados.senhaHash,
+      googleId: dados.googleId ?? null,
+      emailConfirmadoEm: dados.emailConfirmado ? new Date() : null,
+    })
+    .returning();
+  return usuarioPublico(paraUsuario(linha));
 }
 
 /** Usuário ligado a esta conta Google, ou `null`. */
 export async function buscarUsuarioPorGoogle(googleId: string): Promise<Usuario | null> {
-  for (const u of usuarios.values()) if (u.googleId === googleId) return usuarioPublico(u);
-  return null;
+  const banco = await obterBanco();
+  const [linha] = await banco.select().from(t.usuarios).where(eq(t.usuarios.googleId, googleId));
+  return linha ? usuarioPublico(paraUsuario(linha)) : null;
 }
 
 /**
@@ -827,36 +1134,42 @@ export async function buscarUsuarioPorGoogle(googleId: string): Promise<Usuario 
  * confirmado (o Google confirmou). Só se o usuário ainda não tiver outra conta Google.
  */
 export async function ligarContaGoogle(usuarioId: string, googleId: string): Promise<boolean> {
-  const u = usuarios.get(usuarioId);
+  const u = await usuarioPorId(usuarioId);
   if (!u || (u.googleId !== null && u.googleId !== googleId)) return false;
-  if (u.emailConfirmadoEm === null) {
-    // Conta criada com senha e nunca confirmada: pode ter sido criada por outra pessoa com este
-    // e-mail, esperando a dona dele entrar com o Google. A senha cai, e com ela as sessões
-    // abertas: a versão da sessão (versaoDaSessao) muda junto.
-    u.senhaHash = null;
-  }
-  u.googleId = googleId;
-  u.emailConfirmadoEm ??= new Date().toISOString();
+  const banco = await obterBanco();
+  await banco
+    .update(t.usuarios)
+    .set({
+      googleId,
+      emailConfirmadoEm: deIso(u.emailConfirmadoEm) ?? new Date(),
+      // Conta criada com senha e nunca confirmada: pode ter sido criada por outra pessoa com este
+      // e-mail, esperando a dona dele entrar com o Google. A senha cai, e com ela as sessões
+      // abertas: a versão da sessão (versaoDaSessao) muda junto.
+      ...(u.emailConfirmadoEm === null ? { senhaHash: null } : {}),
+    })
+    .where(eq(t.usuarios.id, usuarioId));
   return true;
 }
 
 /** Muda o papel de um usuário (painel de gestão). */
 export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Promise<boolean> {
-  const u = usuarios.get(usuarioId);
-  if (!u) return false;
-  u.papel = papel;
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.usuarios)
+    .set({ papel })
+    .where(eq(t.usuarios.id, usuarioId))
+    .returning({ id: t.usuarios.id });
+  return atualizados.length > 0;
 }
 
 /**
  * Versão da sessão do usuário: muda quando a senha cai ou a conta Google muda (ver
  * ligarContaGoogle). O cookie de sessão leva esta versão, e um cookie com versão antiga deixa de
- * valer. Não usa o hash da senha em si: nas contas de exemplo ele é gerado com sal aleatório a
- * cada início do servidor, e cada instância da Vercel teria uma versão diferente. Quando houver
- * troca de senha (Fase 11), ela também precisa mudar a versão. `null` se o usuário não existe.
+ * valer. Quando houver troca de senha, ela também precisa mudar a versão. `null` se o usuário
+ * não existe.
  */
 export async function versaoDaSessao(usuarioId: string): Promise<string | null> {
-  const u = usuarios.get(usuarioId);
+  const u = await usuarioPorId(usuarioId);
   if (!u) return null;
   return createHash("sha256")
     .update(`${u.senhaHash ? "com-senha" : "sem-senha"}|${u.googleId ?? ""}`)
@@ -869,20 +1182,29 @@ export async function salvarConfirmacaoEmail(
   usuarioId: string,
   expiraEm: number,
 ) {
-  confirmacoes.set(tokenHash, { usuarioId, expiraEm });
+  const banco = await obterBanco();
+  await banco
+    .insert(t.confirmacoesEmail)
+    .values({ tokenHash, usuarioId, expiraEm: new Date(expiraEm) });
 }
 
 /** Usa o token de confirmação (uma vez só) e devolve o usuário, ou `null` se inválido/vencido. */
 export async function consumirConfirmacaoEmail(tokenHash: string): Promise<string | null> {
-  const confirmacao = confirmacoes.get(tokenHash);
-  confirmacoes.delete(tokenHash);
-  if (!confirmacao || confirmacao.expiraEm < Date.now()) return null;
-  return confirmacao.usuarioId;
+  const banco = await obterBanco();
+  const [apagado] = await banco
+    .delete(t.confirmacoesEmail)
+    .where(eq(t.confirmacoesEmail.tokenHash, tokenHash))
+    .returning();
+  if (!apagado || apagado.expiraEm.getTime() < Date.now()) return null;
+  return apagado.usuarioId;
 }
 
 export async function marcarEmailConfirmado(usuarioId: string) {
-  const u = usuarios.get(usuarioId);
-  if (u && !u.emailConfirmadoEm) u.emailConfirmadoEm = new Date().toISOString();
+  const banco = await obterBanco();
+  await banco
+    .update(t.usuarios)
+    .set({ emailConfirmadoEm: new Date() })
+    .where(and(eq(t.usuarios.id, usuarioId), isNull(t.usuarios.emailConfirmadoEm)));
 }
 
 /**
@@ -891,41 +1213,68 @@ export async function marcarEmailConfirmado(usuarioId: string) {
  * compras dela. Devolve quantos pedidos foram vinculados.
  */
 export async function vincularPedidosDeConvidado(usuarioId: string): Promise<number> {
-  const u = usuarios.get(usuarioId);
+  const u = await usuarioPorId(usuarioId);
   if (!u?.emailConfirmadoEm) return 0;
-  let vinculados = 0;
-  for (const pedido of pedidos.values()) {
-    if (pedido.clienteId === null && normalizarEmail(pedido.emailComprador) === u.email) {
-      pedido.clienteId = u.id;
-      vinculados++;
-    }
-  }
-  return vinculados;
+  const banco = await obterBanco();
+  const vinculados = await banco
+    .update(t.pedidos)
+    .set({ clienteId: u.id })
+    .where(
+      and(isNull(t.pedidos.clienteId), eq(sql`lower(trim(${t.pedidos.emailComprador}))`, u.email)),
+    )
+    .returning({ id: t.pedidos.id });
+  return vinculados.length;
 }
 
 /** Pedidos de um cliente, do mais recente para o mais antigo. */
 export async function listarPedidosDoCliente(
   clienteId: string,
 ): Promise<{ pedido: PedidoInterno; itens: ItemPedido[] }[]> {
-  return [...pedidos.values()]
-    .filter((p) => p.clienteId === clienteId)
-    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
-    .map((p) => ({
-      pedido: structuredClone(p),
-      itens: structuredClone(itensPorPedido.get(p.id) ?? []),
-    }));
+  const banco = await obterBanco();
+  const pedidos = await banco
+    .select()
+    .from(t.pedidos)
+    .where(eq(t.pedidos.clienteId, clienteId))
+    .orderBy(desc(t.pedidos.criadoEm));
+  if (pedidos.length === 0) return [];
+  const itens = await banco
+    .select()
+    .from(t.itensPedido)
+    .where(
+      inArray(
+        t.itensPedido.pedidoId,
+        pedidos.map((p) => p.id),
+      ),
+    );
+  return pedidos.map((p) => ({
+    pedido: paraPedido(p),
+    itens: itens.filter((i) => i.pedidoId === p.id).map(paraItem),
+  }));
 }
 
 // ---------------------------------------------------------------- Conta do fotógrafo
 
 /** Dados privados do fotógrafo dono desta conta de usuário. Só para o próprio fotógrafo. */
 export async function buscarContaDoFotografo(usuarioId: string): Promise<FotografoConta | null> {
-  const conta = fotografos.find((f) => f.usuarioId === usuarioId);
-  return conta ? structuredClone(conta) : null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.fotografos)
+    .where(eq(t.fotografos.usuarioId, usuarioId));
+  return linha ? paraFotografo(linha) : null;
 }
 
 export async function slugDeFotografoEmUso(slug: string, excetoId?: string) {
-  return fotografos.some((f) => f.slug === slug && f.id !== excetoId);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.fotografos.id })
+    .from(t.fotografos)
+    .where(
+      excetoId
+        ? and(eq(t.fotografos.slug, slug), ne(t.fotografos.id, excetoId))
+        : eq(t.fotografos.slug, slug),
+    );
+  return linha !== undefined;
 }
 
 export async function criarContaDeFotografo(dados: {
@@ -933,21 +1282,9 @@ export async function criarContaDeFotografo(dados: {
   nomePublico: string;
   slug: string;
 }): Promise<FotografoConta> {
-  const conta: FotografoConta = {
-    id: crypto.randomUUID(),
-    usuarioId: dados.usuarioId,
-    nomePublico: dados.nomePublico,
-    slug: dados.slug,
-    bio: null,
-    fotoPerfil: null,
-    capa: null,
-    redesSociais: {},
-    cpfCnpj: "",
-    chavePix: null,
-    comissaoPct: 10,
-  };
-  fotografos.push(conta);
-  return structuredClone(conta);
+  const banco = await obterBanco();
+  const [linha] = await banco.insert(t.fotografos).values(dados).returning();
+  return paraFotografo(linha);
 }
 
 export type AlteracoesPerfil = Partial<
@@ -956,11 +1293,15 @@ export type AlteracoesPerfil = Partial<
 
 /** Atualiza só a conta ligada a este usuário: nunca por um id vindo do navegador. */
 export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: AlteracoesPerfil) {
-  const conta = fotografos.find((f) => f.usuarioId === usuarioId);
-  if (!conta) return null;
-  Object.assign(conta, alteracoes);
-  return structuredClone(conta);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .update(t.fotografos)
+    .set(alteracoes)
+    .where(eq(t.fotografos.usuarioId, usuarioId))
+    .returning();
+  return linha ? paraFotografo(linha) : null;
 }
+
 export * from "./painel";
 export * from "./admin";
 export * from "./vendas-painel";

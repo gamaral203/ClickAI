@@ -1,28 +1,36 @@
 // Recursos de venda no painel do fotógrafo: desconto progressivo, pacote, cupons, preço
 // individual e colaboradores. Como em ./painel.ts, toda função recebe o id do fotógrafo logado
-// e só mexe no que é dele (no banco, um WHERE fotografo_id = …).
+// e só mexe no que é dele (um WHERE fotografo_id = …).
 
 import "server-only";
 
-import {
-  colaboradores,
-  cupons,
-  eventos,
-  faixasDesconto,
-  fotografos,
-  fotos,
-  pacotes,
-} from "./exemplo/banco";
-import { usuarios } from "./exemplo/usuarios";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+
+import { obterBanco } from "@/db";
+import * as t from "@/db/schema";
+
+import { eventosDosCupons } from "./comum";
+import { deIso, iso, paraColaborador, paraCupom, paraFaixa, paraPacote } from "./mapas";
 import type { Colaborador, Cupom, Evento, FaixaDesconto, Pacote } from "./tipos";
 
-function eventoDoDono(eventoId: string, fotografoId: string): Evento | undefined {
-  return eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
+async function eventoDoDono(eventoId: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
+  return linha !== undefined;
 }
 
 // ---------------------------------------------------------------- Desconto progressivo
 
 export type FaixaNova = Pick<FaixaDesconto, "quantidadeMin" | "descontoPct">;
+
+const faixasDe = (fotografoId: string, eventoId: string | null) =>
+  and(
+    eq(t.faixasDesconto.fotografoId, fotografoId),
+    eventoId === null ? isNull(t.faixasDesconto.eventoId) : eq(t.faixasDesconto.eventoId, eventoId),
+  );
 
 /**
  * Faixas do fotógrafo: as de um evento dele, ou a regra padrão (`eventoId` nulo). Em ordem de
@@ -32,31 +40,33 @@ export async function listarFaixas(
   fotografoId: string,
   eventoId: string | null,
 ): Promise<FaixaDesconto[] | null> {
-  if (eventoId && !eventoDoDono(eventoId, fotografoId)) return null;
-  return structuredClone(
-    faixasDesconto
-      .filter((f) => f.fotografoId === fotografoId && f.eventoId === eventoId)
-      .sort((a, b) => a.quantidadeMin - b.quantidadeMin),
-  );
+  if (eventoId && !(await eventoDoDono(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.faixasDesconto)
+    .where(faixasDe(fotografoId, eventoId))
+    .orderBy(asc(t.faixasDesconto.quantidadeMin));
+  return linhas.map(paraFaixa);
 }
 
 /**
- * Troca todas as faixas (do evento ou a regra padrão) pelas novas. Lista vazia apaga: no
- * evento, ele volta a usar a regra padrão.
+ * Troca todas as faixas (do evento ou a regra padrão) pelas novas, numa transação. Lista vazia
+ * apaga: no evento, ele volta a usar a regra padrão.
  */
 export async function salvarFaixas(
   fotografoId: string,
   eventoId: string | null,
   novas: FaixaNova[],
 ): Promise<boolean> {
-  if (eventoId && !eventoDoDono(eventoId, fotografoId)) return false;
-  for (let i = faixasDesconto.length - 1; i >= 0; i--) {
-    const f = faixasDesconto[i];
-    if (f.fotografoId === fotografoId && f.eventoId === eventoId) faixasDesconto.splice(i, 1);
-  }
-  faixasDesconto.push(
-    ...novas.map((f) => ({ id: crypto.randomUUID(), fotografoId, eventoId, ...f })),
-  );
+  if (eventoId && !(await eventoDoDono(eventoId, fotografoId))) return false;
+  const banco = await obterBanco();
+  await banco.transaction(async (tx) => {
+    await tx.delete(t.faixasDesconto).where(faixasDe(fotografoId, eventoId));
+    if (novas.length > 0) {
+      await tx.insert(t.faixasDesconto).values(novas.map((f) => ({ fotografoId, eventoId, ...f })));
+    }
+  });
   return true;
 }
 
@@ -68,9 +78,10 @@ export async function buscarPacoteDoEvento(
   eventoId: string,
   fotografoId: string,
 ): Promise<Pacote | null> {
-  if (!eventoDoDono(eventoId, fotografoId)) return null;
-  const pacote = pacotes.find((p) => p.eventoId === eventoId);
-  return pacote ? structuredClone(pacote) : null;
+  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const [linha] = await banco.select().from(t.pacotes).where(eq(t.pacotes.eventoId, eventoId));
+  return linha ? paraPacote(linha) : null;
 }
 
 /** Cria ou atualiza o pacote do evento (um por evento). */
@@ -79,10 +90,13 @@ export async function salvarPacote(
   fotografoId: string,
   dados: DadosPacote,
 ): Promise<boolean> {
-  if (!eventoDoDono(eventoId, fotografoId)) return false;
-  const existente = pacotes.find((p) => p.eventoId === eventoId);
-  if (existente) Object.assign(existente, dados);
-  else pacotes.push({ id: crypto.randomUUID(), eventoId, ...dados });
+  if (!(await eventoDoDono(eventoId, fotografoId))) return false;
+  const banco = await obterBanco();
+  const valores = { ...dados, expiraEm: deIso(dados.expiraEm) };
+  await banco
+    .insert(t.pacotes)
+    .values({ eventoId, ...valores })
+    .onConflictDoUpdate({ target: t.pacotes.eventoId, set: valores });
   return true;
 }
 
@@ -91,11 +105,14 @@ export async function salvarPacote(
 export type DadosCupom = Omit<Cupom, "id" | "fotografoId" | "usos">;
 
 export async function listarCuponsDoFotografo(fotografoId: string): Promise<Cupom[]> {
-  return structuredClone(
-    cupons
-      .filter((c) => c.fotografoId === fotografoId)
-      .sort((a, b) => a.codigo.localeCompare(b.codigo)),
-  );
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.cupons)
+    .where(eq(t.cupons.fotografoId, fotografoId))
+    .orderBy(asc(t.cupons.codigo));
+  const eventos = await eventosDosCupons(linhas.map((c) => c.id));
+  return linhas.map((c) => paraCupom(c, eventos.get(c.id) ?? []));
 }
 
 /**
@@ -103,14 +120,24 @@ export async function listarCuponsDoFotografo(fotografoId: string): Promise<Cupo
  * só o código, sem dizer de qual fotógrafo é.
  */
 export async function codigoDeCupomEmUso(codigo: string, excetoId?: string) {
-  const alvo = codigo.toUpperCase();
-  return cupons.some((c) => c.codigo.toUpperCase() === alvo && c.id !== excetoId);
+  const banco = await obterBanco();
+  const mesmoCodigo = eq(sql`upper(${t.cupons.codigo})`, codigo.toUpperCase());
+  const [linha] = await banco
+    .select({ id: t.cupons.id })
+    .from(t.cupons)
+    .where(excetoId ? and(mesmoCodigo, ne(t.cupons.id, excetoId)) : mesmoCodigo);
+  return linha !== undefined;
 }
 
 /** Eventos do fotógrafo entre os informados (para conferir os eventos de um cupom). */
 export async function filtrarEventosDoFotografo(fotografoId: string, eventoIds: string[]) {
-  const alvo = new Set(eventoIds);
-  return eventos.filter((e) => e.fotografoId === fotografoId && alvo.has(e.id)).map((e) => e.id);
+  if (eventoIds.length === 0) return [];
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.fotografoId, fotografoId), inArray(t.eventos.id, eventoIds)));
+  return linhas.map((l) => l.id);
 }
 
 /** Cria (sem `cupomId`) ou atualiza um cupom do fotógrafo. Os usos já feitos não mudam. */
@@ -119,14 +146,34 @@ export async function salvarCupom(
   dados: DadosCupom,
   cupomId?: string,
 ): Promise<boolean> {
-  if (!cupomId) {
-    cupons.push({ id: crypto.randomUUID(), fotografoId, usos: 0, ...dados });
+  const banco = await obterBanco();
+  const { eventoIds, ...resto } = dados;
+  const valores = { ...resto, inicioEm: deIso(resto.inicioEm), expiraEm: deIso(resto.expiraEm) };
+  return banco.transaction(async (tx) => {
+    let id: string;
+    if (!cupomId) {
+      const [linha] = await tx
+        .insert(t.cupons)
+        .values({ ...valores, fotografoId })
+        .returning({ id: t.cupons.id });
+      id = linha.id;
+    } else {
+      const [linha] = await tx
+        .update(t.cupons)
+        .set(valores)
+        .where(and(eq(t.cupons.id, cupomId), eq(t.cupons.fotografoId, fotografoId)))
+        .returning({ id: t.cupons.id });
+      if (!linha) return false;
+      id = linha.id;
+      await tx.delete(t.cuponsEventos).where(eq(t.cuponsEventos.cupomId, id));
+    }
+    if (eventoIds.length > 0) {
+      await tx
+        .insert(t.cuponsEventos)
+        .values(eventoIds.map((eventoId) => ({ cupomId: id, eventoId })));
+    }
     return true;
-  }
-  const cupom = cupons.find((c) => c.id === cupomId && c.fotografoId === fotografoId);
-  if (!cupom) return false;
-  Object.assign(cupom, dados);
-  return true;
+  });
 }
 
 // ---------------------------------------------------------------- Preço individual
@@ -140,30 +187,64 @@ export async function definirPrecoDoItem(
   fotografoId: string,
   precoCentavos: number | null,
 ): Promise<boolean> {
-  const foto = fotos.find((f) => f.id === fotoId && f.excluidaEm === null);
-  if (!foto || !eventoDoDono(foto.eventoId, fotografoId)) return false;
-  foto.precoCentavos = precoCentavos;
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.fotos)
+    .set({ precoCentavos })
+    .where(
+      and(
+        eq(t.fotos.id, fotoId),
+        isNull(t.fotos.excluidaEm),
+        inArray(
+          t.fotos.eventoId,
+          banco
+            .select({ id: t.eventos.id })
+            .from(t.eventos)
+            .where(eq(t.eventos.fotografoId, fotografoId)),
+        ),
+      ),
+    )
+    .returning({ id: t.fotos.id });
+  return atualizados.length > 0;
 }
 
 // ---------------------------------------------------------------- Colaboradores
 
 export type ColaboradorDoPainel = Colaborador & { nomePublico: string; totalItens: number };
 
+async function itensDoColaborador(eventoId: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const [{ total }] = await banco
+    .select({ total: sql<number>`count(*)::int` })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.eventoId, eventoId),
+        eq(t.fotos.enviadaPor, fotografoId),
+        isNull(t.fotos.excluidaEm),
+      ),
+    );
+  return total;
+}
+
 export async function listarColaboradores(
   eventoId: string,
   fotografoId: string,
 ): Promise<ColaboradorDoPainel[] | null> {
-  if (!eventoDoDono(eventoId, fotografoId)) return null;
-  return colaboradores
-    .filter((c) => c.eventoId === eventoId)
-    .map((c) => ({
-      ...structuredClone(c),
-      nomePublico: fotografos.find((f) => f.id === c.fotografoId)?.nomePublico ?? "",
-      totalItens: fotos.filter(
-        (f) => f.eventoId === eventoId && f.enviadaPor === c.fotografoId && f.excluidaEm === null,
-      ).length,
-    }));
+  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ colaborador: t.colaboradores, nome: t.fotografos.nomePublico })
+    .from(t.colaboradores)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.colaboradores.fotografoId))
+    .where(eq(t.colaboradores.eventoId, eventoId));
+  return Promise.all(
+    linhas.map(async (l) => ({
+      ...paraColaborador(l.colaborador),
+      nomePublico: l.nome,
+      totalItens: await itensDoColaborador(eventoId, l.colaborador.fotografoId),
+    })),
+  );
 }
 
 /**
@@ -173,13 +254,13 @@ export async function listarColaboradores(
 export async function buscarFotografoPorEmail(
   email: string,
 ): Promise<{ id: string; nomePublico: string } | null> {
-  const alvo = email.trim().toLowerCase();
-  for (const u of usuarios.values()) {
-    if (u.email !== alvo) continue;
-    const conta = fotografos.find((f) => f.usuarioId === u.id);
-    return conta ? { id: conta.id, nomePublico: conta.nomePublico } : null;
-  }
-  return null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.fotografos.id, nomePublico: t.fotografos.nomePublico })
+    .from(t.fotografos)
+    .innerJoin(t.usuarios, eq(t.usuarios.id, t.fotografos.usuarioId))
+    .where(eq(t.usuarios.email, email.trim().toLowerCase()));
+  return linha ?? null;
 }
 
 export type ResultadoColaborador = "ok" | "evento" | "ja_colabora" | "dono";
@@ -189,13 +270,25 @@ export async function adicionarColaborador(
   donoId: string,
   dados: { fotografoId: string; comissaoDonoPct: number; nota: string | null },
 ): Promise<ResultadoColaborador> {
-  if (!eventoDoDono(eventoId, donoId)) return "evento";
+  if (!(await eventoDoDono(eventoId, donoId))) return "evento";
   if (dados.fotografoId === donoId) return "dono";
-  if (colaboradores.some((c) => c.eventoId === eventoId && c.fotografoId === dados.fotografoId)) {
-    return "ja_colabora";
-  }
-  colaboradores.push({ id: crypto.randomUUID(), eventoId, ...dados });
-  return "ok";
+  const banco = await obterBanco();
+  const inseridos = await banco
+    .insert(t.colaboradores)
+    .values({ eventoId, ...dados })
+    .onConflictDoNothing()
+    .returning({ id: t.colaboradores.id });
+  return inseridos.length > 0 ? "ok" : "ja_colabora";
+}
+
+async function colaboradorDoDono(colaboradorId: string, donoId: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ colaborador: t.colaboradores })
+    .from(t.colaboradores)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.colaboradores.eventoId))
+    .where(and(eq(t.colaboradores.id, colaboradorId), eq(t.eventos.fotografoId, donoId)));
+  return linha?.colaborador ?? null;
 }
 
 /** Muda comissão e nota. A nova comissão vale para as próximas vendas. */
@@ -204,9 +297,9 @@ export async function atualizarColaborador(
   donoId: string,
   dados: { comissaoDonoPct: number; nota: string | null },
 ): Promise<boolean> {
-  const colaborador = colaboradores.find((c) => c.id === colaboradorId);
-  if (!colaborador || !eventoDoDono(colaborador.eventoId, donoId)) return false;
-  Object.assign(colaborador, dados);
+  if (!(await colaboradorDoDono(colaboradorId, donoId))) return false;
+  const banco = await obterBanco();
+  await banco.update(t.colaboradores).set(dados).where(eq(t.colaboradores.id, colaboradorId));
   return true;
 }
 
@@ -218,17 +311,13 @@ export async function removerColaborador(
   colaboradorId: string,
   donoId: string,
 ): Promise<"ok" | "nao_encontrado" | "tem_fotos"> {
-  const indice = colaboradores.findIndex((c) => c.id === colaboradorId);
-  const colaborador = colaboradores[indice];
-  if (!colaborador || !eventoDoDono(colaborador.eventoId, donoId)) return "nao_encontrado";
-  const temFotos = fotos.some(
-    (f) =>
-      f.eventoId === colaborador.eventoId &&
-      f.enviadaPor === colaborador.fotografoId &&
-      f.excluidaEm === null,
-  );
-  if (temFotos) return "tem_fotos";
-  colaboradores.splice(indice, 1);
+  const colaborador = await colaboradorDoDono(colaboradorId, donoId);
+  if (!colaborador) return "nao_encontrado";
+  if ((await itensDoColaborador(colaborador.eventoId, colaborador.fotografoId)) > 0) {
+    return "tem_fotos";
+  }
+  const banco = await obterBanco();
+  await banco.delete(t.colaboradores).where(eq(t.colaboradores.id, colaboradorId));
   return "ok";
 }
 
@@ -243,38 +332,45 @@ export type ColaboracaoDoPainel = {
 
 /** Eventos de outros fotógrafos em que este fotógrafo colabora. */
 export async function listarColaboracoes(fotografoId: string): Promise<ColaboracaoDoPainel[]> {
-  return colaboradores
-    .filter((c) => c.fotografoId === fotografoId)
-    .flatMap((c) => {
-      const evento = eventos.find((e) => e.id === c.eventoId);
-      if (!evento) return [];
-      return [
-        {
-          colaboradorId: c.id,
-          evento: {
-            id: evento.id,
-            titulo: evento.titulo,
-            slug: evento.slug,
-            inicioEm: evento.inicioEm,
-            status: evento.status,
-          },
-          donoNome: fotografos.find((f) => f.id === evento.fotografoId)?.nomePublico ?? "",
-          comissaoDonoPct: c.comissaoDonoPct,
-          nota: c.nota,
-          meusItens: fotos.filter(
-            (f) =>
-              f.eventoId === evento.id && f.enviadaPor === fotografoId && f.excluidaEm === null,
-          ).length,
-        },
-      ];
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      colaborador: t.colaboradores,
+      evento: t.eventos,
+      donoNome: t.fotografos.nomePublico,
     })
-    .sort((a, b) => b.evento.inicioEm.localeCompare(a.evento.inicioEm));
+    .from(t.colaboradores)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.colaboradores.eventoId))
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))
+    .where(eq(t.colaboradores.fotografoId, fotografoId));
+  const resultado = await Promise.all(
+    linhas.map(async (l) => ({
+      colaboradorId: l.colaborador.id,
+      evento: {
+        id: l.evento.id,
+        titulo: l.evento.titulo,
+        slug: l.evento.slug,
+        inicioEm: iso(l.evento.inicioEm),
+        status: l.evento.status,
+      },
+      donoNome: l.donoNome,
+      comissaoDonoPct: l.colaborador.comissaoDonoPct,
+      nota: l.colaborador.nota,
+      meusItens: await itensDoColaborador(l.evento.id, fotografoId),
+    })),
+  );
+  return resultado.sort((a, b) => b.evento.inicioEm.localeCompare(a.evento.inicioEm));
 }
 
 /** O fotógrafo pode enviar fotos a este evento: é o dono ou colaborador. */
 export async function podeEnviarAoEvento(eventoId: string, fotografoId: string) {
-  return (
-    Boolean(eventoDoDono(eventoId, fotografoId)) ||
-    colaboradores.some((c) => c.eventoId === eventoId && c.fotografoId === fotografoId)
-  );
+  if (await eventoDoDono(eventoId, fotografoId)) return true;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.colaboradores.id })
+    .from(t.colaboradores)
+    .where(
+      and(eq(t.colaboradores.eventoId, eventoId), eq(t.colaboradores.fotografoId, fotografoId)),
+    );
+  return linha !== undefined;
 }

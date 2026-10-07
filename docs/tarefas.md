@@ -92,6 +92,11 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Domínio próprio das lojas: o fotógrafo conecta no painel, o site cadastra pela API da Vercel e verifica o DNS (simulado sem credenciais); o `proxy.ts` abre a loja no domínio verificado
 - [x] Guia de deploy e contas ([deploy.md](deploy.md))
 - [x] Primeiro deploy na Vercel (`clickai-hazel.vercel.app`), com gestores da equipe pela variável `GESTORES` (só hashes de senha) e sem as contas de exemplo de gestor e atendente em produção
+- [x] Decisão: banco Neon (Postgres), pelo Marketplace da Vercel, região `gru1`
+- [x] Schema do banco em `src/db/schema.ts` (Drizzle), com as tabelas e os índices da arquitetura e as tabelas que só existiam em memória (confirmação de e-mail, acessos por senha de evento, mensagens); primeira migração em `src/db/migracoes`
+- [x] Camada de dados sobre o banco, com as mesmas funções: Neon pela URL com pooler (driver serverless, com transações) e PGlite em memória sem `DATABASE_URL` `[R-alta]`
+- [x] Dados de exemplo como semente do banco; `npm run db:migrar` aplica as migrações (roda antes de cada build) e grava a semente num banco vazio; gestores de `GESTORES` sincronizados a cada início
+- [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
@@ -100,7 +105,6 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, o que a Fotto fez.
 
-- [ ] Banco gerenciado: Supabase ou Neon?
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (só eventos)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (indeterminado)
 - [ ] Acesso do cliente logado e do convidado: para sempre ou com prazo? (para sempre)
@@ -159,11 +163,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 11 — Banco e autenticação
 
-- [ ] Escrever o `schema.ts` com as tabelas e os índices iniciais de [arquitetura.md](arquitetura.md#modelo-de-dados)
-- [ ] Conectar o Drizzle ao banco pela URL com pooler `[R-alta]`
-- [ ] Rodar a primeira migração
-- [ ] Implementação da camada de dados com o banco, no lugar da de exemplo
-- [ ] Usuários, sessões e contas Google no banco (avaliar Better Auth mantendo o login com Google e os quatro papéis)
+- [ ] Criar o Neon pela Vercel (falta aceitar os termos da Neon no painel da Vercel) e rodar a primeira migração no banco de produção
+- [ ] Avaliar o Better Auth no lugar da sessão em cookie assinado, mantendo o login com Google e os quatro papéis (com sessões revogáveis no banco)
 
 ## Fase 12 — Upload, processamento e reconhecimento
 

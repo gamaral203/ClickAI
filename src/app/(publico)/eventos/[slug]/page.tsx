@@ -16,7 +16,6 @@ import {
   eventoTemNumeros,
   listarFotosDoEvento,
   listarOpcoesGaleria,
-  listarSlugsPublicados,
   type EventoResumo,
   type FiltroGaleria,
 } from "@/dados";
@@ -24,11 +23,6 @@ import { urlDoSite } from "@/lib/endereco";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { lerFiltroGaleria } from "@/lib/validacao";
-
-export async function generateStaticParams() {
-  const slugs = await listarSlugsPublicados();
-  return slugs.map((slug) => ({ slug }));
-}
 
 export async function generateMetadata({
   params,

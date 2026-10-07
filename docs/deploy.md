@@ -10,7 +10,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
 | Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Produção só depois de validar o saque (Fase 13) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
-| Banco (Supabase ou Neon) | Dados | Fase 11 | Região São Paulo; decisão em aberto em [tarefas.md](tarefas.md) |
+| Banco (Neon) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Neon), região `gru1`; cria o `DATABASE_URL` no projeto. O build roda as migrações (`npm run db:migrar`) e grava os dados de exemplo se o banco estiver vazio |
 | Cloudflare R2 | Fotos e vídeos | Fase 12 | Dois buckets: público (prévias) e privado (originais) |
 | AWS | Reconhecimento facial (Rekognition) | Fase 12 | Usuário IAM só com as permissões do `.env.example` |
 | WhatsApp (Meta ou parceiro) | Entrega pelo WhatsApp | Fase 13 | Decisão em aberto |

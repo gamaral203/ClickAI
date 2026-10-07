@@ -1,21 +1,16 @@
 // Funções de dados do painel do fotógrafo. Toda função recebe o id do fotógrafo logado e só
-// mexe no que é dele: a checagem fica aqui (como um WHERE fotografo_id = … no banco), e não
-// só na tela.
+// mexe no que é dele: a checagem fica aqui (um WHERE fotografo_id = …), e não só na tela.
 
 import "server-only";
 
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
-import {
-  categorias,
-  colaboradores,
-  eventos,
-  fotografos,
-  fotos,
-  senhasEventos,
-} from "./exemplo/banco";
+import { obterBanco } from "@/db";
+import * as t from "@/db/schema";
+
 import imagens from "./exemplo/imagens.json";
-import { itensPorPedido, lancamentos, pedidos, saques } from "./exemplo/pedidos";
+import { deIso, iso, paraEvento, paraFoto, paraLancamento, paraSaque } from "./mapas";
 import type {
   Categoria,
   Evento,
@@ -35,44 +30,68 @@ export type EventoDoPainel = Evento & {
   vendidos: number;
 };
 
-function itensDoEvento(eventoId: string) {
-  return fotos.filter((f) => f.eventoId === eventoId && f.excluidaEm === null);
-}
-
-function idsVendidos() {
-  const vendidos = new Set<string>();
-  for (const [pedidoId, itens] of itensPorPedido) {
-    if (pedidos.get(pedidoId)?.status !== "pago") continue;
-    for (const item of itens) vendidos.add(item.fotoId);
-  }
-  return vendidos;
-}
-
-function paraPainel(evento: Evento, vendidos: Set<string>): EventoDoPainel {
-  const categoria = categorias.find((c) => c.id === evento.categoriaId);
-  if (!categoria) throw new Error(`Categoria ${evento.categoriaId} não existe`);
-  const itens = itensDoEvento(evento.id);
-  return {
-    ...structuredClone(evento),
-    categoria,
-    temSenha: senhasEventos.has(evento.id),
-    totalItens: itens.filter((f) => f.status === "pronta").length,
-    processando: itens.filter((f) => f.status === "processando").length,
-    vendidos: itens.filter((f) => vendidos.has(f.id)).length,
-  };
+async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<EventoDoPainel[]> {
+  if (linhas.length === 0) return [];
+  const banco = await obterBanco();
+  const ids = linhas.map((l) => l.id);
+  const [cats, contagens, vendidos] = await Promise.all([
+    banco.select().from(t.categorias),
+    banco
+      .select({
+        eventoId: t.fotos.eventoId,
+        prontas: sql<number>`count(*) filter (where ${t.fotos.status} = 'pronta')::int`,
+        processando: sql<number>`count(*) filter (where ${t.fotos.status} = 'processando')::int`,
+      })
+      .from(t.fotos)
+      .where(and(inArray(t.fotos.eventoId, ids), isNull(t.fotos.excluidaEm)))
+      .groupBy(t.fotos.eventoId),
+    // Itens não excluídos que aparecem em algum pedido pago.
+    banco
+      .select({
+        eventoId: t.fotos.eventoId,
+        total: sql<number>`count(distinct ${t.fotos.id})::int`,
+      })
+      .from(t.itensPedido)
+      .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+      .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+      .where(
+        and(
+          inArray(t.fotos.eventoId, ids),
+          eq(t.pedidos.status, "pago"),
+          isNull(t.fotos.excluidaEm),
+        ),
+      )
+      .groupBy(t.fotos.eventoId),
+  ]);
+  return linhas.map((l) => {
+    const categoria = cats.find((c) => c.id === l.categoriaId);
+    if (!categoria) throw new Error(`Categoria ${l.categoriaId} não existe`);
+    const contagem = contagens.find((c) => c.eventoId === l.id);
+    return {
+      ...paraEvento(l),
+      categoria,
+      temSenha: l.senhaHash !== null,
+      totalItens: contagem?.prontas ?? 0,
+      processando: contagem?.processando ?? 0,
+      vendidos: vendidos.find((v) => v.eventoId === l.id)?.total ?? 0,
+    };
+  });
 }
 
 export async function listarCategorias(): Promise<Categoria[]> {
-  return structuredClone(categorias);
+  const banco = await obterBanco();
+  return banco.select().from(t.categorias).orderBy(asc(t.categorias.nome));
 }
 
 /** Eventos de que o fotógrafo é dono, do mais recente para o mais antigo. */
 export async function listarEventosDoFotografo(fotografoId: string): Promise<EventoDoPainel[]> {
-  const vendidos = idsVendidos();
-  return eventos
-    .filter((e) => e.fotografoId === fotografoId)
-    .sort((a, b) => b.inicioEm.localeCompare(a.inicioEm))
-    .map((e) => paraPainel(e, vendidos));
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.eventos)
+    .where(eq(t.eventos.fotografoId, fotografoId))
+    .orderBy(desc(t.eventos.inicioEm));
+  return paraPainel(linhas);
 }
 
 /** Evento do fotógrafo, ou `null` se não existir ou for de outra pessoa. */
@@ -80,26 +99,49 @@ export async function buscarEventoDoFotografo(
   eventoId: string,
   fotografoId: string,
 ): Promise<EventoDoPainel | null> {
-  const evento = eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
-  return evento ? paraPainel(evento, idsVendidos()) : null;
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
+  return (await paraPainel(linhas))[0] ?? null;
 }
 
 export async function slugDeEventoEmUso(slug: string, excetoId?: string) {
-  return eventos.some((e) => e.slug === slug && e.id !== excetoId);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(
+      excetoId
+        ? and(eq(t.eventos.slug, slug), ne(t.eventos.id, excetoId))
+        : eq(t.eventos.slug, slug),
+    );
+  return linha !== undefined;
 }
 
 export type DadosDoEvento = Omit<Evento, "id" | "fotografoId" | "status" | "capa">;
 
-export async function criarEvento(fotografoId: string, dados: DadosDoEvento): Promise<Evento> {
-  const evento: Evento = {
-    ...dados,
-    id: crypto.randomUUID(),
-    fotografoId,
-    capa: null,
-    status: "rascunho",
+/** Dados do evento como o banco grava: as datas viram Date. */
+function linhaDoEvento(dados: Partial<DadosDoEvento>): Partial<typeof t.eventos.$inferInsert> {
+  const { inicioEm, fimEm, liberadoEm, ...resto } = dados;
+  return {
+    ...resto,
+    ...(inicioEm !== undefined ? { inicioEm: new Date(inicioEm) } : {}),
+    ...(fimEm !== undefined ? { fimEm: new Date(fimEm) } : {}),
+    ...(liberadoEm !== undefined ? { liberadoEm: deIso(liberadoEm) } : {}),
   };
-  eventos.push(evento);
-  return structuredClone(evento);
+}
+
+export async function criarEvento(fotografoId: string, dados: DadosDoEvento): Promise<Evento> {
+  const banco = await obterBanco();
+  const valores = {
+    ...linhaDoEvento(dados),
+    fotografoId,
+    status: "rascunho",
+  } as typeof t.eventos.$inferInsert;
+  const [linha] = await banco.insert(t.eventos).values(valores).returning();
+  return paraEvento(linha);
 }
 
 /** Atualiza um evento do fotógrafo. Devolve `null` se o evento não for dele. */
@@ -108,10 +150,13 @@ export async function atualizarEvento(
   fotografoId: string,
   dados: Partial<DadosDoEvento>,
 ): Promise<Evento | null> {
-  const evento = eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
-  if (!evento) return null;
-  Object.assign(evento, dados);
-  return structuredClone(evento);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .update(t.eventos)
+    .set(linhaDoEvento(dados))
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)))
+    .returning();
+  return linha ? paraEvento(linha) : null;
 }
 
 /** Guarda (ou apaga, com `null`) o hash da senha de um evento do fotógrafo. */
@@ -120,15 +165,17 @@ export async function definirSenhaDoEvento(
   fotografoId: string,
   senhaHash: string | null,
 ) {
-  const evento = eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
-  if (!evento) return false;
-  if (senhaHash) senhasEventos.set(eventoId, senhaHash);
-  else senhasEventos.delete(eventoId);
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.eventos)
+    .set({ senhaHash })
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)))
+    .returning({ id: t.eventos.id });
+  return atualizados.length > 0;
 }
 
 /**
- * Muda o status de um evento do fotógrafo, só a partir do status esperado (como um UPDATE com
+ * Muda o status de um evento do fotógrafo, só a partir do status esperado (UPDATE com
  * WHERE status = …). O status `revisao` não entra nem sai por aqui: só a equipe mexe nele.
  */
 export async function mudarStatusDoEvento(
@@ -137,24 +184,46 @@ export async function mudarStatusDoEvento(
   de: Exclude<StatusEvento, "revisao">,
   para: Exclude<StatusEvento, "revisao">,
 ): Promise<boolean> {
-  const evento = eventos.find(
-    (e) => e.id === eventoId && e.fotografoId === fotografoId && e.status === de,
-  );
-  if (!evento) return false;
-  evento.status = para;
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.eventos)
+    .set({ status: para })
+    .where(
+      and(
+        eq(t.eventos.id, eventoId),
+        eq(t.eventos.fotografoId, fotografoId),
+        eq(t.eventos.status, de),
+      ),
+    )
+    .returning({ id: t.eventos.id });
+  return atualizados.length > 0;
 }
 
 // ---------------------------------------------------------------- Fotos do evento
 
 /** Itens do evento para o painel: todos os status, sem os excluídos, na ordem de envio. */
 export async function listarItensDoPainel(eventoId: string, fotografoId: string) {
-  const evento = eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
+  const banco = await obterBanco();
+  const [evento] = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
   if (!evento) return null;
-  const vendidos = idsVendidos();
-  return itensDoEvento(eventoId)
-    .sort((a, b) => a.ordem - b.ordem)
-    .map((f) => ({ ...structuredClone(f), vendido: vendidos.has(f.id) }));
+  const [itens, vendidos] = await Promise.all([
+    banco
+      .select()
+      .from(t.fotos)
+      .where(and(eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)))
+      .orderBy(asc(t.fotos.ordem)),
+    banco
+      .selectDistinct({ fotoId: t.itensPedido.fotoId })
+      .from(t.itensPedido)
+      .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+      .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+      .where(and(eq(t.fotos.eventoId, eventoId), eq(t.pedidos.status, "pago"))),
+  ]);
+  const ids = new Set(vendidos.map((v) => v.fotoId));
+  return itens.map((f) => ({ ...paraFoto(f), vendido: ids.has(f.id) }));
 }
 
 /**
@@ -168,41 +237,45 @@ export async function adicionarItensSimulados(
   fotografoId: string,
   arquivos: { nome: string; tamanhoBytes: number }[],
 ): Promise<Foto[] | null> {
-  const evento = eventos.find((e) => e.id === eventoId);
-  const podeEnviar =
-    evento?.fotografoId === fotografoId ||
-    colaboradores.some((c) => c.eventoId === eventoId && c.fotografoId === fotografoId);
-  if (!evento || !podeEnviar) return null;
-  const ultimaOrdem = Math.max(
-    0,
-    ...fotos.filter((f) => f.eventoId === eventoId).map((f) => f.ordem),
-  );
+  const banco = await obterBanco();
+  const [evento] = await banco.select().from(t.eventos).where(eq(t.eventos.id, eventoId));
+  const [colaborador] = await banco
+    .select({ id: t.colaboradores.id })
+    .from(t.colaboradores)
+    .where(
+      and(eq(t.colaboradores.eventoId, eventoId), eq(t.colaboradores.fotografoId, fotografoId)),
+    );
+  if (!evento || (evento.fotografoId !== fotografoId && !colaborador)) return null;
+
+  const [{ ultima }] = await banco
+    .select({ ultima: sql<number>`coalesce(max(${t.fotos.ordem}), 0)::int` })
+    .from(t.fotos)
+    .where(eq(t.fotos.eventoId, eventoId));
   const agora = Date.now();
-  const novos: Foto[] = arquivos.map((arquivo, i) => {
-    const imagem = (ultimaOrdem + i) % imagens.length;
+  const novos = arquivos.map((arquivo, i) => {
+    const imagem = (ultima + i) % imagens.length;
     const { largura, altura } = imagens[imagem];
+    const vertical = imagem % 4 === 3;
     return {
-      id: crypto.randomUUID(),
       eventoId,
-      pastaId: null,
       enviadaPor: fotografoId,
-      tipo: "foto",
+      tipo: "foto" as const,
       urlPrevia: `/exemplo/previas/${imagem}.webp`,
       urlMiniatura: `/exemplo/miniaturas/${imagem}.webp`,
+      // Original de exemplo: a mesma imagem do picsum, sem marca d'água.
+      chaveOriginal: `https://picsum.photos/seed/clicouai-exemplo-${imagem}/${vertical ? "1600/2400" : "2400/1600"}.jpg`,
       nomeArquivo: arquivo.nome,
       largura,
       altura,
-      duracaoS: null,
-      capturadaEm: null,
-      precoCentavos: null,
-      ordem: ultimaOrdem + i + 1,
-      status: "pronta",
-      criadoEm: new Date(agora + i).toISOString(),
-      excluidaEm: null,
+      tamanhoBytes: arquivo.tamanhoBytes,
+      ordem: ultima + i + 1,
+      status: "pronta" as const,
+      criadoEm: new Date(agora + i),
     };
   });
-  fotos.push(...novos);
-  return structuredClone(novos);
+  if (novos.length === 0) return [];
+  const linhas = await banco.insert(t.fotos).values(novos).returning();
+  return linhas.map(paraFoto);
 }
 
 /**
@@ -210,12 +283,25 @@ export async function adicionarItensSimulados(
  * baixando. Só em evento do próprio fotógrafo.
  */
 export async function excluirItem(fotoId: string, fotografoId: string): Promise<boolean> {
-  const foto = fotos.find((f) => f.id === fotoId && f.excluidaEm === null);
-  const evento =
-    foto && eventos.find((e) => e.id === foto.eventoId && e.fotografoId === fotografoId);
-  if (!foto || !evento) return false;
-  foto.excluidaEm = new Date().toISOString();
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.fotos)
+    .set({ excluidaEm: new Date() })
+    .where(
+      and(
+        eq(t.fotos.id, fotoId),
+        isNull(t.fotos.excluidaEm),
+        inArray(
+          t.fotos.eventoId,
+          banco
+            .select({ id: t.eventos.id })
+            .from(t.eventos)
+            .where(eq(t.eventos.fotografoId, fotografoId)),
+        ),
+      ),
+    )
+    .returning({ id: t.fotos.id });
+  return atualizados.length > 0;
 }
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
@@ -231,45 +317,75 @@ export async function listarLancamentosDoFotografo(
 ): Promise<LancamentoDoExtrato[]> {
   // Hora lida depois pelo chamador; espera a requisição (Cache Components).
   await connection();
-  return lancamentos
-    .filter((l) => l.fotografoId === fotografoId)
-    .map((l) => {
-      let eventoTitulo = "";
-      let pagoEm: string | null = null;
-      for (const [pedidoId, itens] of itensPorPedido) {
-        const item = itens.find((i) => i.id === l.itemPedidoId);
-        if (!item) continue;
-        const foto = fotos.find((f) => f.id === item.fotoId);
-        eventoTitulo = eventos.find((e) => e.id === foto?.eventoId)?.titulo ?? "";
-        pagoEm = pedidos.get(pedidoId)?.pagoEm ?? null;
-      }
-      return { ...structuredClone(l), eventoTitulo, pagoEm };
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      lancamento: t.lancamentos,
+      eventoTitulo: t.eventos.titulo,
+      pagoEm: t.pedidos.pagoEm,
     })
+    .from(t.lancamentos)
+    .innerJoin(t.itensPedido, eq(t.itensPedido.id, t.lancamentos.itemPedidoId))
+    .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+    .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .where(eq(t.lancamentos.fotografoId, fotografoId));
+  return linhas
+    .map((l) => ({
+      ...paraLancamento(l.lancamento),
+      eventoTitulo: l.eventoTitulo,
+      pagoEm: iso(l.pagoEm),
+    }))
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
 }
 
 /** Fotógrafo tem chave Pix confirmada? Condição para publicar evento e sacar (docs/riscos.md). */
 export async function temContaDeRecebimento(fotografoId: string) {
-  return Boolean(fotografos.find((f) => f.id === fotografoId)?.chavePix);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ chavePix: t.fotografos.chavePix })
+    .from(t.fotografos)
+    .where(eq(t.fotografos.id, fotografoId));
+  return Boolean(linha?.chavePix);
 }
 
 // ---------------------------------------------------------------- Saques
 
 /**
  * Cria o saque e prende nele os lançamentos, tudo ou nada: se algum lançamento já estiver em
- * outro saque (dois cliques ao mesmo tempo), nada muda. No banco, é uma transação com
- * `SELECT … FOR UPDATE` nos lançamentos.
+ * outro saque (dois cliques ao mesmo tempo), nada muda. É uma transação: o UPDATE só pega
+ * lançamentos ainda sem saque, e se não pegar todos, a transação é desfeita.
  */
 export async function reservarLancamentosParaSaque(saque: Saque, lancamentoIds: string[]) {
-  const alvo = lancamentos.filter((l) => lancamentoIds.includes(l.id));
-  const livres =
-    alvo.length === lancamentoIds.length &&
-    alvo.every((l) => l.fotografoId === saque.fotografoId && l.saqueId === null);
-  if (!livres) return false;
-  for (const l of alvo) l.saqueId = saque.id;
-  saques.push(structuredClone(saque));
-  return true;
+  const banco = await obterBanco();
+  try {
+    await banco.transaction(async (tx) => {
+      await tx.insert(t.saques).values({
+        ...saque,
+        criadoEm: deIso(saque.criadoEm),
+        pagoEm: deIso(saque.pagoEm),
+      });
+      const presos = await tx
+        .update(t.lancamentos)
+        .set({ saqueId: saque.id })
+        .where(
+          and(
+            inArray(t.lancamentos.id, lancamentoIds),
+            eq(t.lancamentos.fotografoId, saque.fotografoId),
+            isNull(t.lancamentos.saqueId),
+          ),
+        )
+        .returning({ id: t.lancamentos.id });
+      if (presos.length !== lancamentoIds.length) throw new SaqueConcorrente();
+    });
+    return true;
+  } catch (erro) {
+    if (erro instanceof SaqueConcorrente) return false;
+    throw erro;
+  }
 }
+
+class SaqueConcorrente extends Error {}
 
 /** Muda o status do saque só a partir do status esperado. Devolve se mudou. */
 export async function mudarStatusSaque(
@@ -278,28 +394,44 @@ export async function mudarStatusSaque(
   para: StatusSaque,
   extra: Partial<Pick<Saque, "gatewayId" | "pagoEm">> = {},
 ): Promise<boolean> {
-  const saque = saques.find((s) => s.id === saqueId);
-  if (!saque || saque.status !== de) return false;
-  Object.assign(saque, extra, { status: para });
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.saques)
+    .set({
+      status: para,
+      ...("gatewayId" in extra ? { gatewayId: extra.gatewayId } : {}),
+      ...("pagoEm" in extra ? { pagoEm: deIso(extra.pagoEm ?? null) } : {}),
+    })
+    .where(and(eq(t.saques.id, saqueId), eq(t.saques.status, de)))
+    .returning({ id: t.saques.id });
+  return atualizados.length > 0;
 }
 
 /** Saque que falhou devolve os lançamentos ao saldo, para o fotógrafo tentar de novo. */
 export async function soltarLancamentosDoSaque(saqueId: string) {
-  for (const l of lancamentos) if (l.saqueId === saqueId) l.saqueId = null;
+  const banco = await obterBanco();
+  await banco
+    .update(t.lancamentos)
+    .set({ saqueId: null })
+    .where(eq(t.lancamentos.saqueId, saqueId));
 }
 
 export async function listarSaquesDoFotografo(fotografoId: string): Promise<Saque[]> {
-  return structuredClone(
-    saques
-      .filter((s) => s.fotografoId === fotografoId)
-      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
-  );
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.saques)
+    .where(eq(t.saques.fotografoId, fotografoId))
+    .orderBy(desc(t.saques.criadoEm));
+  return linhas.map(paraSaque);
 }
 
 /** Saques ainda em processamento, para conferir o status no Mercado Pago. */
 export async function listarSaquesProcessando(fotografoId: string): Promise<Saque[]> {
-  return structuredClone(
-    saques.filter((s) => s.fotografoId === fotografoId && s.status === "processando"),
-  );
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.saques)
+    .where(and(eq(t.saques.fotografoId, fotografoId), eq(t.saques.status, "processando")));
+  return linhas.map(paraSaque);
 }

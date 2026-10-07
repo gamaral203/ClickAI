@@ -13,5 +13,7 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // O primeiro teste de cada arquivo que usa o banco sobe o PGlite, migra e semeia.
+    testTimeout: 30_000,
   },
 });

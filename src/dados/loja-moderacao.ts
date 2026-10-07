@@ -4,14 +4,22 @@
 
 import "server-only";
 
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
-import { denuncias, eventos, fotografos, fotos, lojas, pastas } from "./exemplo/banco";
-import { usuarios } from "./exemplo/usuarios";
+import { obterBanco } from "@/db";
+import * as t from "@/db/schema";
+
+import { paraDenuncia, paraLoja, paraPasta } from "./mapas";
 import type { Denuncia, Evento, Fotografo, Loja, Pasta, StatusDenuncia } from "./tipos";
 
-function eventoDoDono(eventoId: string, fotografoId: string): Evento | undefined {
-  return eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
+async function eventoDoDono(eventoId: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
+  return linha !== undefined;
 }
 
 // ---------------------------------------------------------------- Loja própria
@@ -22,32 +30,30 @@ export type DadosLoja = Pick<
 >;
 
 export async function buscarLojaDoFotografo(fotografoId: string): Promise<Loja | null> {
-  const loja = lojas.find((l) => l.fotografoId === fotografoId);
-  return loja ? structuredClone(loja) : null;
+  const banco = await obterBanco();
+  const [linha] = await banco.select().from(t.lojas).where(eq(t.lojas.fotografoId, fotografoId));
+  return linha ? paraLoja(linha) : null;
 }
 
 /** O subdomínio já é de outra loja? (`lojas(subdominio)` é único.) */
 export async function subdominioEmUso(subdominio: string, fotografoId: string) {
-  return lojas.some((l) => l.subdominio === subdominio && l.fotografoId !== fotografoId);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.lojas.id })
+    .from(t.lojas)
+    .where(and(eq(t.lojas.subdominio, subdominio), ne(t.lojas.fotografoId, fotografoId)));
+  return linha !== undefined;
 }
 
 /** Cria ou atualiza a loja do fotógrafo (uma por fotógrafo). */
 export async function salvarLoja(fotografoId: string, dados: DadosLoja): Promise<Loja> {
-  const existente = lojas.find((l) => l.fotografoId === fotografoId);
-  if (existente) {
-    Object.assign(existente, dados);
-    return structuredClone(existente);
-  }
-  const loja: Loja = {
-    id: crypto.randomUUID(),
-    fotografoId,
-    logo: null,
-    dominioProprio: null,
-    dominioVerificado: false,
-    ...dados,
-  };
-  lojas.push(loja);
-  return structuredClone(loja);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .insert(t.lojas)
+    .values({ fotografoId, ...dados })
+    .onConflictDoUpdate({ target: t.lojas.fotografoId, set: dados })
+    .returning();
+  return paraLoja(linha);
 }
 
 export type LojaPublica = Pick<
@@ -55,54 +61,18 @@ export type LojaPublica = Pick<
   "nome" | "descricao" | "logo" | "corPrimaria" | "corSecundaria" | "subdominio" | "gaId" | "gtmId"
 > & { fotografo: Pick<Fotografo, "id" | "nomePublico" | "bio" | "redesSociais"> };
 
-/** Loja ativa pelo subdomínio, só com o que a página pública mostra; `null` se não existe. */
-export async function buscarLojaPublica(subdominio: string): Promise<LojaPublica | null> {
+async function lojaPublica(condicao: ReturnType<typeof and>): Promise<LojaPublica | null> {
   // Lida a cada requisição: a loja muda quando o fotógrafo salva no painel.
   await connection();
-  return lojaPublica(lojas.find((l) => l.subdominio === subdominio && l.ativa));
-}
-
-/** Loja ativa pelo domínio próprio, só depois de verificado; `null` se não existe. */
-export async function buscarLojaPublicaPorDominio(dominio: string): Promise<LojaPublica | null> {
-  await connection();
-  return lojaPublica(
-    lojas.find((l) => l.dominioProprio === dominio && l.dominioVerificado && l.ativa),
-  );
-}
-
-/** O domínio já é de outra loja? (`lojas(dominio_proprio)` é único.) */
-export async function dominioEmUso(dominio: string, fotografoId: string) {
-  return lojas.some((l) => l.dominioProprio === dominio && l.fotografoId !== fotografoId);
-}
-
-/**
- * Domínio próprio da loja do fotógrafo: muda o domínio (sempre começa não verificado) ou tira
- * (`null`). Devolve `false` se o fotógrafo ainda não tem loja.
- */
-export async function definirDominioDaLoja(fotografoId: string, dominio: string | null) {
-  const loja = lojas.find((l) => l.fotografoId === fotografoId);
-  if (!loja) return false;
-  loja.dominioProprio = dominio;
-  loja.dominioVerificado = false;
-  return true;
-}
-
-/** Marca o domínio como verificado, só se ainda for o mesmo (o fotógrafo pode ter trocado). */
-export async function marcarDominioVerificado(
-  fotografoId: string,
-  dominio: string,
-  verificado: boolean,
-) {
-  const loja = lojas.find((l) => l.fotografoId === fotografoId && l.dominioProprio === dominio);
-  if (!loja) return false;
-  loja.dominioVerificado = verificado;
-  return true;
-}
-
-function lojaPublica(loja: Loja | undefined): LojaPublica | null {
-  const conta = loja && fotografos.find((f) => f.id === loja.fotografoId);
-  if (!loja || !conta) return null;
-  return structuredClone({
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ loja: t.lojas, fotografo: t.fotografos })
+    .from(t.lojas)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.lojas.fotografoId))
+    .where(condicao);
+  if (!linha) return null;
+  const { loja, fotografo } = linha;
+  return {
     nome: loja.nome,
     descricao: loja.descricao,
     logo: loja.logo,
@@ -112,12 +82,67 @@ function lojaPublica(loja: Loja | undefined): LojaPublica | null {
     gaId: loja.gaId,
     gtmId: loja.gtmId,
     fotografo: {
-      id: conta.id,
-      nomePublico: conta.nomePublico,
-      bio: conta.bio,
-      redesSociais: conta.redesSociais,
+      id: fotografo.id,
+      nomePublico: fotografo.nomePublico,
+      bio: fotografo.bio,
+      redesSociais: fotografo.redesSociais,
     },
-  });
+  };
+}
+
+/** Loja ativa pelo subdomínio, só com o que a página pública mostra; `null` se não existe. */
+export async function buscarLojaPublica(subdominio: string): Promise<LojaPublica | null> {
+  return lojaPublica(and(eq(t.lojas.subdominio, subdominio), eq(t.lojas.ativa, true)));
+}
+
+/** Loja ativa pelo domínio próprio, só depois de verificado; `null` se não existe. */
+export async function buscarLojaPublicaPorDominio(dominio: string): Promise<LojaPublica | null> {
+  return lojaPublica(
+    and(
+      eq(t.lojas.dominioProprio, dominio),
+      eq(t.lojas.dominioVerificado, true),
+      eq(t.lojas.ativa, true),
+    ),
+  );
+}
+
+/** O domínio já é de outra loja? (`lojas(dominio_proprio)` é único.) */
+export async function dominioEmUso(dominio: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.lojas.id })
+    .from(t.lojas)
+    .where(and(eq(t.lojas.dominioProprio, dominio), ne(t.lojas.fotografoId, fotografoId)));
+  return linha !== undefined;
+}
+
+/**
+ * Domínio próprio da loja do fotógrafo: muda o domínio (sempre começa não verificado) ou tira
+ * (`null`). Devolve `false` se o fotógrafo ainda não tem loja.
+ */
+export async function definirDominioDaLoja(fotografoId: string, dominio: string | null) {
+  const banco = await obterBanco();
+  const atualizadas = await banco
+    .update(t.lojas)
+    .set({ dominioProprio: dominio, dominioVerificado: false })
+    .where(eq(t.lojas.fotografoId, fotografoId))
+    .returning({ id: t.lojas.id });
+  return atualizadas.length > 0;
+}
+
+/** Marca o domínio como verificado, só se ainda for o mesmo (o fotógrafo pode ter trocado). */
+export async function marcarDominioVerificado(
+  fotografoId: string,
+  dominio: string,
+  verificado: boolean,
+) {
+  const banco = await obterBanco();
+  const atualizadas = await banco
+    .update(t.lojas)
+    .set({ dominioVerificado: verificado })
+    .where(and(eq(t.lojas.fotografoId, fotografoId), eq(t.lojas.dominioProprio, dominio)))
+    .returning({ id: t.lojas.id });
+  return atualizadas.length > 0;
 }
 
 // ---------------------------------------------------------------- Denúncias
@@ -125,15 +150,9 @@ function lojaPublica(loja: Loja | undefined): LojaPublica | null {
 export type DadosDenuncia = Omit<Denuncia, "id" | "status" | "decididaPor" | "criadoEm">;
 
 export async function criarDenuncia(dados: DadosDenuncia): Promise<Denuncia> {
-  const denuncia: Denuncia = {
-    ...structuredClone(dados),
-    id: crypto.randomUUID(),
-    status: "recebida",
-    decididaPor: null,
-    criadoEm: new Date().toISOString(),
-  };
-  denuncias.push(denuncia);
-  return structuredClone(denuncia);
+  const banco = await obterBanco();
+  const [linha] = await banco.insert(t.denuncias).values(dados).returning();
+  return paraDenuncia(linha);
 }
 
 export type DenunciaDoAdmin = Denuncia & {
@@ -144,43 +163,79 @@ export type DenunciaDoAdmin = Denuncia & {
   foto: { id: string; urlMiniatura: string; excluida: boolean; autorEmail: string | null } | null;
 };
 
-function emailDoFotografo(fotografoId: string) {
-  const conta = fotografos.find((f) => f.id === fotografoId);
-  return (conta && usuarios.get(conta.usuarioId)?.email) ?? null;
-}
-
-function paraAdmin(d: Denuncia): DenunciaDoAdmin | null {
-  const evento = eventos.find((e) => e.id === d.eventoId);
-  if (!evento) return null;
-  const foto = d.fotoId ? fotos.find((f) => f.id === d.fotoId) : undefined;
-  return {
-    ...structuredClone(d),
-    evento: { id: evento.id, titulo: evento.titulo, slug: evento.slug, status: evento.status },
-    donoNome: fotografos.find((f) => f.id === evento.fotografoId)?.nomePublico ?? "",
-    donoEmail: emailDoFotografo(evento.fotografoId),
-    foto: foto
-      ? {
-          id: foto.id,
-          urlMiniatura: foto.urlMiniatura,
-          excluida: foto.excluidaEm !== null,
-          autorEmail:
-            foto.enviadaPor !== evento.fotografoId ? emailDoFotografo(foto.enviadaPor) : null,
-        }
-      : null,
-  };
+async function paraAdmin(linhas: (typeof t.denuncias.$inferSelect)[]): Promise<DenunciaDoAdmin[]> {
+  if (linhas.length === 0) return [];
+  const banco = await obterBanco();
+  const eventoIds = [...new Set(linhas.map((d) => d.eventoId))];
+  const fotoIds = linhas.flatMap((d) => (d.fotoId ? [d.fotoId] : []));
+  const [eventos, fotos, contas] = await Promise.all([
+    banco
+      .select({
+        id: t.eventos.id,
+        titulo: t.eventos.titulo,
+        slug: t.eventos.slug,
+        status: t.eventos.status,
+        donoId: t.eventos.fotografoId,
+      })
+      .from(t.eventos)
+      .where(inArray(t.eventos.id, eventoIds)),
+    fotoIds.length > 0
+      ? banco
+          .select({
+            id: t.fotos.id,
+            urlMiniatura: t.fotos.urlMiniatura,
+            excluidaEm: t.fotos.excluidaEm,
+            autorId: t.fotos.enviadaPor,
+          })
+          .from(t.fotos)
+          .where(inArray(t.fotos.id, fotoIds))
+      : [],
+    banco
+      .select({ id: t.fotografos.id, nome: t.fotografos.nomePublico, email: t.usuarios.email })
+      .from(t.fotografos)
+      .innerJoin(t.usuarios, eq(t.usuarios.id, t.fotografos.usuarioId)),
+  ]);
+  return linhas.flatMap((d) => {
+    const evento = eventos.find((e) => e.id === d.eventoId);
+    if (!evento) return [];
+    const dono = contas.find((c) => c.id === evento.donoId);
+    const foto = d.fotoId ? fotos.find((f) => f.id === d.fotoId) : undefined;
+    const autor = foto && contas.find((c) => c.id === foto.autorId);
+    return [
+      {
+        ...paraDenuncia(d),
+        evento: { id: evento.id, titulo: evento.titulo, slug: evento.slug, status: evento.status },
+        donoNome: dono?.nome ?? "",
+        donoEmail: dono?.email ?? null,
+        foto: foto
+          ? {
+              id: foto.id,
+              urlMiniatura: foto.urlMiniatura,
+              excluida: foto.excluidaEm !== null,
+              // Foto de colaborador: o autor também é avisado.
+              autorEmail: foto.autorId !== evento.donoId ? (autor?.email ?? null) : null,
+            }
+          : null,
+      },
+    ];
+  });
 }
 
 /** Denúncias da mais recente para a mais antiga, opcionalmente só de um status. */
 export async function listarDenuncias(status?: StatusDenuncia): Promise<DenunciaDoAdmin[]> {
-  return denuncias
-    .filter((d) => !status || d.status === status)
-    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
-    .flatMap((d) => paraAdmin(d) ?? []);
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.denuncias)
+    .where(status ? eq(t.denuncias.status, status) : undefined)
+    .orderBy(desc(t.denuncias.criadoEm));
+  return paraAdmin(linhas);
 }
 
 export async function buscarDenuncia(id: string): Promise<DenunciaDoAdmin | null> {
-  const denuncia = denuncias.find((d) => d.id === id);
-  return denuncia ? paraAdmin(denuncia) : null;
+  const banco = await obterBanco();
+  const linhas = await banco.select().from(t.denuncias).where(eq(t.denuncias.id, id));
+  return (await paraAdmin(linhas))[0] ?? null;
 }
 
 /**
@@ -193,11 +248,13 @@ export async function mudarStatusDenuncia(
   para: StatusDenuncia,
   decididaPor: string | null,
 ): Promise<boolean> {
-  const denuncia = denuncias.find((d) => d.id === id);
-  if (!denuncia || !de.includes(denuncia.status)) return false;
-  denuncia.status = para;
-  if (decididaPor) denuncia.decididaPor = decididaPor;
-  return true;
+  const banco = await obterBanco();
+  const atualizadas = await banco
+    .update(t.denuncias)
+    .set({ status: para, ...(decididaPor ? { decididaPor } : {}) })
+    .where(and(eq(t.denuncias.id, id), inArray(t.denuncias.status, de)))
+    .returning({ id: t.denuncias.id });
+  return atualizadas.length > 0;
 }
 
 /**
@@ -209,72 +266,108 @@ export async function mudarStatusEventoPelaEquipe(
   de: Evento["status"],
   para: Evento["status"],
 ): Promise<boolean> {
-  const evento = eventos.find((e) => e.id === eventoId && e.status === de);
-  if (!evento) return false;
-  evento.status = para;
-  return true;
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.eventos)
+    .set({ status: para })
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.status, de)))
+    .returning({ id: t.eventos.id });
+  return atualizados.length > 0;
 }
 
 /** Tira a foto da galeria (exclusão lógica): quem já comprou continua baixando. */
 export async function excluirFotoPelaEquipe(fotoId: string): Promise<boolean> {
-  const foto = fotos.find((f) => f.id === fotoId && f.excluidaEm === null);
-  if (!foto) return false;
-  foto.excluidaEm = new Date().toISOString();
-  return true;
+  const banco = await obterBanco();
+  const atualizadas = await banco
+    .update(t.fotos)
+    .set({ excluidaEm: new Date() })
+    .where(and(eq(t.fotos.id, fotoId), isNull(t.fotos.excluidaEm)))
+    .returning({ id: t.fotos.id });
+  return atualizadas.length > 0;
 }
 
 /** O item existe, não foi excluído e é deste evento? (Para denunciar uma foto.) */
 export async function fotoEhDoEvento(fotoId: string, eventoId: string) {
-  return fotos.some((f) => f.id === fotoId && f.eventoId === eventoId && f.excluidaEm === null);
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.fotos.id })
+    .from(t.fotos)
+    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)));
+  return linha !== undefined;
 }
 
 // ---------------------------------------------------------------- Pastas
 
 export type PastaComTotal = Pasta & { totalItens: number };
 
-function itensNaPasta(pastaId: string) {
-  return fotos.filter((f) => f.pastaId === pastaId && f.excluidaEm === null).length;
-}
-
 /** Pastas de um evento do fotógrafo, na ordem, com quantos itens têm. */
 export async function listarPastasDoPainel(
   eventoId: string,
   fotografoId: string,
 ): Promise<PastaComTotal[] | null> {
-  if (!eventoDoDono(eventoId, fotografoId)) return null;
-  return pastas
-    .filter((p) => p.eventoId === eventoId)
-    .sort((a, b) => a.ordem - b.ordem)
-    .map((p) => ({ ...structuredClone(p), totalItens: itensNaPasta(p.id) }));
+  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const [pastas, contagens] = await Promise.all([
+    banco
+      .select()
+      .from(t.pastas)
+      .where(eq(t.pastas.eventoId, eventoId))
+      .orderBy(asc(t.pastas.ordem)),
+    banco
+      .select({ pastaId: t.fotos.pastaId, total: sql<number>`count(*)::int` })
+      .from(t.fotos)
+      .where(and(eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)))
+      .groupBy(t.fotos.pastaId),
+  ]);
+  return pastas.map((p) => ({
+    ...paraPasta(p),
+    totalItens: contagens.find((c) => c.pastaId === p.id)?.total ?? 0,
+  }));
 }
 
 export async function criarPasta(eventoId: string, fotografoId: string, nome: string) {
-  if (!eventoDoDono(eventoId, fotografoId)) return null;
-  const ultima = Math.max(0, ...pastas.filter((p) => p.eventoId === eventoId).map((p) => p.ordem));
-  const pasta: Pasta = { id: crypto.randomUUID(), eventoId, nome, ordem: ultima + 1 };
-  pastas.push(pasta);
-  return structuredClone(pasta);
+  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const [{ ultima }] = await banco
+    .select({ ultima: sql<number>`coalesce(max(${t.pastas.ordem}), 0)::int` })
+    .from(t.pastas)
+    .where(eq(t.pastas.eventoId, eventoId));
+  const [linha] = await banco
+    .insert(t.pastas)
+    .values({ eventoId, nome, ordem: ultima + 1 })
+    .returning();
+  return paraPasta(linha);
 }
 
+/** Condição: a pasta é de um evento deste fotógrafo. */
 function pastaDoDono(pastaId: string, fotografoId: string) {
-  const pasta = pastas.find((p) => p.id === pastaId);
-  return pasta && eventoDoDono(pasta.eventoId, fotografoId) ? pasta : undefined;
+  return and(
+    eq(t.pastas.id, pastaId),
+    inArray(
+      t.pastas.eventoId,
+      sql`(select ${t.eventos.id} from ${t.eventos} where ${t.eventos.fotografoId} = ${fotografoId})`,
+    ),
+  );
 }
 
 export async function renomearPasta(pastaId: string, fotografoId: string, nome: string) {
-  const pasta = pastaDoDono(pastaId, fotografoId);
-  if (!pasta) return false;
-  pasta.nome = nome;
-  return true;
+  const banco = await obterBanco();
+  const atualizadas = await banco
+    .update(t.pastas)
+    .set({ nome })
+    .where(pastaDoDono(pastaId, fotografoId))
+    .returning({ id: t.pastas.id });
+  return atualizadas.length > 0;
 }
 
-/** Apaga a pasta; os itens dela continuam no evento, sem pasta. */
+/** Apaga a pasta; os itens dela continuam no evento, sem pasta (ON DELETE SET NULL). */
 export async function excluirPasta(pastaId: string, fotografoId: string) {
-  const pasta = pastaDoDono(pastaId, fotografoId);
-  if (!pasta) return false;
-  for (const f of fotos) if (f.pastaId === pastaId) f.pastaId = null;
-  pastas.splice(pastas.indexOf(pasta), 1);
-  return true;
+  const banco = await obterBanco();
+  const apagadas = await banco
+    .delete(t.pastas)
+    .where(pastaDoDono(pastaId, fotografoId))
+    .returning({ id: t.pastas.id });
+  return apagadas.length > 0;
 }
 
 /** Move itens de um evento do fotógrafo para uma pasta do mesmo evento (ou para nenhuma). */
@@ -283,14 +376,28 @@ export async function moverItensParaPasta(
   pastaId: string | null,
   fotografoId: string,
 ): Promise<boolean> {
-  const alvo = new Set(fotoIds);
-  const itens = fotos.filter((f) => alvo.has(f.id) && f.excluidaEm === null);
-  if (itens.length !== alvo.size || itens.length === 0) return false;
+  const unicos = [...new Set(fotoIds)];
+  if (unicos.length === 0) return false;
+  const banco = await obterBanco();
+  const itens = await banco
+    .select({ id: t.fotos.id, eventoId: t.fotos.eventoId })
+    .from(t.fotos)
+    .where(and(inArray(t.fotos.id, unicos), isNull(t.fotos.excluidaEm)));
+  if (itens.length !== unicos.length) return false;
   const eventoId = itens[0].eventoId;
-  if (!itens.every((f) => f.eventoId === eventoId) || !eventoDoDono(eventoId, fotografoId)) {
+  if (
+    !itens.every((f) => f.eventoId === eventoId) ||
+    !(await eventoDoDono(eventoId, fotografoId))
+  ) {
     return false;
   }
-  if (pastaId !== null && pastas.find((p) => p.id === pastaId)?.eventoId !== eventoId) return false;
-  for (const f of itens) f.pastaId = pastaId;
+  if (pastaId !== null) {
+    const [pasta] = await banco
+      .select({ id: t.pastas.id })
+      .from(t.pastas)
+      .where(and(eq(t.pastas.id, pastaId), eq(t.pastas.eventoId, eventoId)));
+    if (!pasta) return false;
+  }
+  await banco.update(t.fotos).set({ pastaId }).where(inArray(t.fotos.id, unicos));
   return true;
 }
