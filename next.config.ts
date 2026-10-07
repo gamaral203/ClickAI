@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Já é o padrão do Next.js; fica explícito para ninguém ligar sem querer.
   productionBrowserSourceMaps: false,
+  images: {
+    // As prévias e miniaturas já são geradas otimizadas no upload e servidas pela CDN da
+    // Cloudflare; o otimizador da Vercel só aumentaria a conta (docs/riscos.md, Custos).
+    unoptimized: true,
+  },
   turbopack: {
     rules: {
       "*.css": {
