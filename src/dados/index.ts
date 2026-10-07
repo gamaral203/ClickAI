@@ -204,6 +204,8 @@ export type FiltroEventos = {
   categoria?: string;
   /** Nome da cidade, sem diferenciar acentos nem maiúsculas. */
   cidade?: string;
+  /** Só os eventos deste fotógrafo (página da loja própria). */
+  fotografoId?: string;
 };
 
 function eventosListados() {
@@ -227,6 +229,7 @@ export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promi
     .filter((e) => !filtro.data || diaEmBrasilia(e.inicioEm) === filtro.data)
     .filter((e) => !categoriaId || e.categoriaId === categoriaId)
     .filter((e) => !cidade || normalizar(e.cidade) === cidade)
+    .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId)
     .map((e) => resumir(e, situacaoGaleria(e, instante)))
     .filter(
       (e) =>

@@ -12,3 +12,13 @@ export function enderecoDoSite() {
 export function urlDoSite(caminho: string) {
   return `${enderecoDoSite()}${caminho.startsWith("/") ? caminho : `/${caminho}`}`;
 }
+
+/**
+ * Endereço público da loja: um subdomínio do site (`https://liaramos.clicouai.com.br`). Em
+ * desenvolvimento, `http://liaramos.localhost:3000` (o navegador resolve *.localhost sozinho).
+ */
+export function enderecoDaLoja(subdominio: string) {
+  const base = new URL(enderecoDoSite());
+  const host = base.host.replace(/^www\./, "");
+  return `${base.protocol}//${subdominio}.${host}`;
+}

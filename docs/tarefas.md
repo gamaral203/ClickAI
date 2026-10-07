@@ -82,6 +82,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Entrega por e-mail e WhatsApp (com consentimento) depois do pagamento, com link assinado; envio simulado, visível em `/admin/mensagens`
 - [x] Job de pedidos (`/api/jobs/pedidos`, protegido por `CRON_SECRET`): expira os pendentes vencidos, conferindo no Mercado Pago antes, e manda o lembrete de carrinho abandonado uma vez, com link que remonta o carrinho
 - [x] Pastas: criar, renomear e excluir no painel, escolher a pasta de cada foto e filtrar por pasta na galeria
+- [x] Loja própria: nome, descrição, cores (texto legível calculado pelo contraste) e subdomínio, no painel "Minha loja"; página da loja com os eventos do fotógrafo, aberta no subdomínio pelo `proxy.ts`
+- [x] Google Analytics e Tag Manager da loja só pelo ID, conferido ao salvar e de novo ao montar a página `[R-alta]`
 - [x] Correção: os formulários novos do painel não apagam mais o que foi digitado quando o servidor devolve um erro
 ## Em andamento
 
@@ -136,8 +138,6 @@ Concluída (ver **Concluído**). O convite de colaborador para quem ainda não t
 
 ## Fase 9 — Loja própria e moderação
 
-- [ ] Loja própria: nome, descrição, logo, cores e subdomínio
-- [ ] Google Analytics e Tag Manager só por ID `[R-alta]`
 - [ ] Denúncia de evento e de foto, com motivo, anexos e contato
 - [ ] Painel de admin: analisar denúncias, status `revisao` e avisos às partes
 
@@ -162,7 +162,7 @@ Concluída (ver **Concluído**). O convite de colaborador para quem ainda não t
 
 - [ ] Indexar os rostos de cada foto no Rekognition no job de processamento (`indexarRostos` em `src/lib/reconhecimento.ts`) e gravar em `rostos`
 - [ ] Rota que gera URL assinada de upload e cria o item como `processando`
-- [ ] Foto de perfil e capa do fotógrafo
+- [ ] Foto de perfil e capa do fotógrafo, e logo da loja
 - [ ] Upload direto do navegador ao R2, em lote `[R-alta]`
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
 - [ ] Pasta temporária com regra de ciclo de vida no R2 (evita órfãos)
