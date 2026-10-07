@@ -27,6 +27,8 @@ const PRAZO_DISPONIVEL_MS: Record<MetodoPagamento, number> = {
 };
 
 export type DadosComprador = {
+  /** Cliente logado que faz a compra; `null` para convidado. */
+  clienteId: string | null;
   nome: string;
   email: string;
   whatsapp: string | null;
@@ -106,7 +108,7 @@ export async function criarPedido(
   const desconto = itens.reduce((soma, i) => soma + i.descontoCentavos, 0);
   const pedido: PedidoInterno = {
     id: pedidoId,
-    clienteId: null,
+    clienteId: comprador.clienteId,
     emailComprador: comprador.email,
     nomeComprador: comprador.nome,
     whatsapp: comprador.aceitaWhatsapp ? comprador.whatsapp : null,
@@ -130,13 +132,25 @@ export async function criarPedido(
   return { ok: true, pedidoId, token };
 }
 
+/** Quem está pedindo acesso a um pedido: o token do link e/ou o cliente logado. */
+export type Credencial = { token?: string | null; clienteId?: string | null };
+
+/** O pedido pode ser visto por esta credencial? Token do link ou dono logado. */
+export function podeAcessar(
+  pedido: Pick<PedidoInterno, "tokenAcessoHash" | "clienteId">,
+  { token, clienteId }: Credencial,
+) {
+  if (token && tokenConfere(pedido, token)) return true;
+  return Boolean(clienteId && pedido.clienteId === clienteId);
+}
+
 /**
- * Pedido acessado pelo link do convidado. Compara o hash do token em tempo constante e marca
- * como expirado o pendente que passou da validade.
+ * Pedido acessado pelo link do convidado ou pelo cliente logado dono dele. Marca como
+ * expirado o pendente que passou da validade.
  */
-export async function buscarPedidoDoConvidado(pedidoId: string, token: string) {
+export async function buscarPedidoComAcesso(pedidoId: string, credencial: Credencial) {
   const encontrado = await buscarPedido(pedidoId);
-  if (!encontrado || !tokenConfere(encontrado.pedido, token)) return null;
+  if (!encontrado || !podeAcessar(encontrado.pedido, credencial)) return null;
 
   const { pedido } = encontrado;
   if (pedido.status === "pendente" && new Date(pedido.expiraEm).getTime() < Date.now()) {

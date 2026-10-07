@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { caminhoSeguro } from "@/lib/redirecionamento";
-import { cadastrar, entrar, sair } from "@/servicos/sessao";
+import { cadastrar, entrar, gerarConfirmacaoEmail, sair, usuarioAtual } from "@/servicos/sessao";
 
 export type EstadoFormulario = {
   erro?: string;
@@ -82,4 +82,13 @@ export async function cadastrarAcao(
 export async function sairAcao() {
   await sair();
   redirect("/");
+}
+
+/** Gera um novo link de confirmação para o usuário logado (o e-mail real entra na Fase 13). */
+export async function reenviarConfirmacaoAcao() {
+  const usuario = await usuarioAtual();
+  if (!usuario) redirect("/entrar");
+  if (usuario.emailConfirmado) redirect("/minhas-compras");
+  const token = await gerarConfirmacaoEmail(usuario.id);
+  redirect(`/conta/confirmar-email?token=${token}`);
 }

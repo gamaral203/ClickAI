@@ -10,7 +10,8 @@ import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagam
 import { buttonVariants } from "@/components/ui/button";
 import { contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { buscarPedidoDoConvidado } from "@/servicos/pedidos";
+import { buscarPedidoComAcesso } from "@/servicos/pedidos";
+import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
   title: "Seu pedido",
@@ -18,7 +19,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const parametros = z.object({ id: z.uuid(), token: z.string().min(20).max(100) });
+// Token do link (convidado) ou sessão do dono do pedido (cliente logado).
+const parametros = z.object({ id: z.uuid(), token: z.string().min(20).max(100).nullable() });
 
 export default function PaginaPedido(props: PageProps<"/pedidos/[id]">) {
   return (
@@ -33,11 +35,18 @@ export default function PaginaPedido(props: PageProps<"/pedidos/[id]">) {
 async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]">) {
   const { id } = await params;
   const { token } = await searchParams;
-  const dados = parametros.safeParse({ id, token: Array.isArray(token) ? token[0] : token });
+  const dados = parametros.safeParse({
+    id,
+    token: (Array.isArray(token) ? token[0] : token) ?? null,
+  });
   if (!dados.success) notFound();
 
-  const encontrado = await buscarPedidoDoConvidado(dados.data.id, dados.data.token);
-  // Token errado e pedido inexistente dão a mesma resposta, para não revelar quais ids existem.
+  const usuario = await usuarioAtual();
+  const encontrado = await buscarPedidoComAcesso(dados.data.id, {
+    token: dados.data.token,
+    clienteId: usuario?.id,
+  });
+  // Sem acesso e pedido inexistente dão a mesma resposta, para não revelar quais ids existem.
   if (!encontrado) notFound();
   const { pedido, itens } = encontrado;
   const detalhes = await detalharItensDoPedido(itens);
@@ -126,7 +135,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                   {/* <a> e não <Link>: a rota devolve o arquivo como anexo, não uma página. */}
                   <a
                     download
-                    href={`/api/download/${item.id}?token=${encodeURIComponent(dados.data.token)}`}
+                    href={linkDownload(item.id, dados.data.token)}
                     className={buttonVariants({ variant: "outline", size: "touch" })}
                   >
                     <Download aria-hidden="true" data-icon="inline-start" />
@@ -153,4 +162,11 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
       </section>
     </>
   );
+}
+
+/** Com o token do link quando a pessoa entrou por ele; sem token, vale a sessão do dono. */
+function linkDownload(itemId: string, token: string | null) {
+  return token
+    ? `/api/download/${itemId}?token=${encodeURIComponent(token)}`
+    : `/api/download/${itemId}`;
 }

@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { criarPedido } from "@/servicos/pedidos";
+import { usuarioAtual } from "@/servicos/sessao";
 
 const entrada = z.object({
   ids: z.array(z.uuid()).min(1).max(200),
@@ -47,7 +48,14 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
     return { ok: false, erros: { whatsapp: "Informe o WhatsApp ou desmarque a opção." } };
   }
 
-  const resultado = await criarPedido(ids, { ...comprador, whatsapp, aceitaWhatsapp });
+  // Cliente logado: o pedido fica na conta dele (Minhas compras), além do link com token.
+  const usuario = await usuarioAtual();
+  const resultado = await criarPedido(ids, {
+    ...comprador,
+    clienteId: usuario?.id ?? null,
+    whatsapp,
+    aceitaWhatsapp,
+  });
   if (!resultado.ok) {
     return {
       ok: false,

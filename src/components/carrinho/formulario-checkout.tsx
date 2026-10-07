@@ -19,7 +19,7 @@ import type { ResumoCarrinho } from "@/servicos/carrinho";
 
 import { esvaziarCarrinho, useCarrinho } from "./carrinho";
 
-export function FormularioCheckout() {
+export function FormularioCheckout({ inicial }: { inicial?: { nome: string; email: string } }) {
   const router = useRouter();
   const ids = useCarrinho();
   const chave = ids.join(",");
@@ -105,6 +105,7 @@ export function FormularioCheckout() {
             <Input
               id="nome"
               name="nome"
+              defaultValue={inicial?.nome}
               autoComplete="name"
               required
               maxLength={100}
@@ -122,6 +123,7 @@ export function FormularioCheckout() {
             <Input
               id="email"
               name="email"
+              defaultValue={inicial?.email}
               type="email"
               autoComplete="email"
               inputMode="email"

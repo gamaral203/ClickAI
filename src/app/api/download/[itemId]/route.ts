@@ -2,8 +2,10 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { autorizarDownload } from "@/servicos/downloads";
+import { usuarioAtual } from "@/servicos/sessao";
 
-const parametros = z.object({ itemId: z.uuid(), token: z.string().min(20).max(100) });
+// Token do link (convidado) ou sessão (cliente logado); um dos dois é conferido no serviço.
+const parametros = z.object({ itemId: z.uuid(), token: z.string().min(20).max(100).nullable() });
 
 /** Mesma resposta para todo motivo de recusa, para não revelar se o item ou o pedido existe. */
 function indisponivel() {
@@ -26,7 +28,12 @@ export async function GET(
 
   // Primeiro IP da cadeia de proxies (a Vercel preenche x-forwarded-for).
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
-  const original = await autorizarDownload(dados.data.itemId, dados.data.token, ip);
+  const usuario = await usuarioAtual();
+  const original = await autorizarDownload(
+    dados.data.itemId,
+    { token: dados.data.token, clienteId: usuario?.id },
+    ip,
+  );
   if (!original) return indisponivel();
 
   // Parte A: o servidor busca a imagem de exemplo e entrega como anexo, para o navegador

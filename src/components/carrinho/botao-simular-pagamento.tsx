@@ -7,7 +7,13 @@ import { FlaskConical, Loader2 } from "lucide-react";
 import { simularPagamento } from "@/app/(cliente)/pedidos/[id]/acoes";
 import { Button } from "@/components/ui/button";
 
-export function BotaoSimularPagamento({ pedidoId, token }: { pedidoId: string; token: string }) {
+export function BotaoSimularPagamento({
+  pedidoId,
+  token,
+}: {
+  pedidoId: string;
+  token: string | null;
+}) {
   const router = useRouter();
   const [enviando, startTransition] = useTransition();
   const [falhou, setFalhou] = useState(false);

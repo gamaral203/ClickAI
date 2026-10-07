@@ -7,27 +7,26 @@ import {
   type OriginalParaDownload,
 } from "@/dados";
 
-import { tokenConfere } from "./pedidos";
+import { podeAcessar, type Credencial } from "./pedidos";
 
 // Regra central do produto: nenhum original fica acessível sem um pedido pago
 // (docs/arquitetura.md, "Download"; docs/riscos.md, trocar o id na URL, prioridade alta).
 
 /**
- * Autoriza o download de um item pelo link do convidado e devolve o original (endereço
- * temporário e nome do arquivo), ou `null`. Só libera item de pedido pago cujo token confere;
- * pedido pendente, expirado, cancelado ou estornado não baixa. Quando houver login (Fase 5), o
- * cliente logado também passa por aqui, com o pedido ligado ao `cliente_id` em vez do token.
+ * Autoriza o download de um item e devolve o original (endereço temporário e nome do
+ * arquivo), ou `null`. Só libera item de pedido pago, para quem tem o token do link ou é o
+ * cliente logado dono do pedido; pendente, expirado, cancelado ou estornado não baixa.
  */
 export async function autorizarDownload(
   itemId: string,
-  token: string,
+  credencial: Credencial,
   ip: string | null,
 ): Promise<OriginalParaDownload | null> {
   const encontrado = await buscarItemDoPedido(itemId);
   if (!encontrado) return null;
   const { item, pedido } = encontrado;
 
-  if (!tokenConfere(pedido, token)) return null;
+  if (!podeAcessar(pedido, credencial)) return null;
   if (pedido.status !== "pago") return null;
   if (pedido.acessoExpiraEm && new Date(pedido.acessoExpiraEm).getTime() < Date.now()) {
     return null;
