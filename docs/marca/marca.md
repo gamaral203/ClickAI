@@ -8,8 +8,9 @@
 |---|---|---|
 | [logo.png](logo.png) | 544 × 160, fundo transparente | Cabeçalho do site, e-mails, README |
 | [logo-quadrada.png](logo-quadrada.png) | 800 × 800, fundo transparente | Base para avatar de redes sociais e imagem de compartilhamento |
+| [icone.png](icone.png) | 512 × 512, fundo transparente | Só a câmera, recortada da logo. É a base do favicon (`src/app/icon.png`) e do ícone da Apple (`src/app/apple-icon.png`, fundo branco) |
 
-Ainda faltam: versão em SVG, ícone só com a câmera (favicon e app) e versão para fundo escuro.
+Ainda faltam: versão em SVG e versão para fundo escuro. O ícone foi recortado de um PNG de 800 px; para impressão ou tamanhos grandes, vale pedir o arquivo vetorial a quem fez a logo.
 
 ## Cores
 

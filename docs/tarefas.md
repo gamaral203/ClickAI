@@ -12,10 +12,15 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Lista de tarefas (este arquivo)
 - [x] Skill de segurança `vibe-code-security` e página de skills ([skills.md](skills.md))
 - [x] Skills de interface `ui-ux-pro-max` e `motion-framer`
+- [x] Iniciar o projeto Next.js com TypeScript, Tailwind, shadcn/ui, ESLint e Prettier (Next.js 16)
+- [x] Aplicar as cores e a logo da marca no tema
+- [x] `.gitignore` com `.env*`, source maps e chaves privadas, antes do primeiro segredo existir
+- [x] Security headers no `next.config` e `productionBrowserSourceMaps: false`
 
 ## Em andamento
 
 - [ ] Fechar as decisões em aberto (Fase 0)
+- [ ] Fundação do projeto (Fase 1)
 
 ## Fase 0 — Decisões de produto
 
@@ -32,13 +37,9 @@ Bloqueiam a criação das contas e partes do schema.
 ## Fase 1 — Fundação
 
 - [ ] Criar contas: Vercel, banco (região São Paulo), Cloudflare R2 e gateway
-- [ ] Iniciar o projeto Next.js com TypeScript, Tailwind, shadcn/ui, ESLint e Prettier
-- [ ] Aplicar as cores e a logo da marca no tema
 - [ ] Configurar a região `gru1` na Vercel `[R-alta]`
 - [ ] Conectar o Drizzle ao banco pela URL com pooler `[R-alta]`
 - [ ] Criar `.env.example` com todas as variáveis necessárias
-- [ ] `.gitignore` com `.env*`, source maps e chaves privadas, antes do primeiro segredo existir
-- [ ] Security headers no `next.config` e `productionBrowserSourceMaps: false`
 - [ ] Validação de entrada com Zod em todas as rotas e Server Actions
 - [ ] Configurar Sentry e alertas de erro desde o primeiro deploy
 
@@ -95,6 +96,7 @@ Bloqueiam a criação das contas e partes do schema.
 ## Fase 8 — Antes do lançamento
 
 - [ ] Revisar os 6 riscos de prioridade alta
+- [ ] CSP completa de scripts (com nonce), depois de definir os scripts do gateway e do Sentry
 - [ ] Rodar o checklist da `vibe-code-security` ([skills.md](skills.md))
 - [ ] Rate limit em login, cadastro, envio de e-mail e geração de URLs assinadas
 - [ ] Alertas de cobrança na Vercel, R2, Inngest e banco
