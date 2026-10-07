@@ -28,7 +28,7 @@ import {
   senhasEventos,
   urlOriginalDeExemplo,
 } from "./exemplo/banco";
-import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
+import { downloads, itensPorPedido, lancamentos, mensagens, pedidos } from "./exemplo/pedidos";
 import { confirmacoes, sessoes, usuarios } from "./exemplo/usuarios";
 import type {
   Cupom,
@@ -40,6 +40,7 @@ import type {
   FotografoConta,
   ItemPedido,
   Lancamento,
+  Mensagem,
   Pacote,
   PaginaDeFotos,
   Papel,
@@ -618,6 +619,46 @@ export async function ligarPedidoAoGateway(
   if (!pedido || pedido.status !== "pendente" || pedido.gatewayId !== anterior) return false;
   pedidos.set(id, { ...pedido, gatewayId, pix: structuredClone(pix) });
   return true;
+}
+
+/** Pedidos `pendente` cujo prazo de pagamento já passou (`pedidos(status, expira_em)`). */
+export async function listarPendentesVencidos(instante: number): Promise<PedidoInterno[]> {
+  return structuredClone(
+    [...pedidos.values()].filter(
+      (p) => p.status === "pendente" && new Date(p.expiraEm).getTime() < instante,
+    ),
+  );
+}
+
+/** Pedidos expirados que ainda não receberam o lembrete de carrinho abandonado. */
+export async function listarExpiradosSemLembrete(): Promise<PedidoInterno[]> {
+  return structuredClone(
+    [...pedidos.values()].filter((p) => p.status === "expirado" && p.lembreteEnviadoEm === null),
+  );
+}
+
+/**
+ * Marca o lembrete como enviado, só se ainda não estava (`… WHERE lembrete_enviado_em IS
+ * NULL`): dois jobs ao mesmo tempo não mandam o lembrete duas vezes. Devolve se marcou.
+ */
+export async function marcarLembreteEnviado(pedidoId: string): Promise<boolean> {
+  const pedido = pedidos.get(pedidoId);
+  if (!pedido || pedido.lembreteEnviadoEm !== null) return false;
+  pedido.lembreteEnviadoEm = new Date().toISOString();
+  return true;
+}
+
+export async function registrarMensagem(mensagem: Omit<Mensagem, "id" | "criadoEm">) {
+  mensagens.push({
+    ...structuredClone(mensagem),
+    id: crypto.randomUUID(),
+    criadoEm: new Date().toISOString(),
+  });
+}
+
+/** Mensagens enviadas, da mais recente para a mais antiga (painel de gestão). */
+export async function listarMensagens(limite = 100): Promise<Mensagem[]> {
+  return structuredClone(mensagens.slice(-limite).reverse());
 }
 
 export async function salvarLancamentos(novos: Lancamento[]) {

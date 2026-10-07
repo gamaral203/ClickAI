@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 // Token do link (convidado) ou sessão do dono do pedido (cliente logado).
-const parametros = z.object({ id: z.uuid(), token: z.string().min(20).max(100).nullable() });
+const parametros = z.object({ id: z.uuid(), token: z.string().min(20).max(400).nullable() });
 
 export default function PaginaPedido(props: PageProps<"/pedidos/[id]">) {
   return (

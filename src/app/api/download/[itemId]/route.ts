@@ -5,7 +5,7 @@ import { autorizarDownload } from "@/servicos/downloads";
 import { usuarioAtual } from "@/servicos/sessao";
 
 // Token do link (convidado) ou sessão (cliente logado); um dos dois é conferido no serviço.
-const parametros = z.object({ itemId: z.uuid(), token: z.string().min(20).max(100).nullable() });
+const parametros = z.object({ itemId: z.uuid(), token: z.string().min(20).max(400).nullable() });
 
 /** Mesma resposta para todo motivo de recusa, para não revelar se o item ou o pedido existe. */
 function indisponivel() {

@@ -19,6 +19,7 @@ import {
 } from "@/dados";
 
 import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
+import { enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 
 // Regras de pedido (docs/arquitetura.md, "Compra e pagamento" e "Divisão da venda").
 
@@ -148,12 +149,15 @@ export async function criarPedido(
 /** Quem está pedindo acesso a um pedido: o token do link e/ou o cliente logado. */
 export type Credencial = { token?: string | null; clienteId?: string | null };
 
-/** O pedido pode ser visto por esta credencial? Token do link ou dono logado. */
+/**
+ * O pedido pode ser visto por esta credencial? Token do link do checkout, link assinado das
+ * mensagens (e-mail e WhatsApp) ou dono logado.
+ */
 export function podeAcessar(
-  pedido: Pick<PedidoInterno, "tokenAcessoHash" | "clienteId">,
+  pedido: Pick<PedidoInterno, "id" | "tokenAcessoHash" | "clienteId">,
   { token, clienteId }: Credencial,
 ) {
-  if (token && tokenConfere(pedido, token)) return true;
+  if (token && (tokenConfere(pedido, token) || linkDoPedidoConfere(pedido.id, token))) return true;
   return Boolean(clienteId && pedido.clienteId === clienteId);
 }
 
@@ -162,7 +166,8 @@ export function podeAcessar(
  * expirado o pendente que passou da validade.
  */
 export async function buscarPedidoComAcesso(pedidoId: string, credencial: Credencial) {
-  // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição.
+  // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição; a
+  // conferência do link assinado e a validade do pedido leem o relógio.
   await connection();
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado || !podeAcessar(encontrado.pedido, credencial)) return null;
@@ -233,5 +238,10 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
     return lancamentos;
   });
   await salvarLancamentos(novos);
+  // A entrega por mensagem não pode desfazer o pagamento: se falhar, só fica registrado. O
+  // comprador continua com o link da página do pedido e com Minhas compras.
+  await enviarEntrega(encontrado.pedido).catch((erro) =>
+    console.error(`Falha ao enviar a entrega do pedido ${pedidoId}`, erro),
+  );
   return true;
 }

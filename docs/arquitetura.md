@@ -287,6 +287,7 @@ O arquivo nunca é copiado para a conta de ninguém: o original fica uma vez só
 | Link de download | URL assinada nova a cada clique, 15 min | URL assinada nova a cada clique, 15 min |
 
 - O token do convidado é gerado aleatoriamente; o banco guarda só o hash (`token_acesso_hash`), como uma senha.
+- Como o banco não guarda o token em texto, o e-mail e o WhatsApp levam um link próprio, assinado pelo servidor (HMAC com `APP_SECRET`, com o id do pedido e a validade), aceito no lugar do token. O lembrete de carrinho abandonado leva outro link assinado, que só remonta o carrinho e não dá acesso ao pedido.
 - Ao criar conta com o mesmo e-mail, os pedidos de convidado são vinculados automaticamente ao novo `cliente_id`, com o e-mail confirmado antes.
 - Depois do download, a página do convidado oferece criar conta para guardar as fotos.
 

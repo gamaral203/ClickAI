@@ -275,6 +275,22 @@ export type Download = {
   ip: string | null;
 };
 
+/**
+ * Mensagem enviada ao comprador. Na Parte A o envio é simulado: a mensagem fica guardada para
+ * a equipe conferir no painel de gestão. Na Fase 13, o Resend e a API do WhatsApp enviam.
+ */
+export type Mensagem = {
+  id: string;
+  pedidoId: string;
+  canal: "email" | "whatsapp";
+  tipo: "entrega" | "lembrete";
+  /** E-mail ou número de WhatsApp. */
+  para: string;
+  assunto: string;
+  texto: string;
+  criadoEm: string;
+};
+
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
 /** A parte de um fotógrafo num item vendido, ainda sem a comissão (que sai no saque). */

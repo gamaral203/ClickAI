@@ -4,6 +4,7 @@ const itens = [
   { href: "/admin", rotulo: "Visão geral" },
   { href: "/admin/vendas", rotulo: "Vendas" },
   { href: "/admin/saques", rotulo: "Saques" },
+  { href: "/admin/mensagens", rotulo: "Mensagens" },
   { href: "/admin/usuarios", rotulo: "Usuários" },
 ];
 
