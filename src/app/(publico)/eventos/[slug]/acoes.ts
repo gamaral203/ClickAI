@@ -41,7 +41,7 @@ const numero = z.object({
   numero: z
     .string()
     .trim()
-    .regex(/^d{1,6}$/),
+    .regex(/^\d{1,6}$/),
 });
 
 /** Fotos do evento com o número de peito informado. Mesma regra de visibilidade da busca. */

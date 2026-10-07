@@ -60,6 +60,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Painel de gestão (`/admin`): visão geral com entradas, saídas, receita e o que é devido por vendedor; todas as vendas; histórico de saques; usuários com troca de papel (só gestor)
 - [x] Busca por selfie na página do evento: consentimento, selfie reduzida no navegador, só em memória no servidor, limite por IP; Amazon Rekognition com credenciais da AWS ou rostos de exemplo sem elas `[R-alta]`
 - [x] Busca por número de peito
+- [x] Correção: a busca por número de peito recusava todo número no servidor (regex sem `\d`)
 
 ## Em andamento
 
