@@ -1,5 +1,5 @@
 // Camada de dados do app. As telas só importam daqui, nunca do banco direto. Desde a Fase 11
-// lê e grava no Postgres (src/db): Neon na Vercel, PGlite em memória no desenvolvimento local e
+// lê e grava no Postgres (src/db): Supabase na Vercel, PGlite em memória no desenvolvimento local e
 // nos testes. As assinaturas são as mesmas da implementação de exemplo que veio antes.
 //
 // As regras de quem vê o quê ficam aqui, e não nas telas, para valerem em qualquer caminho

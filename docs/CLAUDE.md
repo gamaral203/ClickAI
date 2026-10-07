@@ -75,4 +75,4 @@ BREAKING CHANGE: exige rodar a migração 0004 antes do deploy
 
 ## Stack
 
-Next.js (App Router) + TypeScript, PostgreSQL (Neon, região São Paulo; PGlite em memória no desenvolvimento local e nos testes) com Drizzle, Cloudflare R2, Sharp, FFmpeg (worker de vídeo), provedor de reconhecimento facial e numérico (a decidir), Inngest, Better Auth, Mercado Pago (Orders e Payouts), Tailwind + shadcn/ui, Resend, API oficial do WhatsApp.
+Next.js (App Router) + TypeScript, PostgreSQL (Supabase, região São Paulo, só como banco; PGlite em memória no desenvolvimento local e nos testes) com Drizzle, Cloudflare R2, Sharp, FFmpeg (worker de vídeo), provedor de reconhecimento facial e numérico (a decidir), Inngest, Better Auth, Mercado Pago (Orders e Payouts), Tailwind + shadcn/ui, Resend, API oficial do WhatsApp.

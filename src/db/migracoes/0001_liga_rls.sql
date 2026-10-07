@@ -1,0 +1,26 @@
+ALTER TABLE "acessos_evento" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "anexos_denuncia" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "categorias" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "colaboradores" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "confirmacoes_email" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "cupons" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "cupons_eventos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "denuncias" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "downloads" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "eventos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "faixas_desconto" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "fotografos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "fotos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "itens_pedido" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "lancamentos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "lojas" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "mensagens" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "metricas" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "modelos_evento" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "numeros" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "pacotes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "pastas" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "pedidos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "rostos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "saques" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "usuarios" ENABLE ROW LEVEL SECURITY;

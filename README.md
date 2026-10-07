@@ -23,7 +23,7 @@ O que já funciona:
 
 O andamento completo, fase por fase, está em [docs/tarefas.md](docs/tarefas.md).
 
-**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); esta última só fora da produção, onde a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` (Neon), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio.
+**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); esta última só fora da produção, onde a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` ou `POSTGRES_URL` (Supabase), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio.
 
 ## Como rodar
 
