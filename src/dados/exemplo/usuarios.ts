@@ -1,6 +1,6 @@
 // Usuários de exemplo, gravados pela semente do banco (src/db/semente.ts). Todos usam a senha
-// "clicouai123". A conta de exemplo da equipe (gestor) não entra na produção da Vercel, porque a
-// senha dela é pública (README): lá a equipe entra pelas contas de GESTORES.
+// "clicouai123". Nenhuma conta com essa senha entra na produção da Vercel, porque ela é pública
+// (README): lá a equipe entra pelas contas de GESTORES (ver src/db/semente.ts).
 
 import { gerarHashSenha } from "@/lib/senha";
 

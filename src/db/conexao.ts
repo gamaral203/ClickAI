@@ -29,6 +29,19 @@ export function urlDoBanco(): string | null {
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || null;
 }
 
+/** Produção da Vercel. Preview e desenvolvimento podem usar o PGlite e os dados de exemplo. */
+export function emProducao() {
+  return process.env.VERCEL_ENV === "production";
+}
+
+/**
+ * Na produção, sem URL de banco, nada sobe: o PGlite em memória seria um banco por servidor da
+ * Vercel, e um pedido Pix criado num some quando o webhook ou a página do pedido cai em outro.
+ */
+export const ERRO_SEM_BANCO_EM_PRODUCAO =
+  "DATABASE_URL não configurada em produção: o banco em memória perderia pedidos entre " +
+  "servidores. Veja docs/deploy.md.";
+
 export function urlParaMigracoes(): string | null {
   return process.env.DATABASE_URL_DIRETA || process.env.POSTGRES_URL_NON_POOLING || urlDoBanco();
 }

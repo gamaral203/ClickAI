@@ -1,6 +1,11 @@
-// Semente do banco: os dados de exemplo da Parte A (eventos, fotos, fotógrafos, descontos, loja)
-// e os gestores da variável GESTORES. No PGlite (local e testes) roda a cada início; no Supabase,
-// uma vez, pelo `npm run db:migrar`, só se o banco estiver vazio.
+// Semente do banco: as categorias, os dados de exemplo da Parte A (eventos, fotos, fotógrafos,
+// descontos, loja) e os gestores da variável GESTORES. No PGlite (local e testes) roda a cada
+// início; no Supabase, uma vez, pelo `npm run db:migrar`, só se o banco estiver vazio.
+//
+// Na produção da Vercel, só as categorias: os dados de exemplo entram só com SEMEAR_EXEMPLOS=1,
+// e mesmo assim sem contas de exemplo com a senha pública (README). Lá os fotógrafos de exemplo
+// ficam sem senha e com e-mail em `.invalid` (domínio reservado, que ninguém recebe nem confirma
+// no Google), então ninguém entra neles; a cliente e o gestor de exemplo não são criados.
 
 import { sql } from "drizzle-orm";
 
@@ -8,6 +13,8 @@ import { lerGestores } from "@/dados/exemplo/gestores";
 import { omitir } from "@/dados/mapas";
 import * as exemplo from "@/dados/exemplo/dados";
 import { usuariosDeExemplo } from "@/dados/exemplo/usuarios";
+
+import { emProducao } from "./conexao";
 
 import type { Banco } from "./index";
 import * as t from "./schema";
@@ -24,14 +31,32 @@ export async function bancoVazio(banco: Banco) {
   return total === 0;
 }
 
-export async function semear(
-  banco: Banco,
-  { incluirEquipeDeExemplo }: { incluirEquipeDeExemplo: boolean },
-) {
+/** Dados de exemplo na semente: sempre fora da produção; nela, só com SEMEAR_EXEMPLOS=1. */
+function semearExemplos() {
+  return !emProducao() || process.env.SEMEAR_EXEMPLOS === "1";
+}
+
+/** Usuários de exemplo. Na produção, só os donos dos fotógrafos, sem login possível. */
+function usuariosDaSemente() {
+  const producao = emProducao();
+  const usuarios = usuariosDeExemplo(!producao);
+  if (!producao) return usuarios;
+  const donos = new Set(exemplo.fotografos.map((f) => f.usuarioId));
+  return usuarios
+    .filter((u) => donos.has(u.id))
+    .map((u) => ({ ...u, email: u.email.replace(/@.*$/, "@exemplo.invalid"), senhaHash: null }));
+}
+
+export async function semear(banco: Banco) {
   if (!(await bancoVazio(banco))) return;
 
+  if (!semearExemplos()) {
+    await banco.insert(t.categorias).values(exemplo.categorias);
+    return;
+  }
+
   await banco.insert(t.usuarios).values(
-    usuariosDeExemplo(incluirEquipeDeExemplo).map((u) => ({
+    usuariosDaSemente().map((u) => ({
       ...u,
       emailConfirmadoEm: data(u.emailConfirmadoEm),
       criadoEm: new Date(u.criadoEm),

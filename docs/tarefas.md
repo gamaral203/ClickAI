@@ -107,13 +107,15 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Camada de dados sobre o banco, com as mesmas funções: Postgres pela URL com pooler (postgres.js, com transações) e PGlite em memória sem `DATABASE_URL` `[R-alta]`
 - [x] Dados de exemplo como semente do banco; `npm run db:migrar` aplica as migrações (roda antes de cada build) e grava a semente num banco vazio; gestores de `GESTORES` sincronizados a cada início
 - [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
+- [x] Correção: produção sem `DATABASE_URL`/`POSTGRES_URL` não cai mais no PGlite (cada servidor da Vercel tinha seu banco e pedidos Pix sumiam); o app e `npm run db:migrar` param com erro, e preview e desenvolvimento seguem com o PGlite `[R-alta]`
+- [x] Correção: a semente na produção grava só as categorias, sem contas de exemplo com a senha pública; `SEMEAR_EXEMPLOS=1` liga os eventos de exemplo, sob fotógrafos sem login `[R-alta]`
 - [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
 ## Em andamento
 
-- [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, a produção roda com o PGlite em cada servidor da Vercel: os dados de exemplo aparecem, mas pedidos e mudanças se perdem entre servidores. Para terminar, nesta ordem:
+- [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, o deploy de produção falha de propósito (antes caía no PGlite em cada servidor da Vercel e os pedidos se perdiam entre servidores). Para terminar, nesta ordem:
   1. Fazer o merge do PR do `feat/supabase` na `main`.
   2. Criar o banco: `vercel integration add supabase --scope amaralgabriel357-9380s-projects` (ou no painel: Storage → Supabase), região São Paulo (`sa-east-1`), plano gratuito, ligado ao projeto `clickai`. Se a Vercel pedir, aceitar os termos do Supabase no navegador. A integração cadastra `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`.
-  3. Fazer um novo deploy de produção (`vercel redeploy` do último deploy, ou um push na `main`). O build roda `npm run db:migrar`: aplica as migrações e grava os dados de exemplo no banco vazio.
+  3. Fazer um novo deploy de produção (`vercel redeploy` do último deploy, ou um push na `main`). O build roda `npm run db:migrar`: aplica as migrações e, no banco vazio, grava só as categorias (os eventos de exemplo só com `SEMEAR_EXEMPLOS=1`). Sem a URL do banco, o build de produção falha.
   4. Conferir no site (`clickai-hazel.vercel.app`): login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
   5. Cadastrar o webhook do Mercado Pago (ver [deploy.md](deploy.md), item 6).
   6. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).

@@ -5,14 +5,15 @@ import path from "node:path";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { connection } from "next/server";
 
-import { criarCliente, urlDoBanco } from "./conexao";
+import { criarCliente, emProducao, ERRO_SEM_BANCO_EM_PRODUCAO, urlDoBanco } from "./conexao";
 import * as schema from "./schema";
 import { sincronizarGestores } from "./semente";
 
 // Conexão com o banco (docs/arquitetura.md). Com DATABASE_URL ou POSTGRES_URL (Supabase, pela
 // Vercel), usa o postgres.js pela URL do pooler (ver ./conexao.ts). Sem elas (desenvolvimento
-// local e testes), usa o PGlite: um Postgres que roda dentro do próprio Node, em memória, com as
-// mesmas migrações e os dados de exemplo. Assim o projeto roda sem configurar nada.
+// local, preview e testes), usa o PGlite: um Postgres que roda dentro do próprio Node, em memória,
+// com as mesmas migrações e os dados de exemplo. Assim o projeto roda sem configurar nada. Na
+// produção da Vercel, sem URL, não sobe (ERRO_SEM_BANCO_EM_PRODUCAO).
 
 export type Banco = PostgresJsDatabase<typeof schema>;
 
@@ -34,7 +35,7 @@ async function conectarPglite(): Promise<Banco> {
   await migrate(banco, { migrationsFolder: PASTA_MIGRACOES });
   // Os dois drivers são o mesmo Postgres pelo Drizzle; o tipo do postgres.js serve para os dois.
   const comoPostgres = banco as unknown as Banco;
-  await semear(comoPostgres, { incluirEquipeDeExemplo: true });
+  await semear(comoPostgres);
   return comoPostgres;
 }
 
@@ -53,6 +54,7 @@ export async function obterBanco(): Promise<Banco> {
   }
   global.__clicouaiBanco ??= (async () => {
     const url = urlDoBanco();
+    if (!url && emProducao()) throw new Error(ERRO_SEM_BANCO_EM_PRODUCAO);
     const banco = url ? await conectarPostgres(url) : await conectarPglite();
     await sincronizarGestores(banco);
     return banco;
