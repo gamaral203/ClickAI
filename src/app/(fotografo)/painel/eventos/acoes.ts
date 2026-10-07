@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import {
+  adicionarItensSimulados,
   atualizarEvento,
   buscarEventoDoFotografo,
   criarEvento,
   definirSenhaDoEvento,
+  excluirItem,
   listarCategorias,
   mudarStatusDoEvento,
   slugDeEventoEmUso,
@@ -215,5 +217,54 @@ export async function liberarAgoraAcao(eventoId: string): Promise<{ erro?: strin
     return { erro: "Este evento não usa liberação manual." };
   await atualizarEvento(eventoId, conta.id, { liberadoEm: new Date().toISOString() });
   revalidatePath(`/painel/eventos/${eventoId}`);
+  return {};
+}
+
+const LIMITE_FOTO_BYTES = 30 * 1024 * 1024;
+const MAXIMO_POR_ENVIO = 500;
+
+const arquivos = z
+  .array(
+    z.object({
+      nome: z
+        .string()
+        .trim()
+        .min(1)
+        .max(200)
+        .regex(/\.jpe?g$/i, "Só arquivos JPEG."),
+      tamanhoBytes: z.number().int().positive().max(LIMITE_FOTO_BYTES, "Até 30 MB por foto."),
+    }),
+  )
+  .min(1)
+  .max(MAXIMO_POR_ENVIO);
+
+/**
+ * Envio simulado (Parte A): recebe só nome e tamanho dos arquivos já conferidos no navegador e
+ * cria os itens com imagens de exemplo. Na Fase 12 o arquivo vai direto ao R2 por URL assinada
+ * e o job confere o tipo real pelo conteúdo (docs/arquitetura.md, "Upload").
+ */
+export async function enviarFotosAcao(
+  eventoId: string,
+  lista: unknown,
+): Promise<{ erro?: string; enviados?: number }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  const dados = arquivos.safeParse(lista);
+  if (!dados.success) {
+    return { erro: `Envie de 1 a ${MAXIMO_POR_ENVIO} fotos JPEG de até 30 MB cada.` };
+  }
+  const criados = await adicionarItensSimulados(eventoId, conta.id, dados.data);
+  if (!criados) return { erro: "Evento não encontrado." };
+  revalidatePath(`/painel/eventos/${eventoId}`);
+  return { enviados: criados.length };
+}
+
+/** Exclusão lógica de um item de evento do fotógrafo logado. */
+export async function excluirItemAcao(fotoId: string): Promise<{ erro?: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  if (!idEvento.safeParse(fotoId).success) return { erro: "Foto não encontrada." };
+  const excluiu = await excluirItem(fotoId, conta.id);
+  if (!excluiu) return { erro: "Foto não encontrada." };
+  revalidatePath("/painel/eventos", "layout");
   return {};
 }

@@ -46,6 +46,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Cadastro de fotógrafo: perfil público (nome, endereço, bio, Instagram, site), CPF/CNPJ validado e conta de recebimento simulada, no painel com checklist do que falta para vender
 - [x] Gestão de eventos no painel: criar (rascunho), editar todas as configurações (datas em horário de Brasília, preços, visibilidade com senha guardada só como hash, liberação, ordenação), publicar, arquivar e liberar agora; `revisao` só a equipe muda
 - [x] Só publicar evento com conta de recebimento conectada `[Média]`
+- [x] Envio de fotos em lote no painel (simulado até a Fase 12): arrastar e soltar, JPEG conferido pelo conteúdo, até 30 MB e 500 por envio, conferido também no servidor
+- [x] Gestão das fotos do evento com exclusão lógica (`excluida_em`): sai da galeria, mas quem comprou continua baixando `[Média]`
 
 ## Em andamento
 
@@ -89,8 +91,6 @@ Concluída (ver **Concluído**). Foto de perfil e capa dependem de upload e fora
 
 ## Fase 6 — Painel do fotógrafo
 
-- [ ] Tela de upload em lote de fotos e vídeos (envio simulado até a Fase 12)
-- [ ] Gestão de fotos e vídeos com exclusão lógica (`excluida_em`) `[Média]`
 - [ ] Vendas, saldo disponível, saldo a receber e extrato de repasses
 - [ ] Frequência de repasse: diária, semanal ou mensal
 
@@ -149,7 +149,7 @@ Concluída (ver **Concluído**). Foto de perfil e capa dependem de upload e fora
 - [ ] Rota que gera URL assinada de upload e cria o item como `processando`
 - [ ] Foto de perfil e capa do fotógrafo
 - [ ] Upload direto do navegador ao R2, em lote `[R-alta]`
-- [ ] Upload multipart com retomada para vídeos
+- [ ] Envio de vídeos no painel, com upload multipart e retomada
 - [ ] Pasta temporária com regra de ciclo de vida no R2 (evita órfãos)
 - [ ] Conferir o tipo real do arquivo e limitar o tamanho (JPEG até 30 MB; MP4/MOV até 500 MB e 5 minutos)
 - [ ] Job no Inngest que chama `gerarPrevia` e `gerarMiniatura` (função já pronta em `src/servicos/imagens.ts`) e envia o resultado ao R2

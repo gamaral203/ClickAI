@@ -5,9 +5,11 @@ import { Suspense } from "react";
 import { ArrowLeft, CheckCircle2, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
+import { EnvioFotos } from "@/components/painel/envio-fotos";
+import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
-import { buscarEventoDoFotografo, listarCategorias } from "@/dados";
+import { buscarEventoDoFotografo, listarCategorias, listarItensDoPainel } from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { formatarDataEHora } from "@/lib/formatar";
@@ -45,6 +47,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   const { criado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
+  const itens = (await listarItensDoPainel(evento.id, conta.id)) ?? [];
 
   return (
     <>
@@ -86,6 +89,20 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           liberacaoManualPendente={liberacaoManualPendente}
         />
       </header>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
+        <EnvioFotos eventoId={evento.id} />
+        <GradeFotosPainel
+          itens={itens.map((i) => ({
+            id: i.id,
+            urlMiniatura: i.urlMiniatura,
+            nomeArquivo: i.nomeArquivo,
+            status: i.status,
+            vendido: i.vendido,
+          }))}
+        />
+      </section>
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Configurações</h2>
