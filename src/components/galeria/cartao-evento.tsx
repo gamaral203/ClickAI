@@ -7,9 +7,9 @@ import { formatarData, formatarPreco } from "@/lib/formatar";
 
 export function CartaoEvento({ evento }: { evento: EventoResumo }) {
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md">
+    <article className="group relative flex w-full flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md">
       <div className="relative aspect-[3/2] bg-muted">
-        {evento.capaMiniatura && (
+        {evento.capaMiniatura ? (
           <Image
             src={evento.capaMiniatura.urlMiniatura}
             alt=""
@@ -17,6 +17,14 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             className="object-cover"
           />
+        ) : (
+          // Sem capa: galeria ainda fechada (liberação, senha ou só após a busca).
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+            <Camera aria-hidden="true" className="size-8" />
+            <span className="text-sm font-medium">
+              {evento.visibilidade === "senha" ? "Fotos protegidas" : "Fotos em breve"}
+            </span>
+          </div>
         )}
         <span className="absolute top-3 left-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold">
           {evento.categoria.nome}

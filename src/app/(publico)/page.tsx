@@ -10,19 +10,19 @@ const slides: Slide[] = [
     src: "/inicio/corrida.webp",
     alt: "Corredor sorridente de óculos escuros e camiseta amarela, com o número de peito 10, numa corrida de rua",
     rotulo: "Corridas",
-    foco: "center 30%",
+    vertical: true,
   },
   {
     src: "/inicio/cavalgada.webp",
     alt: "Silhuetas de dois cavaleiros ao pôr do sol, com o céu dourado ao fundo",
     rotulo: "Cavalgadas",
-    foco: "70% center",
+    foco: "65% 40%",
   },
   {
     src: "/inicio/retrato.webp",
     alt: "Retrato em estúdio de uma mulher de cabelo longo e camisa branca, com a mão no queixo",
     rotulo: "Ensaios e retratos",
-    foco: "center 20%",
+    vertical: true,
   },
 ];
 
@@ -47,15 +47,15 @@ const passos = [
 export default function Home() {
   return (
     <>
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:py-16 lg:grid-cols-[minmax(0,1fr)_440px]">
-        <div className="flex flex-col items-start gap-6">
+      <CarrosselInicio slides={slides}>
+        <div className="flex max-w-xl flex-col items-start gap-5 text-white">
           <span className="rounded-full bg-highlight px-3 py-1 text-sm font-semibold text-highlight-foreground">
             Em construção
           </span>
-          <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight text-balance sm:text-5xl">
-            As fotos do seu evento, <span className="text-primary">a um clique.</span>
+          <h1 className="text-4xl font-extrabold tracking-tight text-balance sm:text-6xl">
+            As fotos do seu evento, <span className="text-highlight">a um clique.</span>
           </h1>
-          <p className="max-w-xl text-lg text-pretty text-muted-foreground">
+          <p className="text-lg text-pretty text-white/90">
             Fotógrafos publicam as fotos de corridas, festas, formaturas e esportes. Você encontra
             as suas, paga e baixa o original.
           </p>
@@ -64,8 +64,7 @@ export default function Home() {
             <ArrowRight aria-hidden="true" data-icon="inline-end" />
           </Link>
         </div>
-        <CarrosselInicio slides={slides} />
-      </section>
+      </CarrosselInicio>
 
       <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
         <div className="mx-auto max-w-6xl px-4 py-16">
