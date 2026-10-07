@@ -68,6 +68,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Filtros por categoria e cidade na lista de eventos
 - [x] Filtro por horário na galeria (opcional por evento), pelo endereço e mantido ao carregar mais fotos
 - [x] Lista de fotos não identificadas (opcional por evento)
+- [x] Link, QR Code (SVG na tela e PNG para imprimir, gerados no servidor) e WhatsApp ao publicar, no painel; botão Compartilhar na página do evento
 - [x] Correções: leitura do relógio na sessão durante a pré-renderização, menu do painel rolando a página para o lado no celular e links com cara de botão "outline" sem borda
 
 ## Em andamento
@@ -117,7 +118,6 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 
 - [ ] Vídeos na galeria e na página do item, com prévia e marca d'água
 - [ ] Pastas: criar, renomear e mover itens
-- [ ] Link, QR Code e compartilhamento ao publicar
 
 ## Fase 8 — Recursos de venda
 

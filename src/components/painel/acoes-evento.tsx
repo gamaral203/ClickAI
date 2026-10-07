@@ -22,14 +22,18 @@ export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
 
-  function executar(acao: (id: string) => Promise<{ erro?: string }>) {
+  function executar(acao: (id: string) => Promise<{ erro?: string }>, aoConcluir?: () => void) {
     setErro(null);
     startTransition(async () => {
       const resultado = await acao(eventoId).catch(() => ({ erro: "Não foi possível concluir." }));
       if (resultado.erro) setErro(resultado.erro);
+      else if (aoConcluir) return aoConcluir();
       router.refresh();
     });
   }
+
+  // Depois de publicar, a página mostra o aviso e o cartão para divulgar o link e o QR Code.
+  const aoPublicar = () => router.replace(`/painel/eventos/${eventoId}?publicado=1`);
 
   if (status === "revisao") {
     return (
@@ -44,7 +48,11 @@ export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
         {(status === "rascunho" || status === "arquivado") && (
-          <Button size="touch" disabled={pendente} onClick={() => executar(publicarEventoAcao)}>
+          <Button
+            size="touch"
+            disabled={pendente}
+            onClick={() => executar(publicarEventoAcao, aoPublicar)}
+          >
             {pendente ? (
               <Loader2 aria-hidden="true" className="animate-spin" />
             ) : (

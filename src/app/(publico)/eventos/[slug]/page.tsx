@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowLeft, Calendar, Camera, Clock, Images, MapPin, ScanFace } from "lucide-react";
 
+import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { contarItens } from "@/components/galeria/cartao-evento";
 import { ContagemRegressiva } from "@/components/galeria/contagem-regressiva";
@@ -19,6 +20,7 @@ import {
   type EventoResumo,
   type FiltroGaleria,
 } from "@/dados";
+import { urlDoSite } from "@/lib/endereco";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { lerFiltroGaleria } from "@/lib/validacao";
@@ -104,16 +106,19 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
             <dd>{contarItens(evento)}</dd>
           </div>
         </dl>
-        <p className="w-fit rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
-          Cada foto custa <strong>{formatarPreco(evento.precoFotoCentavos)}</strong>
-          {evento.totalVideos > 0 && (
-            <>
-              {" "}
-              e cada vídeo <strong>{formatarPreco(evento.precoVideoCentavos)}</strong>
-            </>
-          )}
-          .
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="w-fit rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
+            Cada foto custa <strong>{formatarPreco(evento.precoFotoCentavos)}</strong>
+            {evento.totalVideos > 0 && (
+              <>
+                {" "}
+                e cada vídeo <strong>{formatarPreco(evento.precoVideoCentavos)}</strong>
+              </>
+            )}
+            .
+          </p>
+          <BotaoCompartilhar url={urlDoSite(`/eventos/${evento.slug}`)} titulo={evento.titulo} />
+        </div>
       </header>
 
       <Galeria evento={evento} filtro={filtro} />
