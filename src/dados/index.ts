@@ -9,15 +9,20 @@ import "server-only";
 
 import { connection } from "next/server";
 
-import { categorias, eventos, fotografos, fotos } from "./exemplo/dados";
+import { categorias, colaboradores, eventos, fotografos, fotos } from "./exemplo/dados";
+import { itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
 import type {
   Evento,
   EventoResumo,
   Foto,
   Fotografo,
   FotografoConta,
+  ItemPedido,
+  Lancamento,
   PaginaDeFotos,
+  PedidoInterno,
   SituacaoGaleria,
+  StatusPedido,
 } from "./tipos";
 
 export type * from "./tipos";
@@ -254,4 +259,90 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
       if (!evento || situacaoGaleria(evento, instante).tipo === "aguardando_liberacao") return [];
       return [{ foto, evento, precoCentavos: precoDoItem(foto, evento) }];
     });
+}
+
+// ---------------------------------------------------------------- Pedidos
+
+/** Quem recebe por um item: o autor da foto, o dono do evento e a comissão da plataforma. */
+export type RegraDeDivisao = {
+  fotoId: string;
+  autorId: string;
+  donoEventoId: string;
+  comissaoPlataformaPct: number;
+  /** Parte do dono sobre o restante, quando o autor é colaborador; 0 quando o autor é o dono. */
+  comissaoDonoPct: number;
+};
+
+export async function buscarRegrasDeDivisao(fotoIds: string[]): Promise<RegraDeDivisao[]> {
+  return fotoIds.flatMap((fotoId) => {
+    const foto = fotos.find((f) => f.id === fotoId);
+    const evento = foto && eventos.find((e) => e.id === foto.eventoId);
+    const dono = evento && fotografos.find((f) => f.id === evento.fotografoId);
+    if (!foto || !evento || !dono) return [];
+    const colaborador =
+      foto.enviadaPor !== dono.id
+        ? colaboradores.find((c) => c.eventoId === evento.id && c.fotografoId === foto.enviadaPor)
+        : undefined;
+    return [
+      {
+        fotoId,
+        autorId: foto.enviadaPor,
+        donoEventoId: dono.id,
+        comissaoPlataformaPct: dono.comissaoPct,
+        comissaoDonoPct: colaborador?.comissaoDonoPct ?? 0,
+      },
+    ];
+  });
+}
+
+export async function salvarPedido(pedido: PedidoInterno, itens: ItemPedido[]) {
+  pedidos.set(pedido.id, structuredClone(pedido));
+  itensPorPedido.set(pedido.id, structuredClone(itens));
+}
+
+export async function buscarPedido(
+  id: string,
+): Promise<{ pedido: PedidoInterno; itens: ItemPedido[] } | null> {
+  const pedido = pedidos.get(id);
+  if (!pedido) return null;
+  return { pedido: structuredClone(pedido), itens: structuredClone(itensPorPedido.get(id) ?? []) };
+}
+
+/**
+ * Muda o status só se o pedido ainda estiver no status esperado, como um
+ * `UPDATE pedidos SET status = … WHERE id = … AND status = …` no banco. Devolve se mudou.
+ * É o que deixa o webhook idempotente (docs/riscos.md, prioridade alta).
+ */
+export async function mudarStatusPedido(
+  id: string,
+  de: StatusPedido,
+  para: StatusPedido,
+  extra: Partial<Pick<PedidoInterno, "pagoEm" | "gatewayId">> = {},
+): Promise<boolean> {
+  const pedido = pedidos.get(id);
+  if (!pedido || pedido.status !== de) return false;
+  pedidos.set(id, { ...pedido, ...extra, status: para });
+  return true;
+}
+
+export async function salvarLancamentos(novos: Lancamento[]) {
+  lancamentos.push(...structuredClone(novos));
+}
+
+/** Itens de um pedido com o que a tela de confirmação mostra. */
+export async function detalharItensDoPedido(itens: ItemPedido[]) {
+  return itens.flatMap((item) => {
+    const foto = fotos.find((f) => f.id === item.fotoId);
+    const evento = foto && eventos.find((e) => e.id === foto.eventoId);
+    if (!foto || !evento) return [];
+    return [
+      {
+        item,
+        tipo: foto.tipo,
+        urlMiniatura: foto.urlMiniatura,
+        eventoTitulo: evento.titulo,
+        eventoSlug: evento.slug,
+      },
+    ];
+  });
 }

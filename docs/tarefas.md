@@ -33,6 +33,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias `[Média]`
 - [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca"
 - [x] Carrinho no navegador, com itens de vários eventos e preços recalculados no servidor a cada vez
+- [x] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
+- [x] Divisão da venda entre plataforma, dono do evento e colaborador, com a sobra de centavos para o autor `[Média]`
 
 ## Em andamento
 
@@ -64,7 +66,6 @@ Concluída (ver **Concluído**).
 
 ## Fase 3 — Carrinho e checkout (pagamento simulado)
 
-- [ ] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
 - [ ] Pedido criado como `pendente` e confirmação simulada (troca pelo gateway na Fase 13)
 - [ ] Tela de confirmação do pedido
 
@@ -112,7 +113,6 @@ Concluída (ver **Concluído**).
 - [ ] Cupons: percentual, valor e fotos grátis, com limites de uso, datas, eventos e mínimo
 - [ ] Regra de combinação dos descontos no servidor `[Média]`
 - [ ] Colaboradores: convidar por e-mail ou usuário, comissão do dono e notas
-- [ ] Divisão da venda entre plataforma, dono do evento e colaborador `[Média]`
 - [ ] WhatsApp opcional no checkout, com consentimento (envio simulado até a Fase 13)
 - [ ] Pedido expirado e lembrete de carrinho abandonado (envio simulado até a Fase 13)
 
