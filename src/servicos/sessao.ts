@@ -50,7 +50,8 @@ function novoToken() {
 // A sessão é um cookie assinado (APP_SECRET) com o id do usuário, a versão da conta e a
 // validade. Qualquer servidor confere sem depender de memória: na Vercel, cada requisição pode
 // cair numa instância diferente, e a sessão guardada só na memória de uma se perdia na outra.
-// Sair apaga o cookie; trocar ou perder a senha muda a versão e derruba os cookies antigos.
+// Sair apaga o cookie; perder a senha ou mudar a conta Google muda a versão e derruba os
+// cookies antigos.
 // Na Fase 11, o Better Auth assume, com sessões no banco.
 const PROPOSITO_SESSAO = "sessao";
 
