@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { CheckCircle2, Landmark } from "lucide-react";
 
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
+import { FormularioRepasse } from "@/components/painel/formulario-repasse";
 import { Button } from "@/components/ui/button";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -69,6 +70,11 @@ async function Conteudo() {
             )}
           </>
         )}
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-xl border p-5">
+        <h2 className="text-lg font-semibold">Frequência do repasse</h2>
+        <FormularioRepasse frequencia={conta.frequenciaRepasse} dia={conta.diaRepasse} />
       </section>
     </>
   );

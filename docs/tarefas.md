@@ -48,10 +48,12 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Só publicar evento com conta de recebimento conectada `[Média]`
 - [x] Envio de fotos em lote no painel (simulado até a Fase 12): arrastar e soltar, JPEG conferido pelo conteúdo, até 30 MB e 500 por envio, conferido também no servidor
 - [x] Gestão das fotos do evento com exclusão lógica (`excluida_em`): sai da galeria, mas quem comprou continua baixando `[Média]`
+- [x] Vendas no painel: saldo disponível, a receber (cartão em 30 dias) e extrato por venda, incluindo a parte do dono quando um colaborador vende
+- [x] Frequência de repasse: diária, semanal (segunda a sexta) ou mensal (dia 1 a 28)
 
 ## Em andamento
 
-- [ ] Painel do fotógrafo (Fase 6)
+- [ ] Busca e recursos do evento (Fase 7)
 
 ## Decisões de produto em aberto
 
@@ -91,8 +93,8 @@ Concluída (ver **Concluído**). Foto de perfil e capa dependem de upload e fora
 
 ## Fase 6 — Painel do fotógrafo
 
-- [ ] Vendas, saldo disponível, saldo a receber e extrato de repasses
-- [ ] Frequência de repasse: diária, semanal ou mensal
+Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o upload real.
+
 
 ## Fase 7 — Busca e recursos do evento
 

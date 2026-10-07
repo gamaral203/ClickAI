@@ -568,7 +568,14 @@ export async function criarContaDeFotografo(dados: {
 export type AlteracoesPerfil = Partial<
   Pick<
     FotografoConta,
-    "nomePublico" | "slug" | "bio" | "redesSociais" | "cpfCnpj" | "contaRecebimentoId"
+    | "nomePublico"
+    | "slug"
+    | "bio"
+    | "redesSociais"
+    | "cpfCnpj"
+    | "contaRecebimentoId"
+    | "frequenciaRepasse"
+    | "diaRepasse"
   >
 >;
 

@@ -4,6 +4,8 @@
 
 import "server-only";
 
+import { connection } from "next/server";
+
 import { categorias, eventos, fotografos, fotos, senhasEventos } from "./exemplo/banco";
 import imagens from "./exemplo/imagens.json";
 import { itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
@@ -201,17 +203,17 @@ export async function excluirItem(fotoId: string, fotografoId: string): Promise<
 export type ExtratoDoFotografo = {
   disponivelCentavos: number;
   aReceberCentavos: number;
-  lancamentos: (Lancamento & { eventoTitulo: string; pagoEm: string | null })[];
+  lancamentos: (Lancamento & { eventoTitulo: string; pagoEm: string | null; liberado: boolean })[];
 };
 
 /**
  * Saldo e extrato. Disponível: lançamentos já liberados e ainda sem repasse; a receber: os que
  * ainda não chegaram em `disponivelEm` (cartão leva 30 dias).
  */
-export async function extratoDoFotografo(
-  fotografoId: string,
-  agora: number,
-): Promise<ExtratoDoFotografo> {
+export async function extratoDoFotografo(fotografoId: string): Promise<ExtratoDoFotografo> {
+  // Hora lida aqui, como o NOW() do banco faria; espera a requisição (Cache Components).
+  await connection();
+  const agora = Date.now();
   const meus = lancamentos.filter((l) => l.fotografoId === fotografoId);
   const detalhados = meus
     .map((l) => {
@@ -224,7 +226,8 @@ export async function extratoDoFotografo(
         eventoTitulo = eventos.find((e) => e.id === foto?.eventoId)?.titulo ?? "";
         pagoEm = pedidos.get(pedidoId)?.pagoEm ?? null;
       }
-      return { ...structuredClone(l), eventoTitulo, pagoEm };
+      const liberado = new Date(l.disponivelEm).getTime() <= agora;
+      return { ...structuredClone(l), eventoTitulo, pagoEm, liberado };
     })
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
 

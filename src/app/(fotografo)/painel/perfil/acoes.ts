@@ -89,3 +89,37 @@ export async function conectarContaRecebimentoAcao() {
   await atualizarContaDoFotografo(usuario.id, { contaRecebimentoId: `simulada-${randomUUID()}` });
   revalidatePath("/painel", "layout");
 }
+
+const repasse = z
+  .object({
+    frequenciaRepasse: z.enum(["diaria", "semanal", "mensal"], "Escolha a frequência."),
+    diaSemana: z.coerce.number().int().min(1).max(5).optional(),
+    diaMes: z.coerce.number().int().min(1).max(28).optional(),
+  })
+  .transform((d) => ({
+    frequenciaRepasse: d.frequenciaRepasse,
+    diaRepasse:
+      d.frequenciaRepasse === "semanal"
+        ? (d.diaSemana ?? 5)
+        : d.frequenciaRepasse === "mensal"
+          ? (d.diaMes ?? 1)
+          : null,
+  }));
+
+export type EstadoRepasse = { ok?: boolean; erro?: string };
+
+/**
+ * Frequência do repasse: diário, semanal (dia útil 1–5, segunda a sexta) ou mensal (dia
+ * 1–28, para existir em todo mês). O repasse automático roda na Fase 13.
+ */
+export async function salvarRepasseAcao(
+  _anterior: EstadoRepasse,
+  formulario: FormData,
+): Promise<EstadoRepasse> {
+  const { usuario } = await exigirFotografo("/painel/perfil");
+  const dados = repasse.safeParse(Object.fromEntries(formulario));
+  if (!dados.success) return { erro: "Escolha a frequência e o dia do repasse." };
+  await atualizarContaDoFotografo(usuario.id, dados.data);
+  revalidatePath("/painel", "layout");
+  return { ok: true };
+}
