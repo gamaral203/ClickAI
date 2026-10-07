@@ -5,11 +5,11 @@ import { FormularioPapel } from "@/components/admin/formulario-papel";
 import { Celula, ROTULO_PAPEL, Tabela } from "@/components/admin/tabela";
 import { listarUsuariosDoAdmin, type Papel } from "@/dados";
 import { formatarData } from "@/lib/formatar";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Usuários", robots: { index: false, follow: false } };
 
-const ORDEM: Papel[] = ["admin", "atendente", "fotografo", "cliente"];
+const ORDEM: Papel[] = ["admin", "fotografo", "cliente"];
 
 export default function PaginaUsuarios() {
   return (
@@ -23,9 +23,8 @@ export default function PaginaUsuarios() {
 }
 
 async function Conteudo() {
-  const eu = await exigirEquipe("/admin/usuarios");
+  const eu = await exigirGestor("/admin/usuarios");
   const usuarios = await listarUsuariosDoAdmin();
-  const gestor = eu.papel === "admin";
   const contagem = ORDEM.map((papel) => ({
     papel,
     total: usuarios.filter((u) => u.papel === papel).length,
@@ -41,9 +40,9 @@ async function Conteudo() {
         ))}
       </ul>
       <p className="text-sm text-muted-foreground">
-        {gestor
-          ? "Você pode mudar o papel de qualquer pessoa, menos o seu. Quem vira vendedor ganha o perfil de fotógrafo. Para um gestor entrar já como gestor pelo Google, coloque o e-mail em ADMIN_EMAILS."
-          : "Atendentes veem os usuários, mas só gestores mudam papéis."}
+        Você pode mudar o papel de qualquer pessoa, menos o seu. Quem vira vendedor ganha o perfil
+        de fotógrafo. Para um gestor entrar já como gestor pelo Google, coloque o e-mail em
+        ADMIN_EMAILS.
       </p>
       <Tabela
         colunas={[
@@ -72,7 +71,7 @@ async function Conteudo() {
               <span className="whitespace-nowrap">{formatarData(u.criadoEm)}</span>
             </Celula>
             <Celula>
-              {gestor && u.id !== eu.id ? (
+              {u.id !== eu.id ? (
                 <FormularioPapel usuarioId={u.id} papel={u.papel} />
               ) : (
                 ROTULO_PAPEL[u.papel]

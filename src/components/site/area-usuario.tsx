@@ -29,7 +29,7 @@ export async function AreaUsuario() {
           Painel
         </Link>
       )}
-      {(usuario.papel === "admin" || usuario.papel === "atendente") && (
+      {usuario.papel === "admin" && (
         <Link href="/admin" className={estiloLink}>
           Gestão
         </Link>

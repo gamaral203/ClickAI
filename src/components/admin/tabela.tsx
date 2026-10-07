@@ -5,7 +5,6 @@ import type { Papel } from "@/dados";
 export const ROTULO_PAPEL: Record<Papel, string> = {
   cliente: "Cliente",
   fotografo: "Vendedor (fotógrafo)",
-  atendente: "Atendente",
   admin: "Gestor",
 };
 

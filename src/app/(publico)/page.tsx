@@ -85,6 +85,27 @@ export default function Home() {
         </div>
       </CarrosselInicio>
 
+      <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
+        <div className="mx-auto max-w-6xl px-4 py-16">
+          <h2 id="como-funciona" className="text-2xl font-bold tracking-tight">
+            Como funciona
+          </h2>
+          <ol className="mt-8 grid gap-6 sm:grid-cols-3">
+            {passos.map(({ icone: Icone, titulo, texto }, i) => (
+              <li key={titulo} className="flex flex-col gap-3 rounded-xl border bg-card p-6">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                    <Icone aria-hidden="true" className="size-5" />
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">Passo {i + 1}</span>
+                </div>
+                <h3 className="text-lg font-semibold">{titulo}</h3>
+                <p className="text-muted-foreground">{texto}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
       <section id="eventos" aria-labelledby="titulo-eventos" className="scroll-mt-20">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -110,28 +131,6 @@ export default function Home() {
           <Suspense fallback={<EsqueletoEventos />}>
             <EventosRecentes />
           </Suspense>
-        </div>
-      </section>
-
-      <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
-        <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 id="como-funciona" className="text-2xl font-bold tracking-tight">
-            Como funciona
-          </h2>
-          <ol className="mt-8 grid gap-6 sm:grid-cols-3">
-            {passos.map(({ icone: Icone, titulo, texto }, i) => (
-              <li key={titulo} className="flex flex-col gap-3 rounded-xl border bg-card p-6">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                    <Icone aria-hidden="true" className="size-5" />
-                  </span>
-                  <span className="text-sm font-medium text-muted-foreground">Passo {i + 1}</span>
-                </div>
-                <h3 className="text-lg font-semibold">{titulo}</h3>
-                <p className="text-muted-foreground">{texto}</p>
-              </li>
-            ))}
-          </ol>
         </div>
       </section>
     </>

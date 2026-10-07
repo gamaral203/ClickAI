@@ -4,9 +4,9 @@ import { Suspense } from "react";
 import { Celula, Tabela } from "@/components/admin/tabela";
 import { listarPedidosDoAdmin, type StatusPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
-export const metadata: Metadata = { title: "Vendas", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Financeiro", robots: { index: false, follow: false } };
 
 const STATUS: Record<StatusPedido, string> = {
   pendente: "Aguardando pagamento",
@@ -19,7 +19,7 @@ const STATUS: Record<StatusPedido, string> = {
 export default function PaginaVendasGestao() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold tracking-tight">Vendas</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Financeiro</h1>
       <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-muted" />}>
         <Conteudo />
       </Suspense>
@@ -28,7 +28,7 @@ export default function PaginaVendasGestao() {
 }
 
 async function Conteudo() {
-  await exigirEquipe("/admin/vendas");
+  await exigirGestor("/admin/vendas");
   const pedidos = await listarPedidosDoAdmin();
 
   return (

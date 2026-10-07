@@ -6,11 +6,8 @@
 
 // ---------------------------------------------------------------- Núcleo
 
-/**
- * Papéis: cliente compra; fotógrafo (vendedor) publica e vende; atendente vê o painel de
- * gestão para dar suporte, sem mudar nada; admin (gestor) vê tudo e muda papéis.
- */
-export type Papel = "cliente" | "fotografo" | "atendente" | "admin";
+/** Papéis: cliente compra; fotógrafo (vendedor) publica e vende; admin (gestor) vê tudo e muda papéis. */
+export type Papel = "cliente" | "fotografo" | "admin";
 
 /** Usuário como as telas e a sessão enxergam: sem hash de senha. */
 export type Usuario = {

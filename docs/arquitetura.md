@@ -46,7 +46,7 @@ TypeScript de ponta a ponta, com Next.js no front e no back, PostgreSQL para os 
 | Processamento de vídeo | FFmpeg num worker separado | Prévia com marca d'água, capa e quadros para o reconhecimento; não cabe nas funções da Vercel |
 | Reconhecimento facial e numérico | Amazon Rekognition (facial); provedor de OCR a decidir (números) | Indexa rostos das fotos numa coleção por evento e compara com a selfie, sem guardá-la |
 | Fila de tarefas | Inngest | Processa uploads e roda os jobs agendados sem manter servidor de fila |
-| Autenticação | Login com Google (OAuth 2.0 com PKCE) e e-mail e senha, sessão própria; Better Auth avaliado na Fase 11 | Usuários e sessões no nosso banco; papéis cliente, fotógrafo, atendente e gestor |
+| Autenticação | Login com Google (OAuth 2.0 com PKCE) e e-mail e senha, sessão própria; Better Auth avaliado na Fase 11 | Usuários e sessões no nosso banco; papéis cliente, fotógrafo e gestor |
 | Pagamento | Mercado Pago (Checkout Transparente via Orders + Payouts) | Pix e cartão dentro do site; saque do fotógrafo por Pix pela API |
 | Interface | Tailwind CSS + shadcn/ui | Componentes prontos e fáceis de customizar |
 | E-mail | Resend | Confirmação de compra, links de download e carrinho abandonado |
@@ -131,7 +131,7 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, atendente, admin), senha_hash (opcional: quem só usa Google não tem), google_id (opcional, único), email_confirmado_em, criado_em | — |
+| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, admin), senha_hash (opcional: quem só usa Google não tem), google_id (opcional, único), email_confirmado_em, criado_em | — |
 | `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, capa, redes_sociais, cpf_cnpj, chave_pix (o próprio CPF/CNPJ, confirmado), comissao_pct | usuarios (1:1) |
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada), liberado_em, filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
@@ -242,13 +242,12 @@ O pagamento só é considerado confirmado quando o servidor lê a order na API d
 |---|---|---|
 | Cliente | Compra e baixa | Minhas compras |
 | Fotógrafo (vendedor) | Cria eventos, envia e publica fotos, acompanha vendas e saca | `/painel` |
-| Atendente | Vê vendas, saques e usuários para dar suporte, sem mudar nada | `/admin` |
-| Gestor (admin) | Tudo do atendente, mais mudar o papel de qualquer usuário | `/admin` |
+| Gestor (admin) | Vê vendas, saques e usuários de todos e muda o papel de qualquer usuário | `/admin` |
 
 1. O login pode ser com o Google ou com e-mail e senha. O Google usa o fluxo de código com PKCE e `state` num cookie de 10 minutos; o servidor troca o código e lê o perfil direto no Google, e só aceita e-mail verificado. O endereço de volta vem de `APP_URL`, nunca do cabeçalho Host.
 2. O usuário é procurado pela conta Google (`usuarios.google_id`, o `sub` do Google); se não existir, pelo e-mail, e as contas são ligadas. Se a conta com aquele e-mail nunca confirmou o e-mail, a senha e as sessões dela caem ao ligar: alguém pode ter criado a conta com o e-mail de outra pessoa.
 3. Conta nova pelo Google nasce como cliente, ou como fotógrafo pelo botão "Vender fotos com Google". E-mails em `ADMIN_EMAILS` entram como gestores. As compras feitas como convidado com o mesmo e-mail são ligadas à conta.
-4. Cada página e ação confere o papel no servidor (`exigirFotografo`, `exigirEquipe`); o menu só esconde links. Ninguém muda o próprio papel.
+4. Cada página e ação confere o papel no servidor (`exigirFotografo`, `exigirGestor`); o menu só esconde links. Ninguém muda o próprio papel.
 
 **Painel de gestão (`/admin`)**
 
