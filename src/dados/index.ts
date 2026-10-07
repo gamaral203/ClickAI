@@ -579,3 +579,4 @@ export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: A
   Object.assign(conta, alteracoes);
   return structuredClone(conta);
 }
+export * from "./painel";

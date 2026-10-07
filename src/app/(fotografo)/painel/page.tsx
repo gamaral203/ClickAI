@@ -59,9 +59,7 @@ async function Conteudo() {
             </li>
           ))}
         </ul>
-        <p className="text-sm text-muted-foreground">
-          A gestão de eventos, o envio de fotos e as vendas entram no painel na próxima fase.
-        </p>
+        <p className="text-sm text-muted-foreground">Crie seus eventos em Meus eventos.</p>
       </section>
     </div>
   );

@@ -44,6 +44,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Confirmação de e-mail (link simulado até a Fase 13) e vínculo das compras de convidado com o mesmo e-mail só depois de confirmado
 - [x] Área "Minhas compras" com pedidos pagos (download pela sessão) e pendentes (concluir pagamento); compra de cliente logado fica ligada à conta e o checkout já vem preenchido
 - [x] Cadastro de fotógrafo: perfil público (nome, endereço, bio, Instagram, site), CPF/CNPJ validado e conta de recebimento simulada, no painel com checklist do que falta para vender
+- [x] Gestão de eventos no painel: criar (rascunho), editar todas as configurações (datas em horário de Brasília, preços, visibilidade com senha guardada só como hash, liberação, ordenação), publicar, arquivar e liberar agora; `revisao` só a equipe muda
+- [x] Só publicar evento com conta de recebimento conectada `[Média]`
 
 ## Em andamento
 
@@ -87,12 +89,10 @@ Concluída (ver **Concluído**). Foto de perfil e capa dependem de upload e fora
 
 ## Fase 6 — Painel do fotógrafo
 
-- [ ] Gestão de eventos (rascunho, publicado, revisão, arquivado)
 - [ ] Tela de upload em lote de fotos e vídeos (envio simulado até a Fase 12)
 - [ ] Gestão de fotos e vídeos com exclusão lógica (`excluida_em`) `[Média]`
 - [ ] Vendas, saldo disponível, saldo a receber e extrato de repasses
 - [ ] Frequência de repasse: diária, semanal ou mensal
-- [ ] Só publicar evento com conta de recebimento validada `[Média]`
 
 ## Fase 7 — Busca e recursos do evento
 

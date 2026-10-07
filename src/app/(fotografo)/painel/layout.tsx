@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const itens = [
   { href: "/painel", rotulo: "Início" },
+  { href: "/painel/eventos", rotulo: "Meus eventos" },
   { href: "/painel/perfil", rotulo: "Perfil e recebimento" },
 ];
 
