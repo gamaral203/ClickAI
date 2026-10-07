@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LogOut, UserRound } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
-import { usuarioAtual } from "@/servicos/sessao";
+import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 
 const estiloLink =
   "inline-flex h-11 items-center gap-2 rounded-lg px-3 font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -24,7 +24,7 @@ export async function AreaUsuario() {
   const primeiroNome = usuario.nome.split(" ")[0];
   return (
     <div className="flex items-center gap-1">
-      {usuario.papel === "fotografo" && (
+      {podeUsarPainel(usuario) && (
         <Link href="/painel" className={estiloLink}>
           Painel
         </Link>

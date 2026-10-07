@@ -110,6 +110,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Correção: produção sem `DATABASE_URL`/`POSTGRES_URL` não cai mais no PGlite (cada servidor da Vercel tinha seu banco e pedidos Pix sumiam); o app e `npm run db:migrar` param com erro, e preview e desenvolvimento seguem com o PGlite `[R-alta]`
 - [x] Correção: a semente na produção grava só as categorias, sem contas de exemplo com a senha pública; `SEMEAR_EXEMPLOS=1` liga os eventos de exemplo, sob fotógrafos sem login `[R-alta]`
 - [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
+- [x] Gestor usa, com a própria conta, as áreas de cliente (Minhas compras, carrinho, checkout, downloads) e todo o painel do fotógrafo, além do `/admin`; a conta de fotógrafo dele é criada no primeiro acesso ao painel, sem duplicar em acessos simultâneos
 ## Em andamento
 
 - [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, o deploy de produção falha de propósito (antes caía no PGlite em cada servidor da Vercel e os pedidos se perdiam entre servidores). Para terminar, nesta ordem:

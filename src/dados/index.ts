@@ -1287,6 +1287,21 @@ export async function criarContaDeFotografo(dados: {
   return paraFotografo(linha);
 }
 
+/**
+ * Cria a conta de fotógrafo só se o usuário ainda não tiver uma. Devolve `null` quando outra
+ * requisição criou antes (usuario_id é único) ou quando o slug foi tomado no meio do caminho:
+ * quem chama busca de novo ou tenta outro slug.
+ */
+export async function criarContaDeFotografoSeNaoExistir(dados: {
+  usuarioId: string;
+  nomePublico: string;
+  slug: string;
+}): Promise<FotografoConta | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco.insert(t.fotografos).values(dados).onConflictDoNothing().returning();
+  return linha ? paraFotografo(linha) : null;
+}
+
 export type AlteracoesPerfil = Partial<
   Pick<FotografoConta, "nomePublico" | "slug" | "bio" | "redesSociais" | "cpfCnpj" | "chavePix">
 >;

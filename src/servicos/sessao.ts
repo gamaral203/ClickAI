@@ -13,6 +13,7 @@ import {
   buscarContaDoFotografo,
   consumirConfirmacaoEmail,
   criarContaDeFotografo,
+  criarContaDeFotografoSeNaoExistir,
   criarUsuario,
   emailEmUso,
   ligarContaGoogle,
@@ -215,8 +216,41 @@ async function slugDisponivel(nome: string) {
 }
 
 /**
- * Fotógrafo logado e a conta dele, ou redireciona para o login. Usar no topo de toda página
- * e ação do painel: a autorização é conferida em cada uma, não só no menu.
+ * Quem usa o painel de fotógrafo: o fotógrafo e o gestor. O gestor usa com a própria conta de
+ * fotógrafo (não é personificação: só mexe nos próprios eventos, fotos e saques). Se deixar de
+ * ser gestor, perde o painel como qualquer cliente; a conta de fotógrafo fica, sem acesso.
+ */
+export function podeUsarPainel(usuario: Pick<Usuario, "papel">) {
+  return usuario.papel === "fotografo" || usuario.papel === "admin";
+}
+
+/**
+ * Conta de fotógrafo do usuário para o painel, ou `null` se ele não pode usar o painel. O gestor
+ * sem conta ganha uma no primeiro acesso, com o nome dele e CPF/chave Pix vazios (ele completa
+ * em Perfil e recebimento, como qualquer fotógrafo). Requisições ao mesmo tempo não criam duas:
+ * fotografos.usuario_id é único e quem perde a corrida lê a conta criada pela outra.
+ */
+export async function contaDoPainel(usuario: Usuario): Promise<FotografoConta | null> {
+  if (!podeUsarPainel(usuario)) return null;
+  const conta = await buscarContaDoFotografo(usuario.id);
+  if (conta || usuario.papel !== "admin") return conta;
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    const criada = await criarContaDeFotografoSeNaoExistir({
+      usuarioId: usuario.id,
+      nomePublico: usuario.nome,
+      slug: await slugDisponivel(usuario.nome),
+    });
+    if (criada) return criada;
+    // Outra requisição criou a conta (ou tomou o slug): confere e, se preciso, tenta de novo.
+    const existente = await buscarContaDoFotografo(usuario.id);
+    if (existente) return existente;
+  }
+  throw new Error("Não foi possível criar a conta de fotógrafo do gestor.");
+}
+
+/**
+ * Fotógrafo (ou gestor) logado e a conta de fotógrafo dele, ou redireciona para o login. Usar no
+ * topo de toda página e ação do painel: a autorização é conferida em cada uma, não só no menu.
  */
 export async function exigirFotografo(proximo = "/painel"): Promise<{
   usuario: Usuario;
@@ -224,7 +258,7 @@ export async function exigirFotografo(proximo = "/painel"): Promise<{
 }> {
   const usuario = await usuarioAtual();
   if (!usuario) redirect(`/entrar?proximo=${encodeURIComponent(proximo)}`);
-  const conta = usuario.papel === "fotografo" ? await buscarContaDoFotografo(usuario.id) : null;
+  const conta = await contaDoPainel(usuario);
   if (!conta) redirect("/minhas-compras");
   return { usuario, conta };
 }
