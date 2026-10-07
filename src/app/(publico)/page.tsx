@@ -35,7 +35,7 @@ export default function Home() {
           Fotógrafos publicam as fotos de corridas, festas, formaturas e esportes. Você encontra as
           suas, paga e baixa o original.
         </p>
-        <Link href="/eventos" className={buttonVariants({ className: "h-11 px-5 text-base" })}>
+        <Link href="/eventos" className={buttonVariants({ size: "touch" })}>
           Encontrar meu evento
           <ArrowRight aria-hidden="true" data-icon="inline-end" />
         </Link>

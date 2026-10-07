@@ -78,12 +78,7 @@ export function GaleriaFotos({ slug, tituloEvento, paginaInicial }: Props) {
       )}
 
       {cursor && (
-        <Button
-          variant="outline"
-          onClick={carregarMais}
-          disabled={carregando}
-          className="h-11 px-5 text-base"
-        >
+        <Button variant="outline" onClick={carregarMais} disabled={carregando} size="touch">
           {carregando && <Loader2 aria-hidden="true" className="animate-spin" />}
           {carregando ? "Carregando…" : "Carregar mais fotos"}
         </Button>

@@ -59,7 +59,7 @@ async function EventosFiltrados({
           <Label htmlFor="data">Data</Label>
           <Input id="data" name="data" type="date" defaultValue={filtro.data} className="h-11" />
         </div>
-        <button type="submit" className={buttonVariants({ className: "h-11 px-5 text-base" })}>
+        <button type="submit" className={buttonVariants({ size: "touch" })}>
           <Search aria-hidden="true" data-icon="inline-start" />
           Buscar
         </button>
