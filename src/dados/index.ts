@@ -18,6 +18,7 @@ import {
   urlOriginalDeExemplo,
 } from "./exemplo/banco";
 import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
+import { confirmacoes, sessoes, usuarios } from "./exemplo/usuarios";
 import type {
   Evento,
   EventoResumo,
@@ -27,9 +28,12 @@ import type {
   ItemPedido,
   Lancamento,
   PaginaDeFotos,
+  Papel,
   PedidoInterno,
   SituacaoGaleria,
   StatusPedido,
+  Usuario,
+  UsuarioInterno,
 } from "./tipos";
 
 export type * from "./tipos";
@@ -405,4 +409,122 @@ export async function contarDownloads(itemPedidoIds: string[]) {
       contagem.set(d.itemPedidoId, (contagem.get(d.itemPedidoId) ?? 0) + 1);
   }
   return contagem;
+}
+
+// ---------------------------------------------------------------- Usuários e sessões
+
+function usuarioPublico(u: UsuarioInterno): Usuario {
+  return {
+    id: u.id,
+    nome: u.nome,
+    email: u.email,
+    telefone: u.telefone,
+    papel: u.papel,
+    emailConfirmado: u.emailConfirmadoEm !== null,
+    criadoEm: u.criadoEm,
+  };
+}
+
+function normalizarEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+/** Usuário com o hash da senha, só para o login conferir. Nunca entregar às telas. */
+export async function buscarUsuarioParaLogin(email: string): Promise<UsuarioInterno | null> {
+  const alvo = normalizarEmail(email);
+  for (const u of usuarios.values()) if (u.email === alvo) return structuredClone(u);
+  return null;
+}
+
+export async function buscarUsuario(id: string): Promise<Usuario | null> {
+  const u = usuarios.get(id);
+  return u ? usuarioPublico(u) : null;
+}
+
+export async function emailEmUso(email: string) {
+  return (await buscarUsuarioParaLogin(email)) !== null;
+}
+
+export async function criarUsuario(dados: {
+  nome: string;
+  email: string;
+  senhaHash: string;
+  papel: Papel;
+}): Promise<Usuario> {
+  const usuario: UsuarioInterno = {
+    id: crypto.randomUUID(),
+    nome: dados.nome,
+    email: normalizarEmail(dados.email),
+    telefone: null,
+    papel: dados.papel,
+    senhaHash: dados.senhaHash,
+    emailConfirmadoEm: null,
+    criadoEm: new Date().toISOString(),
+  };
+  usuarios.set(usuario.id, usuario);
+  return usuarioPublico(usuario);
+}
+
+export async function salvarSessao(tokenHash: string, usuarioId: string, expiraEm: number) {
+  sessoes.set(tokenHash, { usuarioId, expiraEm });
+}
+
+export async function buscarSessao(tokenHash: string) {
+  return sessoes.get(tokenHash) ?? null;
+}
+
+export async function apagarSessao(tokenHash: string) {
+  sessoes.delete(tokenHash);
+}
+
+export async function salvarConfirmacaoEmail(
+  tokenHash: string,
+  usuarioId: string,
+  expiraEm: number,
+) {
+  confirmacoes.set(tokenHash, { usuarioId, expiraEm });
+}
+
+/** Usa o token de confirmação (uma vez só) e devolve o usuário, ou `null` se inválido/vencido. */
+export async function consumirConfirmacaoEmail(tokenHash: string): Promise<string | null> {
+  const confirmacao = confirmacoes.get(tokenHash);
+  confirmacoes.delete(tokenHash);
+  if (!confirmacao || confirmacao.expiraEm < Date.now()) return null;
+  return confirmacao.usuarioId;
+}
+
+export async function marcarEmailConfirmado(usuarioId: string) {
+  const u = usuarios.get(usuarioId);
+  if (u && !u.emailConfirmadoEm) u.emailConfirmadoEm = new Date().toISOString();
+}
+
+/**
+ * Liga à conta os pedidos feitos como convidado com o mesmo e-mail. Só chamar depois de o
+ * e-mail estar confirmado, senão quem criasse conta com o e-mail de outra pessoa veria as
+ * compras dela. Devolve quantos pedidos foram vinculados.
+ */
+export async function vincularPedidosDeConvidado(usuarioId: string): Promise<number> {
+  const u = usuarios.get(usuarioId);
+  if (!u?.emailConfirmadoEm) return 0;
+  let vinculados = 0;
+  for (const pedido of pedidos.values()) {
+    if (pedido.clienteId === null && normalizarEmail(pedido.emailComprador) === u.email) {
+      pedido.clienteId = u.id;
+      vinculados++;
+    }
+  }
+  return vinculados;
+}
+
+/** Pedidos de um cliente, do mais recente para o mais antigo. */
+export async function listarPedidosDoCliente(
+  clienteId: string,
+): Promise<{ pedido: PedidoInterno; itens: ItemPedido[] }[]> {
+  return [...pedidos.values()]
+    .filter((p) => p.clienteId === clienteId)
+    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+    .map((p) => ({
+      pedido: structuredClone(p),
+      itens: structuredClone(itensPorPedido.get(p.id) ?? []),
+    }));
 }

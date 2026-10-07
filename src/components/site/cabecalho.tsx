@@ -1,7 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { LinkCarrinho } from "@/components/carrinho/link-carrinho";
+
+import { AreaUsuario } from "./area-usuario";
 
 const links = [{ href: "/eventos", rotulo: "Eventos" }];
 
@@ -33,6 +36,12 @@ export function Cabecalho() {
             ))}
             <li>
               <LinkCarrinho />
+            </li>
+            <li>
+              {/* A área do usuário lê o cookie; o resto do cabeçalho sai pronto do build. */}
+              <Suspense fallback={<div className="h-11 w-24" aria-hidden="true" />}>
+                <AreaUsuario />
+              </Suspense>
             </li>
           </ul>
         </nav>

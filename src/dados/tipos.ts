@@ -8,6 +8,23 @@
 
 export type Papel = "cliente" | "fotografo" | "admin";
 
+/** Usuário como as telas e a sessão enxergam: sem hash de senha. */
+export type Usuario = {
+  id: string;
+  nome: string;
+  email: string;
+  telefone: string | null;
+  papel: Papel;
+  emailConfirmado: boolean;
+  criadoEm: string;
+};
+
+/** Dados privados do usuário, que não saem da camada de dados. */
+export type UsuarioInterno = Omit<Usuario, "emailConfirmado"> & {
+  senhaHash: string;
+  emailConfirmadoEm: string | null;
+};
+
 export type RedesSociais = {
   instagram?: string;
   site?: string;

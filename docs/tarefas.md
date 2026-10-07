@@ -40,6 +40,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Download só de item de pedido pago, conferindo o token daquele pedido; qualquer recusa dá o mesmo 404 `[R-alta]`
 - [x] Acesso de convidado por token (link do pedido, guardado só como hash)
 - [x] Registro em `downloads`, com contador na página do pedido
+- [x] Cadastro, login e saída de cliente e fotógrafo com sessão simulada (senha com scrypt, cookie HttpOnly, token guardado só como hash) até a Fase 11
+- [x] Confirmação de e-mail (link simulado até a Fase 13) e vínculo das compras de convidado com o mesmo e-mail só depois de confirmado
 
 ## Em andamento
 
@@ -80,9 +82,7 @@ Concluída (ver **Concluído**). A área "Minhas compras" depende de login e foi
 ## Fase 5 — Contas (telas)
 
 - [ ] Área "Minhas compras", com pedidos, fotos e carrinho pendente
-- [ ] Telas de cadastro e login de cliente e fotógrafo (sessão simulada até a Fase 11)
 - [ ] Cadastro de fotógrafo: perfil público (foto, capa, bio, redes), CPF/CNPJ, conta de recebimento
-- [ ] Vincular pedidos de convidado ao criar conta com o mesmo e-mail
 
 ## Fase 6 — Painel do fotógrafo
 
