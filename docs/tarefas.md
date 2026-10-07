@@ -88,6 +88,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Análise das denúncias em `/admin/denuncias`: só o gestor decide; procedente tira a foto da galeria ou põe o evento em `revisao`, improcedente devolve o evento ao ar; as partes são avisadas (simulado)
 - [x] Correção: os formulários novos do painel não apagam mais o que foi digitado quando o servidor devolve um erro
 - [x] Região `gru1` das funções na Vercel, em `vercel.json` `[R-alta]`
+- [x] Sentry no servidor, no edge e no navegador, ligado pela `SENTRY_DSN`; os eventos saem sem tokens, cookies, corpo das requisições e dados pessoais, e sem Session Replay
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
@@ -148,7 +149,7 @@ Concluída (ver **Concluído**). Ficaram para depois: logo da loja e anexos da d
 ## Fase 10 — Contas e infraestrutura
 
 - [ ] Criar contas: Vercel, banco (região São Paulo), Cloudflare R2, AWS (Rekognition), Google Cloud (OAuth) e WhatsApp
-- [ ] Configurar Sentry e alertas de erro desde o primeiro deploy
+- [ ] Alertas de erro no Sentry (o código já envia os erros com a `SENTRY_DSN`)
 - [ ] Domínio próprio das lojas verificado pela API da Vercel e resolvido no `proxy.ts`
 
 ## Fase 11 — Banco e autenticação
