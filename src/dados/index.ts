@@ -16,7 +16,7 @@ import {
   fotografos,
   fotos,
   urlOriginalDeExemplo,
-} from "./exemplo/dados";
+} from "./exemplo/banco";
 import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
 import type {
   Evento,
