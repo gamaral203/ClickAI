@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, ShieldCheck } from "lucide-react";
 
-import { MarcaDagua } from "@/components/galeria/marca-dagua";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { buscarFotoPublica } from "@/dados";
@@ -66,7 +65,6 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
               sizes="(min-width: 1024px) 800px, 100vw"
               className="object-contain"
             />
-            <MarcaDagua />
           </div>
           <figcaption className="text-sm text-muted-foreground">
             Prévia com marca d&apos;água. O original sai sem marca e em alta resolução.

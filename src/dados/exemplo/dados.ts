@@ -1,7 +1,10 @@
 // Dados de exemplo para desenvolver as telas antes do banco (docs/tarefas.md, Parte A).
-// As imagens vêm do picsum.photos; na Fase 12 passam a ser as prévias do R2 via CDN.
+// As prévias e miniaturas ficam em public/exemplo/, já com a marca d'água gravada, geradas por
+// `npm run exemplos:gerar` com a mesma função do processamento real (src/servicos/imagens.ts).
+// Na Fase 12 passam a ser as prévias do R2 servidas pela CDN.
 
 import type { Evento, Foto, Fotografo } from "../tipos";
+import imagens from "./imagens.json";
 
 export const fotografos: Fotografo[] = [
   {
@@ -104,15 +107,14 @@ function gerarFotos(): Foto[] {
     const evento = eventos[i];
     for (let n = 0; n < base.quantidadeFotos; n++) {
       contador++;
-      // Uma em cada quatro fotos é vertical, como acontece num evento real.
-      const vertical = n % 4 === 3;
-      const [largura, altura] = vertical ? [1067, 1600] : [1600, 1067];
-      const seed = `clicouai-${evento.slug}-${n}`;
+      // Cada evento começa num ponto diferente do ciclo de imagens, para não parecerem iguais.
+      const imagem = (n + i * 5) % imagens.length;
+      const { largura, altura } = imagens[imagem];
       fotos.push({
         id: uuidDeExemplo("f0700000", contador),
         eventoId: evento.id,
-        urlPrevia: `https://picsum.photos/seed/${seed}/${largura}/${altura}`,
-        urlMiniatura: `https://picsum.photos/seed/${seed}/${Math.round(largura / 4)}/${Math.round(altura / 4)}`,
+        urlPrevia: `/exemplo/previas/${imagem}.webp`,
+        urlMiniatura: `/exemplo/miniaturas/${imagem}.webp`,
         largura,
         altura,
         precoCentavos: evento.precoPadraoCentavos,

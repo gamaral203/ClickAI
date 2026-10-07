@@ -29,6 +29,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Paginação por cursor
 - [x] Página da foto
 - [x] Prévias servidas sem otimização da Vercel (`next/image` sem otimizador) — custo `[Baixa]`
+- [x] Prévia e miniatura com marca d'água gravada nos pixels, com Sharp (`src/servicos/imagens.ts`); fotos de exemplo geradas com ela (`npm run exemplos:gerar`)
+- [x] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias `[Média]`
 
 ## Em andamento
 
@@ -146,8 +148,7 @@ Concluída (ver **Concluído**).
 - [ ] Upload multipart com retomada para vídeos
 - [ ] Pasta temporária com regra de ciclo de vida no R2 (evita órfãos)
 - [ ] Conferir o tipo real do arquivo e limitar o tamanho (JPEG até 30 MB; MP4/MOV até 500 MB e 5 minutos)
-- [ ] Job no Inngest: prévia com marca d'água e miniatura com Sharp
-- [ ] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias
+- [ ] Job no Inngest que chama `gerarPrevia` e `gerarMiniatura` (função já pronta em `src/servicos/imagens.ts`) e envia o resultado ao R2
 - [ ] Ler a data de captura do EXIF e calcular o hash para marcar duplicados
 - [ ] Worker de vídeo com FFmpeg: prévia 720p com marca d'água, miniatura e quadros para o reconhecimento (testar com vídeos reais)
 - [ ] Indexar rostos e números no job (fotos e quadros de vídeo)
