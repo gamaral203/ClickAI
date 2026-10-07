@@ -4,7 +4,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { caminhoSeguro } from "@/lib/redirecionamento";
-import { cadastrar, entrar, gerarConfirmacaoEmail, sair, usuarioAtual } from "@/servicos/sessao";
+import {
+  cadastrar,
+  entrar,
+  gerarConfirmacaoEmail,
+  inicioDoPapel,
+  sair,
+  usuarioAtual,
+} from "@/servicos/sessao";
 
 export type EstadoFormulario = {
   erro?: string;
@@ -30,7 +37,8 @@ export async function entrarAcao(
   const usuario = await entrar(dados.data.email, dados.data.senha);
   // Mesma mensagem para e-mail inexistente e senha errada.
   if (!usuario) return { erro: "E-mail ou senha incorretos.", valores: { email } };
-  redirect(caminhoSeguro(formulario.get("proximo")));
+  // Sem ?proximo=, cada papel vai para a sua área (gestão, painel ou compras).
+  redirect(caminhoSeguro(formulario.get("proximo"), inicioDoPapel(usuario.papel)));
 }
 
 const cadastro = z.object({

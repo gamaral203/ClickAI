@@ -10,19 +10,24 @@ import {
   buscarSessao,
   buscarUsuario,
   buscarUsuarioParaLogin,
+  buscarUsuarioPorGoogle,
   buscarContaDoFotografo,
   consumirConfirmacaoEmail,
   criarContaDeFotografo,
   criarUsuario,
   emailEmUso,
+  ligarContaGoogle,
   marcarEmailConfirmado,
+  mudarPapelDoUsuario,
   salvarConfirmacaoEmail,
   salvarSessao,
   slugDeFotografoEmUso,
   vincularPedidosDeConvidado,
   type FotografoConta,
+  type Papel,
   type Usuario,
 } from "@/dados";
+import { emailEhGestor, type PerfilGoogle } from "@/lib/google";
 import { gerarHashSenha, HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 
@@ -131,6 +136,67 @@ export async function confirmarEmail(token: string): Promise<number | null> {
   return vincularPedidosDeConvidado(usuarioId);
 }
 
+export type ResultadoGoogle =
+  { ok: true; usuario: Usuario } | { ok: false; motivo: "conta_google_diferente" };
+
+/**
+ * Entra com o perfil que o Google confirmou. Procura pela conta Google; se não achar, pelo
+ * e-mail (o Google verificou que a pessoa é dona dele, então é seguro ligar as contas); se não
+ * existir, cria. Quem pediu para vender vira fotógrafo; e-mails em ADMIN_EMAILS viram gestores.
+ * Como o e-mail já vem confirmado, as compras feitas como convidado são ligadas à conta.
+ */
+export async function entrarComGoogle(
+  perfil: PerfilGoogle,
+  querVender: boolean,
+): Promise<ResultadoGoogle> {
+  let usuario = await buscarUsuarioPorGoogle(perfil.googleId);
+  if (!usuario) {
+    const existente = await buscarUsuarioParaLogin(perfil.email);
+    if (existente) {
+      if (!(await ligarContaGoogle(existente.id, perfil.googleId))) {
+        return { ok: false, motivo: "conta_google_diferente" };
+      }
+      usuario = await buscarUsuario(existente.id);
+    } else {
+      usuario = await criarUsuario({
+        nome: perfil.nome,
+        email: perfil.email,
+        senhaHash: null,
+        papel: "cliente",
+        googleId: perfil.googleId,
+        emailConfirmado: true,
+      });
+    }
+  }
+  if (!usuario) return { ok: false, motivo: "conta_google_diferente" };
+
+  let papel: Papel = usuario.papel;
+  if (emailEhGestor(usuario.email)) papel = "admin";
+  else if (querVender && papel === "cliente") papel = "fotografo";
+  if (papel !== usuario.papel) await mudarPapelDoUsuario(usuario.id, papel);
+  if (papel === "fotografo" && !(await buscarContaDoFotografo(usuario.id))) {
+    await criarContaDeFotografo({
+      usuarioId: usuario.id,
+      nomePublico: usuario.nome,
+      slug: await slugDisponivel(usuario.nome),
+    });
+  }
+
+  await vincularPedidosDeConvidado(usuario.id);
+  await iniciarSessao(usuario.id);
+  const atualizado = await buscarUsuario(usuario.id);
+  return atualizado
+    ? { ok: true, usuario: atualizado }
+    : { ok: false, motivo: "conta_google_diferente" };
+}
+
+/** Para onde mandar cada papel depois do login, quando não há um ?proximo=. */
+export function inicioDoPapel(papel: Papel) {
+  if (papel === "admin" || papel === "atendente") return "/admin";
+  if (papel === "fotografo") return "/painel";
+  return "/minhas-compras";
+}
+
 async function slugDisponivel(nome: string) {
   const base = gerarSlug(nome) || "fotografo";
   let slug = base;
@@ -151,4 +217,41 @@ export async function exigirFotografo(proximo = "/painel"): Promise<{
   const conta = usuario.papel === "fotografo" ? await buscarContaDoFotografo(usuario.id) : null;
   if (!conta) redirect("/minhas-compras");
   return { usuario, conta };
+}
+
+/**
+ * Equipe do ClicouAí (gestor ou atendente), ou redireciona. Com `soGestor`, o atendente fica
+ * de fora (mudar papéis, por exemplo). Usar no topo de toda página e ação do painel de gestão.
+ */
+export async function exigirEquipe(proximo = "/admin", soGestor = false): Promise<Usuario> {
+  const usuario = await usuarioAtual();
+  if (!usuario) redirect(`/entrar?proximo=${encodeURIComponent(proximo)}`);
+  const permitido = soGestor
+    ? usuario.papel === "admin"
+    : usuario.papel === "admin" || usuario.papel === "atendente";
+  if (!permitido) redirect(inicioDoPapel(usuario.papel));
+  return usuario;
+}
+
+/**
+ * Muda o papel de um usuário pelo painel de gestão. Ninguém muda o próprio papel (evita um
+ * gestor se trancar fora). Quem vira fotógrafo ganha o perfil de vendedor, se ainda não tiver.
+ */
+export async function definirPapelDoUsuario(
+  gestor: Usuario,
+  usuarioId: string,
+  papel: Papel,
+): Promise<"ok" | "proprio" | "inexistente"> {
+  if (gestor.id === usuarioId) return "proprio";
+  const alvo = await buscarUsuario(usuarioId);
+  if (!alvo) return "inexistente";
+  await mudarPapelDoUsuario(usuarioId, papel);
+  if (papel === "fotografo" && !(await buscarContaDoFotografo(usuarioId))) {
+    await criarContaDeFotografo({
+      usuarioId,
+      nomePublico: alvo.nome,
+      slug: await slugDisponivel(alvo.nome),
+    });
+  }
+  return "ok";
 }

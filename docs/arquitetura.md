@@ -44,9 +44,9 @@ TypeScript de ponta a ponta, com Next.js no front e no back, PostgreSQL para os 
 | Arquivos | Cloudflare R2 | Compatível com S3 e sem custo de transferência de saída |
 | Processamento de imagem | Sharp | Gera miniaturas e prévias com marca d'água |
 | Processamento de vídeo | FFmpeg num worker separado | Prévia com marca d'água, capa e quadros para o reconhecimento; não cabe nas funções da Vercel |
-| Reconhecimento facial e numérico | Provedor a decidir | Indexa rostos e números das fotos e compara com a selfie |
+| Reconhecimento facial e numérico | Amazon Rekognition (facial); provedor de OCR a decidir (números) | Indexa rostos das fotos numa coleção por evento e compara com a selfie, sem guardá-la |
 | Fila de tarefas | Inngest | Processa uploads e roda os jobs agendados sem manter servidor de fila |
-| Autenticação | Better Auth | Open source, guarda os usuários no seu próprio Postgres |
+| Autenticação | Login com Google (OAuth 2.0 com PKCE) e e-mail e senha, sessão própria; Better Auth avaliado na Fase 11 | Usuários e sessões no nosso banco; papéis cliente, fotógrafo, atendente e gestor |
 | Pagamento | Mercado Pago (Checkout Transparente via Orders + Payouts) | Pix e cartão dentro do site; saque do fotógrafo por Pix pela API |
 | Interface | Tailwind CSS + shadcn/ui | Componentes prontos e fáceis de customizar |
 | E-mail | Resend | Confirmação de compra, links de download e carrinho abandonado |
@@ -131,7 +131,7 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, admin), criado_em | — |
+| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, atendente, admin), senha_hash (opcional: quem só usa Google não tem), google_id (opcional, único), email_confirmado_em, criado_em | — |
 | `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, capa, redes_sociais, cpf_cnpj, chave_pix (o próprio CPF/CNPJ, confirmado), comissao_pct | usuarios (1:1) |
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada), liberado_em, filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
@@ -234,6 +234,32 @@ O pagamento só é considerado confirmado quando o servidor lê a order na API d
 6. O Mercado Pago chama o webhook (`/api/webhooks/mercadopago`, evento "Order"). O webhook valida a assinatura (`x-signature`, HMAC-SHA256), lê a order na API (o corpo da notificação não vale), confere `external_reference` e `total_amount` com o pedido, marca como `pago` numa única transação (só se ainda estiver `pendente`), soma o uso do cupom e cria os `lancamentos` de cada fotógrafo.
 7. A página do pedido se atualiza a cada 5 segundos enquanto espera e confere a order na API do Mercado Pago (no máximo uma consulta a cada 5 segundos por pedido). Isso cobre o webhook que atrasou ou nunca chegou, e o ambiente local, onde o Mercado Pago não alcança o webhook.
 8. Um job envia o e-mail com o link de downloads e, se o cliente aceitou, a mensagem de WhatsApp com o mesmo link.
+
+**Login e papéis**
+
+| Papel | O que faz | Onde |
+|---|---|---|
+| Cliente | Compra e baixa | Minhas compras |
+| Fotógrafo (vendedor) | Cria eventos, envia e publica fotos, acompanha vendas e saca | `/painel` |
+| Atendente | Vê vendas, saques e usuários para dar suporte, sem mudar nada | `/admin` |
+| Gestor (admin) | Tudo do atendente, mais mudar o papel de qualquer usuário | `/admin` |
+
+1. O login pode ser com o Google ou com e-mail e senha. O Google usa o fluxo de código com PKCE e `state` num cookie de 10 minutos; o servidor troca o código e lê o perfil direto no Google, e só aceita e-mail verificado. O endereço de volta vem de `APP_URL`, nunca do cabeçalho Host.
+2. O usuário é procurado pela conta Google (`usuarios.google_id`, o `sub` do Google); se não existir, pelo e-mail, e as contas são ligadas. Se a conta com aquele e-mail nunca confirmou o e-mail, a senha e as sessões dela caem ao ligar: alguém pode ter criado a conta com o e-mail de outra pessoa.
+3. Conta nova pelo Google nasce como cliente, ou como fotógrafo pelo botão "Vender fotos com Google". E-mails em `ADMIN_EMAILS` entram como gestores. As compras feitas como convidado com o mesmo e-mail são ligadas à conta.
+4. Cada página e ação confere o papel no servidor (`exigirFotografo`, `exigirEquipe`); o menu só esconde links. Ninguém muda o próprio papel.
+
+**Painel de gestão (`/admin`)**
+
+Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da plataforma em taxas, o que ainda é devido aos fotógrafos e uma linha por vendedor), todas as vendas, o histórico de todos os saques (com a chave Pix mascarada) e os usuários com o papel de cada um.
+
+**Busca por selfie**
+
+1. Na página do evento, a pessoa aceita o aviso de uso da selfie e tira ou escolhe uma foto. O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados.
+2. `POST /api/busca-facial` confere o consentimento, o tipo real da imagem (JPEG, PNG ou WebP, até 5 MB) e o limite de 10 buscas por IP a cada 10 minutos.
+3. Com o Amazon Rekognition, a selfie vai para `SearchFacesByImage` na coleção do evento (`{prefixo}-{evento_id}`), com semelhança mínima de 95%. O Rekognition não guarda a imagem da busca. Sem credenciais da AWS, os rostos dos dados de exemplo simulam o resultado.
+4. A selfie fica só na memória da requisição, é zerada no fim e nunca vai para log, banco ou R2. Volta a lista de fotos do evento em que a pessoa aparece, com a mesma regra de visibilidade da galeria (evento com senha ou aguardando liberação não abre).
+5. A indexação (`IndexFaces`, com o id da foto como `ExternalImageId`) roda no job de processamento quando o upload real existir (Fase 12).
 
 **Divisão da venda com colaboradores**
 
@@ -341,7 +367,7 @@ src/
 
 ## Riscos e erros possíveis
 
-Os 34 riscos mapeados, com como evitar e prioridade, estão em documento próprio: [Riscos e Erros Possíveis — Plataforma de Venda de Fotos](riscos.md).
+Os 35 riscos mapeados, com como evitar e prioridade, estão em documento próprio: [Riscos e Erros Possíveis — Plataforma de Venda de Fotos](riscos.md).
 
 ## Decisões em aberto e próximos passos
 
@@ -364,7 +390,7 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
 - [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
 - [ ] Banco gerenciado: Supabase ou Neon?
-- [ ] Provedor de reconhecimento facial e numérico: serviço pronto (ex.: AWS Rekognition) ou modelo próprio num worker? Pesa custo por foto, precisão e transferência internacional de dado biométrico.
+- [ ] Reconhecimento: confirmar a região do Amazon Rekognition (transferência internacional de dado biométrico, LGPD) e escolher o provedor de OCR para os números de peito.
 - [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?
 - [ ] Onde roda o worker de vídeo: Fly.io ou Railway?
 

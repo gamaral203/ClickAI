@@ -35,4 +35,7 @@ export const {
   lojas,
 } = banco;
 
+// Chave própria: um servidor de desenvolvimento já rodando ganha os rostos sem reiniciar.
+export const rostos = compartilhado("rostos-exemplo", () => iniciais.rostos);
+
 export { urlOriginalDeExemplo } from "./dados";

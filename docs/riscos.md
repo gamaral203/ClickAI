@@ -18,6 +18,7 @@ Arquitetura completa: [Arquitetura — Plataforma de Venda de Fotos](arquitetura
 | Segurança | Script colocado pelo fotógrafo na loja própria rouba sessão ou dados de clientes | Aceitar só o ID do Google Analytics e do Tag Manager, validado por formato, nunca HTML livre; cookies de sessão presos ao domínio principal | Alta |
 | Saque | Saque enviado para a chave Pix de outra pessoa (conta do fotógrafo invadida) | A chave é sempre o CPF/CNPJ do cadastro, nunca digitada; volta a exigir confirmação se o CPF/CNPJ mudar | Alta |
 | Saque | Mesmo saldo sacado duas vezes (clique duplo, timeout, reenvio) | Lançamentos presos ao saque numa transação; um saque por vez; idempotência pelo id do saque no Payouts; timeout fica em `processando` em vez de liberar o saldo | Alta |
+| Segurança | Conta criada com o e-mail de outra pessoa (sem confirmar) e tomada quando a dona entra com o Google | Ao ligar a conta Google a uma conta nunca confirmada, apagar a senha e as sessões dela; Google só com e-mail verificado; `state` e PKCE no login | Média |
 | Upload | Foto ou vídeo preso em "processando" porque o aviso ao servidor falhou | Job que revisa itens parados e confere se o arquivo existe no R2 | Média |
 | Upload | Arquivos órfãos ocupando espaço pago no R2 | Upload numa pasta temporária com regra de ciclo de vida; mover para `originais/` só após confirmar | Média |
 | Upload | Vídeo grande (até 500 MB) falha no meio do envio | Upload multipart, com retomada das partes | Média |

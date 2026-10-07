@@ -54,6 +54,12 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Webhook do Mercado Pago com assinatura `x-signature` conferida, status lido na API e conferência da order pela página do pedido (cobre webhook atrasado e `localhost`) `[R-alta]`
 - [x] Saque do fotógrafo por Pix (Payouts, ambiente de teste): normal em 30 dias com 10%, antecipado a partir de 1 dia com 11%, só para a chave do próprio CPF/CNPJ, idempotente e sem liberar o saldo em caso de timeout `[R-alta]`
 - [x] `.env.example` com as variáveis do Mercado Pago
+- [x] Eventos recentes e busca direto na página inicial; carrossel com fotos horizontais no computador e as verticais no celular
+- [x] Login com Google (OAuth com PKCE), ligado à conta de mesmo e-mail, com conta de vendedor pelo botão "Vender fotos com Google" e gestores por `ADMIN_EMAILS`
+- [x] Papéis cliente, fotógrafo, atendente e gestor, conferidos no servidor; cada papel cai na sua área depois do login
+- [x] Painel de gestão (`/admin`): visão geral com entradas, saídas, receita e o que é devido por vendedor; todas as vendas; histórico de saques; usuários com troca de papel (só gestor)
+- [x] Busca por selfie na página do evento: consentimento, selfie reduzida no navegador, só em memória no servidor, limite por IP; Amazon Rekognition com credenciais da AWS ou rostos de exemplo sem elas `[R-alta]`
+- [x] Busca por número de peito
 
 ## Em andamento
 
@@ -102,8 +108,6 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 
 - [ ] Vídeos na galeria e na página do item, com prévia e marca d'água
 - [ ] Categorias de evento e filtros por cidade e categoria
-- [ ] Tela de busca facial com aviso de consentimento (resultado simulado até a Fase 12)
-- [ ] Busca por número de peito
 - [ ] Filtro por horário (opcional por evento)
 - [ ] Lista de fotos não identificadas (opcional por evento)
 - [ ] Visibilidade do evento (público, não listado, com senha) e das fotos (todas ou só após a busca)
@@ -134,9 +138,8 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 
 ## Fase 10 — Contas e infraestrutura
 
-- [ ] Criar contas: Vercel, banco (região São Paulo), Cloudflare R2, gateway, provedor de reconhecimento e WhatsApp
+- [ ] Criar contas: Vercel, banco (região São Paulo), Cloudflare R2, AWS (Rekognition), Google Cloud (OAuth) e WhatsApp
 - [ ] Configurar a região `gru1` na Vercel `[R-alta]`
-- [ ] Criar `.env.example` com todas as variáveis necessárias
 - [ ] Configurar Sentry e alertas de erro desde o primeiro deploy
 - [ ] Domínio próprio das lojas verificado pela API da Vercel e resolvido no `proxy.ts`
 
@@ -146,10 +149,11 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 - [ ] Conectar o Drizzle ao banco pela URL com pooler `[R-alta]`
 - [ ] Rodar a primeira migração
 - [ ] Implementação da camada de dados com o banco, no lugar da de exemplo
-- [ ] Better Auth com papéis (cliente, fotógrafo, admin), no lugar da sessão simulada
+- [ ] Usuários, sessões e contas Google no banco (avaliar Better Auth mantendo o login com Google e os quatro papéis)
 
 ## Fase 12 — Upload, processamento e reconhecimento
 
+- [ ] Indexar os rostos de cada foto no Rekognition no job de processamento (`indexarRostos` em `src/lib/reconhecimento.ts`) e gravar em `rostos`
 - [ ] Rota que gera URL assinada de upload e cria o item como `processando`
 - [ ] Foto de perfil e capa do fotógrafo
 - [ ] Upload direto do navegador ao R2, em lote `[R-alta]`

@@ -9,7 +9,7 @@ Ler antes de implementar qualquer parte do sistema:
 - [arquitetura.md](arquitetura.md) — stack, armazenamento no R2, modelo de dados, fluxos (upload, busca, galeria, compra, descontos, download, repasse, loja, denúncia), segurança/LGPD, estrutura de pastas e decisões em aberto.
 - [referencias/fotto.md](referencias/fotto.md) — como funciona a Fotto, nossa referência de produto. Consultar ao desenhar um fluxo ou tela; ela orienta, mas quem decide é a arquitetura. Nunca copiar textos, telas ou visual da Fotto.
 - [marca/marca.md](marca/marca.md) — logo, cores (`#2362FE` azul, `#BCFA34` limão) e regras de contraste. Usar ao criar qualquer tela.
-- [riscos.md](riscos.md) — 34 riscos com como evitar e prioridade. Os 10 de prioridade alta precisam estar resolvidos antes do lançamento.
+- [riscos.md](riscos.md) — 35 riscos com como evitar e prioridade. Os 10 de prioridade alta precisam estar resolvidos antes do lançamento.
 - [skills.md](skills.md) — skills do projeto (em `.claude/skills/`) e como cada uma se aplica à nossa stack. Ao gerar ou revisar código de rotas, upload, auth, checkout ou deploy, aplicar a `vibe-code-security`; ao criar telas, a `ui-ux-pro-max` (a marca vence as paletas sugeridas por ela); ao animar, a `motion-framer` (usando o pacote `motion`).
 
 Se uma decisão de código mudar algo descrito nesses documentos, atualize o documento junto.
@@ -57,7 +57,7 @@ Todo commit segue o padrão [Conventional Commits](https://www.conventionalcommi
 Regras:
 
 - Descrição em português, no presente, em minúsculas, sem ponto final, com até ~72 caracteres: `feat(upload): adiciona geração de URL assinada para o R2`.
-- Escopo é a área afetada, de preferência uma destas: `upload`, `video`, `busca`, `galeria`, `checkout`, `descontos`, `webhook`, `download`, `whatsapp`, `repasse`, `loja`, `denuncia`, `auth`, `db`, `jobs`, `ui`.
+- Escopo é a área afetada, de preferência uma destas: `upload`, `video`, `busca`, `galeria`, `checkout`, `descontos`, `webhook`, `download`, `whatsapp`, `repasse`, `loja`, `denuncia`, `auth`, `admin`, `db`, `jobs`, `ui`.
 - Um commit por mudança lógica; não misturar `feat` com `refactor` ou formatação no mesmo commit.
 - Mudança que quebra compatibilidade (schema, API, URL pública) leva `!` depois do tipo e um rodapé `BREAKING CHANGE: <o que muda>`.
 - Use o corpo para explicar o porquê quando não for óbvio, principalmente em mudanças ligadas aos riscos de [riscos.md](riscos.md).

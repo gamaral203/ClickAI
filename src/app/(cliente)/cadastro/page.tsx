@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { BotaoGoogle } from "@/components/conta/botao-google";
 import { FormularioCadastro } from "@/components/conta/formularios";
+import { googleConfigurado } from "@/lib/google";
 
 export const metadata: Metadata = { title: "Criar conta" };
 
@@ -18,5 +20,23 @@ export default function PaginaCadastro({ searchParams }: PageProps<"/cadastro">)
 
 async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "searchParams">) {
   const { tipo } = await searchParams;
-  return <FormularioCadastro papelInicial={tipo === "fotografo" ? "fotografo" : "cliente"} />;
+  const vender = tipo === "fotografo";
+  return (
+    <div className="flex flex-col gap-6">
+      {googleConfigurado() && (
+        <>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <BotaoGoogle texto="Comprar fotos com Google" />
+            <BotaoGoogle vender texto="Vender fotos com Google" />
+          </div>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            ou crie com e-mail e senha
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
+      <FormularioCadastro papelInicial={vender ? "fotografo" : "cliente"} />
+    </div>
+  );
 }

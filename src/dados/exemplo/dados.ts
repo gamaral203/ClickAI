@@ -18,6 +18,7 @@ import type {
   FotografoConta,
   Loja,
   NumeroEncontrado,
+  RostoEncontrado,
   Pacote,
   Pasta,
 } from "../tipos";
@@ -406,6 +407,30 @@ function gerarNumeros(): NumeroEncontrado[] {
 }
 
 export const numeros: NumeroEncontrado[] = gerarNumeros();
+
+/**
+ * Rostos de exemplo (tabela `rostos`). As fotos de exemplo não têm participantes de verdade,
+ * então cada foto ganha uma ou duas "pessoas" de uma lista de 12 por evento; uma em cada nove
+ * fica sem rosto. A busca simulada sorteia uma pessoa a partir da selfie e devolve as fotos
+ * dela, como o provedor real faria.
+ */
+function gerarRostos(): RostoEncontrado[] {
+  const resultado: RostoEncontrado[] = [];
+  for (const evento of eventos) {
+    fotos
+      .filter((f) => f.eventoId === evento.id)
+      .forEach((foto, n) => {
+        if (n % 9 === 8) return;
+        resultado.push({ fotoId: foto.id, rostoId: `${evento.id}:pessoa-${(n * 5) % 12}` });
+        if (n % 4 === 0) {
+          resultado.push({ fotoId: foto.id, rostoId: `${evento.id}:pessoa-${(n * 7 + 3) % 12}` });
+        }
+      });
+  }
+  return resultado;
+}
+
+export const rostos: RostoEncontrado[] = gerarRostos();
 
 // ---------------------------------------------------------------- Descontos
 

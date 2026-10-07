@@ -6,7 +6,11 @@
 
 // ---------------------------------------------------------------- Núcleo
 
-export type Papel = "cliente" | "fotografo" | "admin";
+/**
+ * Papéis: cliente compra; fotógrafo (vendedor) publica e vende; atendente vê o painel de
+ * gestão para dar suporte, sem mudar nada; admin (gestor) vê tudo e muda papéis.
+ */
+export type Papel = "cliente" | "fotografo" | "atendente" | "admin";
 
 /** Usuário como as telas e a sessão enxergam: sem hash de senha. */
 export type Usuario = {
@@ -16,12 +20,17 @@ export type Usuario = {
   telefone: string | null;
   papel: Papel;
   emailConfirmado: boolean;
+  /** Entra com a conta Google (além ou no lugar da senha). */
+  temGoogle: boolean;
   criadoEm: string;
 };
 
 /** Dados privados do usuário, que não saem da camada de dados. */
-export type UsuarioInterno = Omit<Usuario, "emailConfirmado"> & {
-  senhaHash: string;
+export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
+  /** `null` para quem só entra com o Google. */
+  senhaHash: string | null;
+  /** Identificador da conta Google (`sub`), nunca muda mesmo se o e-mail mudar. */
+  googleId: string | null;
   emailConfirmadoEm: string | null;
 };
 
@@ -142,6 +151,15 @@ export type Colaborador = {
 };
 
 // ---------------------------------------------------------------- Busca
+
+/**
+ * Rosto encontrado numa foto pelo reconhecimento facial (tabela `rostos`). `rostoId` é o id
+ * do rosto no provedor; a mesma pessoa aparece com o mesmo id só nos dados de exemplo.
+ */
+export type RostoEncontrado = {
+  fotoId: string;
+  rostoId: string;
+};
 
 /** Número de peito encontrado numa foto pelo reconhecimento. */
 export type NumeroEncontrado = {
