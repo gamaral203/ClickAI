@@ -2,20 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, Calendar, Camera, Clock, Images, Lock, MapPin, ScanFace } from "lucide-react";
+import { ArrowLeft, Calendar, Camera, Clock, Images, MapPin, ScanFace } from "lucide-react";
 
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { contarItens } from "@/components/galeria/cartao-evento";
+import { ContagemRegressiva } from "@/components/galeria/contagem-regressiva";
+import { FiltrosGaleria } from "@/components/galeria/filtros-galeria";
+import { FormularioSenhaEvento } from "@/components/galeria/formulario-senha-evento";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
 import {
   buscarEventoPublicado,
   eventoTemNumeros,
   listarFotosDoEvento,
+  listarOpcoesGaleria,
   listarSlugsPublicados,
   type EventoResumo,
+  type FiltroGaleria,
 } from "@/dados";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { lerFiltroGaleria } from "@/lib/validacao";
 
 export async function generateStaticParams() {
   const slugs = await listarSlugsPublicados();
@@ -36,7 +42,7 @@ export async function generateMetadata({
   };
 }
 
-export default function PaginaEvento({ params }: PageProps<"/eventos/[slug]">) {
+export default function PaginaEvento({ params, searchParams }: PageProps<"/eventos/[slug]">) {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
       <Link
@@ -47,16 +53,17 @@ export default function PaginaEvento({ params }: PageProps<"/eventos/[slug]">) {
         Todos os eventos
       </Link>
       <Suspense fallback={<EsqueletoEvento />}>
-        <ConteudoEvento params={params} />
+        <ConteudoEvento params={params} searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function ConteudoEvento({ params }: Pick<PageProps<"/eventos/[slug]">, "params">) {
+async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slug]">) {
   const { slug } = await params;
   const evento = await buscarEventoPublicado(slug);
   if (!evento) notFound();
+  const filtro = lerFiltroGaleria(await searchParams);
 
   return (
     <>
@@ -109,30 +116,30 @@ async function ConteudoEvento({ params }: Pick<PageProps<"/eventos/[slug]">, "pa
         </p>
       </header>
 
-      <Galeria evento={evento} />
+      <Galeria evento={evento} filtro={filtro} />
     </>
   );
 }
 
-async function Galeria({ evento }: { evento: EventoResumo }) {
+async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: FiltroGaleria }) {
   const situacao = evento.situacaoGaleria;
 
   if (situacao.tipo === "aguardando_liberacao") {
     return (
       <AvisoGaleria icone={Clock} titulo="As fotos ainda não foram liberadas">
-        {situacao.liberaEm
-          ? `O fotógrafo agendou a liberação para ${formatarDataEHora(situacao.liberaEm)}.`
-          : "O fotógrafo vai liberar as fotos em breve. Volte mais tarde."}
+        {situacao.liberaEm ? (
+          <span className="flex flex-col items-center gap-4">
+            O fotógrafo agendou a liberação para {formatarDataEHora(situacao.liberaEm)}.
+            <ContagemRegressiva alvo={situacao.liberaEm} />
+          </span>
+        ) : (
+          "O fotógrafo vai liberar as fotos em breve. Volte mais tarde."
+        )}
       </AvisoGaleria>
     );
   }
   if (situacao.tipo === "senha") {
-    // A tela de senha entra na Fase 7 (docs/tarefas.md).
-    return (
-      <AvisoGaleria icone={Lock} titulo="Este evento é protegido por senha">
-        Peça a senha a quem organizou o evento. O acesso com senha chega em breve.
-      </AvisoGaleria>
-    );
+    return <FormularioSenhaEvento slug={evento.slug} />;
   }
   const busca = (
     <BuscaNoEvento
@@ -153,18 +160,36 @@ async function Galeria({ evento }: { evento: EventoResumo }) {
     );
   }
 
-  const primeiraPagina = await listarFotosDoEvento(evento.id, { limite: FOTOS_POR_PAGINA });
+  const [primeiraPagina, opcoes] = await Promise.all([
+    listarFotosDoEvento(evento.id, { limite: FOTOS_POR_PAGINA, filtro }),
+    listarOpcoesGaleria(evento.id),
+  ]);
+  const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas);
   return (
     <>
       {busca}
-      <h2 className="text-lg font-semibold">Todas as fotos</h2>
+      <h2 id="galeria" className="scroll-mt-4 text-lg font-semibold">
+        {filtrando ? "Fotos filtradas" : "Todas as fotos"}
+      </h2>
       <p className="-mt-4 text-sm text-muted-foreground">
         Toque numa foto para ver maior e comprar.
       </p>
+      <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
       <GaleriaFotos
+        // Novo filtro, nova lista: sem a chave, a galeria manteria as fotos do filtro anterior.
+        key={`${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}`}
         slug={evento.slug}
         tituloEvento={evento.titulo}
         paginaInicial={primeiraPagina}
+        filtro={filtro}
+        vazio={
+          filtrando
+            ? {
+                titulo: "Nenhuma foto com esse filtro.",
+                detalhe: "Escolha outro horário ou volte para todas as fotos.",
+              }
+            : undefined
+        }
       />
     </>
   );
@@ -185,7 +210,7 @@ function AvisoGaleria({
         <Icone aria-hidden="true" className="size-6" />
       </span>
       <p className="text-lg font-semibold">{titulo}</p>
-      <p className="max-w-md text-muted-foreground">{children}</p>
+      <div className="max-w-md text-muted-foreground">{children}</div>
     </div>
   );
 }

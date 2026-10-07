@@ -13,13 +13,33 @@ function primeiro(valor: ValorDeBusca) {
 const buscaSchema = z.string().trim().min(1).max(100);
 const dataSchema = z.iso.date();
 const idSchema = z.uuid();
+const slugSchema = z
+  .string()
+  .max(120)
+  .regex(/^[a-z0-9-]+$/);
+const cidadeSchema = z.string().trim().min(1).max(80);
+/** Hora cheia AAAA-MM-DDTHH, como a galeria usa no filtro por horário. */
+export const horaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}$/);
 
 export function lerFiltroEventos(params: Record<string, ValorDeBusca>) {
   const busca = buscaSchema.safeParse(primeiro(params.busca));
   const data = dataSchema.safeParse(primeiro(params.data));
+  const categoria = slugSchema.safeParse(primeiro(params.categoria));
+  const cidade = cidadeSchema.safeParse(primeiro(params.cidade));
   return {
     busca: busca.success ? busca.data : undefined,
     data: data.success ? data.data : undefined,
+    categoria: categoria.success ? categoria.data : undefined,
+    cidade: cidade.success ? cidade.data : undefined,
+  };
+}
+
+/** Filtros da galeria do evento na URL: `?hora=2026-09-27T07` e `?nao-identificadas=1`. */
+export function lerFiltroGaleria(params: Record<string, ValorDeBusca>) {
+  const hora = horaSchema.safeParse(primeiro(params.hora));
+  return {
+    hora: hora.success ? hora.data : undefined,
+    naoIdentificadas: primeiro(params["nao-identificadas"]) === "1" ? true : undefined,
   };
 }
 

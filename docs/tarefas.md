@@ -62,6 +62,12 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Busca por número de peito
 - [x] Correção: a busca por número de peito recusava todo número no servidor (regex sem `\d`)
 - [x] Testes automatizados com Vitest (`npm run test`): divisão da venda, saque e saldo, conversão de reais, CPF/CNPJ e validação dos filtros
+- [x] Visibilidade do evento: tela de senha (cookie HttpOnly por evento, token guardado só como hash, limite de tentativas por IP; trocar a senha derruba os acessos antigos) e fotos todas ou só após a busca
+- [x] Liberação automática, manual e agendada, com contagem regressiva que recarrega a galeria ao chegar a hora
+- [x] Ordenação por envio, captura, nome do arquivo ou aleatória
+- [x] Filtros por categoria e cidade na lista de eventos
+- [x] Filtro por horário na galeria (opcional por evento), pelo endereço e mantido ao carregar mais fotos
+- [x] Lista de fotos não identificadas (opcional por evento)
 
 ## Em andamento
 
@@ -109,13 +115,7 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 ## Fase 7 — Busca e recursos do evento
 
 - [ ] Vídeos na galeria e na página do item, com prévia e marca d'água
-- [ ] Categorias de evento e filtros por cidade e categoria
-- [ ] Filtro por horário (opcional por evento)
-- [ ] Lista de fotos não identificadas (opcional por evento)
-- [ ] Visibilidade do evento (público, não listado, com senha) e das fotos (todas ou só após a busca)
-- [ ] Liberação automática, manual e agendada, com contagem regressiva
 - [ ] Pastas: criar, renomear e mover itens
-- [ ] Ordenação por envio, captura, nome do arquivo ou aleatória
 - [ ] Link, QR Code e compartilhamento ao publicar
 
 ## Fase 8 — Recursos de venda

@@ -7,9 +7,14 @@
 
 import "server-only";
 
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
+import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
+import { HASH_FALSO, senhaConfere } from "@/lib/senha";
+
 import {
+  acessosEvento,
   categorias,
   colaboradores,
   eventos,
@@ -17,6 +22,7 @@ import {
   fotos,
   numeros,
   rostos,
+  senhasEventos,
   urlOriginalDeExemplo,
 } from "./exemplo/banco";
 import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
@@ -68,6 +74,23 @@ function diaEmBrasilia(iso: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(new Date(iso));
 }
 
+const formatoHora = new Intl.DateTimeFormat("en-CA", {
+  timeZone: FUSO,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Hora cheia AAAA-MM-DDTHH de um instante, no horário de Brasília. */
+function horaEmBrasilia(iso: string) {
+  const p = Object.fromEntries(
+    formatoHora.formatToParts(new Date(iso)).map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour}`;
+}
+
 function perfilPublico(conta: FotografoConta): Fotografo {
   // Nunca devolver a conta inteira: CPF/CNPJ e chave Pix não saem daqui.
   return {
@@ -81,16 +104,41 @@ function perfilPublico(conta: FotografoConta): Fotografo {
   };
 }
 
-function situacaoGaleria(evento: Evento, instante: number): SituacaoGaleria {
+/**
+ * `senhaAceita`: este navegador já acertou a senha do evento (ver `acessoPorSenha`). Nas
+ * listagens fica falso: evento com senha aparece sempre fechado ali.
+ */
+function situacaoGaleria(evento: Evento, instante: number, senhaAceita = false): SituacaoGaleria {
   if (evento.liberacao !== "automatica") {
     const liberado =
       evento.liberadoEm !== null && new Date(evento.liberadoEm).getTime() <= instante;
     if (!liberado) return { tipo: "aguardando_liberacao", liberaEm: evento.liberadoEm };
   }
-  // A tela de senha entra na Fase 7; até lá, a galeria de evento com senha fica fechada.
-  if (evento.visibilidade === "senha") return { tipo: "senha" };
+  if (evento.visibilidade === "senha" && !senhaAceita) return { tipo: "senha" };
   if (evento.fotosSoAposBusca) return { tipo: "so_apos_busca" };
   return { tipo: "aberta" };
+}
+
+/**
+ * O cookie deste navegador libera o evento com senha? Confere o token guardado só como hash,
+ * a validade e se a senha ainda é a mesma de quando foi aceita.
+ */
+async function acessoPorSenha(evento: Evento) {
+  if (evento.visibilidade !== "senha") return false;
+  const token = (await cookies()).get(cookieDoEvento(evento.id))?.value;
+  if (!token) return false;
+  const acesso = acessosEvento.get(hashDoToken(token));
+  return (
+    acesso !== undefined &&
+    acesso.eventoId === evento.id &&
+    acesso.expiraEm > Date.now() &&
+    acesso.senhaHash === senhasEventos.get(evento.id)
+  );
+}
+
+/** Situação da galeria para quem está fazendo esta requisição (lê o cookie da senha). */
+async function situacaoParaVisitante(evento: Evento) {
+  return situacaoGaleria(evento, await agora(), await acessoPorSenha(evento));
 }
 
 function itensVisiveisDoEvento(evento: Evento) {
@@ -117,13 +165,12 @@ function embaralhar(id: string, semente: string) {
   return h >>> 0;
 }
 
-function resumir(evento: Evento, instante: number): EventoResumo {
+function resumir(evento: Evento, situacao: SituacaoGaleria): EventoResumo {
   const conta = fotografos.find((f) => f.id === evento.fotografoId);
   const categoria = categorias.find((c) => c.id === evento.categoriaId);
   if (!conta || !categoria)
     throw new Error(`Evento ${evento.id} com fotógrafo ou categoria inválidos`);
   const visiveis = itensVisiveisDoEvento(evento);
-  const situacao = situacaoGaleria(evento, instante);
   // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
   const capa = situacao.tipo === "aberta" ? visiveis[0] : undefined;
   return {
@@ -145,7 +192,17 @@ export type FiltroEventos = {
   busca?: string;
   /** Dia do evento, AAAA-MM-DD, no horário de Brasília. */
   data?: string;
+  /** Slug da categoria. */
+  categoria?: string;
+  /** Nome da cidade, sem diferenciar acentos nem maiúsculas. */
+  cidade?: string;
 };
+
+function eventosListados() {
+  return eventos.filter(
+    (e) => e.status === "publicado" && e.listado && e.visibilidade !== "nao_listado",
+  );
+}
 
 /**
  * Eventos que aparecem na lista pública, do mais recente para o mais antigo: publicados e
@@ -154,10 +211,15 @@ export type FiltroEventos = {
 export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promise<EventoResumo[]> {
   const instante = await agora();
   const termo = filtro.busca ? normalizar(filtro.busca.trim()) : "";
-  return eventos
-    .filter((e) => e.status === "publicado" && e.listado && e.visibilidade !== "nao_listado")
+  const categoriaId = filtro.categoria
+    ? (categorias.find((c) => c.slug === filtro.categoria)?.id ?? "nenhuma")
+    : null;
+  const cidade = filtro.cidade ? normalizar(filtro.cidade) : null;
+  return eventosListados()
     .filter((e) => !filtro.data || diaEmBrasilia(e.inicioEm) === filtro.data)
-    .map((e) => resumir(e, instante))
+    .filter((e) => !categoriaId || e.categoriaId === categoriaId)
+    .filter((e) => !cidade || normalizar(e.cidade) === cidade)
+    .map((e) => resumir(e, situacaoGaleria(e, instante)))
     .filter(
       (e) =>
         !termo ||
@@ -168,6 +230,27 @@ export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promi
     .sort((a, b) => b.inicioEm.localeCompare(a.inicioEm));
 }
 
+export type OpcoesFiltroEventos = {
+  categorias: { slug: string; nome: string }[];
+  cidades: { nome: string; estado: string }[];
+};
+
+/** Categorias e cidades que têm evento na lista pública, para os filtros (sem opção vazia). */
+export async function listarOpcoesFiltroEventos(): Promise<OpcoesFiltroEventos> {
+  const listados = eventosListados();
+  const categoriaIds = new Set(listados.map((e) => e.categoriaId));
+  const cidades = new Map(listados.map((e) => [normalizar(e.cidade), e]));
+  return {
+    categorias: categorias
+      .filter((c) => categoriaIds.has(c.id))
+      .map((c) => ({ slug: c.slug, nome: c.nome }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    cidades: [...cidades.values()]
+      .map((e) => ({ nome: e.cidade, estado: e.estado }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+  };
+}
+
 /** Slugs de todos os eventos publicados, para pré-renderizar no build (sem ler o relógio). */
 export async function listarSlugsPublicados(): Promise<string[]> {
   return eventos.filter((e) => e.status === "publicado").map((e) => e.slug);
@@ -176,7 +259,91 @@ export async function listarSlugsPublicados(): Promise<string[]> {
 /** Evento publicado pelo slug (inclusive não listado ou com senha), ou `null`. */
 export async function buscarEventoPublicado(slug: string): Promise<EventoResumo | null> {
   const evento = eventos.find((e) => e.slug === slug && e.status === "publicado");
-  return evento ? resumir(evento, await agora()) : null;
+  return evento ? resumir(evento, await situacaoParaVisitante(evento)) : null;
+}
+
+/**
+ * Confere a senha de um evento publicado com senha. Evento inexistente ou sem senha leva o
+ * mesmo tempo (compara com um hash falso), para a resposta não revelar nada.
+ */
+export async function conferirSenhaDoEvento(eventoId: string, senha: string): Promise<boolean> {
+  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
+  const hash = evento?.visibilidade === "senha" ? senhasEventos.get(evento.id) : undefined;
+  const confere = senhaConfere(senha, hash ?? HASH_FALSO);
+  return hash !== undefined && confere;
+}
+
+/** Libera o evento para o token do cookie (guardado só como hash) até `expiraEm`. */
+export async function registrarAcessoAoEvento(
+  tokenHash: string,
+  eventoId: string,
+  expiraEm: number,
+) {
+  const senhaHash = senhasEventos.get(eventoId);
+  if (!senhaHash) return;
+  acessosEvento.set(tokenHash, { eventoId, senhaHash, expiraEm });
+}
+
+/**
+ * Filtros da galeria aberta. Cada um só vale se o fotógrafo ligou o recurso no evento;
+ * senão é ignorado.
+ */
+export type FiltroGaleria = {
+  /** Hora cheia da captura, AAAA-MM-DDTHH no horário de Brasília (`filtroHorario`). */
+  hora?: string;
+  /** Só itens em que o reconhecimento não achou rosto nem número (`listarNaoIdentificadas`). */
+  naoIdentificadas?: boolean;
+};
+
+function idsIdentificados() {
+  return new Set([...rostos.map((r) => r.fotoId), ...numeros.map((n) => n.fotoId)]);
+}
+
+function filtrarGaleria(itens: Foto[], evento: Evento, filtro: FiltroGaleria) {
+  let resultado = itens;
+  if (evento.filtroHorario && filtro.hora) {
+    const hora = filtro.hora;
+    resultado = resultado.filter((f) => f.capturadaEm && horaEmBrasilia(f.capturadaEm) === hora);
+  }
+  if (evento.listarNaoIdentificadas && filtro.naoIdentificadas) {
+    const identificados = idsIdentificados();
+    resultado = resultado.filter((f) => !identificados.has(f.id));
+  }
+  return resultado;
+}
+
+export type OpcoesGaleria = {
+  /** Horas com itens, em ordem; `null` quando o evento não tem o filtro por horário. */
+  horas: { hora: string; total: number }[] | null;
+  /** Quantos itens não identificados; `null` quando o evento não lista os não identificados. */
+  naoIdentificadas: number | null;
+};
+
+/** Opções de filtro da galeria aberta, para quem pode vê-la agora. */
+export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaleria> {
+  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
+  if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
+    return { horas: null, naoIdentificadas: null };
+  }
+  const itens = itensVisiveisDoEvento(evento);
+  let horas: OpcoesGaleria["horas"] = null;
+  if (evento.filtroHorario) {
+    const contagem = new Map<string, number>();
+    for (const f of itens) {
+      if (!f.capturadaEm) continue;
+      const hora = horaEmBrasilia(f.capturadaEm);
+      contagem.set(hora, (contagem.get(hora) ?? 0) + 1);
+    }
+    horas = [...contagem.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([hora, total]) => ({ hora, total }));
+  }
+  return {
+    horas,
+    naoIdentificadas: evento.listarNaoIdentificadas
+      ? filtrarGaleria(itens, evento, { naoIdentificadas: true }).length
+      : null,
+  };
 }
 
 /**
@@ -186,13 +353,17 @@ export async function buscarEventoPublicado(slug: string): Promise<EventoResumo 
  */
 export async function listarFotosDoEvento(
   eventoId: string,
-  { cursor, limite = 48 }: { cursor?: string | null; limite?: number } = {},
+  {
+    cursor,
+    limite = 48,
+    filtro = {},
+  }: { cursor?: string | null; limite?: number; filtro?: FiltroGaleria } = {},
 ): Promise<PaginaDeFotos> {
   const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
-  if (!evento || situacaoGaleria(evento, await agora()).tipo !== "aberta") {
+  if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
     return { fotos: [], proximoCursor: null };
   }
-  const itens = itensVisiveisDoEvento(evento);
+  const itens = filtrarGaleria(itensVisiveisDoEvento(evento), evento, filtro);
   // Cursor desconhecido dá findIndex -1, então começa do início em vez de dar página vazia.
   const inicio = cursor ? itens.findIndex((f) => f.id === cursor) + 1 : 0;
   const pagina = itens.slice(inicio, inicio + limite);
@@ -232,7 +403,7 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
   const evento = eventos.find((e) => e.id === foto.eventoId && e.status === "publicado");
   if (!evento) return null;
 
-  const resumo = resumir(evento, await agora());
+  const resumo = resumir(evento, await situacaoParaVisitante(evento));
   const situacao = resumo.situacaoGaleria.tipo;
   if (situacao === "aguardando_liberacao" || situacao === "senha") return null;
 
@@ -254,12 +425,12 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
 
 /**
  * Evento publicado onde a busca vale: galeria aberta ou "só após a busca". Aguardando
- * liberação ou com senha não abrem nem pela busca.
+ * liberação ou com senha (sem a senha aceita) não abrem nem pela busca.
  */
 async function eventoBuscavel(eventoId: string) {
   const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
   if (!evento) return null;
-  const situacao = situacaoGaleria(evento, await agora()).tipo;
+  const situacao = (await situacaoParaVisitante(evento)).tipo;
   return situacao === "aberta" || situacao === "so_apos_busca" ? evento : null;
 }
 
