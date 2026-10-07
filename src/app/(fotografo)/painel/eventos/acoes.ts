@@ -8,11 +8,17 @@ import {
   adicionarItensSimulados,
   atualizarEvento,
   buscarEventoDoFotografo,
+  configDoEvento,
+  copiarDescontosDoEvento,
   criarEvento,
   definirSenhaDoEvento,
   excluirItem,
+  excluirModelo,
+  hashesDoEvento,
   listarCategorias,
   mudarStatusDoEvento,
+  registrarHashes,
+  salvarModeloDoEvento,
   slugDeEventoEmUso,
   temContaDeRecebimento,
   type DadosDoEvento,
@@ -233,6 +239,11 @@ const arquivos = z
         .max(200)
         .regex(/\.jpe?g$/i, "Só arquivos JPEG."),
       tamanhoBytes: z.number().int().positive().max(LIMITE_FOTO_BYTES, "Até 30 MB por foto."),
+      /** SHA-256 do arquivo, calculado no navegador: acha a mesma foto enviada duas vezes. */
+      hash: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/)
+        .optional(),
     }),
   )
   .min(1)
@@ -246,18 +257,92 @@ const arquivos = z
 export async function enviarFotosAcao(
   eventoId: string,
   lista: unknown,
-): Promise<{ erro?: string; enviados?: number }> {
+): Promise<{ erro?: string; enviados?: number; repetidas?: number }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   const dados = arquivos.safeParse(lista);
   if (!dados.success) {
     return { erro: `Envie de 1 a ${MAXIMO_POR_ENVIO} fotos JPEG de até 30 MB cada.` };
   }
-  const criados = await adicionarItensSimulados(eventoId, conta.id, dados.data);
+
+  // Foto repetida (mesmo arquivo já no evento, ou duas vezes no mesmo envio) não entra de novo.
+  const jaNoEvento = await hashesDoEvento(eventoId);
+  const vistos = new Set<string>();
+  const novos = dados.data.filter((a) => {
+    if (!a.hash) return true;
+    if (jaNoEvento.has(a.hash) || vistos.has(a.hash)) return false;
+    vistos.add(a.hash);
+    return true;
+  });
+  const repetidas = dados.data.length - novos.length;
+  if (novos.length === 0) return { enviados: 0, repetidas };
+
+  const criados = await adicionarItensSimulados(eventoId, conta.id, novos);
   if (!criados) return { erro: "Evento não encontrado." };
+  await registrarHashes(
+    eventoId,
+    criados.flatMap((foto, i) => {
+      const hash = novos[i].hash;
+      return hash ? [{ hash, fotoId: foto.id }] : [];
+    }),
+  );
   revalidatePath(`/painel/eventos/${eventoId}`);
   revalidatePath("/painel/colaboracoes");
-  return { enviados: criados.length };
+  return { enviados: criados.length, repetidas };
+}
+
+// ---------------------------------------------------------------- Reaproveitar configuração
+
+/**
+ * Cria um evento novo, em rascunho, com a mesma configuração, os mesmos descontos e o mesmo
+ * pacote do evento de origem. Fotos, senha e vendas não vão junto. Abre o novo para ajustar
+ * nome e datas.
+ */
+export async function duplicarEventoAcao(eventoId: string): Promise<{ erro?: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  const origem = await buscarEventoDoFotografo(eventoId, conta.id);
+  if (!origem) return { erro: "Evento não encontrado." };
+
+  const titulo = `${origem.titulo} (cópia)`.slice(0, 120);
+  const config = configDoEvento(origem);
+  const evento = await criarEvento(conta.id, {
+    ...config,
+    titulo,
+    inicioEm: origem.inicioEm,
+    fimEm: origem.fimEm,
+    listado: config.visibilidade !== "nao_listado",
+    liberadoEm: null,
+    slug: await slugDisponivel({ titulo, inicioEm: origem.inicioEm }),
+  });
+  await copiarDescontosDoEvento(origem.id, evento.id, conta.id);
+  revalidatePath("/painel/eventos");
+  redirect(`/painel/eventos/${evento.id}?copiado=1`);
+}
+
+const nomeModelo = z.string().trim().min(2).max(60);
+
+/** Guarda a configuração do evento como modelo, para começar os próximos com ela. */
+export async function salvarModeloAcao(
+  eventoId: string,
+  nome: string,
+): Promise<{ erro?: string; ok?: boolean }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  const dados = nomeModelo.safeParse(nome);
+  if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  if (!dados.success) return { erro: "Dê um nome de 2 a 60 caracteres ao modelo." };
+  const modelo = await salvarModeloDoEvento(eventoId, conta.id, dados.data);
+  if (!modelo) return { erro: "Evento não encontrado." };
+  revalidatePath("/painel/eventos/novo");
+  return { ok: true };
+}
+
+export async function excluirModeloAcao(modeloId: string): Promise<{ erro?: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos/novo");
+  if (!idEvento.safeParse(modeloId).success) return { erro: "Modelo não encontrado." };
+  if (!(await excluirModelo(modeloId, conta.id))) return { erro: "Modelo não encontrado." };
+  revalidatePath("/painel/eventos/novo");
+  return {};
 }
 
 /** Exclusão lógica de um item de evento do fotógrafo logado. */

@@ -167,6 +167,15 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 | `lancamentos` | id, fotografo_id, item_pedido_id, valor_centavos (bruto; negativo em estorno), disponivel_em (venda + 30 dias), antecipavel_em (venda + 1 dia), saque_id (opcional) | fotografos, itens_pedido, saques |
 | `saques` | id, fotografo_id, antecipado, bruto_centavos, taxa_centavos, liquido_centavos, chave_pix, gateway_id (payout), status (processando, pago, falhou), criado_em, pago_em | fotografos (N:1) |
 
+**Crescimento do fotógrafo**
+
+| Tabela | Campos principais | Relaciona com |
+|---|---|---|
+| `metricas` | id, tipo (visita_evento, visita_foto, carrinho), evento_id, foto_id (opcional), em. Nada de quem visitou: sem IP, cookie ou usuário | eventos, fotos |
+| `modelos_evento` | id, fotografo_id, nome, config (categoria, local, preços, visibilidade sem senha, liberação, filtros, ordenação), criado_em | fotografos (N:1) |
+
+O dashboard e o desempenho saem das tabelas de vendas e de `metricas`. Conversão é pedidos pagos ÷ visitas ao evento. Fotos repetidas no envio são achadas pelo SHA-256 do arquivo, calculado no navegador e guardado em `fotos.hash_conteudo`.
+
 **Loja e moderação**
 
 | Tabela | Campos principais | Relaciona com |

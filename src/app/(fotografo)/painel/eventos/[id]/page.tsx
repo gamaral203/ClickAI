@@ -12,6 +12,7 @@ import { Pastas } from "@/components/painel/pastas";
 import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
+import { ReaproveitarEvento } from "@/components/painel/reaproveitar-evento";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import {
@@ -59,7 +60,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   // Evento de outro fotógrafo dá "não encontrado", igual a um id que não existe.
   const evento = ehIdValido(id) ? await buscarEventoDoFotografo(id, conta.id) : null;
   if (!evento) notFound();
-  const { criado, publicado } = await searchParams;
+  const { criado, publicado, copiado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
   const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas] =
@@ -87,6 +88,16 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         >
           <CheckCircle2 aria-hidden="true" className="size-5" />
           Evento criado como rascunho. Envie as fotos e publique quando estiver pronto.
+        </p>
+      )}
+      {copiado === "1" && (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-lg bg-accent p-3 text-accent-foreground"
+        >
+          <CheckCircle2 aria-hidden="true" className="size-5" />
+          Cópia criada como rascunho, com a mesma configuração, descontos e pacote. Ajuste o nome e
+          as datas em Configurações, envie as fotos e publique.
         </p>
       )}
       {publicado === "1" && evento.status === "publicado" && (
@@ -136,8 +147,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           visibilidade={evento.visibilidade}
           qrSvg={qrCode.svg}
           qrPngDataUrl={qrCode.pngDataUrl}
+          eventoId={evento.id}
         />
       )}
+
+      <ReaproveitarEvento eventoId={evento.id} titulo={evento.titulo} />
 
       <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2">

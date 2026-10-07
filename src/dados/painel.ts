@@ -220,7 +220,14 @@ export async function excluirItem(fotoId: string, fotografoId: string): Promise<
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
-export type LancamentoDoExtrato = Lancamento & { eventoTitulo: string; pagoEm: string | null };
+export type LancamentoDoExtrato = Lancamento & {
+  eventoTitulo: string;
+  pagoEm: string | null;
+  /** O que o cliente pagou pelo item, já com desconto (transparência no extrato). */
+  valorPagoCentavos: number;
+  /** "autor": a foto é do fotógrafo; "dono": a parte dele como dono do evento de um colaborador. */
+  papel: "autor" | "dono";
+};
 
 /**
  * Lançamentos do fotógrafo com o evento e a data da venda, do mais recente para o mais
@@ -236,14 +243,18 @@ export async function listarLancamentosDoFotografo(
     .map((l) => {
       let eventoTitulo = "";
       let pagoEm: string | null = null;
+      let valorPagoCentavos = 0;
+      let papel: LancamentoDoExtrato["papel"] = "autor";
       for (const [pedidoId, itens] of itensPorPedido) {
         const item = itens.find((i) => i.id === l.itemPedidoId);
         if (!item) continue;
         const foto = fotos.find((f) => f.id === item.fotoId);
         eventoTitulo = eventos.find((e) => e.id === foto?.eventoId)?.titulo ?? "";
         pagoEm = pedidos.get(pedidoId)?.pagoEm ?? null;
+        valorPagoCentavos = item.precoCentavos - item.descontoCentavos;
+        papel = item.fotografoId === fotografoId ? "autor" : "dono";
       }
-      return { ...structuredClone(l), eventoTitulo, pagoEm };
+      return { ...structuredClone(l), eventoTitulo, pagoEm, valorPagoCentavos, papel };
     })
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
 }
