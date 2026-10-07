@@ -310,7 +310,7 @@ Todo pagamento cai na conta Mercado Pago da plataforma. O fotógrafo saca pelo p
 **Loja própria**
 
 1. O fotógrafo ativa a loja e escolhe nome, logo e cores. Ela fica num subdomínio da plataforma ou num domínio próprio, verificado pela API de domínios da Vercel.
-2. O `proxy.ts` (middleware) lê o host da requisição, encontra a loja e serve as mesmas páginas de evento e checkout, filtradas pelos eventos do fotógrafo e com as cores dele.
+2. O `proxy.ts` (middleware) lê o host da requisição (pelo cabeçalho `Host`/`X-Forwarded-Host`) e reescreve a raiz do subdomínio para `/loja/<subdomínio>`, sem consultar o banco: quem confere se a loja existe e está ativa é a página. As páginas de evento e checkout são as mesmas do site em qualquer host; as cores da loja entram pelas variáveis do tema, com a cor do texto escolhida pelo contraste.
 3. Google Analytics e Tag Manager entram só pelo ID (`G-…` e `GTM-…`), validado por formato. Diferente da Fotto, não aceitamos HTML livre no cabeçalho (ver [riscos.md](riscos.md)).
 
 **Denúncia**

@@ -81,9 +81,15 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Colaboradores: o dono adiciona pelo e-mail da conta de vendedor, com comissão e nota; o colaborador envia fotos em "Colaborações"; não dá para remover quem ainda tem fotos no evento
 - [x] Entrega por e-mail e WhatsApp (com consentimento) depois do pagamento, com link assinado; envio simulado, visível em `/admin/mensagens`
 - [x] Job de pedidos (`/api/jobs/pedidos`, protegido por `CRON_SECRET`): expira os pendentes vencidos, conferindo no Mercado Pago antes, e manda o lembrete de carrinho abandonado uma vez, com link que remonta o carrinho
+- [x] Pastas: criar, renomear e excluir no painel, escolher a pasta de cada foto e filtrar por pasta na galeria
+- [x] Loja própria: nome, descrição, cores (texto legível calculado pelo contraste) e subdomínio, no painel "Minha loja"; página da loja com os eventos do fotógrafo, aberta no subdomínio pelo `proxy.ts`
+- [x] Google Analytics e Tag Manager da loja só pelo ID, conferido ao salvar e de novo ao montar a página `[R-alta]`
+- [x] Denúncia de evento e de foto (motivo, descrição e contato; dados de empresa para direitos autorais), com limite por IP e confirmação ao denunciante
+- [x] Análise das denúncias em `/admin/denuncias`: só o gestor decide; procedente tira a foto da galeria ou põe o evento em `revisao`, improcedente devolve o evento ao ar; as partes são avisadas (simulado)
+- [x] Correção: os formulários novos do painel não apagam mais o que foi digitado quando o servidor devolve um erro
 ## Em andamento
 
-- [ ] Busca e recursos do evento (Fase 7): faltam vídeos e pastas
+- [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
 ## Decisões de produto em aberto
 
@@ -127,7 +133,6 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 ## Fase 7 — Busca e recursos do evento
 
 - [ ] Vídeos na galeria e na página do item, com prévia e marca d'água
-- [ ] Pastas: criar, renomear e mover itens
 
 ## Fase 8 — Recursos de venda
 
@@ -135,10 +140,7 @@ Concluída (ver **Concluído**). O convite de colaborador para quem ainda não t
 
 ## Fase 9 — Loja própria e moderação
 
-- [ ] Loja própria: nome, descrição, logo, cores e subdomínio
-- [ ] Google Analytics e Tag Manager só por ID `[R-alta]`
-- [ ] Denúncia de evento e de foto, com motivo, anexos e contato
-- [ ] Painel de admin: analisar denúncias, status `revisao` e avisos às partes
+Concluída (ver **Concluído**). Ficaram para depois: logo da loja e anexos da denúncia (dependem do upload, Fase 12), domínio próprio da loja (Fase 10) e as páginas de evento e checkout com a marca da loja (hoje a loja lista os eventos e o evento abre com a marca do ClicouAí).
 
 # Parte B — Integrações (por último)
 
@@ -161,7 +163,8 @@ Concluída (ver **Concluído**). O convite de colaborador para quem ainda não t
 
 - [ ] Indexar os rostos de cada foto no Rekognition no job de processamento (`indexarRostos` em `src/lib/reconhecimento.ts`) e gravar em `rostos`
 - [ ] Rota que gera URL assinada de upload e cria o item como `processando`
-- [ ] Foto de perfil e capa do fotógrafo
+- [ ] Foto de perfil e capa do fotógrafo, e logo da loja
+- [ ] Anexos da denúncia no bucket privado, por URL assinada
 - [ ] Upload direto do navegador ao R2, em lote `[R-alta]`
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
 - [ ] Pasta temporária com regra de ciclo de vida no R2 (evita órfãos)

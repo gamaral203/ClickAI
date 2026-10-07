@@ -281,9 +281,10 @@ export type Download = {
  */
 export type Mensagem = {
   id: string;
-  pedidoId: string;
+  /** Pedido da mensagem; `null` nas mensagens de denúncia. */
+  pedidoId: string | null;
   canal: "email" | "whatsapp";
-  tipo: "entrega" | "lembrete";
+  tipo: "entrega" | "lembrete" | "denuncia";
   /** E-mail ou número de WhatsApp. */
   para: string;
   assunto: string;

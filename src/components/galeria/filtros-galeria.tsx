@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, ScanFace } from "lucide-react";
+import { Clock, Folder, ScanFace } from "lucide-react";
 
 import type { FiltroGaleria, OpcoesGaleria } from "@/dados";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ function endereco(slug: string, filtro: FiltroGaleria) {
   const params = new URLSearchParams();
   if (filtro.hora) params.set("hora", filtro.hora);
   if (filtro.naoIdentificadas) params.set("nao-identificadas", "1");
+  if (filtro.pasta) params.set("pasta", filtro.pasta);
   const busca = params.toString();
   return `/eventos/${slug}${busca ? `?${busca}` : ""}#galeria`;
 }
@@ -38,11 +39,43 @@ const inativo = "hover:bg-accent hover:text-accent-foreground";
 export function FiltrosGaleria({ slug, opcoes, filtro }: Props) {
   const horas = opcoes.horas && opcoes.horas.length > 1 ? opcoes.horas : null;
   const naoIdentificadas = opcoes.naoIdentificadas ? opcoes.naoIdentificadas : null;
-  if (!horas && !naoIdentificadas) return null;
+  const pastas = opcoes.pastas.length > 1 ? opcoes.pastas : null;
+  if (!horas && !naoIdentificadas && !pastas) return null;
   const comDia = horas ? new Set(horas.map((h) => h.hora.slice(0, 10))).size > 1 : false;
 
   return (
     <nav aria-label="Filtrar as fotos" className="flex flex-col gap-3">
+      {pastas && (
+        <div className="flex flex-col gap-2">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Folder aria-hidden="true" className="size-4" />
+            Pasta
+          </p>
+          <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            <li>
+              <Link
+                href={endereco(slug, { ...filtro, pasta: undefined })}
+                aria-current={!filtro.pasta ? "true" : undefined}
+                className={cn(chip, !filtro.pasta ? ativo : inativo)}
+              >
+                Todas
+              </Link>
+            </li>
+            {pastas.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={endereco(slug, { ...filtro, pasta: p.id })}
+                  aria-current={filtro.pasta === p.id ? "true" : undefined}
+                  className={cn(chip, filtro.pasta === p.id ? ativo : inativo)}
+                >
+                  {p.nome}
+                  <span className="opacity-70">({p.total})</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {horas && (
         <div className="flex flex-col gap-2">
           <p className="flex items-center gap-2 text-sm font-medium">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, Calendar, Camera, Clock, Images, MapPin, ScanFace } from "lucide-react";
+import { ArrowLeft, Calendar, Camera, Clock, Flag, Images, MapPin, ScanFace } from "lucide-react";
 
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
@@ -122,6 +122,14 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
       </header>
 
       <Galeria evento={evento} filtro={filtro} />
+
+      <Link
+        href={`/denunciar?evento=${evento.slug}`}
+        className="inline-flex h-11 w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <Flag aria-hidden="true" className="size-4" />
+        Denunciar este evento
+      </Link>
     </>
   );
 }
@@ -169,7 +177,7 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
     listarFotosDoEvento(evento.id, { limite: FOTOS_POR_PAGINA, filtro }),
     listarOpcoesGaleria(evento.id),
   ]);
-  const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas);
+  const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
   return (
     <>
       {busca}
@@ -182,7 +190,7 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
       <GaleriaFotos
         // Novo filtro, nova lista: sem a chave, a galeria manteria as fotos do filtro anterior.
-        key={`${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}`}
+        key={`${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}|${filtro.pasta ?? ""}`}
         slug={evento.slug}
         tituloEvento={evento.titulo}
         paginaInicial={primeiraPagina}
@@ -191,7 +199,7 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
           filtrando
             ? {
                 titulo: "Nenhuma foto com esse filtro.",
-                detalhe: "Escolha outro horário ou volte para todas as fotos.",
+                detalhe: "Escolha outro filtro ou volte para todas as fotos.",
               }
             : undefined
         }

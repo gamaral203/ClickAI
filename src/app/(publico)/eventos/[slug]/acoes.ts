@@ -35,6 +35,7 @@ const entrada = z.object({
     .object({
       hora: horaSchema.optional(),
       naoIdentificadas: z.boolean().optional(),
+      pasta: z.uuid().optional(),
     })
     .optional(),
 });

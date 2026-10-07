@@ -24,6 +24,7 @@ import {
   fotos,
   numeros,
   pacotes,
+  pastas,
   rostos,
   senhasEventos,
   urlOriginalDeExemplo,
@@ -203,6 +204,8 @@ export type FiltroEventos = {
   categoria?: string;
   /** Nome da cidade, sem diferenciar acentos nem maiúsculas. */
   cidade?: string;
+  /** Só os eventos deste fotógrafo (página da loja própria). */
+  fotografoId?: string;
 };
 
 function eventosListados() {
@@ -226,6 +229,7 @@ export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promi
     .filter((e) => !filtro.data || diaEmBrasilia(e.inicioEm) === filtro.data)
     .filter((e) => !categoriaId || e.categoriaId === categoriaId)
     .filter((e) => !cidade || normalizar(e.cidade) === cidade)
+    .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId)
     .map((e) => resumir(e, situacaoGaleria(e, instante)))
     .filter(
       (e) =>
@@ -300,6 +304,8 @@ export type FiltroGaleria = {
   hora?: string;
   /** Só itens em que o reconhecimento não achou rosto nem número (`listarNaoIdentificadas`). */
   naoIdentificadas?: boolean;
+  /** Só os itens desta pasta do evento. */
+  pasta?: string;
 };
 
 function idsIdentificados() {
@@ -316,6 +322,7 @@ function filtrarGaleria(itens: Foto[], evento: Evento, filtro: FiltroGaleria) {
     const identificados = idsIdentificados();
     resultado = resultado.filter((f) => !identificados.has(f.id));
   }
+  if (filtro.pasta) resultado = resultado.filter((f) => f.pastaId === filtro.pasta);
   return resultado;
 }
 
@@ -324,13 +331,15 @@ export type OpcoesGaleria = {
   horas: { hora: string; total: number }[] | null;
   /** Quantos itens não identificados; `null` quando o evento não lista os não identificados. */
   naoIdentificadas: number | null;
+  /** Pastas com itens visíveis, na ordem do fotógrafo. */
+  pastas: { id: string; nome: string; total: number }[];
 };
 
 /** Opções de filtro da galeria aberta, para quem pode vê-la agora. */
 export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaleria> {
   const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
   if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
-    return { horas: null, naoIdentificadas: null };
+    return { horas: null, naoIdentificadas: null, pastas: [] };
   }
   const itens = itensVisiveisDoEvento(evento);
   let horas: OpcoesGaleria["horas"] = null;
@@ -350,6 +359,15 @@ export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaler
     naoIdentificadas: evento.listarNaoIdentificadas
       ? filtrarGaleria(itens, evento, { naoIdentificadas: true }).length
       : null,
+    pastas: pastas
+      .filter((p) => p.eventoId === evento.id)
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((p) => ({
+        id: p.id,
+        nome: p.nome,
+        total: itens.filter((f) => f.pastaId === p.id).length,
+      }))
+      .filter((p) => p.total > 0),
   };
 }
 
@@ -940,3 +958,4 @@ export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: A
 export * from "./painel";
 export * from "./admin";
 export * from "./vendas-painel";
+export * from "./loja-moderacao";

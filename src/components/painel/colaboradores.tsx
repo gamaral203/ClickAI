@@ -10,6 +10,7 @@ import {
   removerColaboradorAcao,
   type EstadoColaborador,
 } from "@/app/(fotografo)/painel/eventos/vendas-acoes";
+import { enviarSemLimpar } from "@/lib/formulario";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -56,7 +57,7 @@ export function Colaboradores({
 
       <form
         key={versao}
-        action={acao}
+        onSubmit={enviarSemLimpar(acao)}
         noValidate
         className="flex flex-col gap-4 rounded-lg border p-4"
       >

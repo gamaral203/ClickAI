@@ -5,6 +5,7 @@ const itens = [
   { href: "/painel/eventos", rotulo: "Meus eventos" },
   { href: "/painel/descontos", rotulo: "Descontos e cupons" },
   { href: "/painel/colaboracoes", rotulo: "Colaborações" },
+  { href: "/painel/loja", rotulo: "Minha loja" },
   { href: "/painel/vendas", rotulo: "Vendas" },
   { href: "/painel/perfil", rotulo: "Perfil e recebimento" },
 ];

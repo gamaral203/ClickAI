@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { salvarPacoteAcao, type EstadoPacote } from "@/app/(fotografo)/painel/eventos/vendas-acoes";
+import { enviarSemLimpar } from "@/lib/formulario";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -35,7 +36,7 @@ export function FormularioPacote({
   const erros = estado.erros ?? {};
 
   return (
-    <form action={acao} noValidate className="flex flex-col gap-5">
+    <form onSubmit={enviarSemLimpar(acao)} noValidate className="flex flex-col gap-5">
       <input type="hidden" name="eventoId" value={eventoId} />
       {estado.ok && <AvisoSalvo>Pacote salvo.</AvisoSalvo>}
 

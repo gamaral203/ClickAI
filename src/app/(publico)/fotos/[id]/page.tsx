@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Flag, ShieldCheck } from "lucide-react";
 
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { buttonVariants } from "@/components/ui/button";
@@ -131,6 +131,14 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
               )}
             </nav>
           )}
+
+          <Link
+            href={`/denunciar?evento=${evento.slug}&foto=${foto.id}`}
+            className="inline-flex h-11 w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Flag aria-hidden="true" className="size-4" />
+            Denunciar esta foto ou pedir remoção
+          </Link>
         </aside>
       </div>
     </div>
