@@ -11,7 +11,7 @@ O projeto está na **Parte A**: o produto inteiro sendo construído com dados de
 O que já funciona:
 
 - Página inicial e lista de eventos com busca por nome, cidade ou fotógrafo (sem diferenciar acentos) e filtro por data
-- Página do evento com galeria paginada por cursor e botão "Carregar mais fotos"
+- Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação, com senha ou só após a busca)
 - Página da foto com a prévia grande, preço e navegação para a foto anterior e a próxima
 - Prévias e miniaturas com a marca d'água gravada nos pixels, rotação do EXIF corrigida e metadados (GPS, câmera) removidos
 - Headers de segurança e validação com Zod de tudo que vem do navegador
@@ -43,7 +43,7 @@ As imagens de exemplo já estão no repositório; só é preciso rodar `exemplos
 
 ## Dados de exemplo
 
-Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 6 eventos (5 publicados e 1 em rascunho) e 636 fotos, incluindo uma foto excluída e uma em processamento, que a galeria precisa esconder. As telas nunca importam esses arquivos direto: tudo passa por [`src/dados/index.ts`](src/dados/index.ts), que tem as mesmas assinaturas que a implementação com o banco terá.
+Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 5 categorias, 10 eventos e 780 fotos, além de pastas, colaborador, números de peito, cupons, faixas de desconto, pacotes e uma loja. Cada evento exercita uma regra: não listado, com senha (senha de exemplo `formatura2026`), fotos só após a busca, liberação agendada no passado e no futuro, liberação manual e rascunho. Há também uma foto excluída, uma em processamento e uma com preço individual. As telas nunca importam esses arquivos direto: tudo passa por [`src/dados/index.ts`](src/dados/index.ts), que tem as mesmas assinaturas que a implementação com o banco terá e concentra as regras de quem vê o quê.
 
 ## Stack
 

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Calendar, Camera, Images, MapPin } from "lucide-react";
+import { Calendar, Camera, Images, Lock, MapPin } from "lucide-react";
 
 import type { EventoResumo } from "@/dados";
 import { formatarData, formatarPreco } from "@/lib/formatar";
@@ -9,14 +9,23 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md">
       <div className="relative aspect-[3/2] bg-muted">
-        {evento.capa && (
+        {evento.capaMiniatura && (
           <Image
-            src={evento.capa.urlMiniatura}
+            src={evento.capaMiniatura.urlMiniatura}
             alt=""
             fill
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             className="object-cover"
           />
+        )}
+        <span className="absolute top-3 left-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold">
+          {evento.categoria.nome}
+        </span>
+        {evento.visibilidade === "senha" && (
+          <span className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold">
+            <Lock aria-hidden="true" className="size-3.5" />
+            Com senha
+          </span>
         )}
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
@@ -35,14 +44,16 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
               <Calendar aria-hidden="true" className="size-4" />
               <span className="sr-only">Data</span>
             </dt>
-            <dd>{formatarData(evento.data)}</dd>
+            <dd>{formatarData(evento.inicioEm)}</dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>
               <MapPin aria-hidden="true" className="size-4" />
               <span className="sr-only">Cidade</span>
             </dt>
-            <dd>{evento.cidade}</dd>
+            <dd>
+              {evento.cidade}, {evento.estado}
+            </dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>
@@ -55,14 +66,20 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
         <div className="mt-auto flex items-center justify-between border-t pt-3 text-sm">
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <Images aria-hidden="true" className="size-4" />
-            {evento.totalFotos} fotos
+            {contarItens(evento)}
           </span>
           <span className="font-semibold">
-            {formatarPreco(evento.precoPadraoCentavos)}
+            {formatarPreco(evento.precoFotoCentavos)}
             <span className="font-normal text-muted-foreground"> por foto</span>
           </span>
         </div>
       </div>
     </article>
   );
+}
+
+export function contarItens({ totalFotos, totalVideos }: EventoResumo) {
+  const fotos = totalFotos === 1 ? "1 foto" : `${totalFotos} fotos`;
+  if (totalVideos === 0) return fotos;
+  return `${fotos} e ${totalVideos === 1 ? "1 vídeo" : `${totalVideos} vídeos`}`;
 }

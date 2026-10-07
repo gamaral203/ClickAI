@@ -31,6 +31,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Prévias servidas sem otimização da Vercel (`next/image` sem otimizador) — custo `[Baixa]`
 - [x] Prévia e miniatura com marca d'água gravada nos pixels, com Sharp (`src/servicos/imagens.ts`); fotos de exemplo geradas com ela (`npm run exemplos:gerar`)
 - [x] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias `[Média]`
+- [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca"
 
 ## Em andamento
 
@@ -55,7 +56,6 @@ Podem ser fechadas a qualquer momento; as de gateway, banco, reconhecimento, Wha
 ## Fase 1 — Base do app
 
 - [ ] Validação de entrada com Zod em todas as Server Actions e rotas (regra contínua; já aplicada na galeria)
-- [ ] Atualizar os tipos e os dados de exemplo para o modelo novo da arquitetura (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia)
 
 ## Fase 2 — Galeria (cliente)
 

@@ -1,3 +1,5 @@
+const FUSO = "America/Sao_Paulo";
+
 const reais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export function formatarPreco(centavos: number) {
@@ -8,10 +10,24 @@ const dataLonga = new Intl.DateTimeFormat("pt-BR", {
   day: "numeric",
   month: "long",
   year: "numeric",
-  timeZone: "UTC",
+  timeZone: FUSO,
 });
 
-/** Formata uma data AAAA-MM-DD sem deslocar o dia pelo fuso horário. */
-export function formatarData(data: string) {
-  return dataLonga.format(new Date(`${data}T00:00:00Z`));
+const dataEHora = new Intl.DateTimeFormat("pt-BR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: FUSO,
+});
+
+/** "27 de setembro de 2026", no horário de Brasília. Recebe data ISO com hora e fuso. */
+export function formatarData(iso: string) {
+  return dataLonga.format(new Date(iso));
+}
+
+/** "12 de dezembro de 2026 às 18:00", no horário de Brasília. */
+export function formatarDataEHora(iso: string) {
+  return dataEHora.format(new Date(iso)).replace(",", " às");
 }
