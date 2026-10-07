@@ -14,8 +14,8 @@ export default function PaginaMensagens() {
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight">Mensagens</h1>
         <p className="text-muted-foreground">
-          E-mails e WhatsApp enviados aos compradores: entrega das fotos e lembrete de carrinho
-          abandonado. Por enquanto o envio é simulado e as mensagens ficam só aqui.
+          E-mails e WhatsApp enviados: entrega das fotos, lembrete de carrinho abandonado e avisos
+          de denúncia. Por enquanto o envio é simulado e as mensagens ficam só aqui.
         </p>
       </div>
       <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}>
@@ -47,7 +47,7 @@ async function Conteudo() {
             )}
             <span className="font-medium">{m.canal === "email" ? "E-mail" : "WhatsApp"}</span>
             <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
-              {m.tipo === "entrega" ? "Entrega" : "Lembrete"}
+              {{ entrega: "Entrega", lembrete: "Lembrete", denuncia: "Denúncia" }[m.tipo]}
             </span>
             <span className="text-muted-foreground">
               para {m.para} · {formatarDataEHora(m.criadoEm)}

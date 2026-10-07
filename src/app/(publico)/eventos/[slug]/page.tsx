@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, Calendar, Camera, Clock, Images, MapPin, ScanFace } from "lucide-react";
+import { ArrowLeft, Calendar, Camera, Clock, Flag, Images, MapPin, ScanFace } from "lucide-react";
 
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
@@ -122,6 +122,14 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
       </header>
 
       <Galeria evento={evento} filtro={filtro} />
+
+      <Link
+        href={`/denunciar?evento=${evento.slug}`}
+        className="inline-flex h-11 w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <Flag aria-hidden="true" className="size-4" />
+        Denunciar este evento
+      </Link>
     </>
   );
 }

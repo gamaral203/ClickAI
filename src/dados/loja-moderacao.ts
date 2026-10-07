@@ -1,13 +1,14 @@
-// Loja própria e pastas (docs/arquitetura.md, "Loja própria" e "Galeria e busca"). Como no
-// resto da camada de dados, quem edita passa o id de quem está logado e a checagem de dono
-// fica aqui.
+// Loja própria, denúncias e pastas (docs/arquitetura.md, "Loja própria", "Denúncia" e
+// "Galeria e busca"). Como no resto da camada de dados, quem edita passa o id de quem está
+// logado e a checagem de dono fica aqui.
 
 import "server-only";
 
 import { connection } from "next/server";
 
-import { eventos, fotografos, fotos, lojas, pastas } from "./exemplo/banco";
-import type { Evento, Fotografo, Loja, Pasta } from "./tipos";
+import { denuncias, eventos, fotografos, fotos, lojas, pastas } from "./exemplo/banco";
+import { usuarios } from "./exemplo/usuarios";
+import type { Denuncia, Evento, Fotografo, Loja, Pasta, StatusDenuncia } from "./tipos";
 
 function eventoDoDono(eventoId: string, fotografoId: string): Evento | undefined {
   return eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
@@ -77,6 +78,114 @@ export async function buscarLojaPublica(subdominio: string): Promise<LojaPublica
       redesSociais: conta.redesSociais,
     },
   });
+}
+
+// ---------------------------------------------------------------- Denúncias
+
+export type DadosDenuncia = Omit<Denuncia, "id" | "status" | "decididaPor" | "criadoEm">;
+
+export async function criarDenuncia(dados: DadosDenuncia): Promise<Denuncia> {
+  const denuncia: Denuncia = {
+    ...structuredClone(dados),
+    id: crypto.randomUUID(),
+    status: "recebida",
+    decididaPor: null,
+    criadoEm: new Date().toISOString(),
+  };
+  denuncias.push(denuncia);
+  return structuredClone(denuncia);
+}
+
+export type DenunciaDoAdmin = Denuncia & {
+  evento: Pick<Evento, "id" | "titulo" | "slug" | "status">;
+  donoNome: string;
+  /** E-mail da conta do dono do evento, para os avisos. */
+  donoEmail: string | null;
+  foto: { id: string; urlMiniatura: string; excluida: boolean; autorEmail: string | null } | null;
+};
+
+function emailDoFotografo(fotografoId: string) {
+  const conta = fotografos.find((f) => f.id === fotografoId);
+  return (conta && usuarios.get(conta.usuarioId)?.email) ?? null;
+}
+
+function paraAdmin(d: Denuncia): DenunciaDoAdmin | null {
+  const evento = eventos.find((e) => e.id === d.eventoId);
+  if (!evento) return null;
+  const foto = d.fotoId ? fotos.find((f) => f.id === d.fotoId) : undefined;
+  return {
+    ...structuredClone(d),
+    evento: { id: evento.id, titulo: evento.titulo, slug: evento.slug, status: evento.status },
+    donoNome: fotografos.find((f) => f.id === evento.fotografoId)?.nomePublico ?? "",
+    donoEmail: emailDoFotografo(evento.fotografoId),
+    foto: foto
+      ? {
+          id: foto.id,
+          urlMiniatura: foto.urlMiniatura,
+          excluida: foto.excluidaEm !== null,
+          autorEmail:
+            foto.enviadaPor !== evento.fotografoId ? emailDoFotografo(foto.enviadaPor) : null,
+        }
+      : null,
+  };
+}
+
+/** Denúncias da mais recente para a mais antiga, opcionalmente só de um status. */
+export async function listarDenuncias(status?: StatusDenuncia): Promise<DenunciaDoAdmin[]> {
+  return denuncias
+    .filter((d) => !status || d.status === status)
+    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+    .flatMap((d) => paraAdmin(d) ?? []);
+}
+
+export async function buscarDenuncia(id: string): Promise<DenunciaDoAdmin | null> {
+  const denuncia = denuncias.find((d) => d.id === id);
+  return denuncia ? paraAdmin(denuncia) : null;
+}
+
+/**
+ * Muda o status da denúncia só a partir de um dos status esperados (`… WHERE status IN …`):
+ * duas pessoas da equipe decidindo ao mesmo tempo não decidem duas vezes.
+ */
+export async function mudarStatusDenuncia(
+  id: string,
+  de: StatusDenuncia[],
+  para: StatusDenuncia,
+  decididaPor: string | null,
+): Promise<boolean> {
+  const denuncia = denuncias.find((d) => d.id === id);
+  if (!denuncia || !de.includes(denuncia.status)) return false;
+  denuncia.status = para;
+  if (decididaPor) denuncia.decididaPor = decididaPor;
+  return true;
+}
+
+/**
+ * Status do evento mudado pela equipe: só ela põe e tira o evento de `revisao`. Só muda a
+ * partir do status esperado.
+ */
+export async function mudarStatusEventoPelaEquipe(
+  eventoId: string,
+  de: Evento["status"],
+  para: Evento["status"],
+): Promise<boolean> {
+  const evento = eventos.find((e) => e.id === eventoId && e.status === de);
+  if (!evento) return false;
+  evento.status = para;
+  return true;
+}
+
+/** Tira a foto da galeria (exclusão lógica): quem já comprou continua baixando. */
+export async function excluirFotoPelaEquipe(fotoId: string): Promise<boolean> {
+  const foto = fotos.find((f) => f.id === fotoId && f.excluidaEm === null);
+  if (!foto) return false;
+  foto.excluidaEm = new Date().toISOString();
+  return true;
+}
+
+/** O item existe, não foi excluído e é deste evento? (Para denunciar uma foto.) */
+export async function fotoEhDoEvento(fotoId: string, eventoId: string) {
+  return fotos.some((f) => f.id === fotoId && f.eventoId === eventoId && f.excluidaEm === null);
 }
 
 // ---------------------------------------------------------------- Pastas

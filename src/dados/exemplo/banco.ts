@@ -2,6 +2,7 @@
 // edições feitos em tempo de execução apareçam em todas as rotas. Some ao reiniciar o servidor;
 // na Fase 11 é trocado pelo PostgreSQL.
 
+import type { Denuncia } from "../tipos";
 import { compartilhado } from "./compartilhado";
 import * as iniciais from "./dados";
 
@@ -48,3 +49,6 @@ export const acessosEvento = compartilhado(
 );
 
 export { urlOriginalDeExemplo } from "./dados";
+
+/** Denúncias de evento e de foto (canal de moderação e de pedidos de remoção, LGPD). */
+export const denuncias = compartilhado("denuncias-exemplo", () => [] as Denuncia[]);
