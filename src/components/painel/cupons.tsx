@@ -8,6 +8,7 @@ import {
   type CampoCupom,
   type EstadoCupom,
 } from "@/app/(fotografo)/painel/descontos/acoes";
+import { enviarSemLimpar } from "@/lib/formulario";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -162,7 +163,7 @@ function FormularioCupom({
   }[tipo];
 
   return (
-    <form action={acao} noValidate className="flex flex-col gap-5">
+    <form onSubmit={enviarSemLimpar(acao)} noValidate className="flex flex-col gap-5">
       {cupom && <input type="hidden" name="cupomId" value={cupom.id} />}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">{cupom ? `Editar ${cupom.codigo}` : "Novo cupom"}</h3>

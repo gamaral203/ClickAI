@@ -81,6 +81,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Colaboradores: o dono adiciona pelo e-mail da conta de vendedor, com comissão e nota; o colaborador envia fotos em "Colaborações"; não dá para remover quem ainda tem fotos no evento
 - [x] Entrega por e-mail e WhatsApp (com consentimento) depois do pagamento, com link assinado; envio simulado, visível em `/admin/mensagens`
 - [x] Job de pedidos (`/api/jobs/pedidos`, protegido por `CRON_SECRET`): expira os pendentes vencidos, conferindo no Mercado Pago antes, e manda o lembrete de carrinho abandonado uma vez, com link que remonta o carrinho
+- [x] Correção: os formulários novos do painel não apagam mais o que foi digitado quando o servidor devolve um erro
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam vídeos e pastas
