@@ -18,10 +18,18 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Aplicar as cores e a logo da marca no tema
 - [x] `.gitignore` com `.env*`, source maps e chaves privadas, antes do primeiro segredo existir
 - [x] Security headers no `next.config` e `productionBrowserSourceMaps: false`
+- [x] Tipos do domínio (evento, foto, pedido…) espelhando o modelo de dados da arquitetura
+- [x] Camada de dados em `src/dados/` com implementação de exemplo (troca pelo banco na Fase 8)
+- [x] Layout comum: cabeçalho com logo e navegação, rodapé
+- [x] Lista de eventos com busca por nome ou data
+- [x] Página do evento, renderizada no servidor
+- [x] Paginação por cursor
+- [x] Página da foto
+- [x] Prévias servidas sem otimização da Vercel (`next/image` sem otimizador) — custo `[Baixa]`
 
 ## Em andamento
 
-- [ ] Base do app com dados de exemplo (Fase 1)
+- [ ] Carrinho e checkout com pagamento simulado (Fase 3)
 
 ## Decisões de produto em aberto
 
@@ -39,18 +47,11 @@ Podem ser fechadas a qualquer momento; as de gateway e banco só são necessári
 
 ## Fase 1 — Base do app
 
-- [ ] Tipos do domínio (evento, foto, pedido…) espelhando o modelo de dados da arquitetura
-- [ ] Camada de dados em `src/dados/` com implementação de exemplo (troca pelo banco na Fase 8)
-- [ ] Layout comum: cabeçalho com logo e navegação, rodapé
-- [ ] Validação de entrada com Zod em todas as Server Actions e rotas
+- [ ] Validação de entrada com Zod em todas as Server Actions e rotas (regra contínua; já aplicada na galeria)
 
 ## Fase 2 — Galeria (cliente)
 
-- [ ] Lista de eventos com busca por nome ou data
-- [ ] Página do evento, renderizada no servidor
-- [ ] Paginação por cursor
-- [ ] Página da foto
-- [ ] Prévias servidas sem otimização da Vercel (`next/image` sem otimizador) — custo `[Baixa]`
+Concluída (ver **Concluído**).
 
 ## Fase 3 — Carrinho e checkout (pagamento simulado)
 
