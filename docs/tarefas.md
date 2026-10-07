@@ -10,6 +10,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Repositório no GitHub
 - [x] Logo e paleta de cores ([marca/marca.md](marca/marca.md))
 - [x] Lista de tarefas (este arquivo)
+- [x] Skill de segurança `vibe-code-security` e página de skills ([skills.md](skills.md))
 
 ## Em andamento
 
@@ -35,6 +36,9 @@ Bloqueiam a criação das contas e partes do schema.
 - [ ] Configurar a região `gru1` na Vercel `[R-alta]`
 - [ ] Conectar o Drizzle ao banco pela URL com pooler `[R-alta]`
 - [ ] Criar `.env.example` com todas as variáveis necessárias
+- [ ] `.gitignore` com `.env*`, source maps e chaves privadas, antes do primeiro segredo existir
+- [ ] Security headers no `next.config` e `productionBrowserSourceMaps: false`
+- [ ] Validação de entrada com Zod em todas as rotas e Server Actions
 - [ ] Configurar Sentry e alertas de erro desde o primeiro deploy
 
 ## Fase 2 — Dados e autenticação
@@ -90,6 +94,9 @@ Bloqueiam a criação das contas e partes do schema.
 ## Fase 8 — Antes do lançamento
 
 - [ ] Revisar os 6 riscos de prioridade alta
+- [ ] Rodar o checklist da `vibe-code-security` ([skills.md](skills.md))
+- [ ] Rate limit em login, cadastro, envio de e-mail e geração de URLs assinadas
+- [ ] Alertas de cobrança na Vercel, R2, Inngest e banco
 - [ ] Política de privacidade, exclusão de conta e canal de remoção de fotos (LGPD)
 - [ ] Backup do banco com recuperação para um ponto no tempo
 - [ ] Fluxo de estorno e chargeback
