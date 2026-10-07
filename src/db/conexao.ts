@@ -1,5 +1,5 @@
 // Conexão com o Postgres, comum ao app (src/db/index.ts) e ao script de migração. Serve para o
-// Supabase (padrão) e para qualquer Postgres. Driver: postgres.js.
+// Supabase (padrão) e para qualquer Postgres. Driver: node-postgres (pg).
 //
 // URLs, em ordem de preferência:
 // - App: DATABASE_URL ou POSTGRES_URL (a integração do Supabase com a Vercel cria esta). No
@@ -8,15 +8,15 @@
 // - Migrações: DATABASE_URL_DIRETA ou POSTGRES_URL_NON_POOLING (conexão direta, melhor para
 //   mudar o schema); sem elas, a mesma URL do app.
 
-import postgres from "postgres";
-
-/** Parâmetros da URL que o Postgres entende; os outros (ex.: `supa=…` do Supabase) saem. */
-const PARAMETROS_ACEITOS = new Set(["sslmode", "application_name", "connect_timeout", "options"]);
+import { Pool } from "pg";
 
 /**
- * Tira da URL os parâmetros que só o pooler ou a plataforma usam: o postgres.js repassaria cada
- * um ao servidor como configuração, e o Postgres recusaria a conexão.
+ * Parâmetros da URL que o Postgres entende; os outros (ex.: `supa=…` do Supabase) saem. O
+ * `sslmode` também sai: o TLS é decidido em criarCliente (no `pg`, o da URL venceria).
  */
+const PARAMETROS_ACEITOS = new Set(["application_name", "connect_timeout", "options"]);
+
+/** Tira da URL os parâmetros que só o pooler ou a plataforma usam. */
 export function limparUrl(url: string) {
   const u = new URL(url);
   for (const chave of [...u.searchParams.keys()]) {
@@ -47,18 +47,26 @@ export function urlParaMigracoes(): string | null {
 }
 
 /**
- * Cliente do postgres.js. `prepare: false` porque o pooler do Supabase em modo transaction não
- * guarda prepared statements entre transações. Poucas conexões por instância: na Vercel são
- * muitas instâncias, e quem segura o total é o pooler.
+ * Pool do node-postgres. Cada conexão roda uma consulta por vez: o pooler do Supabase (Supavisor)
+ * em modo transaction trava quando o cliente manda uma consulta antes da resposta da anterior.
+ * Era o que o postgres.js fazia com consultas em paralelo (Promise.all, layout e página juntos):
+ * a página ficava carregando até a função da Vercel estourar o tempo. O `pg` também não usa
+ * prepared statements com nome, que esse pooler não guarda entre transações. Poucas conexões por
+ * instância: na Vercel são muitas instâncias, e quem segura o total é o pooler.
  */
 export function criarCliente(url: string, { maximo = 5 }: { maximo?: number } = {}) {
   const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
-  return postgres(limparUrl(url), {
-    prepare: false,
+  const pool = new Pool({
+    connectionString: limparUrl(url),
     max: maximo,
-    idle_timeout: 20,
-    connect_timeout: 15,
-    // Banco na nuvem: sempre com TLS. Local (Postgres na própria máquina): sem.
-    ssl: local ? false : "require",
+    idleTimeoutMillis: 20_000,
+    connectionTimeoutMillis: 15_000,
+    // Banco na nuvem: sempre com TLS (como o sslmode=require). Local (Postgres na própria
+    // máquina): sem.
+    ssl: local ? false : { rejectUnauthorized: false },
   });
+  // Conexão parada que o pooler ou o banco fecham: sem este ouvinte, o erro derrubaria o
+  // processo. O pool descarta a conexão e abre outra na próxima consulta.
+  pool.on("error", (erro) => console.error("[db] conexão ociosa caiu:", erro.message));
+  return pool;
 }

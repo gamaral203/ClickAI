@@ -8,7 +8,7 @@ Arquitetura completa: [Arquitetura — Plataforma de Venda de Fotos](arquitetura
 
 | Área | Problema | Como evitar | Prioridade |
 |---|---|---|---|
-| Banco | Funções serverless abrem conexões demais e o Postgres recusa novas | Usar a URL do pooler do Supabase em modo transaction (porta 6543), postgres.js sem prepared statements e poucas conexões por instância | Alta |
+| Banco | Funções serverless abrem conexões demais e o Postgres recusa novas | Usar a URL do pooler do Supabase em modo transaction (porta 6543), node-postgres (sem prepared statements com nome e com uma consulta por vez em cada conexão, porque o pooler trava com consultas enfileiradas na mesma conexão) e poucas conexões por instância | Alta |
 | Pagamento | Webhook duplicado, fora de ordem, falsificado ou que nunca chega | Assinatura `x-signature` conferida; status lido na API do Mercado Pago, nunca do corpo; webhook idempotente (índice único em `pedidos.gateway_id` e só passar de `pendente` para `pago`); a página do pedido e um job conferem na API os pedidos pendentes | Alta |
 | Segurança | Cliente baixa foto que não comprou trocando o ID na URL | Conferir se o item pertence a um pedido pago do próprio cliente | Alta |
 | Pagamento | Preço ou desconto alterado no navegador antes do checkout | Servidor recalcula o total, os descontos e o cupom a partir do banco | Alta |

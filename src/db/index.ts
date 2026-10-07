@@ -2,7 +2,7 @@ import "server-only";
 
 import path from "node:path";
 
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { connection } from "next/server";
 
 import { criarCliente, emProducao, ERRO_SEM_BANCO_EM_PRODUCAO, urlDoBanco } from "./conexao";
@@ -10,19 +10,19 @@ import * as schema from "./schema";
 import { sincronizarGestores } from "./semente";
 
 // Conexão com o banco (docs/arquitetura.md). Com DATABASE_URL ou POSTGRES_URL (Supabase, pela
-// Vercel), usa o postgres.js pela URL do pooler (ver ./conexao.ts). Sem elas (desenvolvimento
+// Vercel), usa o node-postgres pela URL do pooler (ver ./conexao.ts). Sem elas (desenvolvimento
 // local, preview e testes), usa o PGlite: um Postgres que roda dentro do próprio Node, em memória,
 // com as mesmas migrações e os dados de exemplo. Assim o projeto roda sem configurar nada. Na
 // produção da Vercel, sem URL, não sobe (ERRO_SEM_BANCO_EM_PRODUCAO).
 
-export type Banco = PostgresJsDatabase<typeof schema>;
+export type Banco = NodePgDatabase<typeof schema>;
 
 const global = globalThis as typeof globalThis & { __clicouaiBanco?: Promise<Banco> };
 
 export const PASTA_MIGRACOES = path.join(process.cwd(), "src", "db", "migracoes");
 
 async function conectarPostgres(url: string): Promise<Banco> {
-  const { drizzle } = await import("drizzle-orm/postgres-js");
+  const { drizzle } = await import("drizzle-orm/node-postgres");
   return drizzle({ client: criarCliente(url), schema, casing: "snake_case" });
 }
 
@@ -33,7 +33,7 @@ async function conectarPglite(): Promise<Banco> {
   const { semear } = await import("./semente");
   const banco = drizzle({ client: new PGlite(), schema, casing: "snake_case" });
   await migrate(banco, { migrationsFolder: PASTA_MIGRACOES });
-  // Os dois drivers são o mesmo Postgres pelo Drizzle; o tipo do postgres.js serve para os dois.
+  // Os dois drivers são o mesmo Postgres pelo Drizzle; o tipo do node-postgres serve para os dois.
   const comoPostgres = banco as unknown as Banco;
   await semear(comoPostgres);
   return comoPostgres;

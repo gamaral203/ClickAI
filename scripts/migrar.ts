@@ -98,8 +98,8 @@ async function main() {
   }
 
   // Importados aqui, depois do diagnóstico, para que um erro ao carregá-los também saia no log.
-  const { drizzle } = await import("drizzle-orm/postgres-js");
-  const { migrate } = await import("drizzle-orm/postgres-js/migrator");
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const { migrate } = await import("drizzle-orm/node-postgres/migrator");
   const { semear, sincronizarGestores } = await import("../src/db/semente");
 
   const cliente = criarCliente(url, { maximo: 1 });
@@ -117,7 +117,7 @@ async function main() {
     process.exitCode = 1;
   } finally {
     // Sem conexões abertas, o processo termina sozinho, depois de escrever toda a saída.
-    await cliente.end({ timeout: 5 }).catch(() => {});
+    await cliente.end().catch(() => {});
   }
 }
 

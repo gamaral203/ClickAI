@@ -13,7 +13,7 @@ describe("segurança do banco", () => {
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relkind = 'r'
     `);
-    // postgres.js devolve a lista; o PGlite, um objeto com `rows`.
+    // Os dois drivers devolvem um objeto com `rows`; a lista fica por garantia.
     const tabelas = (Array.isArray(linhas) ? linhas : (linhas as { rows: unknown[] }).rows) as {
       tabela: string;
       rls: boolean;
