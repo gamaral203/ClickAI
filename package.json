@@ -12,7 +12,8 @@
     "exemplos:gerar": "tsx --conditions=react-server scripts/gerar-exemplos.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "senha:hash": "tsx --conditions=react-server scripts/gerar-hash-senha.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1147.0",

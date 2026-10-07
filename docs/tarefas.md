@@ -91,6 +91,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Sentry no servidor, no edge e no navegador, ligado pela `SENTRY_DSN`; os eventos saem sem tokens, cookies, corpo das requisições e dados pessoais, e sem Session Replay
 - [x] Domínio próprio das lojas: o fotógrafo conecta no painel, o site cadastra pela API da Vercel e verifica o DNS (simulado sem credenciais); o `proxy.ts` abre a loja no domínio verificado
 - [x] Guia de deploy e contas ([deploy.md](deploy.md))
+- [x] Primeiro deploy na Vercel (`clickai-hazel.vercel.app`), com gestores da equipe pela variável `GESTORES` (só hashes de senha) e sem as contas de exemplo de gestor e atendente em produção
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
@@ -153,7 +154,7 @@ Concluída (ver **Concluído**). Ficaram para depois: logo da loja e anexos da d
 O código está pronto (ver **Concluído**); falta a parte de fora do código, seguindo [deploy.md](deploy.md):
 
 - [ ] Criar contas: Vercel, Sentry, banco (região São Paulo), Cloudflare R2, AWS (Rekognition), Google Cloud (OAuth) e WhatsApp
-- [ ] Primeiro deploy, com as variáveis de produção e o domínio com o curinga `*.` nos nameservers da Vercel
+- [ ] Domínio próprio do site, com o curinga `*.` nos nameservers da Vercel, e as variáveis de produção dos serviços (Mercado Pago, Google, Sentry)
 - [ ] Alertas de erro no Sentry
 
 ## Fase 11 — Banco e autenticação
