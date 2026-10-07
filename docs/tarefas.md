@@ -107,6 +107,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Camada de dados sobre o banco, com as mesmas funções: Postgres pela URL com pooler (postgres.js, com transações) e PGlite em memória sem `DATABASE_URL` `[R-alta]`
 - [x] Dados de exemplo como semente do banco; `npm run db:migrar` aplica as migrações (roda antes de cada build) e grava a semente num banco vazio; gestores de `GESTORES` sincronizados a cada início
 - [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
+- [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
 ## Em andamento
 
 - [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, a produção roda com o PGlite em cada servidor da Vercel: os dados de exemplo aparecem, mas pedidos e mudanças se perdem entre servidores. Para terminar, nesta ordem:
