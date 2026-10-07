@@ -1,5 +1,10 @@
 // Schema do banco (docs/arquitetura.md, "Modelo de dados"). Dinheiro em centavos (inteiro), IDs
 // em UUID, datas com fuso. Os nomes das colunas viram snake_case no banco (casing do Drizzle).
+//
+// Toda tabela tem RLS ligado (`.enableRLS()`) e nenhuma política: no Supabase, o schema public
+// fica exposto na API REST com a chave pública, e sem RLS qualquer pessoa leria pedidos, hashes
+// de senha e CPFs por lá. O app conecta como dono das tabelas, que não passa pelo RLS. Tabela
+// nova também leva `.enableRLS()` (o teste src/db/seguranca.test.ts confere).
 
 import { sql } from "drizzle-orm";
 import {
@@ -75,7 +80,7 @@ export const usuarios = pgTable(
     criadoEm: momento(),
   },
   (t) => [uniqueIndex().on(t.email), uniqueIndex().on(t.googleId)],
-);
+).enableRLS();
 
 /** Token de confirmação de e-mail, guardado só como hash e usado uma vez. */
 export const confirmacoesEmail = pgTable("confirmacoes_email", {
@@ -84,7 +89,7 @@ export const confirmacoesEmail = pgTable("confirmacoes_email", {
     .notNull()
     .references(() => usuarios.id, { onDelete: "cascade" }),
   expiraEm: data().notNull(),
-});
+}).enableRLS();
 
 export const fotografos = pgTable(
   "fotografos",
@@ -105,7 +110,7 @@ export const fotografos = pgTable(
     comissaoPct: integer().notNull().default(10),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
-);
+).enableRLS();
 
 export const categorias = pgTable(
   "categorias",
@@ -115,7 +120,7 @@ export const categorias = pgTable(
     slug: text().notNull(),
   },
   (t) => [uniqueIndex().on(t.slug)],
-);
+).enableRLS();
 
 export const eventos = pgTable(
   "eventos",
@@ -149,7 +154,7 @@ export const eventos = pgTable(
     ordenacao: ordenacao().notNull().default("captura"),
   },
   (t) => [uniqueIndex().on(t.slug), index().on(t.fotografoId), index().on(t.status, t.inicioEm)],
-);
+).enableRLS();
 
 /** Navegador que acertou a senha do evento: hash do token do cookie e a senha da época. */
 export const acessosEvento = pgTable("acessos_evento", {
@@ -159,7 +164,7 @@ export const acessosEvento = pgTable("acessos_evento", {
     .references(() => eventos.id, { onDelete: "cascade" }),
   senhaHash: text().notNull(),
   expiraEm: data().notNull(),
-});
+}).enableRLS();
 
 export const pastas = pgTable(
   "pastas",
@@ -172,7 +177,7 @@ export const pastas = pgTable(
     ordem: integer().notNull(),
   },
   (t) => [index().on(t.eventoId)],
-);
+).enableRLS();
 
 export const fotos = pgTable(
   "fotos",
@@ -208,7 +213,7 @@ export const fotos = pgTable(
     index().on(t.eventoId, t.capturadaEm),
     index().on(t.eventoId, t.hashConteudo),
   ],
-);
+).enableRLS();
 
 export const colaboradores = pgTable(
   "colaboradores",
@@ -224,7 +229,7 @@ export const colaboradores = pgTable(
     nota: text(),
   },
   (t) => [uniqueIndex().on(t.eventoId, t.fotografoId), index().on(t.fotografoId)],
-);
+).enableRLS();
 
 // ---------------------------------------------------------------- Busca
 
@@ -238,7 +243,7 @@ export const rostos = pgTable(
     rostoIdProvedor: text().notNull(),
   },
   (t) => [index().on(t.rostoIdProvedor), index().on(t.fotoId)],
-);
+).enableRLS();
 
 export const numeros = pgTable(
   "numeros",
@@ -250,7 +255,7 @@ export const numeros = pgTable(
     numero: text().notNull(),
   },
   (t) => [index().on(t.numero, t.fotoId), index().on(t.fotoId)],
-);
+).enableRLS();
 
 // ---------------------------------------------------------------- Vendas
 
@@ -278,7 +283,7 @@ export const cupons = pgTable(
     uniqueIndex("cupons_codigo_unico").on(sql`upper(${t.codigo})`),
     index().on(t.fotografoId),
   ],
-);
+).enableRLS();
 
 export const cuponsEventos = pgTable(
   "cupons_eventos",
@@ -291,7 +296,7 @@ export const cuponsEventos = pgTable(
       .references(() => eventos.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.cupomId, t.eventoId] })],
-);
+).enableRLS();
 
 export const faixasDesconto = pgTable(
   "faixas_desconto",
@@ -306,7 +311,7 @@ export const faixasDesconto = pgTable(
     descontoPct: integer().notNull(),
   },
   (t) => [index().on(t.fotografoId, t.eventoId)],
-);
+).enableRLS();
 
 export const pacotes = pgTable(
   "pacotes",
@@ -322,7 +327,7 @@ export const pacotes = pgTable(
     ativo: boolean().notNull().default(true),
   },
   (t) => [uniqueIndex().on(t.eventoId)],
-);
+).enableRLS();
 
 export const pedidos = pgTable(
   "pedidos",
@@ -351,7 +356,7 @@ export const pedidos = pgTable(
     criadoEm: momento(),
   },
   (t) => [index().on(t.clienteId), index().on(t.status, t.expiraEm), uniqueIndex().on(t.gatewayId)],
-);
+).enableRLS();
 
 export const itensPedido = pgTable(
   "itens_pedido",
@@ -374,7 +379,7 @@ export const itensPedido = pgTable(
     viaPacote: boolean().notNull().default(false),
   },
   (t) => [index().on(t.pedidoId), index().on(t.fotoId)],
-);
+).enableRLS();
 
 export const downloads = pgTable(
   "downloads",
@@ -387,7 +392,7 @@ export const downloads = pgTable(
     ip: text(),
   },
   (t) => [index().on(t.itemPedidoId)],
-);
+).enableRLS();
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
@@ -409,7 +414,7 @@ export const saques = pgTable(
     pagoEm: data(),
   },
   (t) => [index().on(t.fotografoId, t.status)],
-);
+).enableRLS();
 
 export const lancamentos = pgTable(
   "lancamentos",
@@ -428,7 +433,7 @@ export const lancamentos = pgTable(
     saqueId: uuid().references(() => saques.id),
   },
   (t) => [index().on(t.fotografoId, t.saqueId), index().on(t.itemPedidoId)],
-);
+).enableRLS();
 
 // ---------------------------------------------------------------- Loja e moderação
 
@@ -456,7 +461,7 @@ export const lojas = pgTable(
     uniqueIndex().on(t.subdominio),
     uniqueIndex().on(t.dominioProprio),
   ],
-);
+).enableRLS();
 
 export const denuncias = pgTable(
   "denuncias",
@@ -478,7 +483,7 @@ export const denuncias = pgTable(
     criadoEm: momento(),
   },
   (t) => [index().on(t.status, t.criadoEm), index().on(t.eventoId)],
-);
+).enableRLS();
 
 export const anexosDenuncia = pgTable("anexos_denuncia", {
   id: uuid().primaryKey().defaultRandom(),
@@ -486,7 +491,7 @@ export const anexosDenuncia = pgTable("anexos_denuncia", {
     .notNull()
     .references(() => denuncias.id, { onDelete: "cascade" }),
   chave: text().notNull(),
-});
+}).enableRLS();
 
 /** Caixa de saída de e-mail e WhatsApp (simulada até a Fase 13). */
 export const mensagens = pgTable(
@@ -502,7 +507,7 @@ export const mensagens = pgTable(
     criadoEm: momento(),
   },
   (t) => [index().on(t.criadoEm)],
-);
+).enableRLS();
 
 // ---------------------------------------------------------------- Crescimento do fotógrafo
 
@@ -519,7 +524,7 @@ export const metricas = pgTable(
     em: momento(),
   },
   (t) => [index().on(t.eventoId, t.tipo, t.em), index().on(t.fotoId)],
-);
+).enableRLS();
 
 /** Configuração de evento reaproveitável (local, preços, visibilidade…), por fotógrafo. */
 export const modelosEvento = pgTable(
@@ -534,4 +539,4 @@ export const modelosEvento = pgTable(
     criadoEm: momento(),
   },
   (t) => [index().on(t.fotografoId)],
-);
+).enableRLS();

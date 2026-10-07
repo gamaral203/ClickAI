@@ -1,5 +1,5 @@
 // Semente do banco: os dados de exemplo da Parte A (eventos, fotos, fotógrafos, descontos, loja)
-// e os gestores da variável GESTORES. No PGlite (local e testes) roda a cada início; no Neon,
+// e os gestores da variável GESTORES. No PGlite (local e testes) roda a cada início; no Supabase,
 // uma vez, pelo `npm run db:migrar`, só se o banco estiver vazio.
 
 import { sql } from "drizzle-orm";
