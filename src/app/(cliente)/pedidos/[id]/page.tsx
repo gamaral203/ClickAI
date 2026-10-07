@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 // Token do link (convidado) ou sessão do dono do pedido (cliente logado).
-const parametros = z.object({ id: z.uuid(), token: z.string().min(20).max(100).nullable() });
+const parametros = z.object({ id: z.uuid(), token: z.string().min(20).max(400).nullable() });
 
 export default function PaginaPedido(props: PageProps<"/pedidos/[id]">) {
   return (
@@ -180,8 +180,15 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                   )}
                 </span>
               ) : (
-                <span className="font-semibold tabular-nums">
-                  {formatarPreco(item.precoCentavos)}
+                <span className="flex flex-col items-end tabular-nums">
+                  {item.descontoCentavos > 0 && (
+                    <s className="text-xs text-muted-foreground">
+                      {formatarPreco(item.precoCentavos)}
+                    </s>
+                  )}
+                  <span className="font-semibold">
+                    {formatarPreco(item.precoCentavos - item.descontoCentavos)}
+                  </span>
                 </span>
               )}
             </li>

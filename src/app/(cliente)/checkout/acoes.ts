@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { opcoesCompra } from "@/app/(cliente)/carrinho/validacao";
 import { mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { iniciarCobrancaPix } from "@/servicos/pagamentos";
 import { criarPedido } from "@/servicos/pedidos";
@@ -19,9 +20,10 @@ const entrada = z.object({
     .transform((v) => (v === "" ? null : v)),
   aceitaWhatsapp: z.boolean(),
   metodo: z.enum(["pix", "cartao"], "Escolha a forma de pagamento."),
+  opcoes: opcoesCompra,
 });
 
-export type CampoCheckout = "nome" | "email" | "whatsapp" | "aceitaWhatsapp" | "metodo";
+export type CampoCheckout = "nome" | "email" | "whatsapp" | "aceitaWhatsapp" | "metodo" | "cupom";
 
 export type ResultadoCheckout =
   | { ok: true; url: string }
@@ -33,7 +35,7 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
     const erros: Partial<Record<CampoCheckout, string>> = {};
     for (const problema of validacao.error.issues) {
       const campo = problema.path[0];
-      if (typeof campo === "string" && campo !== "ids" && !(campo in erros)) {
+      if (typeof campo === "string" && campo !== "ids" && campo !== "opcoes" && !(campo in erros)) {
         erros[campo as CampoCheckout] = problema.message;
       }
     }
@@ -45,28 +47,29 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
     };
   }
 
-  const { ids, aceitaWhatsapp, whatsapp, ...comprador } = validacao.data;
+  const { ids, aceitaWhatsapp, whatsapp, opcoes, ...comprador } = validacao.data;
   if (aceitaWhatsapp && !whatsapp) {
     return { ok: false, erros: { whatsapp: "Informe o WhatsApp ou desmarque a opção." } };
   }
 
   // Cliente logado: o pedido fica na conta dele (Minhas compras), além do link com token.
   const usuario = await usuarioAtual();
-  const resultado = await criarPedido(ids, {
-    ...comprador,
-    clienteId: usuario?.id ?? null,
-    whatsapp,
-    aceitaWhatsapp,
-  });
+  const resultado = await criarPedido(
+    ids,
+    { ...comprador, clienteId: usuario?.id ?? null, whatsapp, aceitaWhatsapp },
+    opcoes,
+  );
   if (!resultado.ok) {
-    return {
-      ok: false,
-      erros: {},
-      mensagem:
-        resultado.motivo === "carrinho_vazio"
-          ? "Seu carrinho está vazio."
-          : "Algum item do carrinho não está mais à venda. Volte ao carrinho e confira.",
-    };
+    if (resultado.motivo === "cupom_recusado") {
+      return { ok: false, erros: { cupom: resultado.mensagem } };
+    }
+    const mensagens = {
+      carrinho_vazio: "Seu carrinho está vazio.",
+      itens_indisponiveis:
+        "Algum item do carrinho não está mais à venda. Volte ao carrinho e confira.",
+      pacote_recusado: "Um pacote do carrinho não vale mais. Volte ao carrinho e confira o total.",
+    } as const;
+    return { ok: false, erros: {}, mensagem: mensagens[resultado.motivo] };
   }
   // Pix: o QR Code já é gerado aqui. Se o Mercado Pago falhar, o pedido existe do mesmo jeito
   // e a página dele oferece gerar de novo.

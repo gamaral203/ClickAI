@@ -2,11 +2,13 @@ import "server-only";
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
+import { connection } from "next/server";
+
 import {
-  buscarItensParaCompra,
   buscarPedido,
   buscarRegrasDeDivisao,
   mudarStatusPedido,
+  registrarUsoDoCupom,
   salvarLancamentos,
   salvarPedido,
   type ItemPedido,
@@ -15,6 +17,9 @@ import {
   type PedidoInterno,
   type RegraDeDivisao,
 } from "@/dados";
+
+import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
+import { enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 
 // Regras de pedido (docs/arquitetura.md, "Compra e pagamento" e "Divisão da venda").
 
@@ -37,9 +42,10 @@ export type DadosComprador = {
 };
 
 /**
- * Divide o preço de um item entre o autor e, se o autor é um colaborador, o dono do evento.
- * A comissão da plataforma não sai aqui: cada um paga a sua no saque (src/servicos/saques.ts).
- * Os centavos de arredondamento ficam com o autor, e a soma sempre fecha com o preço
+ * Divide o valor pago por um item (preço menos desconto) entre o autor e, se o autor é um
+ * colaborador, o dono do evento: o desconto pesa para os dois na mesma proporção. A comissão
+ * da plataforma não sai aqui: cada um paga a sua no saque (src/servicos/saques.ts). Os
+ * centavos de arredondamento ficam com o autor, e a soma sempre fecha com o valor
  * (docs/riscos.md, divisão perde centavos).
  */
 export function dividirItem(precoCentavos: number, regra: RegraDeDivisao) {
@@ -64,22 +70,31 @@ export function tokenConfere(pedido: Pick<PedidoInterno, "tokenAcessoHash">, tok
 
 export type ResultadoCriarPedido =
   | { ok: true; pedidoId: string; token: string }
-  | { ok: false; motivo: "carrinho_vazio" | "itens_indisponiveis" };
+  | { ok: false; motivo: "carrinho_vazio" | "itens_indisponiveis" | "pacote_recusado" }
+  | { ok: false; motivo: "cupom_recusado"; mensagem: string };
 
 /**
- * Cria o pedido como `pendente` a partir dos ids do carrinho, com preço e divisão calculados
- * aqui. Devolve o token de acesso do convidado uma única vez; o pedido guarda só o hash.
+ * Cria o pedido como `pendente` a partir dos ids do carrinho, com preço, descontos e divisão
+ * calculados aqui (o mesmo cálculo do carrinho). Devolve o token de acesso do convidado uma
+ * única vez; o pedido guarda só o hash.
  */
 export async function criarPedido(
   ids: string[],
   comprador: DadosComprador,
+  opcoes: OpcoesCompra = {},
 ): Promise<ResultadoCriarPedido> {
   const unicos = [...new Set(ids)];
   if (unicos.length === 0) return { ok: false, motivo: "carrinho_vazio" };
 
-  const itensVenda = await buscarItensParaCompra(unicos);
-  // Se algo saiu de venda entre o carrinho e o checkout, a pessoa revisa antes de pagar.
+  const { itens: itensVenda, descontos } = await calcularCompra(unicos, opcoes);
+  // Se algo mudou entre o carrinho e o checkout (item saiu de venda, pacote venceu, cupom
+  // deixou de valer), a pessoa revisa antes de pagar: o total nunca muda em silêncio.
   if (itensVenda.length !== unicos.length) return { ok: false, motivo: "itens_indisponiveis" };
+  if (descontos.pacotesRecusados.length > 0) return { ok: false, motivo: "pacote_recusado" };
+  if (descontos.cupom.situacao === "recusado") {
+    return { ok: false, motivo: "cupom_recusado", mensagem: mensagemCupom(descontos.cupom) ?? "" };
+  }
+  const calculados = new Map(descontos.itens.map((i) => [i.fotoId, i]));
 
   const regras = await buscarRegrasDeDivisao(unicos);
   const agora = Date.now();
@@ -88,16 +103,17 @@ export async function criarPedido(
 
   const itens: ItemPedido[] = itensVenda.map(({ foto, precoCentavos }) => {
     const regra = regras.find((r) => r.fotoId === foto.id);
-    if (!regra) throw new Error(`Sem regra de divisão para ${foto.id}`);
+    const calculado = calculados.get(foto.id);
+    if (!regra || !calculado) throw new Error(`Sem regra de divisão ou cálculo para ${foto.id}`);
     return {
       id: randomUUID(),
       pedidoId,
       fotoId: foto.id,
       fotografoId: regra.autorId,
       precoCentavos,
-      descontoCentavos: 0,
-      viaPacote: false,
-      ...dividirItem(precoCentavos, regra),
+      descontoCentavos: calculado.descontoCentavos,
+      viaPacote: calculado.viaPacote,
+      ...dividirItem(precoCentavos - calculado.descontoCentavos, regra),
     };
   });
 
@@ -110,7 +126,7 @@ export async function criarPedido(
     nomeComprador: comprador.nome,
     whatsapp: comprador.aceitaWhatsapp ? comprador.whatsapp : null,
     aceitaWhatsapp: comprador.aceitaWhatsapp && comprador.whatsapp !== null,
-    cupomId: null,
+    cupomId: descontos.cupom.situacao === "aplicado" ? descontos.cupom.cupomId : null,
     subtotalCentavos: subtotal,
     descontoCentavos: desconto,
     totalCentavos: subtotal - desconto,
@@ -133,12 +149,15 @@ export async function criarPedido(
 /** Quem está pedindo acesso a um pedido: o token do link e/ou o cliente logado. */
 export type Credencial = { token?: string | null; clienteId?: string | null };
 
-/** O pedido pode ser visto por esta credencial? Token do link ou dono logado. */
+/**
+ * O pedido pode ser visto por esta credencial? Token do link do checkout, link assinado das
+ * mensagens (e-mail e WhatsApp) ou dono logado.
+ */
 export function podeAcessar(
-  pedido: Pick<PedidoInterno, "tokenAcessoHash" | "clienteId">,
+  pedido: Pick<PedidoInterno, "id" | "tokenAcessoHash" | "clienteId">,
   { token, clienteId }: Credencial,
 ) {
-  if (token && tokenConfere(pedido, token)) return true;
+  if (token && (tokenConfere(pedido, token) || linkDoPedidoConfere(pedido.id, token))) return true;
   return Boolean(clienteId && pedido.clienteId === clienteId);
 }
 
@@ -147,6 +166,9 @@ export function podeAcessar(
  * expirado o pendente que passou da validade.
  */
 export async function buscarPedidoComAcesso(pedidoId: string, credencial: Credencial) {
+  // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição; a
+  // conferência do link assinado e a validade do pedido leem o relógio.
+  await connection();
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado || !podeAcessar(encontrado.pedido, credencial)) return null;
 
@@ -179,6 +201,12 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
 
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado) return false;
+  // O uso do cupom conta só no pagamento confirmado, junto com o "pago" (no banco, na mesma
+  // transação), e só se ainda houver uso disponível. Se outro pedido esgotou o cupom nesse
+  // meio-tempo, o pagamento já foi feito com o desconto e vale: fica só registrado.
+  if (encontrado.pedido.cupomId && !(await registrarUsoDoCupom(encontrado.pedido.cupomId))) {
+    console.warn(`Cupom ${encontrado.pedido.cupomId} sem uso disponível no pedido ${pedidoId}`);
+  }
   const disponivelEm = new Date(agora + PRAZO_SAQUE_MS).toISOString();
   const antecipavelEm = new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
   const regras = await buscarRegrasDeDivisao(encontrado.itens.map((i) => i.fotoId));
@@ -210,5 +238,10 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
     return lancamentos;
   });
   await salvarLancamentos(novos);
+  // A entrega por mensagem não pode desfazer o pagamento: se falhar, só fica registrado. O
+  // comprador continua com o link da página do pedido e com Minhas compras.
+  await enviarEntrega(encontrado.pedido).catch((erro) =>
+    console.error(`Falha ao enviar a entrega do pedido ${pedidoId}`, erro),
+  );
   return true;
 }

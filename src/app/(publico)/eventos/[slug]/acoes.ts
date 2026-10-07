@@ -20,6 +20,7 @@ import {
   novoTokenDeAcesso,
 } from "@/lib/acesso-evento";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { ofertaDePacote, type OfertaPacote } from "@/servicos/pacotes";
 import { horaSchema } from "@/lib/validacao";
 
 const slug = z
@@ -68,13 +69,23 @@ const numero = z.object({
     .regex(/^\d{1,6}$/),
 });
 
-/** Fotos do evento com o número de peito informado. Mesma regra de visibilidade da busca. */
-export async function buscarPorNumero(slugEvento: string, numeroDePeito: string): Promise<Foto[]> {
+export type ResultadoBusca = { fotos: Foto[]; pacote: OfertaPacote | null };
+
+/**
+ * Fotos do evento com o número de peito informado, e a oferta do pacote para elas. Mesma
+ * regra de visibilidade da busca por selfie.
+ */
+export async function buscarPorNumero(
+  slugEvento: string,
+  numeroDePeito: string,
+): Promise<ResultadoBusca> {
+  const nada = { fotos: [], pacote: null };
   const dados = numero.safeParse({ slug: slugEvento, numero: numeroDePeito });
-  if (!dados.success) return [];
+  if (!dados.success) return nada;
   const evento = await buscarEventoPublicado(dados.data.slug);
-  if (!evento) return [];
-  return fotosPorNumero(evento.id, dados.data.numero);
+  if (!evento) return nada;
+  const fotos = await fotosPorNumero(evento.id, dados.data.numero);
+  return { fotos, pacote: await ofertaDePacote(evento, fotos) };
 }
 
 // ---------------------------------------------------------------- Senha do evento

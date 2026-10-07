@@ -71,9 +71,19 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Link, QR Code (SVG na tela e PNG para imprimir, gerados no servidor) e WhatsApp ao publicar, no painel; botão Compartilhar na página do evento
 - [x] Correções: leitura do relógio na sessão durante a pré-renderização, menu do painel rolando a página para o lado no celular e links com cara de botão "outline" sem borda
 
+- [x] Cálculo dos descontos no servidor, na ordem da arquitetura (pacote, progressivo, cupom), com o desconto gravado em cada item e a divisão feita sobre o valor pago `[Média]`
+- [x] Pacote "todas as minhas fotos" oferecido depois da busca, com token assinado das fotos encontradas (`APP_SECRET`) `[R-alta]`
+- [x] Cupom no checkout, com a mensagem do motivo quando não vale; uso somado só no pagamento confirmado, respeitando o limite `[Média]`
+- [x] Correção: a página do pedido lia o relógio antes de esperar a requisição
+- [x] Preço individual opcional por foto ou vídeo, no painel
+- [x] Painel "Descontos e cupons": regra padrão de desconto progressivo e cupons (percentual, valor e fotos grátis, com limite de usos, datas, eventos e mínimo; código único na plataforma)
+- [x] Desconto progressivo próprio e pacote "todas as minhas fotos" na página do evento, no painel
+- [x] Colaboradores: o dono adiciona pelo e-mail da conta de vendedor, com comissão e nota; o colaborador envia fotos em "Colaborações"; não dá para remover quem ainda tem fotos no evento
+- [x] Entrega por e-mail e WhatsApp (com consentimento) depois do pagamento, com link assinado; envio simulado, visível em `/admin/mensagens`
+- [x] Job de pedidos (`/api/jobs/pedidos`, protegido por `CRON_SECRET`): expira os pendentes vencidos, conferindo no Mercado Pago antes, e manda o lembrete de carrinho abandonado uma vez, com link que remonta o carrinho
 ## Em andamento
 
-- [ ] Busca e recursos do evento (Fase 7)
+- [ ] Busca e recursos do evento (Fase 7): faltam vídeos e pastas
 
 ## Decisões de produto em aberto
 
@@ -121,14 +131,7 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 
 ## Fase 8 — Recursos de venda
 
-- [ ] Preço por foto e por vídeo, com preço individual opcional
-- [ ] Desconto progressivo por evento e regra padrão do fotógrafo
-- [ ] Pacote "todas as minhas fotos", mostrado depois da busca
-- [ ] Cupons: percentual, valor e fotos grátis, com limites de uso, datas, eventos e mínimo
-- [ ] Regra de combinação dos descontos no servidor `[Média]`
-- [ ] Colaboradores: convidar por e-mail ou usuário, comissão do dono e notas
-- [ ] WhatsApp opcional no checkout, com consentimento (envio simulado até a Fase 13)
-- [ ] Pedido expirado e lembrete de carrinho abandonado (envio simulado até a Fase 13)
+Concluída (ver **Concluído**). O convite de colaborador para quem ainda não tem conta e o envio real das mensagens ficaram para a Fase 13.
 
 ## Fase 9 — Loja própria e moderação
 
@@ -177,11 +180,12 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 - [ ] Saque em produção: implementar o header `X-signature` do Payouts (confirmar o algoritmo com o Mercado Pago) `[R-alta]`
 - [ ] Cadastrar o webhook de produção e conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado)
 - [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
-- [ ] Job que expira pedidos pendentes e confere no Mercado Pago antes (hoje só a página do pedido confere)
+- [ ] Agendar o job de pedidos (`/api/jobs/pedidos`) de hora em hora, pelo Inngest ou pelo cron da Vercel (no plano Hobby o cron é só diário)
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
 - [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
 - [ ] E-mail de confirmação com o link de downloads (Resend)
-- [ ] Entrega por WhatsApp e lembrete de carrinho abandonado
+- [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)
+- [ ] Convite de colaborador por e-mail para quem ainda não tem conta
 - [ ] Liberação agendada e aviso aos colaboradores por e-mail
 
 ## Fase 14 — Antes do lançamento

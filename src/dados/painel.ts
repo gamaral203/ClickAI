@@ -6,7 +6,14 @@ import "server-only";
 
 import { connection } from "next/server";
 
-import { categorias, eventos, fotografos, fotos, senhasEventos } from "./exemplo/banco";
+import {
+  categorias,
+  colaboradores,
+  eventos,
+  fotografos,
+  fotos,
+  senhasEventos,
+} from "./exemplo/banco";
 import imagens from "./exemplo/imagens.json";
 import { itensPorPedido, lancamentos, pedidos, saques } from "./exemplo/pedidos";
 import type {
@@ -153,14 +160,19 @@ export async function listarItensDoPainel(eventoId: string, fotografoId: string)
 /**
  * Envio simulado (Parte A): cria os itens com as imagens de exemplo, já prontos. Na Fase 12, o
  * envio real cria cada item como `processando` e o job gera a prévia a partir do arquivo.
+ * Envia o dono do evento ou um colaborador dele; o item fica no nome de quem enviou, que é
+ * quem recebe pela venda.
  */
 export async function adicionarItensSimulados(
   eventoId: string,
   fotografoId: string,
   arquivos: { nome: string; tamanhoBytes: number }[],
 ): Promise<Foto[] | null> {
-  const evento = eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
-  if (!evento) return null;
+  const evento = eventos.find((e) => e.id === eventoId);
+  const podeEnviar =
+    evento?.fotografoId === fotografoId ||
+    colaboradores.some((c) => c.eventoId === eventoId && c.fotografoId === fotografoId);
+  if (!evento || !podeEnviar) return null;
   const ultimaOrdem = Math.max(
     0,
     ...fotos.filter((f) => f.eventoId === eventoId).map((f) => f.ordem),

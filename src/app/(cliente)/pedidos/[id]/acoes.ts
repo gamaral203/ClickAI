@@ -7,7 +7,7 @@ import { iniciarCobrancaPix, pagarComCartao, type ResultadoCartao } from "@/serv
 import { buscarPedidoComAcesso, confirmarPagamento } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
 
-const acesso = z.object({ pedidoId: z.uuid(), token: z.string().min(20).max(100).nullable() });
+const acesso = z.object({ pedidoId: z.uuid(), token: z.string().min(20).max(400).nullable() });
 
 async function credencial(token: string | null) {
   const usuario = await usuarioAtual();

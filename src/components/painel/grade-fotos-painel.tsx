@@ -3,10 +3,14 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 
 import { excluirItemAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import { definirPrecoAcao } from "@/app/(fotografo)/painel/eventos/vendas-acoes";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { centavosParaCampo } from "@/lib/dinheiro";
+import { formatarPreco } from "@/lib/formatar";
 
 export type ItemDoPainel = {
   id: string;
@@ -14,6 +18,10 @@ export type ItemDoPainel = {
   nomeArquivo: string;
   status: "processando" | "pronta" | "erro";
   vendido: boolean;
+  /** Preço próprio; `null` usa o do evento. */
+  precoCentavos: number | null;
+  /** Preço do evento para o tipo do item. */
+  precoEventoCentavos: number;
 };
 
 export function GradeFotosPainel({ itens }: { itens: ItemDoPainel[] }) {
@@ -69,6 +77,7 @@ function Cartao({ item }: { item: ItemDoPainel }) {
       <p className="truncate text-xs text-muted-foreground" title={item.nomeArquivo}>
         {item.nomeArquivo}
       </p>
+      <Preco item={item} />
       {confirmando ? (
         <div className="flex flex-col gap-1.5">
           {item.vendido && (
@@ -113,5 +122,100 @@ function Cartao({ item }: { item: ItemDoPainel }) {
         </p>
       )}
     </li>
+  );
+}
+
+/** Preço do item: o do evento, ou um próprio (mais caro ou mais barato que o padrão). */
+function Preco({ item }: { item: ItemDoPainel }) {
+  const router = useRouter();
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(
+    item.precoCentavos === null ? "" : centavosParaCampo(item.precoCentavos),
+  );
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, startTransition] = useTransition();
+
+  function salvar(texto: string) {
+    setErro(null);
+    startTransition(async () => {
+      const resultado = await definirPrecoAcao(item.id, texto).catch(() => ({
+        erro: "Não foi possível salvar.",
+      }));
+      if (resultado.erro) return setErro(resultado.erro);
+      setEditando(false);
+      router.refresh();
+    });
+  }
+
+  if (!editando) {
+    return (
+      <div className="flex items-center justify-between gap-1 text-xs">
+        <span>
+          {formatarPreco(item.precoCentavos ?? item.precoEventoCentavos)}
+          {item.precoCentavos === null && <span className="text-muted-foreground"> (evento)</span>}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Mudar o preço de ${item.nomeArquivo}`}
+          onClick={() => setEditando(true)}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        salvar(valor);
+      }}
+    >
+      <label htmlFor={`preco-${item.id}`} className="text-xs font-medium">
+        Preço desta foto (R$)
+      </label>
+      <Input
+        id={`preco-${item.id}`}
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        inputMode="decimal"
+        placeholder={centavosParaCampo(item.precoEventoCentavos)}
+        aria-invalid={Boolean(erro)}
+        className="h-9"
+      />
+      {erro && (
+        <p role="alert" className="text-xs text-destructive">
+          {erro}
+        </p>
+      )}
+      <div className="flex gap-1.5">
+        <Button type="submit" size="sm" disabled={salvando} className="flex-1">
+          {salvando ? <Loader2 aria-hidden="true" className="animate-spin" /> : "Salvar"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditando(false)}
+          className="flex-1"
+        >
+          Cancelar
+        </Button>
+      </div>
+      {item.precoCentavos !== null && (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          disabled={salvando}
+          onClick={() => salvar("")}
+        >
+          Voltar ao preço do evento
+        </Button>
+      )}
+    </form>
   );
 }

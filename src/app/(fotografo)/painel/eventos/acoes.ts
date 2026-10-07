@@ -256,6 +256,7 @@ export async function enviarFotosAcao(
   const criados = await adicionarItensSimulados(eventoId, conta.id, dados.data);
   if (!criados) return { erro: "Evento não encontrado." };
   revalidatePath(`/painel/eventos/${eventoId}`);
+  revalidatePath("/painel/colaboracoes");
   return { enviados: criados.length };
 }
 
