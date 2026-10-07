@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 // Headers de segurança aplicados a todas as rotas (ver docs/skills.md, vibe-code-security).
 // A CSP completa de scripts (com nonce) fica para depois, quando os scripts do gateway e do
@@ -39,4 +40,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry: com SENTRY_AUTH_TOKEN (no deploy), envia os source maps ao Sentry e apaga os
+// arquivos .map do build, para não ficarem públicos (productionBrowserSourceMaps segue false).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+  telemetry: false,
+});

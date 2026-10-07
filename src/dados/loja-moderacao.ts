@@ -59,7 +59,47 @@ export type LojaPublica = Pick<
 export async function buscarLojaPublica(subdominio: string): Promise<LojaPublica | null> {
   // Lida a cada requisição: a loja muda quando o fotógrafo salva no painel.
   await connection();
-  const loja = lojas.find((l) => l.subdominio === subdominio && l.ativa);
+  return lojaPublica(lojas.find((l) => l.subdominio === subdominio && l.ativa));
+}
+
+/** Loja ativa pelo domínio próprio, só depois de verificado; `null` se não existe. */
+export async function buscarLojaPublicaPorDominio(dominio: string): Promise<LojaPublica | null> {
+  await connection();
+  return lojaPublica(
+    lojas.find((l) => l.dominioProprio === dominio && l.dominioVerificado && l.ativa),
+  );
+}
+
+/** O domínio já é de outra loja? (`lojas(dominio_proprio)` é único.) */
+export async function dominioEmUso(dominio: string, fotografoId: string) {
+  return lojas.some((l) => l.dominioProprio === dominio && l.fotografoId !== fotografoId);
+}
+
+/**
+ * Domínio próprio da loja do fotógrafo: muda o domínio (sempre começa não verificado) ou tira
+ * (`null`). Devolve `false` se o fotógrafo ainda não tem loja.
+ */
+export async function definirDominioDaLoja(fotografoId: string, dominio: string | null) {
+  const loja = lojas.find((l) => l.fotografoId === fotografoId);
+  if (!loja) return false;
+  loja.dominioProprio = dominio;
+  loja.dominioVerificado = false;
+  return true;
+}
+
+/** Marca o domínio como verificado, só se ainda for o mesmo (o fotógrafo pode ter trocado). */
+export async function marcarDominioVerificado(
+  fotografoId: string,
+  dominio: string,
+  verificado: boolean,
+) {
+  const loja = lojas.find((l) => l.fotografoId === fotografoId && l.dominioProprio === dominio);
+  if (!loja) return false;
+  loja.dominioVerificado = verificado;
+  return true;
+}
+
+function lojaPublica(loja: Loja | undefined): LojaPublica | null {
   const conta = loja && fotografos.find((f) => f.id === loja.fotografoId);
   if (!loja || !conta) return null;
   return structuredClone({

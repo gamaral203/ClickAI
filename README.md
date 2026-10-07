@@ -96,6 +96,7 @@ A estrutura completa planejada, com cliente, painel do fotógrafo, admin, loja p
 - [Referência de produto: Fotto](docs/referencias/fotto.md): como funciona a plataforma que usamos de referência
 - [Riscos e erros possíveis](docs/riscos.md): 35 riscos mapeados, com prioridade e como evitar
 - [Tarefas](docs/tarefas.md): o que já foi feito e o que falta, por fase
+- [Deploy e contas](docs/deploy.md): contas a criar, variáveis de produção, domínio, lojas e Sentry
 - [Marca](docs/marca/marca.md): logo, cores e regras de contraste
 - [Skills](docs/skills.md): skills do Claude Code usadas no projeto
 - [Instruções para contribuir](docs/CLAUDE.md): regras do projeto e padrão de commits
