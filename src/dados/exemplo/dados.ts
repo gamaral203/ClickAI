@@ -1,5 +1,5 @@
 // Dados de exemplo para desenvolver as telas antes do banco (docs/tarefas.md, Parte A).
-// As imagens vêm do picsum.photos; na Fase 9 passam a ser as prévias do R2 via CDN.
+// As imagens vêm do picsum.photos; na Fase 12 passam a ser as prévias do R2 via CDN.
 
 import type { Evento, Foto, Fotografo } from "../tipos";
 
