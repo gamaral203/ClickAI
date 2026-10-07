@@ -528,3 +528,54 @@ export async function listarPedidosDoCliente(
       itens: structuredClone(itensPorPedido.get(p.id) ?? []),
     }));
 }
+
+// ---------------------------------------------------------------- Conta do fotógrafo
+
+/** Dados privados do fotógrafo dono desta conta de usuário. Só para o próprio fotógrafo. */
+export async function buscarContaDoFotografo(usuarioId: string): Promise<FotografoConta | null> {
+  const conta = fotografos.find((f) => f.usuarioId === usuarioId);
+  return conta ? structuredClone(conta) : null;
+}
+
+export async function slugDeFotografoEmUso(slug: string, excetoId?: string) {
+  return fotografos.some((f) => f.slug === slug && f.id !== excetoId);
+}
+
+export async function criarContaDeFotografo(dados: {
+  usuarioId: string;
+  nomePublico: string;
+  slug: string;
+}): Promise<FotografoConta> {
+  const conta: FotografoConta = {
+    id: crypto.randomUUID(),
+    usuarioId: dados.usuarioId,
+    nomePublico: dados.nomePublico,
+    slug: dados.slug,
+    bio: null,
+    fotoPerfil: null,
+    capa: null,
+    redesSociais: {},
+    cpfCnpj: "",
+    contaRecebimentoId: null,
+    comissaoPct: 10,
+    frequenciaRepasse: "semanal",
+    diaRepasse: 5,
+  };
+  fotografos.push(conta);
+  return structuredClone(conta);
+}
+
+export type AlteracoesPerfil = Partial<
+  Pick<
+    FotografoConta,
+    "nomePublico" | "slug" | "bio" | "redesSociais" | "cpfCnpj" | "contaRecebimentoId"
+  >
+>;
+
+/** Atualiza só a conta ligada a este usuário: nunca por um id vindo do navegador. */
+export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: AlteracoesPerfil) {
+  const conta = fotografos.find((f) => f.usuarioId === usuarioId);
+  if (!conta) return null;
+  Object.assign(conta, alteracoes);
+  return structuredClone(conta);
+}

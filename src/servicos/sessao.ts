@@ -3,22 +3,28 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import {
   apagarSessao,
   buscarSessao,
   buscarUsuario,
   buscarUsuarioParaLogin,
+  buscarContaDoFotografo,
   consumirConfirmacaoEmail,
+  criarContaDeFotografo,
   criarUsuario,
   emailEmUso,
   marcarEmailConfirmado,
   salvarConfirmacaoEmail,
   salvarSessao,
+  slugDeFotografoEmUso,
   vincularPedidosDeConvidado,
+  type FotografoConta,
   type Usuario,
 } from "@/dados";
 import { gerarHashSenha, HASH_FALSO, senhaConfere } from "@/lib/senha";
+import { gerarSlug } from "@/lib/slug";
 
 // Sessão simulada da Parte A (docs/tarefas.md, Fase 5). Na Fase 11 o Better Auth assume, com
 // as mesmas garantias: cookie HttpOnly, token aleatório guardado só como hash, e e-mail
@@ -94,6 +100,14 @@ export async function cadastrar(dados: {
     senhaHash: gerarHashSenha(dados.senha),
     papel: dados.papel,
   });
+  if (dados.papel === "fotografo") {
+    // O perfil nasce com o nome da pessoa; ela completa em /painel/perfil.
+    await criarContaDeFotografo({
+      usuarioId: usuario.id,
+      nomePublico: dados.nome,
+      slug: await slugDisponivel(dados.nome),
+    });
+  }
   const tokenConfirmacao = await gerarConfirmacaoEmail(usuario.id);
   await iniciarSessao(usuario.id);
   return { ok: true, usuario, tokenConfirmacao };
@@ -115,4 +129,26 @@ export async function confirmarEmail(token: string): Promise<number | null> {
   if (!usuarioId) return null;
   await marcarEmailConfirmado(usuarioId);
   return vincularPedidosDeConvidado(usuarioId);
+}
+
+async function slugDisponivel(nome: string) {
+  const base = gerarSlug(nome) || "fotografo";
+  let slug = base;
+  for (let n = 2; await slugDeFotografoEmUso(slug); n++) slug = `${base}-${n}`;
+  return slug;
+}
+
+/**
+ * Fotógrafo logado e a conta dele, ou redireciona para o login. Usar no topo de toda página
+ * e ação do painel: a autorização é conferida em cada uma, não só no menu.
+ */
+export async function exigirFotografo(proximo = "/painel"): Promise<{
+  usuario: Usuario;
+  conta: FotografoConta;
+}> {
+  const usuario = await usuarioAtual();
+  if (!usuario) redirect(`/entrar?proximo=${encodeURIComponent(proximo)}`);
+  const conta = usuario.papel === "fotografo" ? await buscarContaDoFotografo(usuario.id) : null;
+  if (!conta) redirect("/minhas-compras");
+  return { usuario, conta };
 }

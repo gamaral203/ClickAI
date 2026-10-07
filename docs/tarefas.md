@@ -43,10 +43,11 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Cadastro, login e saída de cliente e fotógrafo com sessão simulada (senha com scrypt, cookie HttpOnly, token guardado só como hash) até a Fase 11
 - [x] Confirmação de e-mail (link simulado até a Fase 13) e vínculo das compras de convidado com o mesmo e-mail só depois de confirmado
 - [x] Área "Minhas compras" com pedidos pagos (download pela sessão) e pendentes (concluir pagamento); compra de cliente logado fica ligada à conta e o checkout já vem preenchido
+- [x] Cadastro de fotógrafo: perfil público (nome, endereço, bio, Instagram, site), CPF/CNPJ validado e conta de recebimento simulada, no painel com checklist do que falta para vender
 
 ## Em andamento
 
-- [ ] Contas e área Minhas compras (Fase 5)
+- [ ] Painel do fotógrafo (Fase 6)
 
 ## Decisões de produto em aberto
 
@@ -82,7 +83,7 @@ Concluída (ver **Concluído**). A área "Minhas compras" depende de login e foi
 
 ## Fase 5 — Contas (telas)
 
-- [ ] Cadastro de fotógrafo: perfil público (foto, capa, bio, redes), CPF/CNPJ, conta de recebimento
+Concluída (ver **Concluído**). Foto de perfil e capa dependem de upload e foram para a Fase 12.
 
 ## Fase 6 — Painel do fotógrafo
 
@@ -146,6 +147,7 @@ Concluída (ver **Concluído**). A área "Minhas compras" depende de login e foi
 ## Fase 12 — Upload, processamento e reconhecimento
 
 - [ ] Rota que gera URL assinada de upload e cria o item como `processando`
+- [ ] Foto de perfil e capa do fotógrafo
 - [ ] Upload direto do navegador ao R2, em lote `[R-alta]`
 - [ ] Upload multipart com retomada para vídeos
 - [ ] Pasta temporária com regra de ciclo de vida no R2 (evita órfãos)
