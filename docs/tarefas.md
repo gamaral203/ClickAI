@@ -11,6 +11,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Logo e paleta de cores ([marca/marca.md](marca/marca.md))
 - [x] Lista de tarefas (este arquivo)
 - [x] Skill de segurança `vibe-code-security` e página de skills ([skills.md](skills.md))
+- [x] Skills de interface `ui-ux-pro-max` e `motion-framer`
 
 ## Em andamento
 

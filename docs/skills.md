@@ -7,6 +7,10 @@ Skills são instruções que o Claude Code carrega sozinho quando a tarefa combi
 | Skill | O que faz | Quando é usada |
 |---|---|---|
 | [vibe-code-security](../.claude/skills/vibe-code-security/SKILL.md) | Checklist de segurança contra vazamento de segredos e vulnerabilidades comuns em código gerado por IA | Ao criar ou revisar rotas, upload, login, checkout, integrações com chaves de API e antes de qualquer deploy |
+| [ui-ux-pro-max](../.claude/skills/ui-ux-pro-max/SKILL.md) | Base de regras de UI/UX (acessibilidade, layout, tipografia, cor, formulários, navegação) com busca local de estilos, paletas e boas práticas por stack | Ao criar ou revisar telas e componentes |
+| [motion-framer](../.claude/skills/motion-framer/SKILL.md) | Guia da biblioteca Motion (antiga Framer Motion) para animações em React | Ao criar micro-interações, transições e animações de lista ou galeria |
+
+Origem e licença: `vibe-code-security` veio de um arquivo `.skill`; `ui-ux-pro-max` de [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) (MIT); `motion-framer` de [freshtechbro/claudedesignskills](https://github.com/freshtechbro/claudedesignskills) (MIT). As licenças estão dentro de cada pasta.
 
 ### vibe-code-security
 
@@ -31,6 +35,25 @@ Arquivos:
 | Auth e autorização | Vale direto: cada rota e cada Server Action confere se o usuário pode mexer naquele evento, foto ou pedido. |
 | Mobile | Fora do MVP. |
 | Deployment | Security headers no `next.config`, `productionBrowserSourceMaps: false`, erros sem stack trace para o usuário. |
+
+### ui-ux-pro-max
+
+**Como ela se aplica ao ClicouAí:**
+
+- A identidade visual já existe: a marca ([marca/marca.md](marca/marca.md)) vence qualquer paleta ou fonte sugerida pela skill. Use a skill para regras de UX, acessibilidade e layout, não para trocar as cores.
+- Stack para as buscas: `nextjs` e `shadcn`.
+- Ela traz um script de busca em Python (`scripts/search.py`), rodado a partir da raiz do projeto: `python .claude/skills/ui-ux-pro-max/scripts/search.py "<busca>" --domain ux`. No modo automático do Claude Code, a execução desse script pode ser bloqueada por ser código baixado de fora; nesse caso, libere a permissão ou use só os arquivos de `references/`, que não precisam do script.
+- Mudança feita no original: o caminho `${CLAUDE_PLUGIN_ROOT}/.claude/skills/ui-ux-pro-max/` virou `.claude/skills/ui-ux-pro-max/`, porque essa variável só existe quando a skill é instalada como plugin.
+
+### motion-framer
+
+**Como ela se aplica ao ClicouAí:**
+
+- A skill usa o pacote antigo `framer-motion`. Aqui, ao instalar, use o pacote `motion` e importe de `motion/react` (a API é a mesma).
+- Todo componente animado é Client Component (`"use client"`); páginas da galeria continuam renderizadas no servidor.
+- Respeitar `useReducedMotion` em toda animação.
+- Na galeria com milhares de fotos, evitar `layout` em cada miniatura (custo alto); animar só opacidade e transform.
+- A pasta `assets/starter_motion` (app de exemplo em Vite com React 18) foi removida por não servir para este projeto.
 
 ## Skills pessoais (fora do repositório)
 
