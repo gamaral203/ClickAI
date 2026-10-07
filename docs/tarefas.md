@@ -70,11 +70,15 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Lista de fotos não identificadas (opcional por evento)
 - [x] Link, QR Code (SVG na tela e PNG para imprimir, gerados no servidor) e WhatsApp ao publicar, no painel; botão Compartilhar na página do evento
 - [x] Correções: leitura do relógio na sessão durante a pré-renderização, menu do painel rolando a página para o lado no celular e links com cara de botão "outline" sem borda
-- [x] Correção: a página do pedido lia o relógio antes de esperar a requisição
 
+- [x] Cálculo dos descontos no servidor, na ordem da arquitetura (pacote, progressivo, cupom), com o desconto gravado em cada item e a divisão feita sobre o valor pago `[Média]`
+- [x] Pacote "todas as minhas fotos" oferecido depois da busca, com token assinado das fotos encontradas (`APP_SECRET`) `[R-alta]`
+- [x] Cupom no checkout, com a mensagem do motivo quando não vale; uso somado só no pagamento confirmado, respeitando o limite `[Média]`
+- [x] Correção: a página do pedido lia o relógio antes de esperar a requisição
 ## Em andamento
 
-- [ ] Busca e recursos do evento (Fase 7)
+- [ ] Busca e recursos do evento (Fase 7): faltam vídeos e pastas
+- [ ] Recursos de venda (Fase 8): faltam as telas do painel e o restante da lista
 
 ## Decisões de produto em aberto
 
@@ -123,10 +127,9 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 ## Fase 8 — Recursos de venda
 
 - [ ] Preço por foto e por vídeo, com preço individual opcional
-- [ ] Desconto progressivo por evento e regra padrão do fotógrafo
-- [ ] Pacote "todas as minhas fotos", mostrado depois da busca
-- [ ] Cupons: percentual, valor e fotos grátis, com limites de uso, datas, eventos e mínimo
-- [ ] Regra de combinação dos descontos no servidor `[Média]`
+- [ ] Painel: desconto progressivo por evento e regra padrão do fotógrafo (o cálculo já está pronto)
+- [ ] Painel: configurar o pacote do evento (a oferta e o cálculo já estão prontos)
+- [ ] Painel: criar e editar cupons (percentual, valor e fotos grátis, com limites de uso, datas, eventos e mínimo; o cálculo e o checkout já estão prontos)
 - [ ] Colaboradores: convidar por e-mail ou usuário, comissão do dono e notas
 - [ ] WhatsApp opcional no checkout, com consentimento (envio simulado até a Fase 13)
 - [ ] Pedido expirado e lembrete de carrinho abandonado (envio simulado até a Fase 13)

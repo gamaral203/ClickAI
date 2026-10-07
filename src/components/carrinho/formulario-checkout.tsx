@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, TicketPercent, X } from "lucide-react";
 
 import { obterCarrinho } from "@/app/(cliente)/carrinho/acoes";
 import {
@@ -17,12 +17,16 @@ import { Label } from "@/components/ui/label";
 import { formatarPreco } from "@/lib/formatar";
 import type { ResumoCarrinho } from "@/servicos/carrinho";
 
-import { esvaziarCarrinho, useCarrinho } from "./carrinho";
+import { esvaziarCarrinho, useCarrinho, usePacotes } from "./carrinho";
 
 export function FormularioCheckout({ inicial }: { inicial?: { nome: string; email: string } }) {
   const router = useRouter();
   const ids = useCarrinho();
-  const chave = ids.join(",");
+  const pacotes = usePacotes();
+  const tokensPacote = pacotes.map((p) => p.token);
+  /** Código que a pessoa pediu para aplicar; o servidor diz se vale. */
+  const [cupom, setCupom] = useState<string | null>(null);
+  const chave = `${ids.join(",")}|${tokensPacote.join(",")}|${cupom ?? ""}`;
   const [resumo, setResumo] = useState<ResumoCarrinho | null>(null);
   const [erros, setErros] = useState<Partial<Record<CampoCheckout, string>>>({});
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -32,7 +36,7 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
   useEffect(() => {
     if (ids.length === 0) return;
     let ativo = true;
-    obterCarrinho([...ids]).then((r) => ativo && setResumo(r));
+    obterCarrinho([...ids], { pacotes: tokensPacote, cupom }).then((r) => ativo && setResumo(r));
     return () => {
       ativo = false;
     };
@@ -59,6 +63,10 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
     );
   }
 
+  const cupomAplicado = resumo?.cupom.situacao === "aplicado" ? resumo.cupom.codigo : null;
+  const mensagemCupom =
+    erros.cupom ?? (resumo?.cupom.situacao === "recusado" ? resumo.cupom.mensagem : null);
+
   function enviar(formulario: FormData) {
     setMensagem(null);
     startTransition(async () => {
@@ -71,6 +79,8 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
           whatsapp: String(formulario.get("whatsapp") ?? ""),
           aceitaWhatsapp: formulario.get("aceitaWhatsapp") === "on",
           metodo: formulario.get("metodo"),
+          // Só manda o cupom que o servidor aceitou no resumo; o pedido confere de novo.
+          opcoes: { pacotes: tokensPacote, cupom: cupomAplicado },
         });
       } catch {
         setMensagem("Não foi possível criar o pedido. Verifique a conexão e tente de novo.");
@@ -83,6 +93,7 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
         return;
       }
       setErros(resultado.erros);
+      if (resultado.erros.cupom) setCupom(null);
       if (resultado.mensagem) setMensagem(resultado.mensagem);
     });
   }
@@ -221,6 +232,12 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
                 <dd className="tabular-nums">{formatarPreco(g.subtotalCentavos)}</dd>
               </div>
             ))}
+            {resumo.descontos.map((linha) => (
+              <div key={linha.rotulo} className="flex justify-between gap-4 text-primary">
+                <dt>{linha.rotulo}</dt>
+                <dd className="tabular-nums">−{formatarPreco(linha.valorCentavos)}</dd>
+              </div>
+            ))}
             <div className="flex justify-between border-t pt-2 text-base font-semibold">
               <dt>Total</dt>
               <dd className="tabular-nums">{formatarPreco(resumo.totalCentavos)}</dd>
@@ -228,6 +245,55 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
           </dl>
         ) : (
           <p className="text-sm text-muted-foreground">Calculando…</p>
+        )}
+        {cupomAplicado ? (
+          <p className="flex items-center justify-between gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
+            <span className="flex items-center gap-2">
+              <TicketPercent aria-hidden="true" className="size-4" />
+              Cupom <strong>{cupomAplicado}</strong> aplicado
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              aria-label="Tirar o cupom"
+              onClick={() => setCupom(null)}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </p>
+        ) : (
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const codigo = String(new FormData(e.currentTarget).get("cupom") ?? "").trim();
+              setErros((atuais) => ({ ...atuais, cupom: undefined }));
+              setCupom(codigo || null);
+            }}
+          >
+            <Label htmlFor="cupom">Cupom de desconto</Label>
+            <div className="flex gap-2">
+              <Input
+                id="cupom"
+                name="cupom"
+                autoComplete="off"
+                autoCapitalize="characters"
+                maxLength={40}
+                aria-invalid={Boolean(mensagemCupom)}
+                aria-describedby={mensagemCupom ? "cupom-erro" : undefined}
+                className="h-11 uppercase"
+              />
+              <Button type="submit" variant="outline" size="touch">
+                Aplicar
+              </Button>
+            </div>
+            {mensagemCupom && (
+              <p id="cupom-erro" role="alert" className="text-sm text-destructive">
+                {mensagemCupom}
+              </p>
+            )}
+          </form>
         )}
         <Link href="/carrinho" className="text-sm font-medium text-primary hover:underline">
           Revisar o carrinho

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { buscarEventoPublicado, fotosEncontradas, rostosDeExemploDoEvento } from "@/dados";
 import { buscarFotosPorSelfie } from "@/lib/reconhecimento";
+import { ofertaDePacote } from "@/servicos/pacotes";
 
 // Busca por selfie (docs/arquitetura.md, "Galeria e busca"). A selfie é dado biométrico
 // (LGPD, dado pessoal sensível): só é aceita com consentimento, fica só na memória desta
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
       rostosDeExemploDoEvento(evento.id),
     );
     const fotos = await fotosEncontradas(evento.id, ids);
-    return resposta({ fotos });
+    return resposta({ fotos, pacote: await ofertaDePacote(evento, fotos) });
   } catch {
     return resposta({ erro: "A busca falhou. Tente de novo em instantes." }, 502);
   } finally {

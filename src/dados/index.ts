@@ -17,10 +17,13 @@ import {
   acessosEvento,
   categorias,
   colaboradores,
+  cupons,
   eventos,
+  faixasDesconto,
   fotografos,
   fotos,
   numeros,
+  pacotes,
   rostos,
   senhasEventos,
   urlOriginalDeExemplo,
@@ -28,13 +31,16 @@ import {
 import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
 import { confirmacoes, sessoes, usuarios } from "./exemplo/usuarios";
 import type {
+  Cupom,
   Evento,
   EventoResumo,
+  FaixaDesconto,
   Foto,
   Fotografo,
   FotografoConta,
   ItemPedido,
   Lancamento,
+  Pacote,
   PaginaDeFotos,
   Papel,
   PedidoInterno,
@@ -490,6 +496,45 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
       if (!evento || situacaoGaleria(evento, instante).tipo === "aguardando_liberacao") return [];
       return [{ foto, evento, precoCentavos: precoDoItem(foto, evento) }];
     });
+}
+
+// ---------------------------------------------------------------- Descontos
+
+/**
+ * Faixas de desconto progressivo e pacotes que podem valer para estes eventos: as faixas
+ * próprias de cada evento, a regra padrão dos donos deles e os pacotes. Quem escolhe qual vale
+ * é o cálculo (src/servicos/descontos.ts).
+ */
+export async function buscarRegrasDeDesconto(
+  eventoIds: string[],
+): Promise<{ faixas: FaixaDesconto[]; pacotes: Pacote[] }> {
+  const alvo = new Set(eventoIds);
+  const donos = new Set(eventos.filter((e) => alvo.has(e.id)).map((e) => e.fotografoId));
+  return structuredClone({
+    faixas: faixasDesconto.filter((f) =>
+      f.eventoId === null ? donos.has(f.fotografoId) : alvo.has(f.eventoId),
+    ),
+    pacotes: pacotes.filter((p) => alvo.has(p.eventoId)),
+  });
+}
+
+/** Cupom pelo código, sem diferenciar maiúsculas; `null` se não existe. */
+export async function buscarCupomPorCodigo(codigo: string): Promise<Cupom | null> {
+  const alvo = codigo.trim().toUpperCase();
+  const cupom = cupons.find((c) => c.codigo.toUpperCase() === alvo);
+  return cupom ? structuredClone(cupom) : null;
+}
+
+/**
+ * Soma um uso ao cupom, só se ainda houver uso disponível, como um
+ * `UPDATE cupons SET usos = usos + 1 WHERE id = … AND (usos_max IS NULL OR usos < usos_max)`.
+ * Roda junto com a confirmação do pagamento (docs/riscos.md: cupom usado além do limite).
+ */
+export async function registrarUsoDoCupom(cupomId: string): Promise<boolean> {
+  const cupom = cupons.find((c) => c.id === cupomId);
+  if (!cupom || (cupom.usosMax !== null && cupom.usos >= cupom.usosMax)) return false;
+  cupom.usos++;
+  return true;
 }
 
 // ---------------------------------------------------------------- Pedidos

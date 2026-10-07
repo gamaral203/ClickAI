@@ -180,8 +180,15 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                   )}
                 </span>
               ) : (
-                <span className="font-semibold tabular-nums">
-                  {formatarPreco(item.precoCentavos)}
+                <span className="flex flex-col items-end tabular-nums">
+                  {item.descontoCentavos > 0 && (
+                    <s className="text-xs text-muted-foreground">
+                      {formatarPreco(item.precoCentavos)}
+                    </s>
+                  )}
+                  <span className="font-semibold">
+                    {formatarPreco(item.precoCentavos - item.descontoCentavos)}
+                  </span>
                 </span>
               )}
             </li>

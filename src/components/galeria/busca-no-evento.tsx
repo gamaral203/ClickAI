@@ -1,14 +1,16 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Hash, Loader2, ScanFace, ShieldCheck } from "lucide-react";
+import { Hash, Loader2, Package, ScanFace, ShieldCheck } from "lucide-react";
 
-import { buscarPorNumero } from "@/app/(publico)/eventos/[slug]/acoes";
+import { buscarPorNumero, type ResultadoBusca } from "@/app/(publico)/eventos/[slug]/acoes";
+import { escolherPacote } from "@/components/carrinho/carrinho";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Foto } from "@/dados";
+import { formatarPreco } from "@/lib/formatar";
 
 /** Lado maior da selfie enviada: suficiente para o rosto e leve para o celular enviar. */
 const LADO_MAXIMO = 1024;
@@ -34,7 +36,7 @@ async function prepararSelfie(arquivo: File): Promise<Blob> {
   }
 }
 
-type Resultado = { fotos: Foto[]; origem: "selfie" | "numero" } | null;
+type Resultado = (ResultadoBusca & { origem: "selfie" | "numero" }) | null;
 
 export function BuscaNoEvento({
   slug,
@@ -62,12 +64,12 @@ export function BuscaNoEvento({
       corpo.set("selfie", await prepararSelfie(arquivo), "selfie.jpg");
       try {
         const resposta = await fetch("/api/busca-facial", { method: "POST", body: corpo });
-        const dados = (await resposta.json()) as { fotos?: Foto[]; erro?: string };
+        const dados = (await resposta.json()) as Partial<ResultadoBusca> & { erro?: string };
         if (!resposta.ok || !dados.fotos) {
           setErro(dados.erro ?? "A busca falhou. Tente de novo.");
           return;
         }
-        setResultado({ fotos: dados.fotos, origem: "selfie" });
+        setResultado({ fotos: dados.fotos, pacote: dados.pacote ?? null, origem: "selfie" });
       } catch {
         setErro("Sem conexão. Confira a internet e tente de novo.");
       } finally {
@@ -86,7 +88,7 @@ export function BuscaNoEvento({
     }
     startTransition(async () => {
       try {
-        setResultado({ fotos: await buscarPorNumero(slug, numero), origem: "numero" });
+        setResultado({ ...(await buscarPorNumero(slug, numero)), origem: "numero" });
       } catch {
         setErro("A busca falhou. Tente de novo.");
       }
@@ -215,6 +217,7 @@ export function BuscaNoEvento({
                 : "Nenhuma foto com esse número."
               : `${resultado.fotos.length} ${resultado.fotos.length === 1 ? "foto encontrada" : "fotos encontradas"}`}
           </p>
+          {resultado.pacote && <OfertaPacote oferta={resultado.pacote} />}
           {resultado.fotos.length > 0 && (
             <GaleriaFotos
               key={resultado.fotos.map((f) => f.id).join()}
@@ -226,5 +229,35 @@ export function BuscaNoEvento({
         </div>
       )}
     </section>
+  );
+}
+
+/** "Todas as minhas fotos": põe as fotos encontradas no carrinho com o preço do pacote. */
+function OfertaPacote({ oferta }: { oferta: NonNullable<ResultadoBusca["pacote"]> }) {
+  const router = useRouter();
+  const economia = oferta.normalCentavos - oferta.precoCentavos;
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border-2 border-primary bg-background p-4 sm:flex-row sm:items-center">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <Package aria-hidden="true" className="size-5" />
+      </span>
+      <div className="flex flex-1 flex-col">
+        <p className="font-semibold">
+          Leve todas as {oferta.quantidade} fotos por {formatarPreco(oferta.precoCentavos)}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          <s>{formatarPreco(oferta.normalCentavos)}</s> · você economiza {formatarPreco(economia)}
+        </p>
+      </div>
+      <Button
+        size="touch"
+        onClick={() => {
+          escolherPacote(oferta.eventoId, oferta.token, oferta.fotoIds);
+          router.push("/carrinho");
+        }}
+      >
+        Comprar todas
+      </Button>
+    </div>
   );
 }
