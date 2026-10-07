@@ -849,14 +849,17 @@ export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Prom
 }
 
 /**
- * Versão da sessão do usuário: muda quando a senha muda ou cai. O cookie de sessão leva esta
- * versão, e um cookie com versão antiga deixa de valer. `null` se o usuário não existe.
+ * Versão da sessão do usuário: muda quando a senha cai ou a conta Google muda (ver
+ * ligarContaGoogle). O cookie de sessão leva esta versão, e um cookie com versão antiga deixa de
+ * valer. Não usa o hash da senha em si: nas contas de exemplo ele é gerado com sal aleatório a
+ * cada início do servidor, e cada instância da Vercel teria uma versão diferente. Quando houver
+ * troca de senha (Fase 11), ela também precisa mudar a versão. `null` se o usuário não existe.
  */
 export async function versaoDaSessao(usuarioId: string): Promise<string | null> {
   const u = usuarios.get(usuarioId);
   if (!u) return null;
   return createHash("sha256")
-    .update(`${u.senhaHash ?? "sem-senha"}|${u.googleId ?? ""}`)
+    .update(`${u.senhaHash ? "com-senha" : "sem-senha"}|${u.googleId ?? ""}`)
     .digest("base64url")
     .slice(0, 16);
 }
