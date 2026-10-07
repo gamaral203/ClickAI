@@ -61,6 +61,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Busca por selfie na página do evento: consentimento, selfie reduzida no navegador, só em memória no servidor, limite por IP; Amazon Rekognition com credenciais da AWS ou rostos de exemplo sem elas `[R-alta]`
 - [x] Busca por número de peito
 - [x] Correção: a busca por número de peito recusava todo número no servidor (regex sem `\d`)
+- [x] Testes automatizados com Vitest (`npm run test`): divisão da venda, saque e saldo, conversão de reais, CPF/CNPJ e validação dos filtros
 
 ## Em andamento
 

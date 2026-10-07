@@ -50,6 +50,8 @@ Abra http://localhost:3000. Não há banco para configurar na Parte A.
 | `npm run build`          | Build de produção (também confere os tipos)                                                                       |
 | `npm run start`          | Sobe o build de produção                                                                                          |
 | `npm run lint`           | ESLint                                                                                                            |
+| `npm run test`           | Testes (Vitest) das regras de dinheiro e da validação                                                             |
+| `npm run typecheck`      | Gera os tipos de rota do Next e confere os tipos                                                                  |
 | `npm run format`         | Formata o código com Prettier                                                                                     |
 | `npm run format:check`   | Confere a formatação sem alterar arquivos                                                                         |
 | `npm run exemplos:gerar` | Baixa 24 fotos do picsum.photos e gera as prévias e miniaturas de exemplo, com marca d'água, em `public/exemplo/` |
@@ -103,5 +105,5 @@ A estrutura completa planejada, com cliente, painel do fotógrafo, admin, loja p
 - Leia [docs/CLAUDE.md](docs/CLAUDE.md) antes de começar. Ele lista as regras que o código não pode quebrar (por exemplo: nenhum original acessível sem pedido pago, preço sempre recalculado no servidor, selfie nunca gravada).
 - Commits seguem o [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/), em português: `feat(galeria): cria a página da foto`. Um commit por mudança lógica.
 - Ao concluir uma tarefa, marque `[x]` em [docs/tarefas.md](docs/tarefas.md) no mesmo commit.
-- Antes de abrir um PR: `npm run lint`, `npm run format:check` e `npm run build` sem erros.
+- Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build` sem erros.
 - Quem usa o Claude Code recebe essas regras automaticamente: o `CLAUDE.md` da raiz importa o `docs/CLAUDE.md`.
