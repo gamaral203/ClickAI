@@ -68,6 +68,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Filtros por categoria e cidade na lista de eventos
 - [x] Filtro por horário na galeria (opcional por evento), pelo endereço e mantido ao carregar mais fotos
 - [x] Lista de fotos não identificadas (opcional por evento)
+- [x] Correções: leitura do relógio na sessão durante a pré-renderização, menu do painel rolando a página para o lado no celular e links com cara de botão "outline" sem borda
 
 ## Em andamento
 
