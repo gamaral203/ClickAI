@@ -1,12 +1,16 @@
 // Tipos do domínio. Espelham as tabelas de docs/arquitetura.md ("Modelo de dados"), em
 // camelCase. Dinheiro sempre em centavos (inteiro); datas em ISO 8601 com fuso.
 //
-// Campos sensíveis (senha do evento, CPF/CNPJ, conta de recebimento) ficam em tipos
+// Campos sensíveis (senha do evento, CPF/CNPJ, chave Pix) ficam em tipos
 // separados e nunca entram nos tipos públicos, que podem ir para o navegador.
 
 // ---------------------------------------------------------------- Núcleo
 
-export type Papel = "cliente" | "fotografo" | "admin";
+/**
+ * Papéis: cliente compra; fotógrafo (vendedor) publica e vende; atendente vê o painel de
+ * gestão para dar suporte, sem mudar nada; admin (gestor) vê tudo e muda papéis.
+ */
+export type Papel = "cliente" | "fotografo" | "atendente" | "admin";
 
 /** Usuário como as telas e a sessão enxergam: sem hash de senha. */
 export type Usuario = {
@@ -16,12 +20,17 @@ export type Usuario = {
   telefone: string | null;
   papel: Papel;
   emailConfirmado: boolean;
+  /** Entra com a conta Google (além ou no lugar da senha). */
+  temGoogle: boolean;
   criadoEm: string;
 };
 
 /** Dados privados do usuário, que não saem da camada de dados. */
-export type UsuarioInterno = Omit<Usuario, "emailConfirmado"> & {
-  senhaHash: string;
+export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
+  /** `null` para quem só entra com o Google. */
+  senhaHash: string | null;
+  /** Identificador da conta Google (`sub`), nunca muda mesmo se o e-mail mudar. */
+  googleId: string | null;
   emailConfirmadoEm: string | null;
 };
 
@@ -41,17 +50,17 @@ export type Fotografo = {
   redesSociais: RedesSociais;
 };
 
-export type FrequenciaRepasse = "diaria" | "semanal" | "mensal";
-
 /** Dados privados do fotógrafo: só o próprio fotógrafo e a equipe veem. */
 export type FotografoConta = Fotografo & {
   usuarioId: string;
   cpfCnpj: string;
-  contaRecebimentoId: string | null;
+  /**
+   * Chave Pix confirmada para saque: o próprio CPF/CNPJ, só dígitos. Volta a `null` se o
+   * CPF/CNPJ mudar, para o saque nunca ir para uma chave antiga.
+   */
+  chavePix: string | null;
+  /** Comissão da plataforma, descontada no saque. */
   comissaoPct: number;
-  frequenciaRepasse: FrequenciaRepasse;
-  /** Dia da semana (1–7) ou do mês (1–31), conforme a frequência. */
-  diaRepasse: number | null;
 };
 
 export type Categoria = {
@@ -143,6 +152,15 @@ export type Colaborador = {
 
 // ---------------------------------------------------------------- Busca
 
+/**
+ * Rosto encontrado numa foto pelo reconhecimento facial (tabela `rostos`). `rostoId` é o id
+ * do rosto no provedor; a mesma pessoa aparece com o mesmo id só nos dados de exemplo.
+ */
+export type RostoEncontrado = {
+  fotoId: string;
+  rostoId: string;
+};
+
 /** Número de peito encontrado numa foto pelo reconhecimento. */
 export type NumeroEncontrado = {
   fotoId: string;
@@ -216,14 +234,27 @@ export type Pedido = {
   criadoEm: string;
 };
 
+/** Cobrança Pix gerada no Mercado Pago, mostrada na página do pedido enquanto ele está pendente. */
+export type CobrancaPix = {
+  copiaECola: string;
+  /** Imagem PNG do QR Code em base64, como o Mercado Pago devolve. */
+  qrCodeBase64: string;
+};
+
 /** Dados privados do pedido: acesso do convidado e ligação com o gateway. */
 export type PedidoInterno = Pedido & {
   tokenAcessoHash: string | null;
   acessoExpiraEm: string | null;
+  /** Id da order no Mercado Pago (`ORD…`). */
   gatewayId: string | null;
+  pix: CobrancaPix | null;
   lembreteEnviadoEm: string | null;
 };
 
+/**
+ * Item vendido. O preço é dividido só entre o autor e o dono do evento; a comissão da
+ * plataforma não sai aqui, e sim no saque (docs/arquitetura.md, "Saque do fotógrafo").
+ */
 export type ItemPedido = {
   id: string;
   pedidoId: string;
@@ -234,7 +265,6 @@ export type ItemPedido = {
   descontoCentavos: number;
   valorFotografoCentavos: number;
   valorDonoEventoCentavos: number;
-  valorPlataformaCentavos: number;
   viaPacote: boolean;
 };
 
@@ -247,21 +277,37 @@ export type Download = {
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
+/** A parte de um fotógrafo num item vendido, ainda sem a comissão (que sai no saque). */
 export type Lancamento = {
   id: string;
   fotografoId: string;
   itemPedidoId: string;
-  /** Negativo em estorno. */
+  /** Valor bruto; negativo em estorno. */
   valorCentavos: number;
+  /** A partir daqui entra no saque normal (30 dias depois da venda). */
   disponivelEm: string;
-  repasseId: string | null;
+  /** A partir daqui pode entrar no saque antecipado (1 dia depois da venda). */
+  antecipavelEm: string;
+  saqueId: string | null;
 };
 
-export type Repasse = {
+export type StatusSaque = "processando" | "pago" | "falhou";
+
+/** Saque pedido pelo fotógrafo, enviado por Pix da conta da plataforma. */
+export type Saque = {
   id: string;
   fotografoId: string;
-  valorCentavos: number;
-  status: "previsto" | "pago" | "falhou";
+  antecipado: boolean;
+  brutoCentavos: number;
+  /** Comissão (10%) mais a antecipação (1%) sobre o que ainda não tinha 30 dias. */
+  taxaCentavos: number;
+  liquidoCentavos: number;
+  /** CPF ou CNPJ do fotógrafo, só dígitos: o saque só vai para a chave Pix dele mesmo. */
+  chavePix: string;
+  /** Id do payout no Mercado Pago. */
+  gatewayId: string | null;
+  status: StatusSaque;
+  criadoEm: string;
   pagoEm: string | null;
 };
 

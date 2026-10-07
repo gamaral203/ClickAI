@@ -1,7 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -70,56 +68,28 @@ export async function salvarPerfilAcao(
   }
 
   const { instagram, site, cpfCnpj, ...resto } = dados.data;
+  const novoDocumento = cpfCnpj ?? "";
   await atualizarContaDoFotografo(usuario.id, {
     ...resto,
     redesSociais: { ...(instagram && { instagram }), ...(site && { site }) },
-    cpfCnpj: cpfCnpj ?? "",
+    cpfCnpj: novoDocumento,
+    // CPF/CNPJ mudou: a chave Pix confirmada era o documento antigo e precisa ser confirmada
+    // de novo, para o saque nunca ir para uma chave que não é mais do fotógrafo.
+    ...(somenteDigitos(conta.cpfCnpj) !== novoDocumento && { chavePix: null }),
   });
   revalidatePath("/painel", "layout");
   return { ok: true };
 }
 
 /**
- * Conta de recebimento simulada. Na Fase 13 vira o cadastro da subconta no gateway (com os
- * dados bancários coletados pelo próprio gateway, nunca por nós).
+ * Confirma a chave Pix de saque: é sempre o próprio CPF/CNPJ do cadastro, nunca uma chave
+ * digitada. Assim, mesmo quem invadir a conta não consegue mandar o saque para outra pessoa
+ * (docs/riscos.md). O Mercado Pago recusa o Pix se a chave não existir.
  */
-export async function conectarContaRecebimentoAcao() {
+export async function confirmarChavePixAcao() {
   const { usuario, conta } = await exigirFotografo("/painel/perfil");
-  if (!conta.cpfCnpj) return;
-  await atualizarContaDoFotografo(usuario.id, { contaRecebimentoId: `simulada-${randomUUID()}` });
+  const documento = somenteDigitos(conta.cpfCnpj);
+  if (!cpfOuCnpjValido(documento)) return;
+  await atualizarContaDoFotografo(usuario.id, { chavePix: documento });
   revalidatePath("/painel", "layout");
-}
-
-const repasse = z
-  .object({
-    frequenciaRepasse: z.enum(["diaria", "semanal", "mensal"], "Escolha a frequência."),
-    diaSemana: z.coerce.number().int().min(1).max(5).optional(),
-    diaMes: z.coerce.number().int().min(1).max(28).optional(),
-  })
-  .transform((d) => ({
-    frequenciaRepasse: d.frequenciaRepasse,
-    diaRepasse:
-      d.frequenciaRepasse === "semanal"
-        ? (d.diaSemana ?? 5)
-        : d.frequenciaRepasse === "mensal"
-          ? (d.diaMes ?? 1)
-          : null,
-  }));
-
-export type EstadoRepasse = { ok?: boolean; erro?: string };
-
-/**
- * Frequência do repasse: diário, semanal (dia útil 1–5, segunda a sexta) ou mensal (dia
- * 1–28, para existir em todo mês). O repasse automático roda na Fase 13.
- */
-export async function salvarRepasseAcao(
-  _anterior: EstadoRepasse,
-  formulario: FormData,
-): Promise<EstadoRepasse> {
-  const { usuario } = await exigirFotografo("/painel/perfil");
-  const dados = repasse.safeParse(Object.fromEntries(formulario));
-  if (!dados.success) return { erro: "Escolha a frequência e o dia do repasse." };
-  await atualizarContaDoFotografo(usuario.id, dados.data);
-  revalidatePath("/painel", "layout");
-  return { ok: true };
 }

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { BotaoGoogle, ERROS_GOOGLE } from "@/components/conta/botao-google";
 import { FormularioEntrar } from "@/components/conta/formularios";
+import { googleConfigurado } from "@/lib/google";
 import { caminhoSeguro } from "@/lib/redirecionamento";
 
 export const metadata: Metadata = { title: "Entrar", robots: { index: false } };
@@ -14,15 +16,38 @@ export default function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
         <Formulario searchParams={searchParams} />
       </Suspense>
       <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-        Ambiente de exemplo: entre com <strong>ana@exemplo.com</strong> (cliente) ou{" "}
-        <strong>lia@exemplo.com</strong> (fotógrafa), senha <strong>clicouai123</strong>.
+        Ambiente de exemplo: entre com <strong>ana@exemplo.com</strong> (cliente),{" "}
+        <strong>lia@exemplo.com</strong> (fotógrafa) ou <strong>admin@exemplo.com</strong> (gestão),
+        senha <strong>clicouai123</strong>.
       </p>
     </div>
   );
 }
 
 async function Formulario({ searchParams }: Pick<PageProps<"/entrar">, "searchParams">) {
-  const { proximo } = await searchParams;
+  const { proximo, erro } = await searchParams;
   const valor = Array.isArray(proximo) ? proximo[0] : proximo;
-  return <FormularioEntrar proximo={valor ? caminhoSeguro(valor) : undefined} />;
+  const destino = valor ? caminhoSeguro(valor) : undefined;
+  const mensagem = typeof erro === "string" ? ERROS_GOOGLE[erro] : undefined;
+
+  return (
+    <div className="flex flex-col gap-6">
+      {mensagem && (
+        <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-destructive">
+          {mensagem}
+        </p>
+      )}
+      {googleConfigurado() && (
+        <>
+          <BotaoGoogle proximo={destino} />
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            ou com e-mail e senha
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
+      <FormularioEntrar proximo={destino} />
+    </div>
+  );
 }

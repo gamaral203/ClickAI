@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowRight, CreditCard, Images, Search } from "lucide-react";
 
+import { CartaoEvento } from "@/components/galeria/cartao-evento";
 import { CarrosselInicio, type Slide } from "@/components/site/carrossel-inicio";
 import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { listarEventosPublicados } from "@/dados";
+
+/** Quantos eventos aparecem na página inicial; o resto fica em /eventos. */
+const EVENTOS_NA_INICIAL = 9;
 
 // Fotos de vitrine da página inicial (public/inicio/), já reduzidas e sem metadados.
 const slides: Slide[] = [
@@ -11,6 +18,12 @@ const slides: Slide[] = [
     alt: "Corredor sorridente de óculos escuros e camiseta amarela, com o número de peito 10, numa corrida de rua",
     rotulo: "Corridas",
     vertical: true,
+    computador: {
+      src: "/inicio/cavaleiros-familia.webp",
+      alt: "Pai com o filho pequeno no colo e mulher de chapéu branco montados a cavalo num evento ao ar livre",
+      rotulo: "Eventos e cavalgadas",
+      foco: "60% 35%",
+    },
   },
   {
     src: "/inicio/cavalgada.webp",
@@ -23,6 +36,12 @@ const slides: Slide[] = [
     alt: "Retrato em estúdio de uma mulher de cabelo longo e camisa branca, com a mão no queixo",
     rotulo: "Ensaios e retratos",
     vertical: true,
+    computador: {
+      src: "/inicio/ensaio-casal.webp",
+      alt: "Casal sorridente vestido de branco num ensaio ao ar livre, com montanhas e céu azul ao fundo",
+      rotulo: "Ensaios e retratos",
+      foco: "50% 30%",
+    },
   },
 ];
 
@@ -59,12 +78,40 @@ export default function Home() {
             Fotógrafos publicam as fotos de corridas, festas, formaturas e esportes. Você encontra
             as suas, paga e baixa o original.
           </p>
-          <Link href="/eventos" className={buttonVariants({ size: "touch" })}>
+          <Link href="#eventos" className={buttonVariants({ size: "touch" })}>
             Encontrar meu evento
             <ArrowRight aria-hidden="true" data-icon="inline-end" />
           </Link>
         </div>
       </CarrosselInicio>
+
+      <section id="eventos" aria-labelledby="titulo-eventos" className="scroll-mt-20">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <h2 id="titulo-eventos" className="text-2xl font-bold tracking-tight">
+              Eventos recentes
+            </h2>
+            <form action="/eventos" role="search" className="flex gap-2 sm:w-96">
+              <Input
+                name="busca"
+                type="search"
+                maxLength={100}
+                aria-label="Buscar evento por nome, cidade ou fotógrafo"
+                placeholder="Buscar evento, cidade ou fotógrafo"
+                className="h-11"
+              />
+              <button type="submit" className={buttonVariants({ size: "touch" })}>
+                <Search aria-hidden="true" />
+                <span className="sr-only">Buscar</span>
+              </button>
+            </form>
+          </div>
+          {/* A lista lê a hora (liberação agendada): sai na requisição, o resto vem do build. */}
+          <Suspense fallback={<EsqueletoEventos />}>
+            <EventosRecentes />
+          </Suspense>
+        </div>
+      </section>
 
       <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
         <div className="mx-auto max-w-6xl px-4 py-16">
@@ -88,5 +135,50 @@ export default function Home() {
         </div>
       </section>
     </>
+  );
+}
+
+async function EventosRecentes() {
+  const eventos = await listarEventosPublicados();
+  if (eventos.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
+        Nenhum evento publicado ainda. Volte em breve!
+      </p>
+    );
+  }
+  return (
+    <>
+      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {eventos.slice(0, EVENTOS_NA_INICIAL).map((evento) => (
+          <li key={evento.id} className="flex">
+            <CartaoEvento evento={evento} />
+          </li>
+        ))}
+      </ul>
+      {eventos.length > EVENTOS_NA_INICIAL && (
+        <Link
+          href="/eventos"
+          className={buttonVariants({
+            variant: "outline",
+            size: "touch",
+            className: "self-center",
+          })}
+        >
+          Ver todos os {eventos.length} eventos
+          <ArrowRight aria-hidden="true" data-icon="inline-end" />
+        </Link>
+      )}
+    </>
+  );
+}
+
+function EsqueletoEventos() {
+  return (
+    <div aria-hidden="true" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="aspect-[3/4] animate-pulse rounded-xl bg-muted" />
+      ))}
+    </div>
   );
 }

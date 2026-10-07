@@ -22,8 +22,8 @@ async function Conteudo() {
     { feito: usuario.emailConfirmado, texto: "Confirmar o e-mail", href: "/minhas-compras" },
     { feito: Boolean(conta.cpfCnpj), texto: "Informar CPF ou CNPJ", href: "/painel/perfil" },
     {
-      feito: Boolean(conta.contaRecebimentoId),
-      texto: "Conectar a conta de recebimento",
+      feito: Boolean(conta.chavePix),
+      texto: "Confirmar a chave Pix para saque",
       href: "/painel/perfil",
     },
   ];

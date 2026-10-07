@@ -15,6 +15,8 @@ import {
   eventos,
   fotografos,
   fotos,
+  numeros,
+  rostos,
   urlOriginalDeExemplo,
 } from "./exemplo/banco";
 import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
@@ -67,7 +69,7 @@ function diaEmBrasilia(iso: string) {
 }
 
 function perfilPublico(conta: FotografoConta): Fotografo {
-  // Nunca devolver a conta inteira: CPF/CNPJ e conta de recebimento não saem daqui.
+  // Nunca devolver a conta inteira: CPF/CNPJ e chave Pix não saem daqui.
   return {
     id: conta.id,
     nomePublico: conta.nomePublico,
@@ -248,6 +250,53 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
   };
 }
 
+// ---------------------------------------------------------------- Busca
+
+/**
+ * Evento publicado onde a busca vale: galeria aberta ou "só após a busca". Aguardando
+ * liberação ou com senha não abrem nem pela busca.
+ */
+async function eventoBuscavel(eventoId: string) {
+  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
+  if (!evento) return null;
+  const situacao = situacaoGaleria(evento, await agora()).tipo;
+  return situacao === "aberta" || situacao === "so_apos_busca" ? evento : null;
+}
+
+/** Itens visíveis do evento entre os ids encontrados pela busca, na ordem da galeria. */
+export async function fotosEncontradas(eventoId: string, fotoIds: string[]): Promise<Foto[]> {
+  const evento = await eventoBuscavel(eventoId);
+  if (!evento) return [];
+  const alvo = new Set(fotoIds);
+  return structuredClone(itensVisiveisDoEvento(evento).filter((f) => alvo.has(f.id)));
+}
+
+/** O evento tem números de peito reconhecidos? (Mostra a busca por número.) */
+export async function eventoTemNumeros(eventoId: string): Promise<boolean> {
+  const doEvento = new Set(fotos.filter((f) => f.eventoId === eventoId).map((f) => f.id));
+  return numeros.some((n) => doEvento.has(n.fotoId));
+}
+
+/** Itens do evento em que o número de peito foi reconhecido. */
+export async function fotosPorNumero(eventoId: string, numero: string): Promise<Foto[]> {
+  const ids = numeros.filter((n) => n.numero === numero).map((n) => n.fotoId);
+  return fotosEncontradas(eventoId, ids);
+}
+
+/**
+ * Rostos de exemplo do evento agrupados por pessoa, para a busca facial simulada. Com o
+ * provedor real, a busca vai direto à coleção do evento no provedor.
+ */
+export async function rostosDeExemploDoEvento(eventoId: string): Promise<string[][]> {
+  const doEvento = new Set(fotos.filter((f) => f.eventoId === eventoId).map((f) => f.id));
+  const porPessoa = new Map<string, string[]>();
+  for (const r of rostos) {
+    if (!doEvento.has(r.fotoId)) continue;
+    porPessoa.set(r.rostoId, [...(porPessoa.get(r.rostoId) ?? []), r.fotoId]);
+  }
+  return [...porPessoa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, ids]) => ids);
+}
+
 export type ItemParaCompra = {
   foto: Foto;
   evento: Evento;
@@ -274,13 +323,15 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
 
 // ---------------------------------------------------------------- Pedidos
 
-/** Quem recebe por um item: o autor da foto, o dono do evento e a comissão da plataforma. */
+/**
+ * Quem recebe por um item: o autor da foto e o dono do evento. A comissão da plataforma não
+ * entra aqui: ela sai no saque de cada um.
+ */
 export type RegraDeDivisao = {
   fotoId: string;
   autorId: string;
   donoEventoId: string;
-  comissaoPlataformaPct: number;
-  /** Parte do dono sobre o restante, quando o autor é colaborador; 0 quando o autor é o dono. */
+  /** Parte do dono sobre o preço, quando o autor é colaborador; 0 quando o autor é o dono. */
   comissaoDonoPct: number;
 };
 
@@ -299,7 +350,6 @@ export async function buscarRegrasDeDivisao(fotoIds: string[]): Promise<RegraDeD
         fotoId,
         autorId: foto.enviadaPor,
         donoEventoId: dono.id,
-        comissaoPlataformaPct: dono.comissaoPct,
         comissaoDonoPct: colaborador?.comissaoDonoPct ?? 0,
       },
     ];
@@ -333,6 +383,24 @@ export async function mudarStatusPedido(
   const pedido = pedidos.get(id);
   if (!pedido || pedido.status !== de) return false;
   pedidos.set(id, { ...pedido, ...extra, status: para });
+  return true;
+}
+
+/**
+ * Liga o pedido pendente à order criada no Mercado Pago, só se a order atual ainda for a
+ * `anterior` (como um `UPDATE … WHERE gateway_id IS NOT DISTINCT FROM $anterior`). Na primeira
+ * cobrança `anterior` é `null`; numa nova tentativa de cartão, é a order recusada. Devolve se
+ * gravou; `false` quer dizer que outra requisição chegou antes.
+ */
+export async function ligarPedidoAoGateway(
+  id: string,
+  anterior: string | null,
+  gatewayId: string,
+  pix: PedidoInterno["pix"],
+): Promise<boolean> {
+  const pedido = pedidos.get(id);
+  if (!pedido || pedido.status !== "pendente" || pedido.gatewayId !== anterior) return false;
+  pedidos.set(id, { ...pedido, gatewayId, pix: structuredClone(pix) });
   return true;
 }
 
@@ -421,6 +489,7 @@ function usuarioPublico(u: UsuarioInterno): Usuario {
     telefone: u.telefone,
     papel: u.papel,
     emailConfirmado: u.emailConfirmadoEm !== null,
+    temGoogle: u.googleId !== null,
     criadoEm: u.criadoEm,
   };
 }
@@ -448,9 +517,13 @@ export async function emailEmUso(email: string) {
 export async function criarUsuario(dados: {
   nome: string;
   email: string;
-  senhaHash: string;
+  senhaHash: string | null;
   papel: Papel;
+  googleId?: string;
+  /** O Google já confirmou o e-mail; no cadastro com senha, o link de confirmação confirma. */
+  emailConfirmado?: boolean;
 }): Promise<Usuario> {
+  const agora = new Date().toISOString();
   const usuario: UsuarioInterno = {
     id: crypto.randomUUID(),
     nome: dados.nome,
@@ -458,11 +531,44 @@ export async function criarUsuario(dados: {
     telefone: null,
     papel: dados.papel,
     senhaHash: dados.senhaHash,
-    emailConfirmadoEm: null,
-    criadoEm: new Date().toISOString(),
+    googleId: dados.googleId ?? null,
+    emailConfirmadoEm: dados.emailConfirmado ? agora : null,
+    criadoEm: agora,
   };
   usuarios.set(usuario.id, usuario);
   return usuarioPublico(usuario);
+}
+
+/** Usuário ligado a esta conta Google, ou `null`. */
+export async function buscarUsuarioPorGoogle(googleId: string): Promise<Usuario | null> {
+  for (const u of usuarios.values()) if (u.googleId === googleId) return usuarioPublico(u);
+  return null;
+}
+
+/**
+ * Liga a conta Google a um usuário que já existia com o mesmo e-mail, e marca o e-mail como
+ * confirmado (o Google confirmou). Só se o usuário ainda não tiver outra conta Google.
+ */
+export async function ligarContaGoogle(usuarioId: string, googleId: string): Promise<boolean> {
+  const u = usuarios.get(usuarioId);
+  if (!u || (u.googleId !== null && u.googleId !== googleId)) return false;
+  if (u.emailConfirmadoEm === null) {
+    // Conta criada com senha e nunca confirmada: pode ter sido criada por outra pessoa com este
+    // e-mail, esperando a dona dele entrar com o Google. A senha e as sessões abertas caem.
+    u.senhaHash = null;
+    for (const [hash, sessao] of sessoes) if (sessao.usuarioId === usuarioId) sessoes.delete(hash);
+  }
+  u.googleId = googleId;
+  u.emailConfirmadoEm ??= new Date().toISOString();
+  return true;
+}
+
+/** Muda o papel de um usuário (painel de gestão). */
+export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Promise<boolean> {
+  const u = usuarios.get(usuarioId);
+  if (!u) return false;
+  u.papel = papel;
+  return true;
 }
 
 export async function salvarSessao(tokenHash: string, usuarioId: string, expiraEm: number) {
@@ -556,27 +662,15 @@ export async function criarContaDeFotografo(dados: {
     capa: null,
     redesSociais: {},
     cpfCnpj: "",
-    contaRecebimentoId: null,
+    chavePix: null,
     comissaoPct: 10,
-    frequenciaRepasse: "semanal",
-    diaRepasse: 5,
   };
   fotografos.push(conta);
   return structuredClone(conta);
 }
 
 export type AlteracoesPerfil = Partial<
-  Pick<
-    FotografoConta,
-    | "nomePublico"
-    | "slug"
-    | "bio"
-    | "redesSociais"
-    | "cpfCnpj"
-    | "contaRecebimentoId"
-    | "frequenciaRepasse"
-    | "diaRepasse"
-  >
+  Pick<FotografoConta, "nomePublico" | "slug" | "bio" | "redesSociais" | "cpfCnpj" | "chavePix">
 >;
 
 /** Atualiza só a conta ligada a este usuário: nunca por um id vindo do navegador. */
@@ -587,3 +681,4 @@ export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: A
   return structuredClone(conta);
 }
 export * from "./painel";
+export * from "./admin";

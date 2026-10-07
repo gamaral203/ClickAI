@@ -25,7 +25,7 @@ Arquivos:
 | Seção da skill | No ClicouAí |
 |---|---|
 | Secrets e `.gitignore` | Vale direto. Chaves do R2, do gateway, do banco e do Resend só em variáveis de ambiente da Vercel. |
-| Preços e pagamento | Vale direto (já é regra do projeto). Onde a skill fala de Stripe, leia Asaas ou Mercado Pago: preço vem do banco, webhook com assinatura validada. |
+| Preços e pagamento | Vale direto (já é regra do projeto). Onde a skill fala de Stripe, leia Mercado Pago: preço vem do banco, webhook com assinatura validada. |
 | Tokens de auth | O Better Auth já usa cookie `HttpOnly`. Não guardar token em `localStorage`. |
 | Upload | Vale direto: tipo real por magic bytes no job, limite de tamanho, reprocessar com Sharp, nome do arquivo é o UUID da foto. |
 | Supabase / RLS | O banco só é acessado pelo servidor via Drizzle, sem chave pública no navegador, então RLS não é obrigatório. Se o Supabase for escolhido, nunca expor a `service_role` e nunca usar o cliente do Supabase no navegador para dados. |

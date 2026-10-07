@@ -4,7 +4,7 @@ Oct 6, 2026 · @gabriel
 
 ## Visão geral
 
-Um marketplace onde fotógrafos sobem fotos e vídeos de eventos e clientes encontram e compram os seus, pela selfie, pelo número de peito ou navegando na galeria. A plataforma fica com uma comissão por venda e repassa o restante ao fotógrafo.
+Um marketplace onde fotógrafos sobem fotos e vídeos de eventos e clientes encontram e compram os seus, pela selfie, pelo número de peito ou navegando na galeria. O cliente paga na conta da plataforma; o fotógrafo saca pelo painel, e a comissão da plataforma sai no saque.
 
 A referência de produto é a Fotto, resumida em [referencias/fotto.md](referencias/fotto.md). Ela orienta as decisões, mas não as fecha sozinha.
 
@@ -27,7 +27,7 @@ A referência de produto é a Fotto, resumida em [referencias/fotto.md](referenc
 - Fotógrafos colaboradores no mesmo evento, com divisão da venda
 - Loja própria do fotógrafo, com nome, logo, cores e domínio
 - Denúncia de evento ou foto, com moderação pela equipe
-- Painel do fotógrafo com vendas, saldo disponível, saldo a receber e repasse automático
+- Painel do fotógrafo com vendas, saldo e saque por Pix (normal em 30 dias ou antecipado em 1 dia)
 
 **Fora do MVP:** app mobile, plugin do Lightroom, upload em tempo real, desfoque contra print, marca d'água personalizada, planos pagos para fotógrafos e os demais itens listados em [referencias/fotto.md](referencias/fotto.md#o-que-adotamos-no-mvp).
 
@@ -44,10 +44,10 @@ TypeScript de ponta a ponta, com Next.js no front e no back, PostgreSQL para os 
 | Arquivos | Cloudflare R2 | Compatível com S3 e sem custo de transferência de saída |
 | Processamento de imagem | Sharp | Gera miniaturas e prévias com marca d'água |
 | Processamento de vídeo | FFmpeg num worker separado | Prévia com marca d'água, capa e quadros para o reconhecimento; não cabe nas funções da Vercel |
-| Reconhecimento facial e numérico | Provedor a decidir | Indexa rostos e números das fotos e compara com a selfie |
+| Reconhecimento facial e numérico | Amazon Rekognition (facial); provedor de OCR a decidir (números) | Indexa rostos das fotos numa coleção por evento e compara com a selfie, sem guardá-la |
 | Fila de tarefas | Inngest | Processa uploads e roda os jobs agendados sem manter servidor de fila |
-| Autenticação | Better Auth | Open source, guarda os usuários no seu próprio Postgres |
-| Pagamento | Mercado Pago ou Asaas | Pix, cartão e split para repasse ao fotógrafo |
+| Autenticação | Login com Google (OAuth 2.0 com PKCE) e e-mail e senha, sessão própria; Better Auth avaliado na Fase 11 | Usuários e sessões no nosso banco; papéis cliente, fotógrafo, atendente e gestor |
+| Pagamento | Mercado Pago (Checkout Transparente via Orders + Payouts) | Pix e cartão dentro do site; saque do fotógrafo por Pix pela API |
 | Interface | Tailwind CSS + shadcn/ui | Componentes prontos e fáceis de customizar |
 | E-mail | Resend | Confirmação de compra, links de download e carrinho abandonado |
 | WhatsApp | API oficial do WhatsApp (Cloud API ou parceiro) | Entrega automática do link de download |
@@ -70,7 +70,7 @@ flowchart TB
     I["Inngest<br/>fila e jobs agendados"]
     W["Worker de vídeo<br/>FFmpeg"]
     RF["Provedor de reconhecimento<br/>facial e numérico"]
-    G["Gateway<br/>Mercado Pago ou Asaas<br/>Pix e cartão"]
+    G["Mercado Pago<br/>Pix, cartão e saque (Payouts)"]
     M["Resend e WhatsApp<br/>entrega e avisos"]
 
     F --> N
@@ -131,8 +131,8 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, admin), criado_em | — |
-| `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, capa, redes_sociais, cpf_cnpj, conta_recebimento_id, comissao_pct, frequencia_repasse (diaria, semanal, mensal), dia_repasse | usuarios (1:1) |
+| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, atendente, admin), senha_hash (opcional: quem só usa Google não tem), google_id (opcional, único), email_confirmado_em, criado_em | — |
+| `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, capa, redes_sociais, cpf_cnpj, chave_pix (o próprio CPF/CNPJ, confirmado), comissao_pct | usuarios (1:1) |
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada), liberado_em, filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
 | `pastas` | id, evento_id, nome, ordem | eventos (N:1) |
@@ -152,8 +152,8 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `pedidos` | id, cliente_id (opcional), email_comprador, nome_comprador, whatsapp (opcional), aceita_whatsapp, token_acesso_hash, acesso_expira_em, cupom_id (opcional), subtotal_centavos, desconto_centavos, total_centavos, metodo (pix, cartao), status (pendente, pago, expirado, cancelado, estornado), expira_em, gateway_id, pago_em, lembrete_enviado_em | usuarios (N:1, opcional), cupons |
-| `itens_pedido` | id, pedido_id, foto_id, fotografo_id (quem recebe), preco_centavos, desconto_centavos, valor_fotografo_centavos, valor_dono_evento_centavos, valor_plataforma_centavos, via_pacote | pedidos, fotos, fotografos |
+| `pedidos` | id, cliente_id (opcional), email_comprador, nome_comprador, whatsapp (opcional), aceita_whatsapp, token_acesso_hash, acesso_expira_em, cupom_id (opcional), subtotal_centavos, desconto_centavos, total_centavos, metodo (pix, cartao), status (pendente, pago, expirado, cancelado, estornado), expira_em, gateway_id, pix_copia_e_cola, pix_qr_code_base64, pago_em, lembrete_enviado_em | usuarios (N:1, opcional), cupons |
+| `itens_pedido` | id, pedido_id, foto_id, fotografo_id (quem recebe), preco_centavos, desconto_centavos, valor_fotografo_centavos, valor_dono_evento_centavos, via_pacote | pedidos, fotos, fotografos |
 | `cupons` | id, fotografo_id, codigo, tipo (percentual, valor, fotos_gratis), valor, usos_max (opcional), usos, inicio_em, expira_em (opcional), minimo_tipo (nenhum, valor, quantidade), minimo_valor, todos_eventos, ativo | fotografos (N:1) |
 | `cupons_eventos` | cupom_id, evento_id | cupons, eventos |
 | `faixas_desconto` | id, fotografo_id, evento_id (vazio = padrão para todos os eventos), quantidade_min, desconto_pct | fotografos, eventos |
@@ -164,8 +164,8 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `lancamentos` | id, fotografo_id, item_pedido_id, valor_centavos (negativo em estorno), disponivel_em, repasse_id (opcional) | fotografos, itens_pedido, repasses |
-| `repasses` | id, fotografo_id, valor_centavos, status (previsto, pago, falhou), pago_em | fotografos (N:1) |
+| `lancamentos` | id, fotografo_id, item_pedido_id, valor_centavos (bruto; negativo em estorno), disponivel_em (venda + 30 dias), antecipavel_em (venda + 1 dia), saque_id (opcional) | fotografos, itens_pedido, saques |
+| `saques` | id, fotografo_id, antecipado, bruto_centavos, taxa_centavos, liquido_centavos, chave_pix, gateway_id (payout), status (processando, pago, falhou), criado_em, pago_em | fotografos (N:1) |
 
 **Loja e moderação**
 
@@ -176,8 +176,8 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 | `anexos_denuncia` | id, denuncia_id, chave | denuncias (N:1) |
 
 - `itens_pedido` grava o preço, o desconto e a divisão no momento da compra; se o fotógrafo mudar o preço depois, o histórico não muda.
-- `pedidos.gateway_id` liga o pedido ao pagamento no Mercado Pago ou Asaas e é a chave usada pelo webhook.
-- `lancamentos` é o extrato do fotógrafo. Saldo disponível é a soma dos lançamentos com `disponivel_em` já passado e sem repasse; saldo a receber é o resto. Pix fica disponível na hora, cartão 30 dias depois (padrão da referência; o prazo real depende do gateway).
+- `pedidos.gateway_id` liga o pedido à order no Mercado Pago (`ORD…`); a order leva o id do pedido em `external_reference`.
+- `lancamentos` é o extrato do fotógrafo, em valor bruto: a comissão não sai na venda, e sim no saque. Disponível = sem saque e com `disponivel_em` passado; antecipável = com `antecipavel_em` passado e `disponivel_em` ainda não; o resto ainda não pode ser sacado. O prazo é o mesmo para Pix e cartão.
 - **Exclusão lógica de fotos:** quando o fotógrafo apaga uma foto ou vídeo, o sistema preenche `fotos.excluida_em` em vez de apagar a linha. O item some da galeria (todas as consultas públicas filtram `excluida_em IS NULL`), mas quem já comprou continua baixando. O original só é apagado do R2 se o item não tiver nenhuma venda paga.
 - **Índices iniciais:**
   - `fotos(evento_id, ordem)` e `fotos(evento_id, capturada_em)`
@@ -189,11 +189,12 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
   - `itens_pedido(foto_id)`
   - `cupons(fotografo_id, codigo)` — único
   - `lojas(subdominio)` e `lojas(dominio_proprio)` — únicos
-  - `lancamentos(fotografo_id, disponivel_em)`
+  - `lancamentos(fotografo_id, saque_id)`
+  - `saques(fotografo_id, status)`
 
 ## Fluxos principais
 
-O pagamento só é considerado confirmado pelo webhook do gateway, nunca pelo retorno do navegador.
+O pagamento só é considerado confirmado quando o servidor lê a order na API do Mercado Pago e confere a referência e o valor, nunca pelo retorno do navegador.
 
 **Upload (fotógrafo ou colaborador)**
 
@@ -228,14 +229,41 @@ O pagamento só é considerado confirmado pelo webhook do gateway, nunca pelo re
    - Pacote, se ativo e escolhido: substitui o preço das fotos do evento e não se combina com cupom nem com desconto progressivo.
    - Desconto progressivo, por evento, só sobre as fotos.
    - Cupom, sobre o resultado. No tipo "fotos grátis", isenta as fotos de menor preço.
-4. O servidor cria o `pedido` como `pendente` e a cobrança no gateway, com o split já calculado. O Pix expira em 1 hora, no gateway e em `pedidos.expira_em`.
-5. O gateway chama o webhook ao confirmar o pagamento.
-6. O webhook valida a assinatura, busca o pedido por `gateway_id`, marca o pedido como `pago` numa única transação (só se ainda estiver `pendente`), soma o uso do cupom e cria os `lancamentos` de cada fotógrafo.
-7. Um job envia o e-mail com o link de downloads e, se o cliente aceitou, a mensagem de WhatsApp com o mesmo link.
+4. O servidor cria o `pedido` como `pendente`. No Pix, já cria a order no Mercado Pago (`POST /v1/orders`, chave de idempotência pelo id do pedido) e guarda o QR Code no pedido; o Pix expira em 1 hora, no Mercado Pago e em `pedidos.expira_em`.
+5. No cartão, a página do pedido mostra o Card Payment Brick do Mercado Pago: os campos do cartão são iframes deles, e o navegador só entrega ao servidor um token de uso único. O servidor cria a order à vista (1 parcela) com o total do pedido; se for recusada, o cliente tenta outro cartão no mesmo pedido.
+6. O Mercado Pago chama o webhook (`/api/webhooks/mercadopago`, evento "Order"). O webhook valida a assinatura (`x-signature`, HMAC-SHA256), lê a order na API (o corpo da notificação não vale), confere `external_reference` e `total_amount` com o pedido, marca como `pago` numa única transação (só se ainda estiver `pendente`), soma o uso do cupom e cria os `lancamentos` de cada fotógrafo.
+7. A página do pedido se atualiza a cada 5 segundos enquanto espera e confere a order na API do Mercado Pago (no máximo uma consulta a cada 5 segundos por pedido). Isso cobre o webhook que atrasou ou nunca chegou, e o ambiente local, onde o Mercado Pago não alcança o webhook.
+8. Um job envia o e-mail com o link de downloads e, se o cliente aceitou, a mensagem de WhatsApp com o mesmo link.
+
+**Login e papéis**
+
+| Papel | O que faz | Onde |
+|---|---|---|
+| Cliente | Compra e baixa | Minhas compras |
+| Fotógrafo (vendedor) | Cria eventos, envia e publica fotos, acompanha vendas e saca | `/painel` |
+| Atendente | Vê vendas, saques e usuários para dar suporte, sem mudar nada | `/admin` |
+| Gestor (admin) | Tudo do atendente, mais mudar o papel de qualquer usuário | `/admin` |
+
+1. O login pode ser com o Google ou com e-mail e senha. O Google usa o fluxo de código com PKCE e `state` num cookie de 10 minutos; o servidor troca o código e lê o perfil direto no Google, e só aceita e-mail verificado. O endereço de volta vem de `APP_URL`, nunca do cabeçalho Host.
+2. O usuário é procurado pela conta Google (`usuarios.google_id`, o `sub` do Google); se não existir, pelo e-mail, e as contas são ligadas. Se a conta com aquele e-mail nunca confirmou o e-mail, a senha e as sessões dela caem ao ligar: alguém pode ter criado a conta com o e-mail de outra pessoa.
+3. Conta nova pelo Google nasce como cliente, ou como fotógrafo pelo botão "Vender fotos com Google". E-mails em `ADMIN_EMAILS` entram como gestores. As compras feitas como convidado com o mesmo e-mail são ligadas à conta.
+4. Cada página e ação confere o papel no servidor (`exigirFotografo`, `exigirEquipe`); o menu só esconde links. Ninguém muda o próprio papel.
+
+**Painel de gestão (`/admin`)**
+
+Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da plataforma em taxas, o que ainda é devido aos fotógrafos e uma linha por vendedor), todas as vendas, o histórico de todos os saques (com a chave Pix mascarada) e os usuários com o papel de cada um.
+
+**Busca por selfie**
+
+1. Na página do evento, a pessoa aceita o aviso de uso da selfie e tira ou escolhe uma foto. O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados.
+2. `POST /api/busca-facial` confere o consentimento, o tipo real da imagem (JPEG, PNG ou WebP, até 5 MB) e o limite de 10 buscas por IP a cada 10 minutos.
+3. Com o Amazon Rekognition, a selfie vai para `SearchFacesByImage` na coleção do evento (`{prefixo}-{evento_id}`), com semelhança mínima de 95%. O Rekognition não guarda a imagem da busca. Sem credenciais da AWS, os rostos dos dados de exemplo simulam o resultado.
+4. A selfie fica só na memória da requisição, é zerada no fim e nunca vai para log, banco ou R2. Volta a lista de fotos do evento em que a pessoa aparece, com a mesma regra de visibilidade da galeria (evento com senha ou aguardando liberação não abre).
+5. A indexação (`IndexFaces`, com o id da foto como `ExternalImageId`) roda no job de processamento quando o upload real existir (Fase 12).
 
 **Divisão da venda com colaboradores**
 
-Para cada item vendido: a plataforma fica com a comissão; do restante, se o item foi enviado por um colaborador, o dono do evento fica com `comissao_dono_pct` e o colaborador com o resto. A soma das partes tem que dar exatamente o preço do item; os centavos de arredondamento ficam com o autor da foto.
+Para cada item vendido: se o item foi enviado por um colaborador, o dono do evento fica com `comissao_dono_pct` do preço e o colaborador com o resto; se foi o próprio dono, ele fica com tudo. A comissão da plataforma não sai aqui: cada um paga a sua no saque. A soma das partes tem que dar exatamente o preço do item; os centavos de arredondamento ficam com o autor da foto.
 
 **Carrinho abandonado**
 
@@ -261,10 +289,21 @@ O arquivo nunca é copiado para a conta de ninguém: o original fica uma vez só
 - Ao criar conta com o mesmo e-mail, os pedidos de convidado são vinculados automaticamente ao novo `cliente_id`, com o e-mail confirmado antes.
 - Depois do download, a página do convidado oferece criar conta para guardar as fotos.
 
-**Repasse ao fotógrafo**
+**Saque do fotógrafo**
 
-1. Com split no gateway, a parte do fotógrafo cai direto na conta dele, no prazo do gateway; `lancamentos` e `repasses` servem de extrato.
-2. Sem split, um job diário soma os lançamentos disponíveis e gera os repasses de quem tem transferência naquele dia (diária, semanal ou mensal), só em dia útil.
+Todo pagamento cai na conta Mercado Pago da plataforma. O fotógrafo saca pelo painel (Vendas e saques), e o dinheiro sai por Pix da conta da plataforma para a chave dele, pela API Payouts (`POST /v1/payouts`), já com a taxa descontada.
+
+| Saque | O que entra | Taxa | Exemplo: R$ 100 em vendas |
+|---|---|---|---|
+| Normal | Vendas com 30 dias ou mais | Comissão: 10% | Recebe R$ 90 |
+| Antecipado | Vendas com 1 dia ou mais | 10% sobre as de 30 dias ou mais; 11% (10% + 1% de antecipação) sobre as demais | Recebe R$ 89 |
+
+1. A chave Pix é sempre o CPF/CNPJ do cadastro, confirmado pelo fotógrafo no perfil; não aceitamos chave digitada. Se o CPF/CNPJ mudar, a chave volta a precisar de confirmação. Assim, quem invadir uma conta não consegue mandar o saque para outra pessoa.
+2. O servidor calcula o saque a partir dos lançamentos; o valor nunca vem do navegador. As taxas são arredondadas para baixo (o centavo fica com o fotógrafo). Mínimo de R$ 1,00 líquido, o mínimo do Mercado Pago.
+3. Numa única transação, o saque é criado como `processando` e os lançamentos ficam presos a ele (`saque_id`); dois cliques ao mesmo tempo não sacam o mesmo valor. Um saque por vez.
+4. O payout vai com o id do saque como chave de idempotência. Recusa clara (4xx) marca o saque como `falhou` e devolve os lançamentos ao saldo. Timeout, erro de rede ou 5xx deixam em `processando`, porque o Pix pode ter saído: a próxima conferência reenvia com a mesma chave e descobre o resultado, sem pagar duas vezes.
+5. A página de vendas confere no Mercado Pago (`GET /v1/payouts/{id}`) os saques em processamento.
+6. Em produção, o Payouts exige o header `X-signature`, gerado com as chaves da integração. A documentação pública não descreve o algoritmo; até confirmarmos com o Mercado Pago, o saque só funciona com credenciais de teste.
 
 **Loja própria**
 
@@ -290,7 +329,9 @@ O original é o ativo que se vende, então a regra central é: nenhum original f
 - **Loja própria:** sem HTML ou script do fotógrafo; cookies de sessão presos ao domínio principal.
 - **LGPD:** banco na região São Paulo, política de privacidade publicada com o encarregado (DPO), opção de excluir conta, coleta mínima de dados (CPF/CNPJ só do fotógrafo, telefone só com consentimento para o WhatsApp). Fotos com pessoas são dado pessoal: o canal de denúncia também recebe pedidos de remoção.
 - **Backups:** backup diário automático do Postgres com recuperação para um ponto no tempo (incluso nos planos pagos do Supabase e do Neon); originais no R2 com uma cópia em outro provedor (ex.: Backblaze B2) quando o volume justificar.
-- **Cartão:** os dados do cartão nunca passam pelo seu servidor; o checkout do gateway cuida disso.
+- **Cartão:** os dados do cartão nunca passam pelo nosso servidor; o Card Payment Brick do Mercado Pago coleta e devolve só um token de uso único.
+- **Saque:** só para a chave Pix do próprio CPF/CNPJ do fotógrafo; valor calculado no servidor; idempotente pelo id do saque.
+- **Credenciais:** `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` só no servidor; só a Public Key vai ao navegador. Lista em `.env.example`.
 
 ## Estrutura de pastas
 
@@ -309,7 +350,7 @@ src/
       upload/               # gera URLs assinadas de upload
       busca-facial/         # recebe a selfie e consulta o provedor
       download/[itemId]/    # gera URL assinada do original
-      webhooks/pagamento/   # confirmação do gateway
+      webhooks/mercadopago/ # notificações de order do Mercado Pago
       inngest/              # endpoint dos jobs
   dados/                    # camada de dados usada pelas telas
     tipos.ts                #   tipos do domínio
@@ -317,16 +358,16 @@ src/
   db/
     schema.ts               # tabelas do Drizzle
     migrations/
-  servicos/                 # regras de negócio: pedidos, descontos, fotos, busca, repasses, lojas, denúncias
+  servicos/                 # regras de negócio: pedidos, pagamentos, saques, descontos, fotos, busca, lojas, denúncias
   jobs/                     # processar-foto, processar-video, liberar-evento, expirar-pedidos,
-                            # carrinho-abandonado, enviar-whatsapp, repasse
-  lib/                      # clientes do R2, gateway, reconhecimento, auth, e-mail, WhatsApp
+                            # carrinho-abandonado, enviar-whatsapp
+  lib/                      # clientes do R2, Mercado Pago, reconhecimento, auth, e-mail, WhatsApp
   components/               # UI (shadcn/ui)
 ```
 
 ## Riscos e erros possíveis
 
-Os 30 riscos mapeados, com como evitar e prioridade, estão em documento próprio: [Riscos e Erros Possíveis — Plataforma de Venda de Fotos](riscos.md).
+Os 35 riscos mapeados, com como evitar e prioridade, estão em documento próprio: [Riscos e Erros Possíveis — Plataforma de Venda de Fotos](riscos.md).
 
 ## Decisões em aberto e próximos passos
 
@@ -340,15 +381,16 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 - [x] Só JPEG; RAW fora do escopo
 - [x] Cupons, desconto progressivo, pacote, liberação agendada, pastas, filtro por horário, visibilidade com senha, colaboradores, loja própria, WhatsApp, carrinho abandonado e denúncia no MVP
 
+- [x] Gateway: Mercado Pago, com pagamento dentro do site (Checkout Transparente via Orders). Sem split: tudo cai na conta da plataforma e o fotógrafo saca pelo painel (07/10/2026)
+- [x] Comissão: 10% fixos, descontados no saque; saque antecipado (1 dia em vez de 30) com 1% a mais (07/10/2026)
+
 **Decisões em aberto**
 
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (Fotto: só eventos reais, banco de imagens proibido)
-- [ ] Gateway: Mercado Pago ou Asaas? Com split automático ou repasse pela plataforma? (Fotto: repasse automático diário, semanal ou mensal; Pix no dia útil seguinte, cartão após 30 dias)
-- [ ] Comissão da plataforma: percentual fixo ou por plano do fotógrafo? (Fotto: 10% fixos, sem mensalidade)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
 - [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
 - [ ] Banco gerenciado: Supabase ou Neon?
-- [ ] Provedor de reconhecimento facial e numérico: serviço pronto (ex.: AWS Rekognition) ou modelo próprio num worker? Pesa custo por foto, precisão e transferência internacional de dado biométrico.
+- [ ] Reconhecimento: confirmar a região do Amazon Rekognition (transferência internacional de dado biométrico, LGPD) e escolher o provedor de OCR para os números de peito.
 - [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?
 - [ ] Onde roda o worker de vídeo: Fly.io ou Railway?
 

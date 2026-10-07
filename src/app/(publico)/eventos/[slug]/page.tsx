@@ -4,10 +4,12 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowLeft, Calendar, Camera, Clock, Images, Lock, MapPin, ScanFace } from "lucide-react";
 
+import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { contarItens } from "@/components/galeria/cartao-evento";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
 import {
   buscarEventoPublicado,
+  eventoTemNumeros,
   listarFotosDoEvento,
   listarSlugsPublicados,
   type EventoResumo,
@@ -132,19 +134,30 @@ async function Galeria({ evento }: { evento: EventoResumo }) {
       </AvisoGaleria>
     );
   }
+  const busca = (
+    <BuscaNoEvento
+      slug={evento.slug}
+      tituloEvento={evento.titulo}
+      temNumeros={await eventoTemNumeros(evento.id)}
+    />
+  );
   if (situacao.tipo === "so_apos_busca") {
-    // A busca por selfie e por número de peito entra na Fase 7.
     return (
-      <AvisoGaleria icone={ScanFace} titulo="Encontre suas fotos pela busca">
-        Neste evento, as fotos aparecem só depois da busca por selfie ou número de peito. A busca
-        chega em breve.
-      </AvisoGaleria>
+      <>
+        {busca}
+        <AvisoGaleria icone={ScanFace} titulo="As fotos aparecem só pela busca">
+          Para proteger quem foi fotografado, neste evento cada pessoa vê só as próprias fotos. Use
+          a selfie ou o número de peito acima.
+        </AvisoGaleria>
+      </>
     );
   }
 
   const primeiraPagina = await listarFotosDoEvento(evento.id, { limite: FOTOS_POR_PAGINA });
   return (
     <>
+      {busca}
+      <h2 className="text-lg font-semibold">Todas as fotos</h2>
       <p className="-mt-4 text-sm text-muted-foreground">
         Toque numa foto para ver maior e comprar.
       </p>

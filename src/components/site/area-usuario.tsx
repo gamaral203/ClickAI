@@ -29,6 +29,11 @@ export async function AreaUsuario() {
           Painel
         </Link>
       )}
+      {(usuario.papel === "admin" || usuario.papel === "atendente") && (
+        <Link href="/admin" className={estiloLink}>
+          Gestão
+        </Link>
+      )}
       <Link href="/minhas-compras" className={estiloLink}>
         <UserRound aria-hidden="true" className="size-5" />
         <span className="hidden sm:inline">{primeiroNome}</span>

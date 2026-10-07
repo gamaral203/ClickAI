@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import { mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { iniciarCobrancaPix } from "@/servicos/pagamentos";
 import { criarPedido } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
 
@@ -65,6 +67,13 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
           ? "Seu carrinho está vazio."
           : "Algum item do carrinho não está mais à venda. Volte ao carrinho e confira.",
     };
+  }
+  // Pix: o QR Code já é gerado aqui. Se o Mercado Pago falhar, o pedido existe do mesmo jeito
+  // e a página dele oferece gerar de novo.
+  if (comprador.metodo === "pix" && mercadoPagoConfigurado()) {
+    await iniciarCobrancaPix(resultado.pedidoId).catch((erro) =>
+      console.error("Falha ao gerar o Pix no checkout", erro),
+    );
   }
   // O token vai só no link; quem tem o link acessa o pedido (como o link do e-mail).
   return { ok: true, url: `/pedidos/${resultado.pedidoId}?token=${resultado.token}` };

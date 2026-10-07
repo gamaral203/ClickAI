@@ -9,7 +9,7 @@ Ler antes de implementar qualquer parte do sistema:
 - [arquitetura.md](arquitetura.md) — stack, armazenamento no R2, modelo de dados, fluxos (upload, busca, galeria, compra, descontos, download, repasse, loja, denúncia), segurança/LGPD, estrutura de pastas e decisões em aberto.
 - [referencias/fotto.md](referencias/fotto.md) — como funciona a Fotto, nossa referência de produto. Consultar ao desenhar um fluxo ou tela; ela orienta, mas quem decide é a arquitetura. Nunca copiar textos, telas ou visual da Fotto.
 - [marca/marca.md](marca/marca.md) — logo, cores (`#2362FE` azul, `#BCFA34` limão) e regras de contraste. Usar ao criar qualquer tela.
-- [riscos.md](riscos.md) — 30 riscos com como evitar e prioridade. Os 8 de prioridade alta precisam estar resolvidos antes do lançamento.
+- [riscos.md](riscos.md) — 35 riscos com como evitar e prioridade. Os 10 de prioridade alta precisam estar resolvidos antes do lançamento.
 - [skills.md](skills.md) — skills do projeto (em `.claude/skills/`) e como cada uma se aplica à nossa stack. Ao gerar ou revisar código de rotas, upload, auth, checkout ou deploy, aplicar a `vibe-code-security`; ao criar telas, a `ui-ux-pro-max` (a marca vence as paletas sugeridas por ela); ao animar, a `motion-framer` (usando o pacote `motion`).
 
 Se uma decisão de código mudar algo descrito nesses documentos, atualize o documento junto.
@@ -21,7 +21,8 @@ Se uma decisão de código mudar algo descrito nesses documentos, atualize o doc
 ## Regras que não podem ser quebradas
 
 - Nenhum original fica acessível sem um pedido pago. Bucket de originais é privado; download só por URL assinada de ~15 min, depois de conferir que o item pertence a um pedido pago do próprio cliente.
-- Pagamento só é confirmado pelo webhook do gateway (assinatura validada, idempotente por `pedidos.gateway_id` único), nunca pelo retorno do navegador.
+- Pagamento só é confirmado depois que o servidor lê a order na API do Mercado Pago e confere a referência e o valor (pelo webhook com assinatura validada ou pela conferência do servidor), de forma idempotente por `pedidos.gateway_id` único; nunca pelo retorno do navegador nem pelo corpo do webhook.
+- Saque só vai para a chave Pix do próprio CPF/CNPJ do fotógrafo, com valor calculado no servidor e idempotência pelo id do saque. Saque sem resposta fica em `processando`; nunca devolver o saldo sem ter certeza de que o Pix não saiu.
 - O servidor recalcula o total do pedido a partir do banco; preço vindo do navegador é ignorado.
 - Upload vai direto do navegador ao R2 por URL assinada; arquivos nunca passam pelo Next.js.
 - A selfie da busca facial nunca é gravada: nem no banco, nem no R2, nem em logs. Só vai ao provedor de reconhecimento, durante a busca.
@@ -56,7 +57,7 @@ Todo commit segue o padrão [Conventional Commits](https://www.conventionalcommi
 Regras:
 
 - Descrição em português, no presente, em minúsculas, sem ponto final, com até ~72 caracteres: `feat(upload): adiciona geração de URL assinada para o R2`.
-- Escopo é a área afetada, de preferência uma destas: `upload`, `video`, `busca`, `galeria`, `checkout`, `descontos`, `webhook`, `download`, `whatsapp`, `repasse`, `loja`, `denuncia`, `auth`, `db`, `jobs`, `ui`.
+- Escopo é a área afetada, de preferência uma destas: `upload`, `video`, `busca`, `galeria`, `checkout`, `descontos`, `webhook`, `download`, `whatsapp`, `repasse`, `loja`, `denuncia`, `auth`, `admin`, `db`, `jobs`, `ui`.
 - Um commit por mudança lógica; não misturar `feat` com `refactor` ou formatação no mesmo commit.
 - Mudança que quebra compatibilidade (schema, API, URL pública) leva `!` depois do tipo e um rodapé `BREAKING CHANGE: <o que muda>`.
 - Use o corpo para explicar o porquê quando não for óbvio, principalmente em mudanças ligadas aos riscos de [riscos.md](riscos.md).
@@ -74,4 +75,4 @@ BREAKING CHANGE: exige rodar a migração 0004 antes do deploy
 
 ## Stack
 
-Next.js (App Router) + TypeScript, PostgreSQL (Supabase ou Neon) com Drizzle, Cloudflare R2, Sharp, FFmpeg (worker de vídeo), provedor de reconhecimento facial e numérico (a decidir), Inngest, Better Auth, Mercado Pago ou Asaas, Tailwind + shadcn/ui, Resend, API oficial do WhatsApp.
+Next.js (App Router) + TypeScript, PostgreSQL (Supabase ou Neon) com Drizzle, Cloudflare R2, Sharp, FFmpeg (worker de vídeo), provedor de reconhecimento facial e numérico (a decidir), Inngest, Better Auth, Mercado Pago (Orders e Payouts), Tailwind + shadcn/ui, Resend, API oficial do WhatsApp.

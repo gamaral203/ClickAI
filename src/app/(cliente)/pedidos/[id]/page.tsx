@@ -7,10 +7,13 @@ import { CheckCircle2, Clock, Copy, Download, XCircle } from "lucide-react";
 import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
+import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
+import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/pagamento/pix";
 import { buttonVariants } from "@/components/ui/button";
 import { contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { buscarPedidoComAcesso } from "@/servicos/pedidos";
+import { mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { buscarPedidoAtualizado } from "@/servicos/pagamentos";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -42,7 +45,8 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   if (!dados.success) notFound();
 
   const usuario = await usuarioAtual();
-  const encontrado = await buscarPedidoComAcesso(dados.data.id, {
+  // Com o Mercado Pago, confere a order lá antes de mostrar (cobre o webhook atrasado).
+  const encontrado = await buscarPedidoAtualizado(dados.data.id, {
     token: dados.data.token,
     clienteId: usuario?.id,
   });
@@ -51,6 +55,8 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   const { pedido, itens } = encontrado;
   const detalhes = await detalharItensDoPedido(itens);
   const baixados = await contarDownloads(itens.map((i) => i.id));
+  const gateway = mercadoPagoConfigurado();
+  const chavePublica = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
 
   return (
     <>
@@ -63,26 +69,51 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
           <p className="text-muted-foreground">
             {pedido.metodo === "pix"
               ? `Pague com o Pix abaixo até ${formatarDataEHora(pedido.expiraEm)}. As fotos são liberadas assim que o pagamento for confirmado.`
-              : "Conclua o pagamento com cartão. As fotos são liberadas assim que o pagamento for confirmado."}
+              : "Preencha os dados do cartão abaixo. O pagamento é à vista, e as fotos são liberadas assim que ele for confirmado."}
           </p>
-          {pedido.metodo === "pix" && (
-            <div className="flex flex-col gap-2 rounded-lg bg-muted p-4">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <Copy aria-hidden="true" className="size-4" />
-                Pix copia e cola (exemplo)
-              </p>
-              <code className="text-xs break-all text-muted-foreground">
-                00020126580014BR.GOV.BCB.PIX-EXEMPLO-{pedido.id}
-              </code>
-            </div>
+          {gateway ? (
+            <>
+              <AtualizadorDePagamento />
+              {pedido.metodo === "pix" &&
+                (pedido.pix ? (
+                  <QrCodePix
+                    copiaECola={pedido.pix.copiaECola}
+                    qrCodeBase64={pedido.pix.qrCodeBase64}
+                  />
+                ) : (
+                  <BotaoGerarPix pedidoId={pedido.id} token={dados.data.token} />
+                ))}
+              {pedido.metodo === "cartao" && (
+                <CartaoMercadoPago
+                  pedidoId={pedido.id}
+                  token={dados.data.token}
+                  totalCentavos={pedido.totalCentavos}
+                  chavePublica={chavePublica}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {pedido.metodo === "pix" && (
+                <div className="flex flex-col gap-2 rounded-lg bg-muted p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    <Copy aria-hidden="true" className="size-4" />
+                    Pix copia e cola (exemplo)
+                  </p>
+                  <code className="text-xs break-all text-muted-foreground">
+                    00020126580014BR.GOV.BCB.PIX-EXEMPLO-{pedido.id}
+                  </code>
+                </div>
+              )}
+              <div className="rounded-lg border border-dashed border-highlight-foreground/30 bg-highlight/20 p-4">
+                <p className="mb-3 text-sm">
+                  <strong>Ambiente de exemplo:</strong> sem credenciais do Mercado Pago. Use o botão
+                  para simular a confirmação, como o webhook fará.
+                </p>
+                <BotaoSimularPagamento pedidoId={pedido.id} token={dados.data.token} />
+              </div>
+            </>
           )}
-          <div className="rounded-lg border border-dashed border-highlight-foreground/30 bg-highlight/20 p-4">
-            <p className="mb-3 text-sm">
-              <strong>Ambiente de exemplo:</strong> ainda não há gateway de pagamento. Use o botão
-              para simular a confirmação, como o gateway fará.
-            </p>
-            <BotaoSimularPagamento pedidoId={pedido.id} token={dados.data.token} />
-          </div>
         </section>
       )}
 

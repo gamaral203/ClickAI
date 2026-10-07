@@ -18,6 +18,7 @@ import type {
   FotografoConta,
   Loja,
   NumeroEncontrado,
+  RostoEncontrado,
   Pacote,
   Pasta,
 } from "../tipos";
@@ -40,10 +41,8 @@ export const fotografos: FotografoConta[] = [
     capa: null,
     redesSociais: { instagram: "liaramos.foto" },
     cpfCnpj: "00.000.000/0001-00",
-    contaRecebimentoId: "conta-exemplo-1",
+    chavePix: "00000000000100",
     comissaoPct: 10,
-    frequenciaRepasse: "semanal",
-    diaRepasse: 5,
   },
   {
     id: uuid("f1a7c0de", 2),
@@ -55,10 +54,8 @@ export const fotografos: FotografoConta[] = [
     capa: null,
     redesSociais: { site: "https://exemplo.com.br" },
     cpfCnpj: "000.000.000-00",
-    contaRecebimentoId: "conta-exemplo-2",
+    chavePix: "00000000000",
     comissaoPct: 10,
-    frequenciaRepasse: "mensal",
-    diaRepasse: 10,
   },
   {
     id: uuid("f1a7c0de", 3),
@@ -70,11 +67,9 @@ export const fotografos: FotografoConta[] = [
     capa: null,
     redesSociais: {},
     cpfCnpj: "00.000.000/0002-00",
-    // Sem conta de recebimento: não pode publicar evento novo (docs/riscos.md).
-    contaRecebimentoId: null,
+    // Sem chave Pix confirmada: não pode publicar evento novo nem sacar (docs/riscos.md).
+    chavePix: null,
     comissaoPct: 10,
-    frequenciaRepasse: "diaria",
-    diaRepasse: null,
   },
 ];
 
@@ -412,6 +407,30 @@ function gerarNumeros(): NumeroEncontrado[] {
 }
 
 export const numeros: NumeroEncontrado[] = gerarNumeros();
+
+/**
+ * Rostos de exemplo (tabela `rostos`). As fotos de exemplo não têm participantes de verdade,
+ * então cada foto ganha uma ou duas "pessoas" de uma lista de 12 por evento; uma em cada nove
+ * fica sem rosto. A busca simulada sorteia uma pessoa a partir da selfie e devolve as fotos
+ * dela, como o provedor real faria.
+ */
+function gerarRostos(): RostoEncontrado[] {
+  const resultado: RostoEncontrado[] = [];
+  for (const evento of eventos) {
+    fotos
+      .filter((f) => f.eventoId === evento.id)
+      .forEach((foto, n) => {
+        if (n % 9 === 8) return;
+        resultado.push({ fotoId: foto.id, rostoId: `${evento.id}:pessoa-${(n * 5) % 12}` });
+        if (n % 4 === 0) {
+          resultado.push({ fotoId: foto.id, rostoId: `${evento.id}:pessoa-${(n * 7 + 3) % 12}` });
+        }
+      });
+  }
+  return resultado;
+}
+
+export const rostos: RostoEncontrado[] = gerarRostos();
 
 // ---------------------------------------------------------------- Descontos
 

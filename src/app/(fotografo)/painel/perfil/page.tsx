@@ -3,12 +3,11 @@ import { Suspense } from "react";
 import { CheckCircle2, Landmark } from "lucide-react";
 
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
-import { FormularioRepasse } from "@/components/painel/formulario-repasse";
 import { Button } from "@/components/ui/button";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { exigirFotografo } from "@/servicos/sessao";
 
-import { conectarContaRecebimentoAcao } from "./acoes";
+import { confirmarChavePixAcao } from "./acoes";
 
 export const metadata: Metadata = {
   title: "Perfil e recebimento",
@@ -45,36 +44,31 @@ async function Conteudo() {
       <section className="flex flex-col gap-3 rounded-xl border p-5">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Landmark aria-hidden="true" className="size-5" />
-          Conta de recebimento
+          Chave Pix para saque
         </h2>
-        {conta.contaRecebimentoId ? (
+        <p className="text-sm text-muted-foreground">
+          As vendas caem na conta do ClicouAí, e você saca pelo painel em Vendas e saques. O saque
+          vai por Pix para a chave do seu CPF ou CNPJ; por segurança, não aceitamos outra chave. Sem
+          chave confirmada, não dá para publicar eventos.
+        </p>
+        {conta.chavePix ? (
           <p className="flex items-center gap-2 text-primary">
             <CheckCircle2 aria-hidden="true" className="size-5" />
-            Conta conectada. Sua parte das vendas cai direto nela.
+            Chave confirmada: {formatarCpfCnpj(conta.chavePix)}
           </p>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              É para onde vai sua parte de cada venda. Os dados bancários são preenchidos no
-              processador de pagamento, nunca no ClicouAí. Sem conta conectada, não dá para publicar
-              eventos.
+        ) : conta.cpfCnpj ? (
+          <form action={confirmarChavePixAcao} className="flex flex-col gap-2">
+            <p className="text-sm">
+              Confira se o CPF/CNPJ <strong>{formatarCpfCnpj(conta.cpfCnpj)}</strong> é uma chave
+              Pix cadastrada no seu banco.
             </p>
-            {conta.cpfCnpj ? (
-              <form action={conectarContaRecebimentoAcao}>
-                <Button type="submit" size="touch">
-                  Conectar conta de recebimento (simulado)
-                </Button>
-              </form>
-            ) : (
-              <p className="text-sm font-medium">Informe e salve o CPF ou CNPJ acima primeiro.</p>
-            )}
-          </>
+            <Button type="submit" size="touch" className="w-fit">
+              Usar meu CPF/CNPJ como chave Pix
+            </Button>
+          </form>
+        ) : (
+          <p className="text-sm font-medium">Informe e salve o CPF ou CNPJ acima primeiro.</p>
         )}
-      </section>
-
-      <section className="flex flex-col gap-3 rounded-xl border p-5">
-        <h2 className="text-lg font-semibold">Frequência do repasse</h2>
-        <FormularioRepasse frequencia={conta.frequenciaRepasse} dia={conta.diaRepasse} />
       </section>
     </>
   );
