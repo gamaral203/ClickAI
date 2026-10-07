@@ -98,8 +98,7 @@ export function FormularioLoja({
           />
         </Campo>
         <p className="text-sm text-muted-foreground">
-          O logo da loja entra junto com o envio de imagens (o mesmo da foto de perfil). Domínio
-          próprio, como fotos.seusite.com.br, vem depois.
+          O logo da loja entra junto com o envio de imagens (o mesmo da foto de perfil).
         </p>
       </fieldset>
 

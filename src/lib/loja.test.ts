@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { contraste, corDoTexto, idGaSeguro, idGtmSeguro, subdominioValido } from "./loja";
+import {
+  contraste,
+  corDoTexto,
+  dominioProprioValido,
+  idGaSeguro,
+  idGtmSeguro,
+  normalizarDominio,
+  subdominioValido,
+} from "./loja";
 
 describe("IDs do Google", () => {
   it("aceita só o formato do ID", () => {
@@ -37,5 +45,28 @@ describe("cores", () => {
     expect(corDoTexto("#2362FE")).toBe("#ffffff");
     expect(corDoTexto("#BCFA34")).toBe("#111111");
     expect(contraste("#ffffff", "#000000")).toBeCloseTo(21, 0);
+  });
+});
+
+describe("domínio próprio", () => {
+  it("normaliza o que o fotógrafo cola", () => {
+    expect(normalizarDominio(" https://Fotos.SeuSite.com.br/eventos ")).toBe(
+      "fotos.seusite.com.br",
+    );
+  });
+  it.each(["fotos.liaramos.com.br", "liaramos.com.br", "estudio.photo"])("aceita %s", (d) => {
+    expect(dominioProprioValido(d, "clicouai.com.br")).toBe(true);
+  });
+  it.each([
+    "clicouai.com.br",
+    "lia.clicouai.com.br",
+    "meu-projeto.vercel.app",
+    "lia.localhost",
+    "localhost",
+    "192.168.0.1",
+    "-lia.com.br",
+    "lia_ramos.com.br",
+  ])("recusa %s", (d) => {
+    expect(dominioProprioValido(d, "www.clicouai.com.br")).toBe(false);
   });
 });

@@ -32,6 +32,8 @@ const RESERVADOS = new Set([
   "pagamentos",
   "checkout",
   "clicouai",
+  // /loja/dominio/<host> é a rota das lojas em domínio próprio.
+  "dominio",
 ]);
 
 export function subdominioValido(subdominio: string) {
@@ -66,4 +68,32 @@ export function contraste(a: string, b: string) {
 /** Texto legível sobre a cor: branco ou quase preto, o que tiver mais contraste. */
 export function corDoTexto(fundo: string) {
   return contraste(fundo, "#ffffff") >= contraste(fundo, "#111111") ? "#ffffff" : "#111111";
+}
+
+/** Nome de domínio: rótulos de letras, números e hífen separados por ponto, até 253 caracteres. */
+const FORMATO_DOMINIO = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+/**
+ * O domínio próprio pode ser usado pela loja? Não vale o domínio da plataforma nem subdomínio
+ * dele (esses são as lojas por subdomínio), nem endereços da Vercel ou locais.
+ */
+export function dominioProprioValido(dominio: string, hostDoSite: string) {
+  const base = hostDoSite.replace(/^www\./, "");
+  return (
+    FORMATO_DOMINIO.test(dominio) &&
+    dominio !== base &&
+    !dominio.endsWith(`.${base}`) &&
+    !dominio.endsWith(".vercel.app") &&
+    !dominio.endsWith(".localhost")
+  );
+}
+
+/** "https://Fotos.SeuSite.com.br/" → "fotos.seusite.com.br". */
+export function normalizarDominio(texto: string) {
+  return texto
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.$/, "");
 }

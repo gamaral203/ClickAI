@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { DominioProprio } from "@/components/painel/dominio-proprio";
 import { FormularioLoja } from "@/components/painel/formulario-loja";
 import { buscarLojaDoFotografo } from "@/dados";
 import { enderecoDaLoja, enderecoDoSite } from "@/lib/endereco";
@@ -32,20 +33,35 @@ async function Conteudo() {
   const base = new URL(enderecoDoSite());
 
   return (
-    <FormularioLoja
-      enderecoBase={{ protocolo: base.protocol, host: base.host.replace(/^www\./, "") }}
-      enderecoAtual={loja?.ativa ? enderecoDaLoja(loja.subdominio) : null}
-      loja={{
-        nome: loja?.nome ?? conta.nomePublico,
-        descricao: loja?.descricao ?? "",
-        subdominio: loja?.subdominio ?? gerarSlug(conta.nomePublico).slice(0, 32),
-        // Sem loja ainda: começa com as cores da plataforma.
-        corPrimaria: loja?.corPrimaria ?? "#2362FE",
-        corSecundaria: loja?.corSecundaria ?? "#BCFA34",
-        gaId: loja?.gaId ?? "",
-        gtmId: loja?.gtmId ?? "",
-        ativa: loja?.ativa ?? true,
-      }}
-    />
+    <>
+      <FormularioLoja
+        enderecoBase={{ protocolo: base.protocol, host: base.host.replace(/^www\./, "") }}
+        enderecoAtual={loja?.ativa ? enderecoDaLoja(loja.subdominio) : null}
+        loja={{
+          nome: loja?.nome ?? conta.nomePublico,
+          descricao: loja?.descricao ?? "",
+          subdominio: loja?.subdominio ?? gerarSlug(conta.nomePublico).slice(0, 32),
+          // Sem loja ainda: começa com as cores da plataforma.
+          corPrimaria: loja?.corPrimaria ?? "#2362FE",
+          corSecundaria: loja?.corSecundaria ?? "#BCFA34",
+          gaId: loja?.gaId ?? "",
+          gtmId: loja?.gtmId ?? "",
+          ativa: loja?.ativa ?? true,
+        }}
+      />
+      <section className="flex flex-col gap-4 border-t pt-8">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold">Domínio próprio (opcional)</h2>
+          <p className="text-sm text-muted-foreground">
+            Use um endereço seu, como fotos.seusite.com.br, além do endereço do ClicouAí.
+          </p>
+        </div>
+        <DominioProprio
+          dominio={loja?.dominioProprio ?? null}
+          verificado={loja?.dominioVerificado ?? false}
+          temLoja={Boolean(loja)}
+        />
+      </section>
+    </>
   );
 }
