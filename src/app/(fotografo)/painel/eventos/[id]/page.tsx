@@ -2,19 +2,29 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
+import { Colaboradores } from "@/components/painel/colaboradores";
+import { EditorFaixas } from "@/components/painel/editor-faixas";
+import { FormularioPacote } from "@/components/painel/formulario-pacote";
 import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
-import { buscarEventoDoFotografo, listarCategorias, listarItensDoPainel } from "@/dados";
+import {
+  buscarEventoDoFotografo,
+  buscarPacoteDoEvento,
+  listarCategorias,
+  listarColaboradores,
+  listarFaixas,
+  listarItensDoPainel,
+} from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarDataEHora } from "@/lib/formatar";
+import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -50,7 +60,17 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   const { criado, publicado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
-  const itens = (await listarItensDoPainel(evento.id, conta.id)) ?? [];
+  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores] = await Promise.all([
+    listarItensDoPainel(evento.id, conta.id),
+    listarFaixas(conta.id, evento.id),
+    listarFaixas(conta.id, null),
+    buscarPacoteDoEvento(evento.id, conta.id),
+    listarColaboradores(evento.id, conta.id),
+  ]);
+  const itens = itensDoPainel ?? [];
+  const regraPadrao = (faixasPadrao ?? [])
+    .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
+    .join(", ");
   const urlPublica = urlDoSite(`/eventos/${evento.slug}`);
   const qrCode = evento.status === "publicado" ? await gerarQrCode(urlPublica) : null;
 
@@ -115,6 +135,89 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         />
       )}
 
+      <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold">Descontos do evento</h2>
+          <ChevronDown
+            aria-hidden="true"
+            className="size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          />
+        </summary>
+        <div className="mt-4 flex flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              Cupons valem para todos os seus eventos e ficam em{" "}
+              <Link href="/painel/descontos" className="font-medium text-primary hover:underline">
+                Descontos e cupons
+              </Link>
+              .
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <h3 className="font-semibold">Desconto progressivo</h3>
+            <EditorFaixas
+              eventoId={evento.id}
+              inicial={(faixasDoEvento ?? []).map((f) => ({
+                quantidadeMin: f.quantidadeMin,
+                descontoPct: f.descontoPct,
+              }))}
+              semFaixas={
+                regraPadrao
+                  ? `Sem faixas próprias: vale a sua regra padrão (${regraPadrao}). Adicione faixas para usar outras só neste evento.`
+                  : "Sem faixas: cada foto sai pelo preço cheio. Adicione faixas ou crie uma regra padrão em Descontos e cupons."
+              }
+            />
+          </div>
+          <div className="flex flex-col gap-3 border-t pt-6">
+            <h3 className="font-semibold">Pacote “todas as minhas fotos”</h3>
+            <FormularioPacote
+              eventoId={evento.id}
+              precoFoto={formatarPreco(evento.precoFotoCentavos)}
+              pacote={
+                pacote && {
+                  ativo: pacote.ativo,
+                  tipoPreco: pacote.tipoPreco,
+                  preco: centavosParaCampo(pacote.precoCentavos),
+                  mostrarAPartirDe:
+                    pacote.mostrarAPartirDe === null ? "" : String(pacote.mostrarAPartirDe),
+                  expiraEm: pacote.expiraEm ? isoParaCampo(pacote.expiraEm) : "",
+                }
+              }
+            />
+          </div>
+        </div>
+      </details>
+
+      <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold">
+            Colaboradores{colaboradores?.length ? ` (${colaboradores.length})` : ""}
+          </h2>
+          <ChevronDown
+            aria-hidden="true"
+            className="size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          />
+        </summary>
+        <div className="mt-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              Outros fotógrafos que cobrem o evento com você. Cada um recebe pelas fotos que enviou,
+              menos a sua comissão.
+            </p>
+          </div>
+          <Colaboradores
+            eventoId={evento.id}
+            colaboradores={(colaboradores ?? []).map((c) => ({
+              id: c.id,
+              nomePublico: c.nomePublico,
+              comissaoDonoPct: c.comissaoDonoPct,
+              nota: c.nota,
+              totalItens: c.totalItens,
+            }))}
+          />
+        </div>
+      </details>
+
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
         <EnvioFotos eventoId={evento.id} />
@@ -125,6 +228,9 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             nomeArquivo: i.nomeArquivo,
             status: i.status,
             vendido: i.vendido,
+            precoCentavos: i.precoCentavos,
+            precoEventoCentavos:
+              i.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos,
           }))}
         />
       </section>

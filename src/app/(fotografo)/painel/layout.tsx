@@ -3,6 +3,8 @@ import Link from "next/link";
 const itens = [
   { href: "/painel", rotulo: "Início" },
   { href: "/painel/eventos", rotulo: "Meus eventos" },
+  { href: "/painel/descontos", rotulo: "Descontos e cupons" },
+  { href: "/painel/colaboracoes", rotulo: "Colaborações" },
   { href: "/painel/vendas", rotulo: "Vendas" },
   { href: "/painel/perfil", rotulo: "Perfil e recebimento" },
 ];

@@ -75,10 +75,14 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Pacote "todas as minhas fotos" oferecido depois da busca, com token assinado das fotos encontradas (`APP_SECRET`) `[R-alta]`
 - [x] Cupom no checkout, com a mensagem do motivo quando não vale; uso somado só no pagamento confirmado, respeitando o limite `[Média]`
 - [x] Correção: a página do pedido lia o relógio antes de esperar a requisição
+- [x] Preço individual opcional por foto ou vídeo, no painel
+- [x] Painel "Descontos e cupons": regra padrão de desconto progressivo e cupons (percentual, valor e fotos grátis, com limite de usos, datas, eventos e mínimo; código único na plataforma)
+- [x] Desconto progressivo próprio e pacote "todas as minhas fotos" na página do evento, no painel
+- [x] Colaboradores: o dono adiciona pelo e-mail da conta de vendedor, com comissão e nota; o colaborador envia fotos em "Colaborações"; não dá para remover quem ainda tem fotos no evento
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam vídeos e pastas
-- [ ] Recursos de venda (Fase 8): faltam as telas do painel e o restante da lista
+- [ ] Recursos de venda (Fase 8): faltam a entrega por WhatsApp, o pedido expirado e o lembrete de carrinho abandonado
 
 ## Decisões de produto em aberto
 
@@ -126,11 +130,6 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 
 ## Fase 8 — Recursos de venda
 
-- [ ] Preço por foto e por vídeo, com preço individual opcional
-- [ ] Painel: desconto progressivo por evento e regra padrão do fotógrafo (o cálculo já está pronto)
-- [ ] Painel: configurar o pacote do evento (a oferta e o cálculo já estão prontos)
-- [ ] Painel: criar e editar cupons (percentual, valor e fotos grátis, com limites de uso, datas, eventos e mínimo; o cálculo e o checkout já estão prontos)
-- [ ] Colaboradores: convidar por e-mail ou usuário, comissão do dono e notas
 - [ ] WhatsApp opcional no checkout, com consentimento (envio simulado até a Fase 13)
 - [ ] Pedido expirado e lembrete de carrinho abandonado (envio simulado até a Fase 13)
 

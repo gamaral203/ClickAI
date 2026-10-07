@@ -898,3 +898,4 @@ export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: A
 }
 export * from "./painel";
 export * from "./admin";
+export * from "./vendas-painel";
