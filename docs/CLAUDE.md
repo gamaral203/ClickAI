@@ -1,4 +1,4 @@
-# ClickAI — Plataforma de Venda de Fotos
+# ClicouAí — Plataforma de Venda de Fotos
 
 Marketplace onde fotógrafos vendem fotos de eventos e clientes compram os originais. Mercado brasileiro (reais, Pix e cartão, dados no Brasil).
 

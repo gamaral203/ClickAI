@@ -1,4 +1,4 @@
-# ClickAI
+# ClicouAí
 
 Marketplace onde fotógrafos vendem fotos de eventos e clientes compram os originais. Pagamento por Pix e cartão, dados hospedados no Brasil.
 
