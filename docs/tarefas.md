@@ -31,10 +31,16 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Prévias servidas sem otimização da Vercel (`next/image` sem otimizador) — custo `[Baixa]`
 - [x] Prévia e miniatura com marca d'água gravada nos pixels, com Sharp (`src/servicos/imagens.ts`); fotos de exemplo geradas com ela (`npm run exemplos:gerar`)
 - [x] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias `[Média]`
+- [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca"
+- [x] Carrinho no navegador, com itens de vários eventos e preços recalculados no servidor a cada vez
+- [x] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
+- [x] Divisão da venda entre plataforma, dono do evento e colaborador, com a sobra de centavos para o autor `[Média]`
+- [x] Pedido criado como `pendente` e confirmação simulada, idempotente como o webhook (troca pelo gateway na Fase 13)
+- [x] Página do pedido acessada pelo link com token, com aguardando pagamento, confirmado e expirado
 
 ## Em andamento
 
-- [ ] Carrinho e checkout com pagamento simulado (Fase 3)
+- [ ] Minhas compras e download (Fase 4)
 
 ## Decisões de produto em aberto
 
@@ -55,7 +61,6 @@ Podem ser fechadas a qualquer momento; as de gateway, banco, reconhecimento, Wha
 ## Fase 1 — Base do app
 
 - [ ] Validação de entrada com Zod em todas as Server Actions e rotas (regra contínua; já aplicada na galeria)
-- [ ] Atualizar os tipos e os dados de exemplo para o modelo novo da arquitetura (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia)
 
 ## Fase 2 — Galeria (cliente)
 
@@ -63,10 +68,7 @@ Concluída (ver **Concluído**).
 
 ## Fase 3 — Carrinho e checkout (pagamento simulado)
 
-- [ ] Carrinho, com itens de vários eventos
-- [ ] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
-- [ ] Pedido criado como `pendente` e confirmação simulada (troca pelo gateway na Fase 13)
-- [ ] Tela de confirmação do pedido
+Concluída (ver **Concluído**).
 
 ## Fase 4 — Minhas compras e download (simulado)
 
@@ -112,7 +114,6 @@ Concluída (ver **Concluído**).
 - [ ] Cupons: percentual, valor e fotos grátis, com limites de uso, datas, eventos e mínimo
 - [ ] Regra de combinação dos descontos no servidor `[Média]`
 - [ ] Colaboradores: convidar por e-mail ou usuário, comissão do dono e notas
-- [ ] Divisão da venda entre plataforma, dono do evento e colaborador `[Média]`
 - [ ] WhatsApp opcional no checkout, com consentimento (envio simulado até a Fase 13)
 - [ ] Pedido expirado e lembrete de carrinho abandonado (envio simulado até a Fase 13)
 
