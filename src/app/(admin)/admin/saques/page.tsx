@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Celula, mascararDocumento, Tabela } from "@/components/admin/tabela";
 import { listarSaquesDoAdmin, type StatusSaque } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Saques", robots: { index: false, follow: false } };
 
@@ -26,7 +26,7 @@ export default function PaginaSaquesGestao() {
 }
 
 async function Conteudo() {
-  await exigirEquipe("/admin/saques");
+  await exigirGestor("/admin/saques");
   const saques = await listarSaquesDoAdmin();
 
   return (

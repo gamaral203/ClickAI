@@ -1,5 +1,5 @@
 // Funções de dados do painel de gestão (/admin). Só a equipe do ClicouAí chama estas funções:
-// a checagem de papel fica em cada página e ação (exigirEquipe), e aqui nada é filtrado por
+// a checagem de papel fica em cada página e ação (exigirGestor), e aqui nada é filtrado por
 // dono, porque a equipe vê tudo.
 
 import "server-only";
@@ -31,7 +31,7 @@ export async function resumoGeral(): Promise<ResumoGeral> {
   const pagos = [...pedidos.values()].filter((p) => p.status === "pago");
   const saquesPagos = saques.filter((s) => s.status === "pago");
   const sacados = new Set(saquesPagos.map((s) => s.id));
-  const porPapel: Record<Papel, number> = { cliente: 0, fotografo: 0, atendente: 0, admin: 0 };
+  const porPapel: Record<Papel, number> = { cliente: 0, fotografo: 0, admin: 0 };
   for (const u of usuarios.values()) porPapel[u.papel]++;
   return {
     entradaCentavos: pagos.reduce((s, p) => s + p.totalCentavos, 0),

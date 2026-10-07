@@ -1,6 +1,6 @@
 // Usuários, sessões e confirmações de e-mail de exemplo (sessão simulada da Parte A).
 // Todos os usuários de exemplo usam a senha "clicouai123". Na Fase 11 o Better Auth assume.
-// Na produção da Vercel, as contas de exemplo da equipe (gestor e atendente) não existem: a
+// Na produção da Vercel, a conta de exemplo da equipe (gestor) não existe: a
 // senha delas é pública (README). A equipe entra pelas contas de GESTORES (./gestores.ts).
 
 import { gerarHashSenha } from "@/lib/senha";
@@ -43,12 +43,7 @@ export const { usuarios, confirmacoes } = compartilhado("usuarios-exemplo", () =
       usuarioDeExemplo(2, "Pedro Kenji", "pedro@exemplo.com", "fotografo"),
       usuarioDeExemplo(3, "Equipe Clique Esportes", "clique@exemplo.com", "fotografo"),
       usuarioDeExemplo(4, "Ana Souza", "ana@exemplo.com", "cliente"),
-      ...(producao
-        ? []
-        : [
-            usuarioDeExemplo(5, "Equipe ClicouAí", "admin@exemplo.com", "admin"),
-            usuarioDeExemplo(6, "Bruno Atendimento", "atendente@exemplo.com", "atendente"),
-          ]),
+      ...(producao ? [] : [usuarioDeExemplo(5, "Equipe ClicouAí", "admin@exemplo.com", "admin")]),
       ...lerGestores(process.env.GESTORES),
     ].map((u) => [u.id, u]),
   ),

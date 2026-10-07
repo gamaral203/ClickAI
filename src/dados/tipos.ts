@@ -6,11 +6,8 @@
 
 // ---------------------------------------------------------------- Núcleo
 
-/**
- * Papéis: cliente compra; fotógrafo (vendedor) publica e vende; atendente vê o painel de
- * gestão para dar suporte, sem mudar nada; admin (gestor) vê tudo e muda papéis.
- */
-export type Papel = "cliente" | "fotografo" | "atendente" | "admin";
+/** Papéis: cliente compra; fotógrafo (vendedor) publica e vende; admin (gestor) vê tudo e muda papéis. */
+export type Papel = "cliente" | "fotografo" | "admin";
 
 /** Usuário como as telas e a sessão enxergam: sem hash de senha. */
 export type Usuario = {
@@ -139,6 +136,43 @@ export type Foto = {
   status: StatusFoto;
   criadoEm: string;
   excluidaEm: string | null;
+};
+
+// ---------------------------------------------------------------- Crescimento
+
+/** Visita ou adição ao carrinho, sem nenhum dado de quem visitou (só o que e quando). */
+export type TipoMetrica = "visita_evento" | "visita_foto" | "carrinho";
+
+export type Metrica = {
+  tipo: TipoMetrica;
+  eventoId: string;
+  fotoId: string | null;
+  em: string;
+};
+
+/** Configuração reaproveitável de evento: o que se repete de um evento para o outro. */
+export type ConfigModelo = Pick<
+  Evento,
+  | "categoriaId"
+  | "local"
+  | "cidade"
+  | "estado"
+  | "precoFotoCentavos"
+  | "precoVideoCentavos"
+  | "visibilidade"
+  | "fotosSoAposBusca"
+  | "liberacao"
+  | "filtroHorario"
+  | "listarNaoIdentificadas"
+  | "ordenacao"
+>;
+
+export type ModeloEvento = {
+  id: string;
+  fotografoId: string;
+  nome: string;
+  config: ConfigModelo;
+  criadoEm: string;
 };
 
 export type Colaborador = {

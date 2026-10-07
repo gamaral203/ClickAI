@@ -12,7 +12,7 @@ import {
 import { Celula, CartaoNumero, Tabela } from "@/components/admin/tabela";
 import { resumoGeral, resumoPorFotografo } from "@/dados";
 import { formatarPreco } from "@/lib/formatar";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Gestão", robots: { index: false, follow: false } };
 
@@ -28,7 +28,7 @@ export default function PaginaGestao() {
 }
 
 async function Conteudo() {
-  await exigirEquipe("/admin");
+  await exigirGestor("/admin");
   const [resumo, porFotografo] = await Promise.all([resumoGeral(), resumoPorFotografo()]);
   const { usuariosPorPapel: papeis } = resumo;
 
@@ -69,7 +69,7 @@ async function Conteudo() {
           icone={<Users aria-hidden="true" className="size-4" />}
           titulo="Usuários"
           valor={String(Object.values(papeis).reduce((s, n) => s + n, 0))}
-          texto={`${papeis.cliente} clientes · ${papeis.atendente} atendentes · ${papeis.admin} gestores`}
+          texto={`${papeis.cliente} clientes · ${papeis.admin} gestores`}
         />
       </div>
 

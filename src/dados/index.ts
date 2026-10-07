@@ -965,3 +965,4 @@ export * from "./painel";
 export * from "./admin";
 export * from "./vendas-painel";
 export * from "./loja-moderacao";
+export * from "./crescimento";

@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, Flag, ShieldCheck } from "lucide-react";
 
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
+import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { buscarFotoPublica } from "@/dados";
@@ -50,6 +51,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
 
   return (
     <div className="flex flex-col gap-6">
+      <RegistrarVisita fotoId={foto.id} />
       <Link
         href={`/eventos/${evento.slug}`}
         className="inline-flex h-11 w-fit items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground"

@@ -11,6 +11,7 @@ import { ContagemRegressiva } from "@/components/galeria/contagem-regressiva";
 import { FiltrosGaleria } from "@/components/galeria/filtros-galeria";
 import { FormularioSenhaEvento } from "@/components/galeria/formulario-senha-evento";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
+import { RegistrarVisita } from "@/components/metricas/registrar";
 import {
   buscarEventoPublicado,
   eventoTemNumeros,
@@ -69,6 +70,7 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
 
   return (
     <>
+      <RegistrarVisita eventoId={evento.id} />
       <header className="flex flex-col gap-4">
         <p className="text-sm font-semibold text-primary">{evento.categoria.nome}</p>
         <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">

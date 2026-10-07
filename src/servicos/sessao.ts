@@ -202,7 +202,7 @@ export async function entrarComGoogle(
 
 /** Para onde mandar cada papel depois do login, quando não há um ?proximo=. */
 export function inicioDoPapel(papel: Papel) {
-  if (papel === "admin" || papel === "atendente") return "/admin";
+  if (papel === "admin") return "/admin";
   if (papel === "fotografo") return "/painel";
   return "/minhas-compras";
 }
@@ -230,16 +230,13 @@ export async function exigirFotografo(proximo = "/painel"): Promise<{
 }
 
 /**
- * Equipe do ClicouAí (gestor ou atendente), ou redireciona. Com `soGestor`, o atendente fica
- * de fora (mudar papéis, por exemplo). Usar no topo de toda página e ação do painel de gestão.
+ * Gestor (admin) logado, ou redireciona. Usar no topo de toda página e ação do painel de
+ * gestão: a autorização é conferida em cada uma, não só no menu.
  */
-export async function exigirEquipe(proximo = "/admin", soGestor = false): Promise<Usuario> {
+export async function exigirGestor(proximo = "/admin"): Promise<Usuario> {
   const usuario = await usuarioAtual();
   if (!usuario) redirect(`/entrar?proximo=${encodeURIComponent(proximo)}`);
-  const permitido = soGestor
-    ? usuario.papel === "admin"
-    : usuario.papel === "admin" || usuario.papel === "atendente";
-  if (!permitido) redirect(inicioDoPapel(usuario.papel));
+  if (usuario.papel !== "admin") redirect(inicioDoPapel(usuario.papel));
   return usuario;
 }
 

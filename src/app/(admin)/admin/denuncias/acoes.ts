@@ -9,9 +9,9 @@ import {
   marcarProcedente,
   type ResultadoModeracao,
 } from "@/servicos/moderacao";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
-// Decisões sobre denúncias: só o gestor decide; o atendente vê e acompanha.
+// Decisões sobre denúncias: só o gestor decide.
 
 const entrada = z.object({
   id: z.uuid(),
@@ -19,7 +19,7 @@ const entrada = z.object({
 });
 
 export async function moderarAcao(id: string, acao: string): Promise<ResultadoModeracao> {
-  const usuario = await exigirEquipe("/admin/denuncias", true);
+  const usuario = await exigirGestor("/admin/denuncias");
   const dados = entrada.safeParse({ id, acao });
   if (!dados.success) return { ok: false, erro: "Ação inválida." };
   const executar = {

@@ -4,7 +4,7 @@ import { Mail, MessageCircle } from "lucide-react";
 
 import { listarMensagens } from "@/dados";
 import { formatarDataEHora } from "@/lib/formatar";
-import { exigirEquipe } from "@/servicos/sessao";
+import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Mensagens", robots: { index: false, follow: false } };
 
@@ -26,7 +26,7 @@ export default function PaginaMensagens() {
 }
 
 async function Conteudo() {
-  await exigirEquipe("/admin/mensagens");
+  await exigirGestor("/admin/mensagens");
   const mensagens = await listarMensagens();
   if (mensagens.length === 0) {
     return (

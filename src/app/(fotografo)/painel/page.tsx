@@ -1,8 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CheckCircle2, Circle } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Circle,
+  Clock,
+  Percent,
+  Plus,
+  Receipt,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 
+import { CartaoNumero } from "@/components/admin/tabela";
+import { buttonVariants } from "@/components/ui/button";
+import { dashboardDoFotografo } from "@/dados";
+import { formatarPreco } from "@/lib/formatar";
+import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Painel", robots: { index: false, follow: false } };
@@ -15,8 +30,23 @@ export default function PaginaPainel() {
   );
 }
 
+const porcentagem = new Intl.NumberFormat("pt-BR", {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
+
+function plural(n: number, um: string, varios: string) {
+  return `${n} ${n === 1 ? um : varios}`;
+}
+
 async function Conteudo() {
   const { usuario, conta } = await exigirFotografo();
+  const [painel, financeiro] = await Promise.all([
+    dashboardDoFotografo(conta.id),
+    situacaoFinanceira(conta),
+  ]);
+  const { saldo } = financeiro;
+
   const passos = [
     { feito: true, texto: "Criar a conta de fotógrafo" },
     { feito: usuario.emailConfirmado, texto: "Confirmar o e-mail", href: "/minhas-compras" },
@@ -31,35 +61,96 @@ async function Conteudo() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold tracking-tight">Olá, {conta.nomePublico}</h1>
-      <section className="flex flex-col gap-4 rounded-xl border p-5">
-        <h2 className="text-lg font-semibold">
-          {pronto ? "Tudo pronto para vender" : "Antes de publicar seu primeiro evento"}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold tracking-tight">Olá, {conta.nomePublico}</h1>
+        <Link href="/painel/eventos/novo" className={buttonVariants({ size: "touch" })}>
+          <Plus aria-hidden="true" data-icon="inline-start" />
+          Novo evento
+        </Link>
+      </div>
+
+      {!pronto && (
+        <section className="flex flex-col gap-4 rounded-xl border p-5">
+          <h2 className="text-lg font-semibold">Antes de publicar seu primeiro evento</h2>
+          <ul className="flex flex-col gap-3">
+            {passos.map((passo) => (
+              <li key={passo.texto} className="flex items-center gap-3">
+                {passo.feito ? (
+                  <CheckCircle2 aria-hidden="true" className="size-5 text-primary" />
+                ) : (
+                  <Circle aria-hidden="true" className="size-5 text-muted-foreground" />
+                )}
+                <span className={passo.feito ? "text-muted-foreground line-through" : undefined}>
+                  {passo.texto}
+                </span>
+                <span className="sr-only">{passo.feito ? "(feito)" : "(pendente)"}</span>
+                {!passo.feito && passo.href && (
+                  <Link
+                    href={passo.href}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Fazer agora
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section aria-labelledby="resumo" className="flex flex-col gap-3">
+        <h2 id="resumo" className="text-xl font-semibold">
+          Resumo
         </h2>
-        <ul className="flex flex-col gap-3">
-          {passos.map((passo) => (
-            <li key={passo.texto} className="flex items-center gap-3">
-              {passo.feito ? (
-                <CheckCircle2 aria-hidden="true" className="size-5 text-primary" />
-              ) : (
-                <Circle aria-hidden="true" className="size-5 text-muted-foreground" />
-              )}
-              <span className={passo.feito ? "text-muted-foreground line-through" : undefined}>
-                {passo.texto}
-              </span>
-              <span className="sr-only">{passo.feito ? "(feito)" : "(pendente)"}</span>
-              {!passo.feito && passo.href && (
-                <Link
-                  href={passo.href}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Fazer agora
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-        <p className="text-sm text-muted-foreground">Crie seus eventos em Meus eventos.</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <CartaoNumero
+            icone={<TrendingUp aria-hidden="true" className="size-4" />}
+            titulo="Vendas de hoje"
+            valor={formatarPreco(painel.hoje.valorCentavos)}
+            texto={plural(painel.hoje.pedidos, "pedido", "pedidos")}
+          />
+          <CartaoNumero
+            icone={<CalendarDays aria-hidden="true" className="size-4" />}
+            titulo="Vendas do mês"
+            valor={formatarPreco(painel.mes.valorCentavos)}
+            texto={plural(painel.mes.pedidos, "pedido", "pedidos")}
+          />
+          <CartaoNumero
+            icone={<Wallet aria-hidden="true" className="size-4" />}
+            titulo="Saldo disponível"
+            valor={formatarPreco(saldo.disponivelCentavos)}
+            texto={`Você recebe ${formatarPreco(saldo.normal.liquidoCentavos)} no saque normal`}
+          />
+          <CartaoNumero
+            icone={<Clock aria-hidden="true" className="size-4" />}
+            titulo="A receber"
+            valor={formatarPreco(saldo.antecipavelCentavos + saldo.aLiberarCentavos)}
+            texto={`${formatarPreco(saldo.antecipavelCentavos)} já dá para antecipar`}
+          />
+          <CartaoNumero
+            icone={<Receipt aria-hidden="true" className="size-4" />}
+            titulo="Ticket médio"
+            valor={formatarPreco(painel.ticketMedioCentavos)}
+            texto="Por pedido, nos últimos 30 dias"
+          />
+          <CartaoNumero
+            icone={<Percent aria-hidden="true" className="size-4" />}
+            titulo="Conversão"
+            valor={painel.conversao === null ? "—" : porcentagem.format(painel.conversao)}
+            texto={`${plural(painel.pedidos30d, "pedido", "pedidos")} em ${plural(painel.visitas30d, "visita", "visitas")} (30 dias)`}
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Valores das vendas e do saldo são brutos: a taxa da plataforma sai no saque. Detalhes em{" "}
+          <Link href="/painel/vendas" className="font-medium text-primary hover:underline">
+            Financeiro
+          </Link>{" "}
+          e em{" "}
+          <Link href="/painel/desempenho" className="font-medium text-primary hover:underline">
+            Desempenho
+          </Link>
+          .
+        </p>
       </section>
     </div>
   );

@@ -18,12 +18,12 @@ O que já funciona:
 - Carrinho e checkout com Mercado Pago (Pix e cartão dentro do site, webhook e conferência na API) ou pagamento simulado sem credenciais; download do original só para pedido pago
 - Vendas e saques do fotógrafo: saldo bruto, saque normal (30 dias, 10%) e antecipado (1 dia, 11%) por Pix para o CPF/CNPJ, simulado sem credenciais
 - Cadastro e login com Google ou com e-mail e senha, confirmação de e-mail, Minhas compras e perfil do fotógrafo
-- Painel de gestão (`/admin`) para gestores e atendentes: entradas, saídas, receita, vendas, saques e usuários com troca de papel
+- Painel de gestão (`/admin`) para gestores: entradas, saídas, receita, vendas, saques e usuários com troca de papel
 - Headers de segurança e validação com Zod de tudo que vem do navegador
 
 O andamento completo, fase por fase, está em [docs/tarefas.md](docs/tarefas.md).
 
-**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos), `atendente@exemplo.com` (atendente) e `admin@exemplo.com` (gestor); estas duas últimas só fora da produção, onde a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Pedidos, contas criadas e alterações ficam na memória do servidor e somem quando ele reinicia.
+**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); esta última só fora da produção, onde a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Pedidos, contas criadas e alterações ficam na memória do servidor e somem quando ele reinicia.
 
 ## Como rodar
 
