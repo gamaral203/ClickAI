@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, ShieldCheck } from "lucide-react";
 
+import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { buscarFotoPublica } from "@/dados";
@@ -103,7 +104,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
                 Pagamento por Pix ou cartão
               </li>
             </ul>
-            {/* O botão de adicionar ao carrinho entra na Fase 3 (docs/tarefas.md). */}
+            <BotaoAdicionar fotoId={foto.id} />
           </div>
 
           {posicao && (

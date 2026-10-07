@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { LinkCarrinho } from "@/components/carrinho/link-carrinho";
+
 const links = [{ href: "/eventos", rotulo: "Eventos" }];
 
 export function Cabecalho() {
@@ -29,6 +31,9 @@ export function Cabecalho() {
                 </Link>
               </li>
             ))}
+            <li>
+              <LinkCarrinho />
+            </li>
           </ul>
         </nav>
       </div>
