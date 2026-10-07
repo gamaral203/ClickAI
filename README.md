@@ -23,7 +23,7 @@ O que já funciona:
 
 O andamento completo, fase por fase, está em [docs/tarefas.md](docs/tarefas.md).
 
-**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos), `atendente@exemplo.com` (atendente) e `admin@exemplo.com` (gestor). Pedidos, contas criadas e alterações ficam na memória do servidor e somem quando ele reinicia.
+**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos), `atendente@exemplo.com` (atendente) e `admin@exemplo.com` (gestor); estas duas últimas só fora da produção, onde a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Pedidos, contas criadas e alterações ficam na memória do servidor e somem quando ele reinicia.
 
 ## Como rodar
 

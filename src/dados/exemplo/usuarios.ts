@@ -1,10 +1,13 @@
 // Usuários, sessões e confirmações de e-mail de exemplo (sessão simulada da Parte A).
 // Todos os usuários de exemplo usam a senha "clicouai123". Na Fase 11 o Better Auth assume.
+// Na produção da Vercel, as contas de exemplo da equipe (gestor e atendente) não existem: a
+// senha delas é pública (README). A equipe entra pelas contas de GESTORES (./gestores.ts).
 
 import { gerarHashSenha } from "@/lib/senha";
 
 import type { UsuarioInterno } from "../tipos";
 import { compartilhado } from "./compartilhado";
+import { lerGestores } from "./gestores";
 
 export const SENHA_DE_EXEMPLO = "clicouai123";
 
@@ -30,6 +33,9 @@ function usuarioDeExemplo(
 type Sessao = { usuarioId: string; expiraEm: number };
 type Confirmacao = { usuarioId: string; expiraEm: number };
 
+/** Produção pública na Vercel: sem as contas de exemplo com acesso à gestão. */
+const producao = process.env.VERCEL_ENV === "production";
+
 export const { usuarios, sessoes, confirmacoes } = compartilhado("usuarios-exemplo", () => ({
   /** Os três primeiros são os donos dos fotógrafos de exemplo (mesmo usuarioId). */
   usuarios: new Map(
@@ -38,8 +44,13 @@ export const { usuarios, sessoes, confirmacoes } = compartilhado("usuarios-exemp
       usuarioDeExemplo(2, "Pedro Kenji", "pedro@exemplo.com", "fotografo"),
       usuarioDeExemplo(3, "Equipe Clique Esportes", "clique@exemplo.com", "fotografo"),
       usuarioDeExemplo(4, "Ana Souza", "ana@exemplo.com", "cliente"),
-      usuarioDeExemplo(5, "Equipe ClicouAí", "admin@exemplo.com", "admin"),
-      usuarioDeExemplo(6, "Bruno Atendimento", "atendente@exemplo.com", "atendente"),
+      ...(producao
+        ? []
+        : [
+            usuarioDeExemplo(5, "Equipe ClicouAí", "admin@exemplo.com", "admin"),
+            usuarioDeExemplo(6, "Bruno Atendimento", "atendente@exemplo.com", "atendente"),
+          ]),
+      ...lerGestores(process.env.GESTORES),
     ].map((u) => [u.id, u]),
   ),
   /** Chave: hash do token da sessão. */
