@@ -37,10 +37,13 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Divisão da venda entre plataforma, dono do evento e colaborador, com a sobra de centavos para o autor `[Média]`
 - [x] Pedido criado como `pendente` e confirmação simulada, idempotente como o webhook (troca pelo gateway na Fase 13)
 - [x] Página do pedido acessada pelo link com token, com aguardando pagamento, confirmado e expirado
+- [x] Download só de item de pedido pago, conferindo o token daquele pedido; qualquer recusa dá o mesmo 404 `[R-alta]`
+- [x] Acesso de convidado por token (link do pedido, guardado só como hash)
+- [x] Registro em `downloads`, com contador na página do pedido
 
 ## Em andamento
 
-- [ ] Minhas compras e download (Fase 4)
+- [ ] Contas e área Minhas compras (Fase 5)
 
 ## Decisões de produto em aberto
 
@@ -70,15 +73,13 @@ Concluída (ver **Concluído**).
 
 Concluída (ver **Concluído**).
 
-## Fase 4 — Minhas compras e download (simulado)
+## Fase 4 — Download (simulado)
 
-- [ ] Área "Minhas compras", com pedidos, fotos e carrinho pendente
-- [ ] Download só de item de pedido pago do próprio cliente `[R-alta]`
-- [ ] Acesso de convidado por token
-- [ ] Registro em `downloads`
+Concluída (ver **Concluído**). A área "Minhas compras" depende de login e foi para a Fase 5.
 
 ## Fase 5 — Contas (telas)
 
+- [ ] Área "Minhas compras", com pedidos, fotos e carrinho pendente
 - [ ] Telas de cadastro e login de cliente e fotógrafo (sessão simulada até a Fase 11)
 - [ ] Cadastro de fotógrafo: perfil público (foto, capa, bio, redes), CPF/CNPJ, conta de recebimento
 - [ ] Vincular pedidos de convidado ao criar conta com o mesmo e-mail

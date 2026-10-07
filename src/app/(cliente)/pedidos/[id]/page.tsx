@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
 import { buttonVariants } from "@/components/ui/button";
-import { detalharItensDoPedido } from "@/dados";
+import { contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { buscarPedidoDoConvidado } from "@/servicos/pedidos";
 
@@ -41,6 +41,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   if (!encontrado) notFound();
   const { pedido, itens } = encontrado;
   const detalhes = await detalharItensDoPedido(itens);
+  const baixados = await contarDownloads(itens.map((i) => i.id));
 
   return (
     <>
@@ -121,10 +122,21 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                 <span className="text-muted-foreground">{eventoTitulo}</span>
               </span>
               {pedido.status === "pago" ? (
-                // O download do original entra na Fase 4 (docs/tarefas.md).
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Download aria-hidden="true" className="size-4" />
-                  Download em breve
+                <span className="flex flex-col items-end gap-1">
+                  {/* <a> e não <Link>: a rota responde com um redirecionamento para o arquivo. */}
+                  <a
+                    href={`/api/download/${item.id}?token=${encodeURIComponent(dados.data.token)}`}
+                    className={buttonVariants({ variant: "outline", size: "touch" })}
+                  >
+                    <Download aria-hidden="true" data-icon="inline-start" />
+                    Baixar original
+                  </a>
+                  {(baixados.get(item.id) ?? 0) > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      Baixado{" "}
+                      {baixados.get(item.id) === 1 ? "1 vez" : `${baixados.get(item.id)} vezes`}
+                    </span>
+                  )}
                 </span>
               ) : (
                 <span className="font-semibold tabular-nums">

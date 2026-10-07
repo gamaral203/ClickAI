@@ -221,6 +221,13 @@ export type ItemPedido = {
   viaPacote: boolean;
 };
 
+export type Download = {
+  id: string;
+  itemPedidoId: string;
+  baixadoEm: string;
+  ip: string | null;
+};
+
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
 export type Lancamento = {

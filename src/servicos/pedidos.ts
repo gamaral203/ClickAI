@@ -55,6 +55,14 @@ function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** O token do link bate com o hash guardado no pedido? Compara em tempo constante. */
+export function tokenConfere(pedido: Pick<PedidoInterno, "tokenAcessoHash">, token: string) {
+  if (!pedido.tokenAcessoHash) return false;
+  const esperado = Buffer.from(pedido.tokenAcessoHash, "hex");
+  const recebido = Buffer.from(hashToken(token), "hex");
+  return esperado.length === recebido.length && timingSafeEqual(esperado, recebido);
+}
+
 export type ResultadoCriarPedido =
   | { ok: true; pedidoId: string; token: string }
   | { ok: false; motivo: "carrinho_vazio" | "itens_indisponiveis" };
@@ -128,10 +136,7 @@ export async function criarPedido(
  */
 export async function buscarPedidoDoConvidado(pedidoId: string, token: string) {
   const encontrado = await buscarPedido(pedidoId);
-  if (!encontrado?.pedido.tokenAcessoHash) return null;
-  const esperado = Buffer.from(encontrado.pedido.tokenAcessoHash, "hex");
-  const recebido = Buffer.from(hashToken(token), "hex");
-  if (esperado.length !== recebido.length || !timingSafeEqual(esperado, recebido)) return null;
+  if (!encontrado || !tokenConfere(encontrado.pedido, token)) return null;
 
   const { pedido } = encontrado;
   if (pedido.status === "pendente" && new Date(pedido.expiraEm).getTime() < Date.now()) {

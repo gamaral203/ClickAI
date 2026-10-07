@@ -379,6 +379,18 @@ function gerarFotos(): Foto[] {
 
 export const fotos: Foto[] = gerarFotos();
 
+/**
+ * Original de cada foto de exemplo: a mesma imagem do picsum usada por
+ * scripts/gerar-exemplos.ts, sem marca d'água e em 2400 px. Faz o papel do bucket privado
+ * de originais; na Fase 12 vira a URL assinada do R2.
+ */
+export function urlOriginalDeExemplo(foto: Foto) {
+  const indice = Number(foto.urlPrevia.match(/(\d+)\.webp$/)?.[1]);
+  const vertical = indice % 4 === 3;
+  const [largura, altura] = vertical ? [1600, 2400] : [2400, 1600];
+  return `https://picsum.photos/seed/clicouai-exemplo-${indice}/${largura}/${altura}.jpg`;
+}
+
 // ---------------------------------------------------------------- Números de peito
 
 /**

@@ -9,8 +9,15 @@ import "server-only";
 
 import { connection } from "next/server";
 
-import { categorias, colaboradores, eventos, fotografos, fotos } from "./exemplo/dados";
-import { itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
+import {
+  categorias,
+  colaboradores,
+  eventos,
+  fotografos,
+  fotos,
+  urlOriginalDeExemplo,
+} from "./exemplo/dados";
+import { downloads, itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
 import type {
   Evento,
   EventoResumo,
@@ -345,4 +352,47 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
       },
     ];
   });
+}
+
+// ---------------------------------------------------------------- Downloads
+
+/** Item de pedido com o pedido a que pertence, ou `null`. */
+export async function buscarItemDoPedido(
+  itemId: string,
+): Promise<{ item: ItemPedido; pedido: PedidoInterno } | null> {
+  for (const [pedidoId, itens] of itensPorPedido) {
+    const item = itens.find((i) => i.id === itemId);
+    const pedido = item && pedidos.get(pedidoId);
+    if (item && pedido) return { item: structuredClone(item), pedido: structuredClone(pedido) };
+  }
+  return null;
+}
+
+/**
+ * Endereço temporário do original. Hoje, a imagem de exemplo sem marca d'água; na Fase 12,
+ * uma URL assinada do R2 válida por 15 minutos. Vale também para item excluído depois da
+ * venda: quem comprou continua baixando (docs/arquitetura.md, exclusão lógica).
+ */
+export async function gerarUrlDoOriginal(fotoId: string): Promise<string | null> {
+  const foto = fotos.find((f) => f.id === fotoId);
+  return foto ? urlOriginalDeExemplo(foto) : null;
+}
+
+export async function registrarDownload(itemPedidoId: string, ip: string | null) {
+  downloads.push({
+    id: crypto.randomUUID(),
+    itemPedidoId,
+    baixadoEm: new Date().toISOString(),
+    ip,
+  });
+}
+
+export async function contarDownloads(itemPedidoIds: string[]) {
+  const ids = new Set(itemPedidoIds);
+  const contagem = new Map<string, number>();
+  for (const d of downloads) {
+    if (ids.has(d.itemPedidoId))
+      contagem.set(d.itemPedidoId, (contagem.get(d.itemPedidoId) ?? 0) + 1);
+  }
+  return contagem;
 }
