@@ -10,7 +10,7 @@ const itens = [
 // O menu não decide quem entra: cada página e ação do painel confere a sessão (exigirFotografo).
 export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 md:grid-cols-[200px_minmax(0,1fr)]">
       <nav aria-label="Painel do fotógrafo">
         <p className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
           Painel
