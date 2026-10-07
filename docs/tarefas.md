@@ -92,6 +92,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Domínio próprio das lojas: o fotógrafo conecta no painel, o site cadastra pela API da Vercel e verifica o DNS (simulado sem credenciais); o `proxy.ts` abre a loja no domínio verificado
 - [x] Guia de deploy e contas ([deploy.md](deploy.md))
 - [x] Primeiro deploy na Vercel (`clickai-hazel.vercel.app`), com gestores da equipe pela variável `GESTORES` (só hashes de senha) e sem as contas de exemplo de gestor e atendente em produção
+- [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)

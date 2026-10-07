@@ -256,7 +256,7 @@ Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da p
 
 **Busca por selfie**
 
-1. Na página do evento, a pessoa aceita o aviso de uso da selfie e tira ou escolhe uma foto. O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados.
+1. Na página do evento, o botão "Buscar pelo meu rosto" abre um modal. A pessoa aceita o aviso de uso da selfie e escolhe "Tirar foto" (abre a câmera frontal; só aparece no celular e no tablet, porque no computador o navegador abriria o mesmo seletor de arquivos) ou "Carregar foto" (uma foto da galeria). O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados. Ao encontrar fotos, o modal fecha e a página rola até o resultado.
 2. `POST /api/busca-facial` confere o consentimento, o tipo real da imagem (JPEG, PNG ou WebP, até 5 MB) e o limite de 10 buscas por IP a cada 10 minutos.
 3. Com o Amazon Rekognition, a selfie vai para `SearchFacesByImage` na coleção do evento (`{prefixo}-{evento_id}`), com semelhança mínima de 95%. O Rekognition não guarda a imagem da busca. Sem credenciais da AWS, os rostos dos dados de exemplo simulam o resultado.
 4. A selfie fica só na memória da requisição, é zerada no fim e nunca vai para log, banco ou R2. Volta a lista de fotos do evento em que a pessoa aparece, com a mesma regra de visibilidade da galeria (evento com senha ou aguardando liberação não abre).
