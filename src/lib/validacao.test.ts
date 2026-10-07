@@ -29,6 +29,12 @@ describe("lerFiltroGaleria", () => {
     });
   });
 
+  it("lê a pasta pelo id", () => {
+    const pasta = "ba57a000-0000-4000-8000-000000000001";
+    expect(lerFiltroGaleria({ pasta }).pasta).toBe(pasta);
+    expect(lerFiltroGaleria({ pasta: "largada" }).pasta).toBeUndefined();
+  });
+
   it("ignora formato errado", () => {
     expect(lerFiltroGaleria({ hora: "07h", "nao-identificadas": "sim" })).toEqual({
       hora: undefined,

@@ -81,10 +81,11 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Colaboradores: o dono adiciona pelo e-mail da conta de vendedor, com comissão e nota; o colaborador envia fotos em "Colaborações"; não dá para remover quem ainda tem fotos no evento
 - [x] Entrega por e-mail e WhatsApp (com consentimento) depois do pagamento, com link assinado; envio simulado, visível em `/admin/mensagens`
 - [x] Job de pedidos (`/api/jobs/pedidos`, protegido por `CRON_SECRET`): expira os pendentes vencidos, conferindo no Mercado Pago antes, e manda o lembrete de carrinho abandonado uma vez, com link que remonta o carrinho
+- [x] Pastas: criar, renomear e excluir no painel, escolher a pasta de cada foto e filtrar por pasta na galeria
 - [x] Correção: os formulários novos do painel não apagam mais o que foi digitado quando o servidor devolve um erro
 ## Em andamento
 
-- [ ] Busca e recursos do evento (Fase 7): faltam vídeos e pastas
+- [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
 ## Decisões de produto em aberto
 
@@ -128,7 +129,6 @@ Concluída (ver **Concluído**). O envio de vídeos foi para a Fase 12, com o up
 ## Fase 7 — Busca e recursos do evento
 
 - [ ] Vídeos na galeria e na página do item, com prévia e marca d'água
-- [ ] Pastas: criar, renomear e mover itens
 
 ## Fase 8 — Recursos de venda
 

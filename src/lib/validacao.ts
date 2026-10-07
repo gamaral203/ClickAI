@@ -34,11 +34,13 @@ export function lerFiltroEventos(params: Record<string, ValorDeBusca>) {
   };
 }
 
-/** Filtros da galeria do evento na URL: `?hora=2026-09-27T07` e `?nao-identificadas=1`. */
+/** Filtros da galeria na URL: `?hora=2026-09-27T07`, `?nao-identificadas=1` e `?pasta=<id>`. */
 export function lerFiltroGaleria(params: Record<string, ValorDeBusca>) {
   const hora = horaSchema.safeParse(primeiro(params.hora));
+  const pasta = idSchema.safeParse(primeiro(params.pasta));
   return {
     hora: hora.success ? hora.data : undefined,
+    pasta: pasta.success ? pasta.data : undefined,
     naoIdentificadas: primeiro(params["nao-identificadas"]) === "1" ? true : undefined,
   };
 }

@@ -8,6 +8,7 @@ import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
 import { EditorFaixas } from "@/components/painel/editor-faixas";
 import { FormularioPacote } from "@/components/painel/formulario-pacote";
+import { Pastas } from "@/components/painel/pastas";
 import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
@@ -20,6 +21,7 @@ import {
   listarColaboradores,
   listarFaixas,
   listarItensDoPainel,
+  listarPastasDoPainel,
 } from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
@@ -60,13 +62,15 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   const { criado, publicado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
-  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores] = await Promise.all([
-    listarItensDoPainel(evento.id, conta.id),
-    listarFaixas(conta.id, evento.id),
-    listarFaixas(conta.id, null),
-    buscarPacoteDoEvento(evento.id, conta.id),
-    listarColaboradores(evento.id, conta.id),
-  ]);
+  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas] =
+    await Promise.all([
+      listarItensDoPainel(evento.id, conta.id),
+      listarFaixas(conta.id, evento.id),
+      listarFaixas(conta.id, null),
+      buscarPacoteDoEvento(evento.id, conta.id),
+      listarColaboradores(evento.id, conta.id),
+      listarPastasDoPainel(evento.id, conta.id),
+    ]);
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
     .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
@@ -218,6 +222,28 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         </div>
       </details>
 
+      <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold">
+            Pastas{pastas?.length ? ` (${pastas.length})` : ""}
+          </h2>
+          <ChevronDown
+            aria-hidden="true"
+            className="size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          />
+        </summary>
+        <div className="mt-4">
+          <Pastas
+            eventoId={evento.id}
+            pastas={(pastas ?? []).map((p) => ({
+              id: p.id,
+              nome: p.nome,
+              totalItens: p.totalItens,
+            }))}
+          />
+        </div>
+      </details>
+
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
         <EnvioFotos eventoId={evento.id} />
@@ -231,7 +257,9 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             precoCentavos: i.precoCentavos,
             precoEventoCentavos:
               i.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos,
+            pastaId: i.pastaId,
           }))}
+          pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
         />
       </section>
 

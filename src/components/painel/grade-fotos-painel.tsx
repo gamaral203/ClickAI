@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 
 import { excluirItemAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import { moverParaPastaAcao } from "@/app/(fotografo)/painel/eventos/pastas-acoes";
 import { definirPrecoAcao } from "@/app/(fotografo)/painel/eventos/vendas-acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +23,18 @@ export type ItemDoPainel = {
   precoCentavos: number | null;
   /** Preço do evento para o tipo do item. */
   precoEventoCentavos: number;
+  pastaId: string | null;
 };
 
-export function GradeFotosPainel({ itens }: { itens: ItemDoPainel[] }) {
+type PastaOpcao = { id: string; nome: string };
+
+export function GradeFotosPainel({
+  itens,
+  pastas,
+}: {
+  itens: ItemDoPainel[];
+  pastas: PastaOpcao[];
+}) {
   if (itens.length === 0) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
@@ -35,13 +45,13 @@ export function GradeFotosPainel({ itens }: { itens: ItemDoPainel[] }) {
   return (
     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {itens.map((item) => (
-        <Cartao key={item.id} item={item} />
+        <Cartao key={item.id} item={item} pastas={pastas} />
       ))}
     </ul>
   );
 }
 
-function Cartao({ item }: { item: ItemDoPainel }) {
+function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -78,6 +88,7 @@ function Cartao({ item }: { item: ItemDoPainel }) {
         {item.nomeArquivo}
       </p>
       <Preco item={item} />
+      {pastas.length > 0 && <SeletorPasta item={item} pastas={pastas} />}
       {confirmando ? (
         <div className="flex flex-col gap-1.5">
           {item.vendido && (
@@ -217,5 +228,46 @@ function Preco({ item }: { item: ItemDoPainel }) {
         </Button>
       )}
     </form>
+  );
+}
+
+/** Pasta do item: muda na hora, sem botão de salvar. */
+function SeletorPasta({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) {
+  const router = useRouter();
+  const [erro, setErro] = useState<string | null>(null);
+  const [movendo, startTransition] = useTransition();
+
+  return (
+    <div className="flex flex-col gap-1">
+      <select
+        aria-label={`Pasta de ${item.nomeArquivo}`}
+        value={item.pastaId ?? ""}
+        disabled={movendo}
+        onChange={(e) => {
+          const destino = e.target.value || null;
+          setErro(null);
+          startTransition(async () => {
+            const resultado = await moverParaPastaAcao([item.id], destino).catch(() => ({
+              erro: "Não foi possível mover.",
+            }));
+            if (resultado.erro) setErro(resultado.erro);
+            router.refresh();
+          });
+        }}
+        className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <option value="">Sem pasta</option>
+        {pastas.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nome}
+          </option>
+        ))}
+      </select>
+      {erro && (
+        <p role="alert" className="text-xs text-destructive">
+          {erro}
+        </p>
+      )}
+    </div>
   );
 }
