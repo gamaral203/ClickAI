@@ -9,6 +9,7 @@ Ler antes de implementar qualquer parte do sistema:
 - [arquitetura.md](arquitetura.md) — stack, armazenamento no R2, modelo de dados, fluxos (upload, galeria, compra, download), segurança/LGPD, estrutura de pastas e decisões em aberto.
 - [marca/marca.md](marca/marca.md) — logo, cores (`#2362FE` azul, `#BCFA34` limão) e regras de contraste. Usar ao criar qualquer tela.
 - [riscos.md](riscos.md) — 20 riscos com como evitar e prioridade. Os 6 de prioridade alta precisam estar resolvidos antes do lançamento.
+- [skills.md](skills.md) — skills do projeto (em `.claude/skills/`) e como cada uma se aplica à nossa stack. Ao gerar ou revisar código de rotas, upload, auth, checkout ou deploy, aplicar a `vibe-code-security`.
 
 Se uma decisão de código mudar algo descrito nesses documentos, atualize o documento junto.
 
