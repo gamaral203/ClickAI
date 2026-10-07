@@ -12,6 +12,11 @@ export type Slide = {
   foco?: string;
   /** Foto em pé: no computador aparece inteira à direita, sobre ela mesma desfocada. */
   vertical?: boolean;
+  /**
+   * Foto horizontal que substitui esta no computador (a partir de 768 px). No celular continua
+   * a foto principal; no banner largo do computador, uma foto deitada preenche sem recorte.
+   */
+  computador?: { src: string; alt: string; rotulo: string; foco?: string };
 };
 
 const INTERVALO_MS = 5000;
@@ -101,43 +106,57 @@ export function CarrosselInicio({
             key={slide.src}
             role="group"
             aria-roledescription="slide"
-            aria-label={`${i + 1} de ${slides.length}: ${slide.rotulo}`}
+            aria-label={`${i + 1} de ${slides.length}: ${slide.rotulo}${slide.computador ? ` / ${slide.computador.rotulo}` : ""}`}
             className="relative h-full w-full shrink-0 snap-start"
           >
-            {slide.vertical ? (
-              <>
-                {/* Foto vertical num banner largo: a própria foto desfocada preenche o fundo e
-                    ela aparece inteira à direita, sem esticar nem cortar quem está nela. */}
-                <Image
-                  src={slide.src}
-                  alt=""
-                  fill
-                  sizes="40vw"
-                  loading={i === 0 ? "eager" : "lazy"}
-                  className="hidden scale-110 object-cover blur-2xl brightness-75 md:block"
-                />
-                <Image
-                  src={slide.src}
-                  alt={slide.alt}
-                  fill
-                  sizes="(min-width: 768px) 50vw, 100vw"
-                  loading={i === 0 ? "eager" : "lazy"}
-                  fetchPriority={i === 0 ? "high" : "auto"}
-                  className="object-cover md:object-contain md:object-right lg:pr-[max(1rem,calc((100vw-72rem)/2))]"
-                />
-              </>
-            ) : (
+            {slide.computador && (
               <Image
-                src={slide.src}
-                alt={slide.alt}
+                src={slide.computador.src}
+                alt={slide.computador.alt}
                 fill
                 sizes="100vw"
                 loading={i === 0 ? "eager" : "lazy"}
                 fetchPriority={i === 0 ? "high" : "auto"}
-                className="object-cover"
-                style={{ objectPosition: slide.foco ?? "center" }}
+                className="hidden object-cover md:block"
+                style={{ objectPosition: slide.computador.foco ?? "center" }}
               />
             )}
+            <div className={slide.computador ? "contents md:hidden" : "contents"}>
+              {slide.vertical ? (
+                <>
+                  {/* Foto vertical num banner largo: a própria foto desfocada preenche o fundo e
+                    ela aparece inteira à direita, sem esticar nem cortar quem está nela. */}
+                  <Image
+                    src={slide.src}
+                    alt=""
+                    fill
+                    sizes="40vw"
+                    loading={i === 0 ? "eager" : "lazy"}
+                    className="hidden scale-110 object-cover blur-2xl brightness-75 md:block"
+                  />
+                  <Image
+                    src={slide.src}
+                    alt={slide.alt}
+                    fill
+                    sizes="(min-width: 768px) 50vw, 100vw"
+                    loading={i === 0 ? "eager" : "lazy"}
+                    fetchPriority={i === 0 ? "high" : "auto"}
+                    className="object-cover md:object-contain md:object-right lg:pr-[max(1rem,calc((100vw-72rem)/2))]"
+                  />
+                </>
+              ) : (
+                <Image
+                  src={slide.src}
+                  alt={slide.alt}
+                  fill
+                  sizes="100vw"
+                  loading={i === 0 ? "eager" : "lazy"}
+                  fetchPriority={i === 0 ? "high" : "auto"}
+                  className="object-cover"
+                  style={{ objectPosition: slide.foco ?? "center" }}
+                />
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -157,7 +176,14 @@ export function CarrosselInicio({
       <div className="absolute inset-x-0 bottom-0">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 pb-5">
           <span className="rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-neutral-900">
-            {slides[atual]?.rotulo}
+            {slides[atual]?.computador ? (
+              <>
+                <span className="md:hidden">{slides[atual].rotulo}</span>
+                <span className="hidden md:inline">{slides[atual].computador.rotulo}</span>
+              </>
+            ) : (
+              slides[atual]?.rotulo
+            )}
           </span>
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-1 sm:flex">
