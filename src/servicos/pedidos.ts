@@ -2,6 +2,8 @@ import "server-only";
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
+import { connection } from "next/server";
+
 import {
   buscarItensParaCompra,
   buscarPedido,
@@ -147,6 +149,8 @@ export function podeAcessar(
  * expirado o pendente que passou da validade.
  */
 export async function buscarPedidoComAcesso(pedidoId: string, credencial: Credencial) {
+  // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição.
+  await connection();
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado || !podeAcessar(encontrado.pedido, credencial)) return null;
 

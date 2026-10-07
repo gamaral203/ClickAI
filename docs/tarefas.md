@@ -70,6 +70,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Lista de fotos não identificadas (opcional por evento)
 - [x] Link, QR Code (SVG na tela e PNG para imprimir, gerados no servidor) e WhatsApp ao publicar, no painel; botão Compartilhar na página do evento
 - [x] Correções: leitura do relógio na sessão durante a pré-renderização, menu do painel rolando a página para o lado no celular e links com cara de botão "outline" sem borda
+- [x] Correção: a página do pedido lia o relógio antes de esperar a requisição
 
 ## Em andamento
 
