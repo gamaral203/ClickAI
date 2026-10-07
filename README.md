@@ -8,6 +8,7 @@ Marketplace onde fotógrafos vendem fotos de eventos e clientes compram os origi
 
 - [Arquitetura](docs/arquitetura.md): stack, armazenamento, modelo de dados, fluxos, segurança e decisões em aberto
 - [Riscos e erros possíveis](docs/riscos.md): 20 riscos mapeados, com prioridade e como evitar
+- [Tarefas](docs/tarefas.md): o que já foi feito e o que falta, por fase
 - [Marca](docs/marca/marca.md): logo, cores e regras de contraste
 - [Instruções para contribuir](docs/CLAUDE.md): regras do projeto e padrão de commits (Conventional Commits)
 

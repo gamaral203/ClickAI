@@ -12,6 +12,10 @@ Ler antes de implementar qualquer parte do sistema:
 
 Se uma decisão de código mudar algo descrito nesses documentos, atualize o documento junto.
 
+## Tarefas
+
+[tarefas.md](tarefas.md) é a lista única do que foi feito e do que falta. Antes de começar algo, confira a lista; ao terminar uma tarefa, marque `[x]` e mova para **Concluído** no mesmo commit da mudança. Tarefas novas que surgirem entram na fase certa.
+
 ## Regras que não podem ser quebradas
 
 - Nenhum original fica acessível sem um pedido pago. Bucket de originais é privado; download só por URL assinada de ~15 min, depois de conferir que o item pertence a um pedido pago do próprio cliente.
