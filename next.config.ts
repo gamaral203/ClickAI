@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // O PGlite (banco em memória do desenvolvimento e dos testes) carrega os próprios arquivos
+  // WebAssembly do node_modules: não pode ser empacotado.
+  serverExternalPackages: ["@electric-sql/pglite"],
   // Já é o padrão do Next.js; fica explícito para ninguém ligar sem querer.
   productionBrowserSourceMaps: false,
   images: {

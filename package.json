@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run db:migrar && next build",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write .",
@@ -13,14 +13,19 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "next typegen && tsc --noEmit",
-    "senha:hash": "tsx --conditions=react-server scripts/gerar-hash-senha.ts"
+    "senha:hash": "tsx --conditions=react-server scripts/gerar-hash-senha.ts",
+    "db:gerar": "drizzle-kit generate",
+    "db:migrar": "tsx --conditions=react-server scripts/migrar.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1147.0",
     "@base-ui/react": "^1.8.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "@neondatabase/serverless": "^1.2.0",
     "@sentry/nextjs": "^11.5.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
+    "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.52.0",
     "next": "16.4.0",
     "qrcode": "^1.5.4",
@@ -38,6 +43,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "prettier": "^3.9.9",

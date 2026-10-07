@@ -16,12 +16,14 @@ import {
   excluirItem,
   excluirModelo,
   hashesDoEvento,
+  listarFaixas,
   listarModelos,
   registrarHashes,
   registrarMetrica,
   salvarModeloDoEvento,
 } from "@/dados";
-import { eventos, faixasDesconto, fotografos, fotos } from "@/dados/exemplo/banco";
+// Os ids vêm dos dados de exemplo: são os mesmos que a semente grava no banco (PGlite).
+import { eventos, faixasDesconto, fotografos, fotos } from "@/dados/exemplo/dados";
 import { confirmarPagamento, criarPedido } from "@/servicos/pedidos";
 
 const [lia, pedro] = fotografos;
@@ -118,8 +120,8 @@ describe("modelos e cópia de evento", () => {
       slug: `copia-${crypto.randomUUID()}`,
     });
     expect(await copiarDescontosDoEvento(origem.id, novo.id, origem.fotografoId)).toBe(true);
-    const contar = (id: string) => faixasDesconto.filter((f) => f.eventoId === id).length;
-    expect(contar(novo.id)).toBe(contar(origem.id));
+    const contar = async (id: string) => (await listarFaixas(origem.fotografoId, id))?.length ?? 0;
+    expect(await contar(novo.id)).toBe(await contar(origem.id));
     const outro = fotografos.find((f) => f.id !== origem.fotografoId)!;
     expect(await copiarDescontosDoEvento(origem.id, novo.id, outro.id)).toBe(false);
   });

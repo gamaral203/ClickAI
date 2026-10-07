@@ -10,7 +10,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
 | Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Produção só depois de validar o saque (Fase 13) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
-| Banco (Supabase ou Neon) | Dados | Fase 11 | Região São Paulo; decisão em aberto em [tarefas.md](tarefas.md) |
+| Banco (Neon) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Neon), região `gru1`; cria o `DATABASE_URL` no projeto. O build roda as migrações (`npm run db:migrar`) e grava os dados de exemplo se o banco estiver vazio |
 | Cloudflare R2 | Fotos e vídeos | Fase 12 | Dois buckets: público (prévias) e privado (originais) |
 | AWS | Reconhecimento facial (Rekognition) | Fase 12 | Usuário IAM só com as permissões do `.env.example` |
 | WhatsApp (Meta ou parceiro) | Entrega pelo WhatsApp | Fase 13 | Decisão em aberto |
@@ -62,3 +62,15 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 - **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
 - **Job de pedidos:** agende `GET /api/jobs/pedidos` de hora em hora, com o cabeçalho `Authorization: Bearer <CRON_SECRET>`. O cron da Vercel faz isso no plano Pro; no Hobby ele só roda uma vez por dia. Alternativa: o Inngest, previsto na arquitetura (Fase 13).
+
+## 7. Máquina nova (para quem vai programar)
+
+O `.env.local` não vai para o git. Numa máquina nova:
+
+1. `git clone https://github.com/gamaral203/ClickAI` e `npm install`.
+2. `npm run dev` já funciona sem nenhuma variável: o banco é o PGlite em memória, com os dados de exemplo (contas de exemplo em [README](../README.md)).
+3. Para usar as mesmas variáveis da Vercel: `npx vercel login`, `npx vercel link --project clickai --scope amaralgabriel357-9380s-projects --yes` e `npx vercel env pull .env.local`.
+4. **Depois do `env pull`, edite o `.env.local`:** em `GESTORES`, troque cada `$` por `\$`. O Next trata `$` como variável e, sem o escape, os gestores não são criados (aparece "GESTORES fora do formato esperado" no terminal). Na Vercel o valor fica como está.
+5. Sem `DATABASE_URL` no `.env.local`, o app usa o PGlite. Com ela (depois do `env pull`, quando o Neon existir), o desenvolvimento local usa o banco de verdade: cuidado, é o mesmo banco da produção, a não ser que a integração da Neon crie um banco separado para desenvolvimento.
+6. Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build`.
+

@@ -4,11 +4,13 @@
 
 import "server-only";
 
+import { and, asc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
-import { eventos, faixasDesconto, fotos, pacotes } from "./exemplo/banco";
-import { hashesPorEvento, metricas, modelos } from "./exemplo/crescimento";
-import { itensPorPedido, lancamentos, pedidos } from "./exemplo/pedidos";
+import { obterBanco } from "@/db";
+import * as t from "@/db/schema";
+
+import { iso, omitir } from "./mapas";
 import type { ConfigModelo, Evento, Foto, ModeloEvento, TipoMetrica } from "./tipos";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -30,19 +32,26 @@ export async function registrarMetrica(
   tipo: TipoMetrica,
   ids: { eventoId?: string; fotoId?: string },
 ): Promise<boolean> {
-  const foto = ids.fotoId
-    ? fotos.find((f) => f.id === ids.fotoId && f.excluidaEm === null)
-    : undefined;
-  if (ids.fotoId && !foto) return false;
-  const eventoId = foto?.eventoId ?? ids.eventoId;
-  const evento = eventos.find((e) => e.id === eventoId && e.status === "publicado");
-  if (!evento || (tipo !== "visita_evento" && !foto)) return false;
-  metricas.push({
-    tipo,
-    eventoId: evento.id,
-    fotoId: foto?.id ?? null,
-    em: new Date().toISOString(),
-  });
+  const banco = await obterBanco();
+  let eventoId = ids.eventoId;
+  let fotoId: string | null = null;
+  if (ids.fotoId) {
+    const [foto] = await banco
+      .select({ id: t.fotos.id, eventoId: t.fotos.eventoId })
+      .from(t.fotos)
+      .where(and(eq(t.fotos.id, ids.fotoId), isNull(t.fotos.excluidaEm)));
+    if (!foto) return false;
+    fotoId = foto.id;
+    eventoId = foto.eventoId;
+  }
+  // Carrinho e visita de foto precisam da foto, não só do evento.
+  if (!eventoId || (tipo !== "visita_evento" && !fotoId)) return false;
+  const [evento] = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.status, "publicado")));
+  if (!evento) return false;
+  await banco.insert(t.metricas).values({ tipo, eventoId: evento.id, fotoId });
   return true;
 }
 
@@ -54,23 +63,30 @@ type VendaDoFotografo = { pedidoId: string; pagoEm: string; valorCentavos: numbe
  * Uma linha por pedido pago em que o fotógrafo tem parte (como autor ou dono do evento), com
  * a soma da parte dele. Base do dashboard.
  */
-function vendasDoFotografo(fotografoId: string): VendaDoFotografo[] {
-  const porPedido = new Map<string, VendaDoFotografo>();
-  for (const [pedidoId, itens] of itensPorPedido) {
-    const pedido = pedidos.get(pedidoId);
-    if (pedido?.status !== "pago" || !pedido.pagoEm) continue;
-    const ids = new Set(itens.map((i) => i.id));
-    const meus = lancamentos.filter(
-      (l) => l.fotografoId === fotografoId && ids.has(l.itemPedidoId),
-    );
-    if (meus.length === 0) continue;
-    porPedido.set(pedidoId, {
-      pedidoId,
-      pagoEm: pedido.pagoEm,
-      valorCentavos: meus.reduce((s, l) => s + l.valorCentavos, 0),
-    });
-  }
-  return [...porPedido.values()];
+async function vendasDoFotografo(fotografoId: string): Promise<VendaDoFotografo[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      pedidoId: t.pedidos.id,
+      pagoEm: t.pedidos.pagoEm,
+      valorCentavos: sql<number>`sum(${t.lancamentos.valorCentavos})::int`,
+    })
+    .from(t.lancamentos)
+    .innerJoin(t.itensPedido, eq(t.itensPedido.id, t.lancamentos.itemPedidoId))
+    .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+    .where(
+      and(
+        eq(t.lancamentos.fotografoId, fotografoId),
+        eq(t.pedidos.status, "pago"),
+        isNotNull(t.pedidos.pagoEm),
+      ),
+    )
+    .groupBy(t.pedidos.id, t.pedidos.pagoEm);
+  return linhas.flatMap((l) =>
+    l.pagoEm
+      ? [{ pedidoId: l.pedidoId, pagoEm: iso(l.pagoEm), valorCentavos: l.valorCentavos }]
+      : [],
+  );
 }
 
 export type DashboardDoFotografo = {
@@ -89,21 +105,24 @@ export async function dashboardDoFotografo(fotografoId: string): Promise<Dashboa
   const agora = Date.now();
   const hoje = diaEmBrasilia(agora);
   const mes = hoje.slice(0, 7);
-  const vendas = vendasDoFotografo(fotografoId);
+  const vendas = await vendasDoFotografo(fotografoId);
   const recentes = vendas.filter((v) => agora - new Date(v.pagoEm).getTime() <= 30 * DIA_MS);
   const soma = (lista: VendaDoFotografo[]) => lista.reduce((s, v) => s + v.valorCentavos, 0);
   const deHoje = vendas.filter((v) => diaEmBrasilia(v.pagoEm) === hoje);
   const doMes = vendas.filter((v) => diaEmBrasilia(v.pagoEm).startsWith(mes));
 
-  const meusEventos = new Set(
-    eventos.filter((e) => e.fotografoId === fotografoId).map((e) => e.id),
-  );
-  const visitas30d = metricas.filter(
-    (m) =>
-      m.tipo === "visita_evento" &&
-      meusEventos.has(m.eventoId) &&
-      agora - new Date(m.em).getTime() <= 30 * DIA_MS,
-  ).length;
+  const banco = await obterBanco();
+  const [{ visitas30d }] = await banco
+    .select({ visitas30d: sql<number>`count(*)::int` })
+    .from(t.metricas)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.metricas.eventoId))
+    .where(
+      and(
+        eq(t.metricas.tipo, "visita_evento"),
+        eq(t.eventos.fotografoId, fotografoId),
+        gte(t.metricas.em, new Date(agora - 30 * DIA_MS)),
+      ),
+    );
 
   return {
     hoje: { valorCentavos: soma(deHoje), pedidos: deHoje.length },
@@ -142,84 +161,91 @@ export async function desempenhoDoFotografo(fotografoId: string): Promise<{
   fotos: FotoEmDestaque[];
 }> {
   await connection();
-  const meus = eventos.filter((e) => e.fotografoId === fotografoId);
-  const eventoDaFoto = new Map(
-    fotos.filter((f) => meus.some((e) => e.id === f.eventoId)).map((f) => [f.id, f.eventoId]),
-  );
+  const banco = await obterBanco();
+  const meus = await banco
+    .select({
+      id: t.eventos.id,
+      titulo: t.eventos.titulo,
+      slug: t.eventos.slug,
+      status: t.eventos.status,
+      inicioEm: t.eventos.inicioEm,
+    })
+    .from(t.eventos)
+    .where(eq(t.eventos.fotografoId, fotografoId));
+  if (meus.length === 0) return { eventos: [], fotos: [] };
+  const ids = meus.map((e) => e.id);
 
-  const vendasPorFoto = new Map<string, number>();
-  const porEvento = new Map(
-    meus.map((e) => [e.id, { pedidos: new Set<string>(), itens: 0, faturamento: 0 }]),
-  );
-  for (const [pedidoId, itens] of itensPorPedido) {
-    if (pedidos.get(pedidoId)?.status !== "pago") continue;
-    for (const item of itens) {
-      const eventoId = eventoDaFoto.get(item.fotoId);
-      const linha = eventoId && porEvento.get(eventoId);
-      if (!linha) continue;
-      linha.pedidos.add(pedidoId);
-      linha.itens++;
-      linha.faturamento += item.precoCentavos - item.descontoCentavos;
-      vendasPorFoto.set(item.fotoId, (vendasPorFoto.get(item.fotoId) ?? 0) + 1);
-    }
-  }
-
-  const contar = (
-    tipo: TipoMetrica,
-    chave: (m: { eventoId: string; fotoId: string | null }) => string | null,
-  ) => {
-    const contagem = new Map<string, number>();
-    for (const m of metricas) {
-      if (m.tipo !== tipo) continue;
-      const k = chave(m);
-      if (k) contagem.set(k, (contagem.get(k) ?? 0) + 1);
-    }
-    return contagem;
-  };
-  const visitas = contar("visita_evento", (m) => m.eventoId);
-  const carrinhos = contar("carrinho", (m) => m.eventoId);
-  const visitasFoto = contar("visita_foto", (m) => m.fotoId);
+  const [vendas, metricasPorEvento, destaque, visitasFoto] = await Promise.all([
+    banco
+      .select({
+        eventoId: t.fotos.eventoId,
+        pedidos: sql<number>`count(distinct ${t.pedidos.id})::int`,
+        itens: sql<number>`count(*)::int`,
+        faturamento: sql<number>`sum(${t.itensPedido.precoCentavos} - ${t.itensPedido.descontoCentavos})::int`,
+      })
+      .from(t.itensPedido)
+      .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+      .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+      .where(and(eq(t.pedidos.status, "pago"), inArray(t.fotos.eventoId, ids)))
+      .groupBy(t.fotos.eventoId),
+    banco
+      .select({
+        eventoId: t.metricas.eventoId,
+        visitas: sql<number>`count(*) filter (where ${t.metricas.tipo} = 'visita_evento')::int`,
+        carrinhos: sql<number>`count(*) filter (where ${t.metricas.tipo} = 'carrinho')::int`,
+      })
+      .from(t.metricas)
+      .where(inArray(t.metricas.eventoId, ids))
+      .groupBy(t.metricas.eventoId),
+    banco
+      .select({
+        fotoId: t.fotos.id,
+        urlMiniatura: t.fotos.urlMiniatura,
+        eventoTitulo: t.eventos.titulo,
+        vendas: sql<number>`count(*)::int`,
+      })
+      .from(t.itensPedido)
+      .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+      .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+      .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+      .where(and(eq(t.pedidos.status, "pago"), inArray(t.fotos.eventoId, ids)))
+      .groupBy(t.fotos.id, t.fotos.urlMiniatura, t.eventos.titulo)
+      .orderBy(sql`count(*) desc`)
+      .limit(8),
+    banco
+      .select({ fotoId: t.metricas.fotoId, total: sql<number>`count(*)::int` })
+      .from(t.metricas)
+      .where(and(eq(t.metricas.tipo, "visita_foto"), inArray(t.metricas.eventoId, ids)))
+      .groupBy(t.metricas.fotoId),
+  ]);
 
   const linhas = meus
     .map((e) => {
-      const l = porEvento.get(e.id) ?? { pedidos: new Set(), itens: 0, faturamento: 0 };
-      const v = visitas.get(e.id) ?? 0;
+      const v = vendas.find((x) => x.eventoId === e.id);
+      const m = metricasPorEvento.find((x) => x.eventoId === e.id);
+      const visitas = m?.visitas ?? 0;
+      const pedidos = v?.pedidos ?? 0;
       return {
-        evento: {
-          id: e.id,
-          titulo: e.titulo,
-          slug: e.slug,
-          status: e.status,
-          inicioEm: e.inicioEm,
-        },
-        visitas: v,
-        carrinhos: carrinhos.get(e.id) ?? 0,
-        pedidos: l.pedidos.size,
-        itensVendidos: l.itens,
-        faturamentoCentavos: l.faturamento,
-        conversao: v ? l.pedidos.size / v : null,
+        evento: { ...e, inicioEm: iso(e.inicioEm) },
+        visitas,
+        carrinhos: m?.carrinhos ?? 0,
+        pedidos,
+        itensVendidos: v?.itens ?? 0,
+        faturamentoCentavos: v?.faturamento ?? 0,
+        conversao: visitas ? pedidos / visitas : null,
       };
     })
     .sort((a, b) => b.faturamentoCentavos - a.faturamentoCentavos || b.visitas - a.visitas);
 
-  const destaque = [...vendasPorFoto.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .flatMap(([fotoId, vendas]) => {
-      const foto = fotos.find((f) => f.id === fotoId);
-      const evento = foto && meus.find((e) => e.id === foto.eventoId);
-      if (!foto || !evento) return [];
-      return [
-        {
-          foto: { id: foto.id, urlMiniatura: foto.urlMiniatura },
-          eventoTitulo: evento.titulo,
-          vendas,
-          visitas: visitasFoto.get(foto.id) ?? 0,
-        },
-      ];
-    });
-
-  return { eventos: linhas, fotos: destaque };
+  return {
+    eventos: linhas,
+    fotos: destaque.map((d) => ({
+      foto: { id: d.fotoId, urlMiniatura: d.urlMiniatura },
+      eventoTitulo: d.eventoTitulo,
+      vendas: d.vendas,
+      visitas: visitasFoto.find((x) => x.fotoId === d.fotoId)?.total ?? 0,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------- Modelos e cópia de evento
@@ -244,20 +270,30 @@ export function configDoEvento(evento: Evento): ConfigModelo {
   };
 }
 
+function paraModelo(r: typeof t.modelosEvento.$inferSelect): ModeloEvento {
+  return { ...r, criadoEm: iso(r.criadoEm) };
+}
+
 export async function listarModelos(fotografoId: string): Promise<ModeloEvento[]> {
-  return structuredClone(
-    modelos
-      .filter((m) => m.fotografoId === fotografoId)
-      .sort((a, b) => a.nome.localeCompare(b.nome)),
-  );
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.modelosEvento)
+    .where(eq(t.modelosEvento.fotografoId, fotografoId))
+    .orderBy(asc(t.modelosEvento.nome));
+  return linhas.map(paraModelo);
 }
 
 export async function buscarModelo(
   modeloId: string,
   fotografoId: string,
 ): Promise<ModeloEvento | null> {
-  const modelo = modelos.find((m) => m.id === modeloId && m.fotografoId === fotografoId);
-  return modelo ? structuredClone(modelo) : null;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.modelosEvento)
+    .where(and(eq(t.modelosEvento.id, modeloId), eq(t.modelosEvento.fotografoId, fotografoId)));
+  return linha ? paraModelo(linha) : null;
 }
 
 /** Salva a configuração de um evento do fotógrafo como modelo. `null` se o evento não for dele. */
@@ -266,24 +302,32 @@ export async function salvarModeloDoEvento(
   fotografoId: string,
   nome: string,
 ): Promise<ModeloEvento | null> {
-  const evento = eventos.find((e) => e.id === eventoId && e.fotografoId === fotografoId);
+  const banco = await obterBanco();
+  const [evento] = await banco
+    .select()
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
   if (!evento) return null;
-  const modelo: ModeloEvento = {
-    id: crypto.randomUUID(),
-    fotografoId,
-    nome,
-    config: configDoEvento(evento),
-    criadoEm: new Date().toISOString(),
-  };
-  modelos.push(modelo);
-  return structuredClone(modelo);
+  const config = configDoEvento({
+    ...omitir(evento, "senhaHash"),
+    inicioEm: iso(evento.inicioEm),
+    fimEm: iso(evento.fimEm),
+    liberadoEm: iso(evento.liberadoEm),
+  });
+  const [linha] = await banco
+    .insert(t.modelosEvento)
+    .values({ fotografoId, nome, config })
+    .returning();
+  return paraModelo(linha);
 }
 
 export async function excluirModelo(modeloId: string, fotografoId: string): Promise<boolean> {
-  const indice = modelos.findIndex((m) => m.id === modeloId && m.fotografoId === fotografoId);
-  if (indice < 0) return false;
-  modelos.splice(indice, 1);
-  return true;
+  const banco = await obterBanco();
+  const apagados = await banco
+    .delete(t.modelosEvento)
+    .where(and(eq(t.modelosEvento.id, modeloId), eq(t.modelosEvento.fotografoId, fotografoId)))
+    .returning({ id: t.modelosEvento.id });
+  return apagados.length > 0;
 }
 
 /**
@@ -295,15 +339,32 @@ export async function copiarDescontosDoEvento(
   destinoId: string,
   fotografoId: string,
 ): Promise<boolean> {
-  const dono = (id: string) => eventos.some((e) => e.id === id && e.fotografoId === fotografoId);
-  if (!dono(origemId) || !dono(destinoId)) return false;
-  for (const f of faixasDesconto.filter((f) => f.eventoId === origemId)) {
-    faixasDesconto.push({ ...structuredClone(f), id: crypto.randomUUID(), eventoId: destinoId });
-  }
-  const pacote = pacotes.find((p) => p.eventoId === origemId);
-  if (pacote) {
-    pacotes.push({ ...structuredClone(pacote), id: crypto.randomUUID(), eventoId: destinoId });
-  }
+  const banco = await obterBanco();
+  const donos = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(
+      and(inArray(t.eventos.id, [origemId, destinoId]), eq(t.eventos.fotografoId, fotografoId)),
+    );
+  if (new Set(donos.map((d) => d.id)).size !== new Set([origemId, destinoId]).size) return false;
+  await banco.transaction(async (tx) => {
+    const faixas = await tx
+      .select()
+      .from(t.faixasDesconto)
+      .where(eq(t.faixasDesconto.eventoId, origemId));
+    if (faixas.length > 0) {
+      await tx
+        .insert(t.faixasDesconto)
+        .values(faixas.map((f) => ({ ...omitir(f, "id"), eventoId: destinoId })));
+    }
+    const [pacote] = await tx.select().from(t.pacotes).where(eq(t.pacotes.eventoId, origemId));
+    if (pacote) {
+      await tx
+        .insert(t.pacotes)
+        .values({ ...omitir(pacote, "id"), eventoId: destinoId })
+        .onConflictDoNothing();
+    }
+  });
   return true;
 }
 
@@ -311,15 +372,27 @@ export async function copiarDescontosDoEvento(
 
 /** Assinaturas (SHA-256) das fotos já enviadas ao evento e ainda não excluídas. */
 export async function hashesDoEvento(eventoId: string): Promise<Set<string>> {
-  const doEvento = hashesPorEvento.get(eventoId) ?? new Map<string, string>();
-  const ativas = new Set(
-    fotos.filter((f) => f.eventoId === eventoId && f.excluidaEm === null).map((f) => f.id),
-  );
-  return new Set([...doEvento].filter(([, fotoId]) => ativas.has(fotoId)).map(([hash]) => hash));
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ hash: t.fotos.hashConteudo })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.eventoId, eventoId),
+        isNull(t.fotos.excluidaEm),
+        isNotNull(t.fotos.hashConteudo),
+      ),
+    );
+  return new Set(linhas.flatMap((l) => (l.hash ? [l.hash] : [])));
 }
 
+/** Grava a assinatura de cada foto enviada (`fotos.hash_conteudo`). */
 export async function registrarHashes(eventoId: string, pares: { hash: string; fotoId: string }[]) {
-  const doEvento = hashesPorEvento.get(eventoId) ?? new Map<string, string>();
-  for (const { hash, fotoId } of pares) doEvento.set(hash, fotoId);
-  hashesPorEvento.set(eventoId, doEvento);
+  const banco = await obterBanco();
+  for (const { hash, fotoId } of pares) {
+    await banco
+      .update(t.fotos)
+      .set({ hashConteudo: hash })
+      .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.eventoId, eventoId)));
+  }
 }
