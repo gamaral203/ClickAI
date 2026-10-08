@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Archive, Loader2, Rocket, Unlock } from "lucide-react";
+import { Archive, ArrowRight, KeyRound, Loader2, Rocket, Unlock } from "lucide-react";
 
 import {
   arquivarEventoAcao,
   liberarAgoraAcao,
   publicarEventoAcao,
 } from "@/app/(fotografo)/painel/eventos/acoes";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 type Props = {
   eventoId: string;
@@ -90,16 +90,33 @@ export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props
           </Button>
         )}
       </div>
-      {erro && (
-        <p role="alert" className="text-sm text-destructive">
-          {erro}{" "}
-          {irParaPerfil && (
-            <Link href="/painel/perfil" className="font-medium underline underline-offset-4">
+      {erro &&
+        (irParaPerfil ? (
+          // Pendência de recebimento: não é falha, é um passo que falta. Quadro com o caminho.
+          <div
+            role="alert"
+            className="flex flex-col gap-3 rounded-xl border border-highlight-foreground/20 bg-highlight/25 p-4 sm:flex-row sm:items-center sm:gap-4"
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background">
+              <KeyRound aria-hidden="true" className="size-5 text-primary" />
+            </span>
+            <div className="flex flex-1 flex-col gap-1">
+              <p className="font-semibold">Falta um passo para publicar</p>
+              <p className="text-sm text-muted-foreground">{erro}</p>
+            </div>
+            <Link
+              href="/painel/perfil"
+              className={buttonVariants({ size: "touch", className: "w-full sm:w-fit" })}
+            >
               Abrir Perfil e recebimento
+              <ArrowRight aria-hidden="true" data-icon="inline-end" />
             </Link>
-          )}
-        </p>
-      )}
+          </div>
+        ) : (
+          <p role="alert" className="text-sm text-destructive">
+            {erro}
+          </p>
+        ))}
     </div>
   );
 }
