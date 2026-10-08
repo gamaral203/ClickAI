@@ -111,7 +111,7 @@ export async function salvarEventoAcao(
   const { conta } = await exigirFotografo("/painel/eventos");
   const eventoId = dadosFormulario.get("eventoId");
   const existente =
-    typeof eventoId === "string" && eventoId
+    typeof eventoId === "string" && idEvento.safeParse(eventoId).success
       ? await buscarEventoDoFotografo(eventoId, conta.id)
       : null;
   if (eventoId && !existente) return { erros: { titulo: "Evento não encontrado." } };
