@@ -12,7 +12,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
 | Banco (Supabase) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Supabase), região São Paulo; cria `POSTGRES_URL` (pooler) e `POSTGRES_URL_NON_POOLING` (direta) no projeto. O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
 | Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
-| AWS | Reconhecimento facial (Rekognition) | Fase 12 | Usuário IAM só com as permissões do `.env.example` |
+| AWS | Reconhecimento facial (Rekognition) | Fase 12 | Região `sa-east-1` (São Paulo). Usuário IAM só com as permissões do `.env.example`; chaves em `REKOGNITION_*`, nunca em `AWS_*` (item 3) |
 | WhatsApp (Meta ou parceiro) | Entrega pelo WhatsApp | Fase 13 | Decisão em aberto |
 
 ## 2. Primeiro deploy na Vercel
@@ -36,7 +36,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Erros no Sentry |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | Envio dos source maps no build (opcional, mas ajuda a ler os erros) |
 | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | Domínio próprio das lojas |
-| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Busca por selfie (Amazon Rekognition). Sem elas, a busca responde "indisponível" em produção. O usuário IAM precisa de `rekognition:CreateCollection`, `IndexFaces` e `SearchFacesByImage`. Opcional: `REKOGNITION_SEMELHANCA` (padrão 90) |
+| `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID`, `REKOGNITION_SECRET_ACCESS_KEY` | Busca por selfie (Amazon Rekognition). Região `sa-east-1`. Sem elas, a busca responde "indisponível" em produção. **Não use `AWS_REGION`, `AWS_ACCESS_KEY_ID` nem `AWS_SECRET_ACCESS_KEY`**: na Vercel esses nomes são da plataforma (a região da função e credenciais temporárias que não valem na sua conta), e o app não os lê. O usuário IAM precisa só de `rekognition:CreateCollection`, `rekognition:IndexFaces` e `rekognition:SearchFacesByImage` (e `rekognition:DeleteFaces`, opcional). Opcional: `REKOGNITION_SEMELHANCA` (padrão 90) e `REKOGNITION_PREFIXO` (padrão `clicouai`). Se a busca falhar, o log da função mostra o nome do erro da AWS (ex.: `UnrecognizedClientException` = chave errada; `AccessDeniedException` = falta permissão) |
 | `RESEND_API_KEY`, `EMAIL_REMETENTE` | E-mails (confirmação de conta, entrega, lembrete do Pix, aviso de venda). O domínio do remetente precisa estar verificado no Resend |
 | `NEXT_PUBLIC_EMAIL_PRIVACIDADE` | E-mail do encarregado de dados na política de privacidade |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_ORIGINAIS`, `R2_BUCKET_PUBLICO`, `R2_URL_PUBLICA` | Armazenamento das fotos (item 7). Sem elas o site funciona, mas o envio de fotos responde "Armazenamento de fotos não configurado" |
@@ -93,7 +93,7 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 
 - **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
-- **Busca por selfie:** as fotos enviadas antes de configurar a AWS (ou em que a indexação falhou) não aparecem na busca. Em cada evento do painel, o quadro "Busca por selfie" mostra quantas fotos têm rosto cadastrado e tem o botão "Cadastrar rostos que faltam".
+- **Busca por selfie:** as fotos enviadas antes de configurar o Rekognition (ou em que a indexação falhou) não aparecem na busca. Em cada evento do painel, o quadro "Busca por selfie" mostra quantas fotos têm rosto cadastrado e tem o botão "Cadastrar rostos que faltam".
 - **Job de pedidos:** `GET /api/jobs/pedidos` (expira o Pix vencido, manda o lembrete do Pix 20 minutos depois do pedido e o de carrinho) roda a cada 10 minutos pelo GitHub Actions ([`.github/workflows/jobs.yml`](../.github/workflows/jobs.yml)). Cadastre no repositório, em **Settings → Secrets and variables → Actions**, os segredos `APP_URL` e `CRON_SECRET` (o mesmo da Vercel). O cron da Vercel em `vercel.json` roda uma vez por dia, só como reserva (no plano Hobby não dá para rodar mais vezes). Para testar na hora: **Actions → Job de pedidos → Run workflow**.
 
 ## 7. Cloudflare R2 (fotos)

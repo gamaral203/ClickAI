@@ -61,7 +61,8 @@ export function RostosDoEvento({
       </p>
       {!configurado ? (
         <p className="text-sm text-muted-foreground">
-          O reconhecimento facial não está ligado neste servidor (faltam as chaves da AWS). Os
+          O reconhecimento facial não está ligado neste servidor (faltam as variáveis
+          REKOGNITION_REGIAO, REKOGNITION_ACCESS_KEY_ID e REKOGNITION_SECRET_ACCESS_KEY). Os
           clientes não conseguem buscar pela selfie.
         </p>
       ) : (

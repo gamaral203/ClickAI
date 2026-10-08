@@ -11,7 +11,7 @@ O projeto está na **Parte A**: o produto inteiro sendo construído com dados de
 O que já funciona:
 
 - Página inicial com carrossel (fotos horizontais no computador, verticais no celular) e os eventos recentes com busca; lista de eventos com busca por nome, cidade ou fotógrafo (sem diferenciar acentos) e filtro por data
-- Busca por selfie e por número de peito na página do evento (Amazon Rekognition com credenciais da AWS; rostos de exemplo sem elas)
+- Busca por selfie e por número de peito na página do evento (Amazon Rekognition com as credenciais `REKOGNITION_*`; rostos de exemplo sem elas)
 - Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação, com senha ou só após a busca)
 - Página da foto com a prévia grande, preço e navegação para a foto anterior e a próxima
 - Prévias e miniaturas com a marca d'água gravada nos pixels, rotação do EXIF corrigida e metadados (GPS, câmera) removidos
@@ -42,7 +42,7 @@ Abra http://localhost:3000. Não há banco para configurar na Parte A.
 - a página do pedido confere o pagamento na API a cada 5 segundos, então funciona em `localhost` mesmo sem o webhook;
 - para receber o webhook na sua máquina, exponha a porta com um túnel (ex.: `ngrok http 3000`) e cadastre `https://<túnel>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
 
-**Login com Google e reconhecimento facial (opcionais):** também no `.env.local`. Com `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `APP_URL`, aparece o botão "Continuar com Google" (URI de redirecionamento no Google Cloud: `{APP_URL}/api/auth/google/callback`); e-mails em `ADMIN_EMAILS` entram como gestores. Com as credenciais da AWS, a busca por selfie usa o Amazon Rekognition. Detalhes em `.env.example`.
+**Login com Google e reconhecimento facial (opcionais):** também no `.env.local`. Com `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `APP_URL`, aparece o botão "Continuar com Google" (URI de redirecionamento no Google Cloud: `{APP_URL}/api/auth/google/callback`); e-mails em `ADMIN_EMAILS` entram como gestores. Com `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY`, a busca por selfie usa o Amazon Rekognition (não use os nomes `AWS_*`, que a Vercel reserva). Detalhes em `.env.example`.
 
 | Comando                  | O que faz                                                                                                         |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------- |

@@ -1,6 +1,6 @@
 // Reconhecimento facial: o provedor que compara a selfie com os rostos das fotos do evento.
-// Com credenciais da AWS, usa o Amazon Rekognition (uma coleção de rostos por evento); sem
-// elas, os dados de exemplo simulam o resultado.
+// Com as credenciais REKOGNITION_*, usa o Amazon Rekognition (uma coleção de rostos por evento);
+// sem elas, os dados de exemplo simulam o resultado.
 //
 // Regra do projeto (docs/CLAUDE.md): a selfie nunca é gravada. Ela chega aqui como bytes em
 // memória, vai ao provedor só para a busca (SearchFacesByImage não guarda a imagem) e é
@@ -29,7 +29,7 @@ function semelhancaMinima() {
   return Number.isFinite(valor) && valor >= 80 && valor <= 99 ? valor : 90;
 }
 
-/** Sem a AWS em produção a busca não pode cair nos dados de exemplo: avisa que está desligada. */
+/** Sem o Rekognition em produção a busca não pode cair nos dados de exemplo: avisa que está desligada. */
 export class BuscaFacialDesligada extends Error {
   constructor() {
     super("Busca por selfie não configurada");
@@ -37,25 +37,66 @@ export class BuscaFacialDesligada extends Error {
   }
 }
 
-type ConfigRekognition = { regiao: string; prefixo: string };
+type ConfigRekognition = {
+  regiao: string;
+  prefixo: string;
+  credenciais: { accessKeyId: string; secretAccessKey: string };
+};
 
+/**
+ * Nomes próprios, de propósito, e sem cair nas AWS_*: na Vercel, AWS_REGION vem preenchida com a
+ * região da função, e AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN podem existir
+ * com credenciais da própria plataforma, que não valem na nossa conta da AWS. Com elas, o painel
+ * dizia "configurado" e o Rekognition recusava tudo (UnrecognizedClientException).
+ */
 function configRekognition(): ConfigRekognition | null {
-  const regiao = process.env.AWS_REGION;
-  if (!regiao || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-    return null;
-  }
-  return { regiao, prefixo: process.env.REKOGNITION_PREFIXO || "clicouai" };
+  const regiao = process.env.REKOGNITION_REGIAO?.trim();
+  const accessKeyId = process.env.REKOGNITION_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.REKOGNITION_SECRET_ACCESS_KEY?.trim();
+  if (!regiao || !accessKeyId || !secretAccessKey) return null;
+  return {
+    regiao,
+    prefixo: process.env.REKOGNITION_PREFIXO || "clicouai",
+    credenciais: { accessKeyId, secretAccessKey },
+  };
 }
 
 export function provedorFacial(): "rekognition" | "exemplo" {
   return configRekognition() ? "rekognition" : "exemplo";
 }
 
-let cliente: RekognitionClient | null = null;
+let cliente: { chave: string; rk: RekognitionClient } | null = null;
 function rekognition(config: ConfigRekognition) {
-  // As chaves vêm das variáveis AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY, lidas pelo SDK.
-  cliente ??= new RekognitionClient({ region: config.regiao });
-  return cliente;
+  // Credenciais passadas aqui, nunca pela cadeia padrão do SDK (que leria as AWS_* da Vercel).
+  // Troca de chave ou região (novo deploy, teste) cria outro cliente.
+  const chave = `${config.regiao}:${config.credenciais.accessKeyId}`;
+  if (cliente?.chave !== chave) {
+    cliente = {
+      chave,
+      rk: new RekognitionClient({ region: config.regiao, credentials: config.credenciais }),
+    };
+  }
+  return cliente.rk;
+}
+
+/** Nome do erro da AWS (ex.: AccessDeniedException), o único detalhe que vai para o log. */
+export function nomeDoErro(erro: unknown) {
+  return erro instanceof Error ? erro.name : "desconhecido";
+}
+
+/** Erros que indicam chave, segredo, região ou permissão errados, e não um problema da foto. */
+const ERROS_DE_CREDENCIAL = new Set([
+  "UnrecognizedClientException",
+  "InvalidSignatureException",
+  "AccessDeniedException",
+  "ExpiredTokenException",
+  "InvalidClientTokenId",
+  "SignatureDoesNotMatch",
+  "CredentialsProviderError",
+]);
+
+export function ehErroDeCredencial(erro: unknown) {
+  return ERROS_DE_CREDENCIAL.has(nomeDoErro(erro));
 }
 
 /** Uma coleção por evento: a busca só compara com rostos daquele evento. */
@@ -150,12 +191,17 @@ export async function buscarFotosPorSelfie(
     return { fotoIds: [...new Set(fotoIds)], rostoIds };
   } catch (erro) {
     // Sem rosto na selfie, ou evento ainda sem coleção: nenhum resultado. Só o nome do erro
-    // vai para o log, nunca a requisição (que tem a selfie).
-    const nome = erro instanceof Error ? erro.name : "desconhecido";
+    // vai para o log, nunca a requisição nem o erro inteiro (que podem ter a selfie).
+    const nome = nomeDoErro(erro);
     if (nome === "InvalidParameterException" || nome === "ResourceNotFoundException") {
       return { fotoIds: [], rostoIds: [] };
     }
-    console.error("Falha na busca facial", nome);
+    console.error(
+      `[busca-facial] o Rekognition recusou a busca: ${nome}` +
+        (ehErroDeCredencial(erro)
+          ? " (confira REKOGNITION_REGIAO, REKOGNITION_ACCESS_KEY_ID, REKOGNITION_SECRET_ACCESS_KEY e as permissões do usuário IAM)"
+          : ""),
+    );
     throw new Error("Falha na busca facial");
   }
 }

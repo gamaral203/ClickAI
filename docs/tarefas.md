@@ -122,6 +122,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Produção nunca cria itens de exemplo: sem R2, o envio responde "Armazenamento de fotos não configurado"; fora da produção, sem R2, segue o envio simulado
 - [x] Saque em produção pelo Payouts: `X-signature` Ed25519 sobre os bytes exatos do corpo (chave em `MP_PAYOUTS_PRIVATE_KEY`, pública em `docs/mercadopago/`), headers por ambiente, status lido em `/v1/payouts/{id}/transactions` (`pago` só com `success` + `accredited`), descrições sem acento e trava `MP_PAYOUTS_HABILITADO=1`; saldo só volta com recusa clara no primeiro envio, e recusa ambígua, recusa em reenvio ou Pix devolvido ficam em `processando` com alerta `[R-alta]`
 - [x] Produção nunca mostra o link de confirmação de e-mail na tela: se o e-mail não sair, a tela avisa que o envio está indisponível e o erro vai ao log, sem o token na URL nem no log; o link na tela fica só fora da produção `[R-alta]`
+- [x] Correção: a busca por selfie falhava na Vercel porque lia `AWS_REGION`, `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`, nomes que a plataforma preenche com a região da função e credenciais que não valem na nossa conta. Agora lê só `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` e passa as chaves direto ao cliente; o log mostra só o nome do erro da AWS (nunca a selfie)
 
 ## Em andamento
 
@@ -215,7 +216,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Levar o processamento da foto (hoje síncrono na Server Action `confirmarEnvioAcao`) para um job no Inngest, com nova tentativa automática
 - [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
 - [x] Indexar os rostos de cada foto no Rekognition ao concluir o envio e gravar em `rostos` (com a posição do rosto, para a prévia ampliada); botão no evento para cadastrar os que faltam
-- [ ] Configurar a AWS na Vercel e testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
+- [ ] Criar o usuário IAM na região `sa-east-1`, cadastrar `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` na Vercel (não os nomes `AWS_*`) e testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
 - [x] Banner e logo da página do fotógrafo em Minha loja (valem no link /fotografo/<endereço> e na loja)
 - [ ] Anexos da denúncia no bucket privado, por URL assinada
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
