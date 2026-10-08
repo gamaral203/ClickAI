@@ -243,15 +243,15 @@ const paraQuemVende: Artigo[] = [
                 <th scope="row" className="p-2 text-left font-normal">
                   Saque normal (30 dias)
                 </th>
-                <td className="p-2">R$ 2,00</td>
-                <td className="p-2 font-semibold text-foreground">R$ 18,00</td>
+                <td className="p-2 whitespace-nowrap">R$ 2,00</td>
+                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 18,00</td>
               </tr>
               <tr>
                 <th scope="row" className="p-2 text-left font-normal">
                   Saque antecipado
                 </th>
-                <td className="p-2">R$ 2,20</td>
-                <td className="p-2 font-semibold text-foreground">R$ 17,80</td>
+                <td className="p-2 whitespace-nowrap">R$ 2,20</td>
+                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 17,80</td>
               </tr>
             </tbody>
           </table>
