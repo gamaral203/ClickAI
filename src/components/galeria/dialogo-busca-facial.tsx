@@ -150,6 +150,13 @@ export function DialogoBuscaFacial({
                 Marque a autorização acima para continuar.
               </p>
             )}
+            <p className="text-xs text-muted-foreground">
+              Saiba mais na{" "}
+              <a href="/privacidade" target="_blank" className="font-medium text-primary underline">
+                política de privacidade
+              </a>
+              .
+            </p>
 
             {erro && (
               <p role="alert" className="text-sm text-destructive">
