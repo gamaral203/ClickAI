@@ -104,13 +104,13 @@ As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o s
 
 1. **Buckets.** No painel da Cloudflare, **R2 Object Storage → Create bucket**: crie `fotos-originais` e `fotos-publicas` (localização automática, classe Standard).
 2. **Acesso público só no bucket público.** Em `fotos-publicas` → **Settings → Public Development URL** → **Enable**. Copie a URL (`https://pub-….r2.dev`) para `R2_URL_PUBLICA`, sem barra no fim. Depois, para cache de CDN, troque por um domínio próprio em **Custom Domains** (ex. `img.clicouai.com.br`) e atualize `R2_URL_PUBLICA`; o banco guarda só as chaves, então nada mais muda. **Nunca** ligue acesso público no `fotos-originais`.
-3. **CORS no bucket de originais** (o navegador faz o PUT direto nele). Em `fotos-originais` → **Settings → CORS Policy → Add CORS policy**, cole:
+3. **CORS no bucket de originais** (o navegador faz o PUT do envio direto nele, e o botão "Compartilhar" do pedido, em `src/components/pagamento/compartilhar-foto.tsx`, faz um `fetch` que segue o 302 até a URL assinada e lê a foto, o que exige `GET`). Em `fotos-originais` → **Settings → CORS Policy → Add CORS policy**, cole:
 
    ```json
    [
      {
        "AllowedOrigins": ["https://clickai-hazel.vercel.app", "http://localhost:3000"],
-       "AllowedMethods": ["PUT"],
+       "AllowedMethods": ["PUT", "GET"],
        "AllowedHeaders": ["Content-Type"],
        "ExposeHeaders": ["ETag"],
        "MaxAgeSeconds": 3600
@@ -118,7 +118,7 @@ As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o s
    ]
    ```
 
-   Ao trocar para o domínio definitivo, acrescente-o em `AllowedOrigins`. O download não precisa de CORS (é um redirecionamento).
+   Ao trocar para o domínio definitivo, acrescente-o em `AllowedOrigins`. O download pelo link não precisa de CORS (é navegação, não `fetch`); o `GET` na regra é para o compartilhar.
 4. **Ciclo de vida da pasta temporária.** Em `fotos-originais` → **Settings → Object lifecycle rules → Add rule**: nome `apagar-envios`, prefixo `envios/`, **Delete objects** depois de **1 dia**. Apaga o que sobrou de envios abandonados ou recusados; o original conferido fica em `originais/`.
 5. **Token de acesso.** Em **R2 Object Storage → Manage API tokens → Create API token**: permissão **Object Read & Write**, aplicada **só aos buckets** `fotos-originais` e `fotos-publicas`, sem prazo (ou com rotação anotada). Copie o **Access Key ID** e o **Secret Access Key** (o segredo aparece uma vez só). O **Account ID** aparece na página inicial do R2.
 6. **Variáveis na Vercel** (*Production*; em *Preview* só se quiser testar com buckets separados):
