@@ -57,11 +57,19 @@ export function valorParaCentavos(valor: string): number | null {
 // ---------------------------------------------------------------- Requisições
 
 export class ErroMercadoPago extends Error {
+  /**
+   * Resposta do Mercado Pago, para o código ler os motivos da recusa. Não enumerável: o
+   * console.error(erro) e o Sentry não a imprimem, porque ela pode trazer o CPF/CNPJ do
+   * pagador ou a chave Pix do fotógrafo.
+   */
+  declare readonly corpo: unknown;
+
   constructor(
     readonly status: number,
-    readonly corpo: unknown,
+    corpo: unknown,
   ) {
     super(`Mercado Pago respondeu ${status}`);
+    Object.defineProperty(this, "corpo", { value: corpo, enumerable: false });
   }
 }
 

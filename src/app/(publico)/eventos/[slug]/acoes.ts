@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { z } from "zod";
 
 import {
@@ -20,6 +20,7 @@ import {
   novoTokenDeAcesso,
 } from "@/lib/acesso-evento";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import { ofertaDePacote, type OfertaPacote } from "@/servicos/pacotes";
 import { horaSchema } from "@/lib/validacao";
 
@@ -91,19 +92,6 @@ export async function buscarPorNumero(
 
 // ---------------------------------------------------------------- Senha do evento
 
-/** Tentativas de senha por IP e evento numa janela de 15 minutos (contra força bruta). */
-const LIMITE_TENTATIVAS = 8;
-const JANELA_MS = 15 * 60 * 1000;
-const tentativas = new Map<string, number[]>();
-
-function limiteAtingido(chave: string) {
-  const agora = Date.now();
-  const recentes = (tentativas.get(chave) ?? []).filter((t) => agora - t < JANELA_MS);
-  recentes.push(agora);
-  tentativas.set(chave, recentes);
-  return recentes.length > LIMITE_TENTATIVAS;
-}
-
 const senhaEvento = z.object({
   slug,
   senha: z.string().min(1, "Digite a senha.").max(50, "Senha incorreta."),
@@ -127,8 +115,8 @@ export async function entrarNoEvento(
     return { erro: dados.error.issues[0]?.message ?? "Senha incorreta." };
   }
 
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (limiteAtingido(`${ip}:${dados.data.slug}`)) {
+  // 8 tentativas por IP e evento em 15 minutos, contadas no banco (contra força bruta).
+  if (await limiteDoIpAtingido("senha_evento_ip", dados.data.slug)) {
     return { erro: "Muitas tentativas seguidas. Espere alguns minutos e tente de novo." };
   }
 

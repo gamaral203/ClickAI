@@ -1,27 +1,14 @@
 "use server";
 
-import { headers } from "next/headers";
 import { z } from "zod";
 
 import { buscarEventoPublicado, criarDenuncia, fotoEhDoEvento, registrarMensagem } from "@/dados";
 import { MOTIVOS, rotuloDoMotivo } from "@/lib/denuncias";
 import { cnpjValido, somenteDigitos } from "@/lib/documentos";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 
 // Denúncia de evento ou foto (docs/arquitetura.md, "Denúncia"). Formulário público: valida tudo,
 // limita por IP e confirma o recebimento por e-mail ao denunciante (simulado até a Fase 13).
-
-/** Denúncias por IP numa janela de 1 hora: o canal é sério, mas não pode virar spam. */
-const LIMITE = 5;
-const JANELA_MS = 60 * 60 * 1000;
-const tentativas = new Map<string, number[]>();
-
-function limiteAtingido(ip: string) {
-  const agora = Date.now();
-  const recentes = (tentativas.get(ip) ?? []).filter((t) => agora - t < JANELA_MS);
-  recentes.push(agora);
-  tentativas.set(ip, recentes);
-  return recentes.length > LIMITE;
-}
 
 /** Campo vazio ou que nem veio no formulário (ex.: CNPJ, só para empresa) vira `null`. */
 const opcional = (v: unknown) =>
@@ -75,8 +62,9 @@ export async function enviarDenunciaAcao(
   }
   const d = validacao.data;
 
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (limiteAtingido(ip)) {
+  // 5 denúncias por IP por hora (src/servicos/limites.ts): o canal é sério, mas não pode virar
+  // spam nem disparar e-mails sem fim.
+  if (await limiteDoIpAtingido("denuncia_ip")) {
     return { erro: "Recebemos várias denúncias seguidas daqui. Tente de novo em uma hora." };
   }
 
