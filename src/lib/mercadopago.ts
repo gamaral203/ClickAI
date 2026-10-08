@@ -124,6 +124,36 @@ const order = z.object({
   transactions: z.object({ payments: z.array(pagamentoDaOrder).default([]) }).optional(),
 });
 
+/**
+ * O que a order diz sobre o dinheiro, lido de `status` + `status_detail`
+ * (https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-management/status/order-status):
+ * - `paga`: `processed` + `accredited`;
+ * - `reembolsada`: `refunded`, ou `processed` + `refunded`/`partially_refunded` (a resposta do
+ *   reembolso traz `processed` + `refunded`). Reembolso parcial conta como total: a plataforma
+ *   não repassa dinheiro que já devolveu, e o ClicouAí só faz reembolso total;
+ * - `contestada`: `charged_back` + `in_process` (disputa aberta) ou qualquer detalhe novo;
+ * - `contestacao_perdida`: `charged_back` + `settled` ou `reimbursed`. A documentação do Mercado
+ *   Pago descreve os dois como dinheiro devolvido ao comprador; na dúvida, os dois encerram a
+ *   disputa contra a plataforma (docs/arquitetura.md, "Estorno e chargeback");
+ * - `outra`: o resto (criada, em processamento, aguardando pagamento, recusada, expirada…).
+ */
+export type SituacaoOrder = "paga" | "reembolsada" | "contestada" | "contestacao_perdida" | "outra";
+
+const DETALHES_DE_REEMBOLSO = new Set(["refunded", "partially_refunded"]);
+const DETALHES_DE_CONTESTACAO_PERDIDA = new Set(["settled", "reimbursed"]);
+
+export function situacaoDaOrder(status: string, detalhe: string | null | undefined): SituacaoOrder {
+  if (status === "charged_back") {
+    return DETALHES_DE_CONTESTACAO_PERDIDA.has(detalhe ?? "")
+      ? "contestacao_perdida"
+      : "contestada";
+  }
+  if (status === "refunded") return "reembolsada";
+  if (status === "processed" && DETALHES_DE_REEMBOLSO.has(detalhe ?? "")) return "reembolsada";
+  if (status === "processed" && detalhe === "accredited") return "paga";
+  return "outra";
+}
+
 export type OrderMercadoPago = {
   id: string;
   status: string;
@@ -132,6 +162,7 @@ export type OrderMercadoPago = {
   totalCentavos: number | null;
   /** Processada e creditada: o dinheiro entrou. */
   paga: boolean;
+  situacao: SituacaoOrder;
   pix: { copiaECola: string; qrCodeBase64: string } | null;
 };
 
@@ -139,13 +170,15 @@ function lerOrder(corpo: unknown): OrderMercadoPago {
   const o = order.parse(corpo);
   const pagamento = o.transactions?.payments[0];
   const qr = pagamento?.payment_method;
+  const situacao = situacaoDaOrder(o.status, o.status_detail);
   return {
     id: o.id,
     status: o.status,
     statusDetalhe: o.status_detail ?? null,
     referencia: o.external_reference ?? null,
     totalCentavos: valorParaCentavos(o.total_amount),
-    paga: o.status === "processed" && o.status_detail === "accredited",
+    paga: situacao === "paga",
+    situacao,
     pix:
       qr?.qr_code && qr.qr_code_base64
         ? { copiaECola: qr.qr_code, qrCodeBase64: qr.qr_code_base64 }
@@ -237,6 +270,35 @@ export async function criarOrderCartao(dados: DadosCobranca & { cartao: DadosCar
 /** Lê a order direto na API: é o que vale, nunca o que veio no corpo do webhook ou do navegador. */
 export async function buscarOrder(orderId: string) {
   return lerOrder(await requisitar(`/v1/orders/${encodeURIComponent(orderId)}`, { method: "GET" }));
+}
+
+/**
+ * Reembolso TOTAL da order (`POST /v1/orders/{id}/refund` com o corpo vazio). A chave de
+ * idempotência é fixa por pedido: repetir o pedido de reembolso não devolve duas vezes. A
+ * resposta não confirma nada sozinha: quem chama lê a order de novo com `buscarOrder`.
+ */
+export async function reembolsarOrder(orderId: string, pedidoId: string) {
+  await requisitar(`/v1/orders/${encodeURIComponent(orderId)}/refund`, {
+    method: "POST",
+    idempotencia: `reembolso-${pedidoId}`,
+  });
+}
+
+/** Códigos do Mercado Pago que dizem que o reembolso já foi feito ou já está em andamento. */
+const REEMBOLSO_JA_PEDIDO = new Set(["order_already_refunded", "order_refund_already_in_process"]);
+
+export function reembolsoJaPedido(erro: ErroMercadoPago) {
+  const corpo = erro.corpo;
+  if (!corpo || typeof corpo !== "object") return false;
+  const textos: string[] = [];
+  const visitar = (valor: unknown) => {
+    if (!valor || typeof valor !== "object") return;
+    const o = valor as Record<string, unknown>;
+    for (const chave of ["code", "error"]) if (typeof o[chave] === "string") textos.push(o[chave]);
+    if (Array.isArray(o.errors)) o.errors.forEach(visitar);
+  };
+  visitar(corpo);
+  return textos.some((t) => REEMBOLSO_JA_PEDIDO.has(t.toLowerCase()));
 }
 
 // ---------------------------------------------------------------- Webhook

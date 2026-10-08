@@ -37,7 +37,8 @@ const ROTULO_STATUS: Record<StatusPedido, string> = {
   pago: "Pago",
   expirado: "Prazo encerrado",
   cancelado: "Cancelado",
-  estornado: "Estornado",
+  estornado: "Reembolsado",
+  contestado: "Contestado",
 };
 
 async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "searchParams">) {
@@ -129,7 +130,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
                       <span className="font-medium">{tipo === "video" ? "Vídeo" : "Foto"}</span>
                       <span className="text-muted-foreground">{eventoTitulo}</span>
                     </span>
-                    {pedido.status === "pago" && (
+                    {pedido.status === "pago" && !pedido.reembolsoSolicitadoEm && (
                       <span className="flex flex-col items-end gap-1">
                         {/* Sem token: a rota confere a sessão do dono do pedido. */}
                         <a

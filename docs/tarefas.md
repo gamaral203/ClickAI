@@ -124,6 +124,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Produção nunca cria itens de exemplo: sem R2, o envio responde "Armazenamento de fotos não configurado"; fora da produção, sem R2, segue o envio simulado
 - [x] Saque em produção pelo Payouts: `X-signature` Ed25519 sobre os bytes exatos do corpo (chave em `MP_PAYOUTS_PRIVATE_KEY`, pública em `docs/mercadopago/`), headers por ambiente, status lido em `/v1/payouts/{id}/transactions` (`pago` só com `success` + `accredited`), descrições sem acento e trava `MP_PAYOUTS_HABILITADO=1`; saldo só volta com recusa clara no primeiro envio, e recusa ambígua, recusa em reenvio ou Pix devolvido ficam em `processando` com alerta `[R-alta]`
 - [x] Produção nunca mostra o link de confirmação de e-mail na tela: se o e-mail não sair, a tela avisa que o envio está indisponível e o erro vai ao log, sem o token na URL nem no log; o link na tela fica só fora da produção `[R-alta]`
+- [x] Fluxo de estorno e chargeback (Fase 13 e 14): reembolso total pelo gestor em `/admin/vendas` (confirmação digitando o valor, chave de idempotência fixa por pedido, downloads parados na hora, gateway simulado sem credenciais); webhook trata order reembolsada e chargeback lendo a order na API; `contestado` na disputa e `estornado` no fim; lançamento negativo por venda (`estorno_de` único), abatido do próximo saque sem tocar saque pago ou em processamento; contestação ganha restaurada pelo gestor só com a order paga na API; casos listados no admin `[Média]`
 
 ## Em andamento
 
@@ -241,7 +242,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
 - [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
-- [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
 - [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)
@@ -260,5 +260,4 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [x] Política de privacidade (com selfie), página Como funciona
 - [ ] Revisão jurídica da política de privacidade e e-mail do encarregado (`NEXT_PUBLIC_EMAIL_PRIVACIDADE`); termos de uso, política de conteúdo, exclusão de conta e canal de remoção de fotos (LGPD)
 - [ ] Backup do banco com recuperação para um ponto no tempo
-- [ ] Fluxo de estorno e chargeback
 - [ ] Central de ajuda com artigos para comprador e fotógrafo

@@ -35,7 +35,8 @@ async function enderecoDoOriginal(fotoId: string): Promise<OriginalParaDownload 
 /**
  * Autoriza o download de um item e devolve o original (endereço temporário e nome do
  * arquivo), ou `null`. Só libera item de pedido pago, para quem tem o token do link ou é o
- * cliente logado dono do pedido; pendente, expirado, cancelado ou estornado não baixa.
+ * cliente logado dono do pedido; pendente, expirado, cancelado, estornado, em contestação ou
+ * com reembolso pedido não baixa.
  */
 export async function autorizarDownload(
   itemId: string,
@@ -48,6 +49,8 @@ export async function autorizarDownload(
 
   if (!podeAcessar(pedido, credencial)) return null;
   if (pedido.status !== "pago") return null;
+  // Reembolso pedido pelo gestor: para na hora, antes de o Mercado Pago concluir a devolução.
+  if (pedido.reembolsoSolicitadoEm) return null;
   if (pedido.acessoExpiraEm && new Date(pedido.acessoExpiraEm).getTime() < Date.now()) {
     return null;
   }
