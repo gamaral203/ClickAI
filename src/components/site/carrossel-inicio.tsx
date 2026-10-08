@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 
 export type Slide = {
   src: string;
@@ -38,9 +37,9 @@ function usePrefereMenosMovimento() {
 }
 
 /**
- * Carrossel da página inicial. Rola com scroll-snap (deslize no celular funciona sem
- * biblioteca), passa sozinho a cada 5 s e para quando a pessoa interage, passa o mouse,
- * usa o teclado ou prefere menos movimento.
+ * Carrossel da página inicial, sem botões: passa sozinho a cada 5 s e, no celular, também
+ * dá para deslizar (scroll-snap, sem biblioteca). Para só enquanto o foco do teclado está
+ * dentro dele. Para quem prefere menos movimento, troca de foto sem a animação de deslizar.
  */
 export function CarrosselInicio({
   slides,
@@ -52,20 +51,20 @@ export function CarrosselInicio({
 }) {
   const trilho = useRef<HTMLDivElement>(null);
   const [atual, setAtual] = useState(0);
-  // "auto": segue a preferência do sistema; a pessoa pode forçar tocar ou pausar.
-  const [escolha, setEscolha] = useState<"auto" | "tocando" | "pausado">("auto");
   const menosMovimento = usePrefereMenosMovimento();
-  const tocando = escolha === "auto" ? !menosMovimento : escolha === "tocando";
-  const [pausaTemporaria, setPausaTemporaria] = useState(false);
+  const [comFoco, setComFoco] = useState(false);
 
   const irPara = useCallback(
     (indice: number) => {
       const el = trilho.current;
       if (!el) return;
       const destino = (indice + slides.length) % slides.length;
-      el.scrollTo({ left: destino * el.clientWidth, behavior: "smooth" });
+      el.scrollTo({
+        left: destino * el.clientWidth,
+        behavior: menosMovimento ? "instant" : "smooth",
+      });
     },
-    [slides.length],
+    [slides.length, menosMovimento],
   );
 
   // Atualiza o indicador conforme a rolagem (botões, deslize ou teclado).
@@ -78,28 +77,23 @@ export function CarrosselInicio({
   }, []);
 
   useEffect(() => {
-    if (!tocando || pausaTemporaria) return;
+    if (comFoco) return;
     const id = window.setInterval(() => irPara(atual + 1), INTERVALO_MS);
     return () => window.clearInterval(id);
-  }, [tocando, pausaTemporaria, atual, irPara]);
-
-  const botao =
-    "flex size-11 items-center justify-center rounded-full bg-white/90 text-neutral-900 hover:bg-white focus-visible:ring-3 focus-visible:ring-white/60";
+  }, [comFoco, atual, irPara]);
 
   return (
     <section
       aria-roledescription="carrossel"
       aria-label="Fotos feitas por fotógrafos do ClicouAí"
       className="relative h-[78svh] max-h-[760px] min-h-[520px] w-full overflow-hidden bg-neutral-900"
-      onMouseEnter={() => setPausaTemporaria(true)}
-      onMouseLeave={() => setPausaTemporaria(false)}
-      onFocus={() => setPausaTemporaria(true)}
-      onBlur={() => setPausaTemporaria(false)}
+      onFocus={() => setComFoco(true)}
+      onBlur={() => setComFoco(false)}
     >
       <div
         ref={trilho}
         className="flex h-full snap-x snap-mandatory [scrollbar-width:none] overflow-x-auto scroll-smooth motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden"
-        aria-live={tocando && !pausaTemporaria ? "off" : "polite"}
+        aria-live={comFoco ? "polite" : "off"}
       >
         {slides.map((slide, i) => (
           <div
@@ -185,52 +179,6 @@ export function CarrosselInicio({
               slides[atual]?.rotulo
             )}
           </span>
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-1 sm:flex">
-              {slides.map((slide, i) => (
-                <button
-                  key={slide.src}
-                  type="button"
-                  onClick={() => irPara(i)}
-                  aria-label={`Ir para a foto ${i + 1}: ${slide.rotulo}`}
-                  aria-current={i === atual}
-                  className="flex size-8 items-center justify-center rounded-full focus-visible:ring-3 focus-visible:ring-white/60"
-                >
-                  <span
-                    className={`block h-2 rounded-full transition-all motion-reduce:transition-none ${i === atual ? "w-6 bg-highlight" : "w-2 bg-white/70"}`}
-                  />
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setEscolha(tocando ? "pausado" : "tocando")}
-              aria-label={tocando ? "Pausar a troca automática" : "Retomar a troca automática"}
-              className={botao}
-            >
-              {tocando ? (
-                <Pause aria-hidden="true" className="size-4" />
-              ) : (
-                <Play aria-hidden="true" className="size-4" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => irPara(atual - 1)}
-              aria-label="Foto anterior"
-              className={botao}
-            >
-              <ChevronLeft aria-hidden="true" className="size-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => irPara(atual + 1)}
-              aria-label="Próxima foto"
-              className={botao}
-            >
-              <ChevronRight aria-hidden="true" className="size-5" />
-            </button>
-          </div>
         </div>
       </div>
     </section>

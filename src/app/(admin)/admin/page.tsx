@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 
 import { Celula, CartaoNumero, Tabela } from "@/components/admin/tabela";
-import { resumoGeral, resumoPorFotografo } from "@/dados";
+import { GraficoVendas } from "@/components/graficos/grafico-vendas";
+import { resumoGeral, resumoPorFotografo, vendasPorDiaDaPlataforma } from "@/dados";
 import { formatarPreco } from "@/lib/formatar";
 import { exigirGestor } from "@/servicos/sessao";
 
@@ -29,12 +30,21 @@ export default function PaginaGestao() {
 
 async function Conteudo() {
   await exigirGestor("/admin");
-  const [resumo, porFotografo] = await Promise.all([resumoGeral(), resumoPorFotografo()]);
+  const [resumo, porFotografo, porDia] = await Promise.all([
+    resumoGeral(),
+    resumoPorFotografo(),
+    vendasPorDiaDaPlataforma(),
+  ]);
   const { usuariosPorPapel: papeis } = resumo;
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <GraficoVendas
+        titulo="Entradas por dia"
+        descricao="Últimos 30 dias, total dos pedidos pagos"
+        pontos={porDia}
+      />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <CartaoNumero
           icone={<ArrowDownToLine aria-hidden="true" className="size-4" />}
           titulo="Entrou (vendas pagas)"

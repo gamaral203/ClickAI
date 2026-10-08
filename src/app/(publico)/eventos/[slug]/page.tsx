@@ -92,7 +92,14 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
               <Camera aria-hidden="true" className="size-4" />
               <span className="sr-only">Fotógrafo</span>
             </dt>
-            <dd>{evento.fotografo.nomePublico}</dd>
+            <dd>
+              <Link
+                href={`/fotografo/${evento.fotografo.slug}`}
+                className="underline-offset-4 hover:text-foreground hover:underline"
+              >
+                {evento.fotografo.nomePublico}
+              </Link>
+            </dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>

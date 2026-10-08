@@ -12,7 +12,7 @@ import * as t from "@/db/schema";
 import { urlPublica } from "@/lib/url-publica";
 
 import { iso, omitir } from "./mapas";
-import type { ConfigModelo, Evento, Foto, ModeloEvento, TipoMetrica } from "./tipos";
+import type { ConfigModelo, Evento, Foto, Fotografo, ModeloEvento, TipoMetrica } from "./tipos";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -398,4 +398,90 @@ export async function registrarHashes(eventoId: string, pares: { hash: string; f
       .set({ hashConteudo: hash })
       .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.eventoId, eventoId)));
   }
+}
+
+// ---------------------------------------------------------------- Link do fotógrafo
+
+/**
+ * Perfil público do fotógrafo pelo endereço (/fotografo/<slug>), para a página com só os eventos
+ * dele. Nunca devolve dados da conta (CPF/CNPJ, chave Pix, comissão).
+ */
+export async function buscarFotografoPublico(slug: string): Promise<Fotografo | null> {
+  const banco = await obterBanco();
+  const [f] = await banco
+    .select({
+      id: t.fotografos.id,
+      nomePublico: t.fotografos.nomePublico,
+      slug: t.fotografos.slug,
+      bio: t.fotografos.bio,
+      fotoPerfil: t.fotografos.fotoPerfil,
+      capa: t.fotografos.capa,
+      redesSociais: t.fotografos.redesSociais,
+    })
+    .from(t.fotografos)
+    .where(eq(t.fotografos.slug, slug));
+  return f ?? null;
+}
+
+// ---------------------------------------------------------------- Vendas por dia (gráficos)
+
+export type VendasDoDia = {
+  /** "2026-10-07", no horário de Brasília. */
+  dia: string;
+  valorCentavos: number;
+  pedidos: number;
+};
+
+/** Os últimos `dias` dias, do mais antigo para hoje, com zero nos dias sem venda. */
+function serieDeDias(
+  vendas: { pagoEm: string; valorCentavos: number }[],
+  dias: number,
+  agora: number,
+): VendasDoDia[] {
+  const porDia = new Map<string, VendasDoDia>();
+  for (let i = dias - 1; i >= 0; i--) {
+    const dia = diaEmBrasilia(agora - i * DIA_MS);
+    porDia.set(dia, { dia, valorCentavos: 0, pedidos: 0 });
+  }
+  for (const v of vendas) {
+    const linha = porDia.get(diaEmBrasilia(v.pagoEm));
+    if (!linha) continue;
+    linha.valorCentavos += v.valorCentavos;
+    linha.pedidos++;
+  }
+  return [...porDia.values()];
+}
+
+/** Vendas do fotógrafo por dia (a parte dele, bruta) nos últimos `dias` dias. */
+export async function vendasPorDiaDoFotografo(
+  fotografoId: string,
+  dias = 30,
+): Promise<VendasDoDia[]> {
+  await connection();
+  return serieDeDias(await vendasDoFotografo(fotografoId), dias, Date.now());
+}
+
+/** Tudo o que entrou na plataforma por dia (total dos pedidos pagos), para a gestão. */
+export async function vendasPorDiaDaPlataforma(dias = 30): Promise<VendasDoDia[]> {
+  await connection();
+  const agora = Date.now();
+  const banco = await obterBanco();
+  const pagos = await banco
+    .select({ pagoEm: t.pedidos.pagoEm, valorCentavos: t.pedidos.totalCentavos })
+    .from(t.pedidos)
+    .where(
+      and(
+        eq(t.pedidos.status, "pago"),
+        isNotNull(t.pedidos.pagoEm),
+        // Um dia a mais de folga por causa do fuso; a série descarta o que ficar de fora.
+        gte(t.pedidos.pagoEm, new Date(agora - (dias + 1) * DIA_MS)),
+      ),
+    );
+  return serieDeDias(
+    pagos.flatMap((p) =>
+      p.pagoEm ? [{ pagoEm: iso(p.pagoEm), valorCentavos: p.valorCentavos }] : [],
+    ),
+    dias,
+    agora,
+  );
 }

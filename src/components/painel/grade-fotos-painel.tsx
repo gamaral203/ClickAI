@@ -35,6 +35,9 @@ export function GradeFotosPainel({
   itens: ItemDoPainel[];
   pastas: PastaOpcao[];
 }) {
+  // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
+  // celular, eram dezenas de milhares de pixels) nem pesada de carregar.
+  const [mostrando, setMostrando] = useState(POR_VEZ);
   if (itens.length === 0) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
@@ -42,14 +45,24 @@ export function GradeFotosPainel({
       </p>
     );
   }
+  const restantes = itens.length - mostrando;
   return (
-    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      {itens.map((item) => (
-        <Cartao key={item.id} item={item} pastas={pastas} />
-      ))}
-    </ul>
+    <div className="flex flex-col items-center gap-4">
+      <ul className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {itens.slice(0, mostrando).map((item) => (
+          <Cartao key={item.id} item={item} pastas={pastas} />
+        ))}
+      </ul>
+      {restantes > 0 && (
+        <Button variant="outline" size="touch" onClick={() => setMostrando((n) => n + POR_VEZ)}>
+          Mostrar mais {Math.min(POR_VEZ, restantes)} de {restantes}
+        </Button>
+      )}
+    </div>
   );
 }
+
+const POR_VEZ = 24;
 
 function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) {
   const router = useRouter();

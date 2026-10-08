@@ -49,7 +49,11 @@ async function Lista() {
   return (
     <ul className="flex flex-col divide-y rounded-xl border">
       {eventos.map((evento) => (
-        <li key={evento.id} className="flex flex-wrap items-center gap-4 p-4">
+        // No celular, uma coluna (título, dados, contagem e botão um embaixo do outro).
+        <li
+          key={evento.id}
+          className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4"
+        >
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <Link href={`/painel/eventos/${evento.id}`} className="font-semibold hover:underline">
@@ -69,7 +73,11 @@ async function Lista() {
           </p>
           <Link
             href={`/painel/eventos/${evento.id}`}
-            className={buttonVariants({ variant: "outline", size: "touch" })}
+            className={buttonVariants({
+              variant: "outline",
+              size: "touch",
+              className: "w-full sm:w-auto",
+            })}
           >
             Gerenciar
           </Link>
