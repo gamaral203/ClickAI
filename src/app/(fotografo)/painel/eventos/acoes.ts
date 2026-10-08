@@ -25,9 +25,11 @@ import {
 } from "@/dados";
 import { campoParaIso } from "@/lib/datas";
 import { reaisParaCentavos } from "@/lib/dinheiro";
+import { ERRO_SEM_ARMAZENAMENTO, modoEnvio } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { UFS } from "@/lib/ufs";
+import { confirmarEnvio, iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export type CampoEvento =
@@ -250,15 +252,18 @@ const arquivos = z
   .max(MAXIMO_POR_ENVIO);
 
 /**
- * Envio simulado (Parte A): recebe só nome e tamanho dos arquivos já conferidos no navegador e
- * cria os itens com imagens de exemplo. Na Fase 12 o arquivo vai direto ao R2 por URL assinada
- * e o job confere o tipo real pelo conteúdo (docs/arquitetura.md, "Upload").
+ * Envio simulado (só fora da produção e sem o R2 configurado): recebe só nome e tamanho dos
+ * arquivos já conferidos no navegador e cria os itens com imagens de exemplo. Com o R2, o
+ * painel usa iniciarEnvioAcao e confirmarEnvioAcao (docs/arquitetura.md, "Upload").
  */
 export async function enviarFotosAcao(
   eventoId: string,
   lista: unknown,
 ): Promise<{ erro?: string; enviados?: number; repetidas?: number }> {
   const { conta } = await exigirFotografo("/painel/eventos");
+  const modo = modoEnvio();
+  if (modo === "indisponivel") return { erro: ERRO_SEM_ARMAZENAMENTO };
+  if (modo === "r2") return { erro: "Atualize a página para enviar as fotos." };
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   const dados = arquivos.safeParse(lista);
   if (!dados.success) {
@@ -289,6 +294,29 @@ export async function enviarFotosAcao(
   revalidatePath(`/painel/eventos/${eventoId}`);
   revalidatePath("/painel/colaboracoes");
   return { enviados: criados.length, repetidas };
+}
+
+/**
+ * Envio real, passo 1: registra um lote de até 25 fotos em `processando` e devolve as URLs
+ * assinadas para o navegador mandar cada JPEG direto ao R2 (o arquivo não passa por aqui).
+ */
+export async function iniciarEnvioAcao(
+  eventoId: string,
+  lista: unknown,
+): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  return iniciarEnvio(conta.id, eventoId, lista);
+}
+
+/**
+ * Envio real, passo 2: depois que o navegador terminou o PUT de uma foto, confere o arquivo,
+ * gera prévia e miniatura e marca a foto `pronta` (ou `erro`). Uma foto por chamada, para
+ * caber no tempo da função (maxDuration nas páginas que enviam).
+ */
+export async function confirmarEnvioAcao(fotoId: string): Promise<{ erro?: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  const resultado = await confirmarEnvio(conta.id, fotoId);
+  return "erro" in resultado ? { erro: resultado.erro } : {};
 }
 
 // ---------------------------------------------------------------- Reaproveitar configuração

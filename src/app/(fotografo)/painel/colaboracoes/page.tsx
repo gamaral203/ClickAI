@@ -7,7 +7,12 @@ import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { listarColaboracoes } from "@/dados";
 import { formatarData } from "@/lib/formatar";
+import { modoEnvio } from "@/lib/r2";
 import { exigirFotografo } from "@/servicos/sessao";
+
+// As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
+// gera prévia e miniatura e grava de volta, uma foto por chamada (docs/arquitetura.md, "Upload").
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Colaborações",
@@ -34,6 +39,7 @@ export default function PaginaColaboracoes() {
 async function Conteudo() {
   const { conta } = await exigirFotografo("/painel/colaboracoes");
   const colaboracoes = await listarColaboracoes(conta.id);
+  const modo = modoEnvio();
 
   if (colaboracoes.length === 0) {
     return (
@@ -67,7 +73,7 @@ async function Conteudo() {
               </Link>
             )}
           </div>
-          <EnvioFotos eventoId={c.evento.id} />
+          <EnvioFotos eventoId={c.evento.id} modo={modo} />
         </li>
       ))}
     </ul>

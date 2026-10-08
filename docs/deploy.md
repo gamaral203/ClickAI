@@ -11,7 +11,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Produção só depois de validar o saque (Fase 13) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
 | Banco (Supabase) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Supabase), região São Paulo; cria `POSTGRES_URL` (pooler) e `POSTGRES_URL_NON_POOLING` (direta) no projeto. O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
-| Cloudflare R2 | Fotos e vídeos | Fase 12 | Dois buckets: público (prévias) e privado (originais) |
+| Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
 | AWS | Reconhecimento facial (Rekognition) | Fase 12 | Usuário IAM só com as permissões do `.env.example` |
 | WhatsApp (Meta ou parceiro) | Entrega pelo WhatsApp | Fase 13 | Decisão em aberto |
 
@@ -35,6 +35,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Erros no Sentry |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | Envio dos source maps no build (opcional, mas ajuda a ler os erros) |
 | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | Domínio próprio das lojas |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_ORIGINAIS`, `R2_BUCKET_PUBLICO`, `R2_URL_PUBLICA` | Armazenamento das fotos (item 7). Sem elas o site funciona, mas o envio de fotos responde "Armazenamento de fotos não configurado" |
 
 Contas de exemplo (`clicouai123`) não existem em produção. Os eventos de exemplo só entram com `SEMEAR_EXEMPLOS=1` (opcional, lido só quando o banco está vazio), sob fotógrafos de exemplo sem login. Preview e desenvolvimento continuam com o PGlite e todos os exemplos quando não há banco.
 
@@ -66,7 +67,45 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
 - **Job de pedidos:** agende `GET /api/jobs/pedidos` de hora em hora, com o cabeçalho `Authorization: Bearer <CRON_SECRET>`. O cron da Vercel faz isso no plano Pro; no Hobby ele só roda uma vez por dia. Alternativa: o Inngest, previsto na arquitetura (Fase 13).
 
-## 7. Máquina nova (para quem vai programar)
+## 7. Cloudflare R2 (fotos)
+
+As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o servidor só confere, gera prévia e miniatura com marca d'água e move o original (docs/arquitetura.md, "Upload"). São dois buckets: o de originais é **privado** (só se baixa por URL assinada de 15 minutos, depois da compra) e o público guarda só prévias e miniaturas.
+
+1. **Buckets.** No painel da Cloudflare, **R2 Object Storage → Create bucket**: crie `fotos-originais` e `fotos-publicas` (localização automática, classe Standard).
+2. **Acesso público só no bucket público.** Em `fotos-publicas` → **Settings → Public Development URL** → **Enable**. Copie a URL (`https://pub-….r2.dev`) para `R2_URL_PUBLICA`, sem barra no fim. Depois, para cache de CDN, troque por um domínio próprio em **Custom Domains** (ex. `img.clicouai.com.br`) e atualize `R2_URL_PUBLICA`; o banco guarda só as chaves, então nada mais muda. **Nunca** ligue acesso público no `fotos-originais`.
+3. **CORS no bucket de originais** (o navegador faz o PUT direto nele). Em `fotos-originais` → **Settings → CORS Policy → Add CORS policy**, cole:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://clickai-hazel.vercel.app", "http://localhost:3000"],
+       "AllowedMethods": ["PUT"],
+       "AllowedHeaders": ["Content-Type"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+   Ao trocar para o domínio definitivo, acrescente-o em `AllowedOrigins`. O download não precisa de CORS (é um redirecionamento).
+4. **Ciclo de vida da pasta temporária.** Em `fotos-originais` → **Settings → Object lifecycle rules → Add rule**: nome `apagar-envios`, prefixo `envios/`, **Delete objects** depois de **1 dia**. Apaga o que sobrou de envios abandonados ou recusados; o original conferido fica em `originais/`.
+5. **Token de acesso.** Em **R2 Object Storage → Manage API tokens → Create API token**: permissão **Object Read & Write**, aplicada **só aos buckets** `fotos-originais` e `fotos-publicas`, sem prazo (ou com rotação anotada). Copie o **Access Key ID** e o **Secret Access Key** (o segredo aparece uma vez só). O **Account ID** aparece na página inicial do R2.
+6. **Variáveis na Vercel** (*Production*; em *Preview* só se quiser testar com buckets separados):
+
+   | Variável | Valor |
+   |---|---|
+   | `R2_ACCOUNT_ID` | Account ID da Cloudflare |
+   | `R2_ACCESS_KEY_ID` | Access Key ID do token |
+   | `R2_SECRET_ACCESS_KEY` | Secret Access Key do token |
+   | `R2_BUCKET_ORIGINAIS` | `fotos-originais` |
+   | `R2_BUCKET_PUBLICO` | `fotos-publicas` |
+   | `R2_URL_PUBLICA` | `https://pub-….r2.dev` (sem barra no fim) |
+
+7. Faça um novo deploy (as variáveis só valem a partir dele) e confira: envie uma foto num evento de teste, veja a miniatura no painel, publique, compre com Pix de teste e baixe o original.
+
+As chaves do R2 ficam só no servidor (`src/lib/r2.ts`); o navegador recebe apenas URLs assinadas de um objeto, válidas por 15 minutos. O processamento de cada foto roda na própria Server Action de confirmação (até 60 s por foto) até ir para o Inngest.
+
+## 8. Máquina nova (para quem vai programar)
 
 O `.env.local` não vai para o git. Numa máquina nova:
 

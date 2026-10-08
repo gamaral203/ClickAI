@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Loader2, Pencil, Trash2 } from "lucide-react";
+import { ImageIcon, Loader2, Pencil, Trash2 } from "lucide-react";
 
 import { excluirItemAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { moverParaPastaAcao } from "@/app/(fotografo)/painel/eventos/pastas-acoes";
@@ -83,7 +83,14 @@ function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) 
   return (
     <li className="flex flex-col gap-2 rounded-lg border p-2">
       <div className="relative aspect-square overflow-hidden rounded-md bg-muted">
-        <Image src={item.urlMiniatura} alt="" fill sizes="200px" className="object-cover" />
+        {item.status === "pronta" ? (
+          <Image src={item.urlMiniatura} alt="" fill sizes="200px" className="object-cover" />
+        ) : (
+          // A miniatura só existe depois que a foto foi processada.
+          <div className="flex size-full items-center justify-center text-muted-foreground">
+            <ImageIcon aria-hidden="true" className="size-8" />
+          </div>
+        )}
         <div className="absolute top-1.5 left-1.5 flex flex-wrap gap-1">
           {item.vendido && (
             <span className="rounded-full bg-highlight px-2 py-0.5 text-xs font-semibold text-highlight-foreground">

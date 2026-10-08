@@ -17,6 +17,7 @@ import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
+import { urlPublica } from "@/lib/url-publica";
 
 import { eventosDosCupons } from "./comum";
 import {
@@ -197,6 +198,7 @@ async function chavesVisiveisDoEvento(evento: Evento): Promise<ChaveItem[]> {
     .where(and(eq(t.fotos.eventoId, evento.id), itemVisivel));
   const itens = linhas.map((l) => ({
     ...l,
+    urlMiniatura: urlPublica(l.urlMiniatura),
     criadoEm: iso(l.criadoEm),
     capturadaEm: iso(l.capturadaEm),
   }));
@@ -985,7 +987,7 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
       {
         item,
         tipo: l.tipo,
-        urlMiniatura: l.urlMiniatura,
+        urlMiniatura: urlPublica(l.urlMiniatura),
         eventoTitulo: l.eventoTitulo,
         eventoSlug: l.eventoSlug,
       },
@@ -1008,20 +1010,21 @@ export async function buscarItemDoPedido(
   return linha ? { item: paraItem(linha.item), pedido: paraPedido(linha.pedido) } : null;
 }
 
-export type OriginalParaDownload = {
-  /** Endereço temporário do original. */
-  url: string;
+export type OriginalDoItem = {
+  /**
+   * Onde está o original: a chave no bucket privado do R2 (`originais/...`) ou, nos dados de
+   * exemplo, a URL da imagem de exemplo. Só sai daqui para src/servicos/downloads.ts.
+   */
+  chave: string;
   /** Nome com que o arquivo é salvo: evento + nome original, ex. corrida-x-IMG_4000.jpg. */
   nomeArquivo: string;
 };
 
 /**
- * Original de um item. Hoje, a imagem de exemplo sem marca d'água; na Fase 12, uma URL
- * assinada do R2 válida por 15 minutos, já com Content-Disposition de anexo e este nome.
- * Vale também para item excluído depois da venda: quem comprou continua baixando
- * (docs/arquitetura.md, exclusão lógica).
+ * Original de um item, para o download (que gera a URL assinada do R2). Vale também para item
+ * excluído depois da venda: quem comprou continua baixando (docs/arquitetura.md, exclusão lógica).
  */
-export async function buscarOriginal(fotoId: string): Promise<OriginalParaDownload | null> {
+export async function buscarOriginal(fotoId: string): Promise<OriginalDoItem | null> {
   const banco = await obterBanco();
   const [linha] = await banco
     .select({
@@ -1033,7 +1036,7 @@ export async function buscarOriginal(fotoId: string): Promise<OriginalParaDownlo
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
     .where(eq(t.fotos.id, fotoId));
   if (!linha?.chave) return null;
-  return { url: linha.chave, nomeArquivo: `${linha.slug}-${linha.nome}` };
+  return { chave: linha.chave, nomeArquivo: `${linha.slug}-${linha.nome}` };
 }
 
 export async function registrarDownload(itemPedidoId: string, ip: string | null) {

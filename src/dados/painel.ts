@@ -7,6 +7,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
+import { emProducao } from "@/db/conexao";
 import * as t from "@/db/schema";
 
 import imagens from "./exemplo/imagens.json";
@@ -226,31 +227,50 @@ export async function listarItensDoPainel(eventoId: string, fotografoId: string)
   return itens.map((f) => ({ ...paraFoto(f), vendido: ids.has(f.id) }));
 }
 
-/**
- * Envio simulado (Parte A): cria os itens com as imagens de exemplo, já prontos. Na Fase 12, o
- * envio real cria cada item como `processando` e o job gera a prévia a partir do arquivo.
- * Envia o dono do evento ou um colaborador dele; o item fica no nome de quem enviou, que é
- * quem recebe pela venda.
- */
-export async function adicionarItensSimulados(
-  eventoId: string,
-  fotografoId: string,
-  arquivos: { nome: string; tamanhoBytes: number }[],
-): Promise<Foto[] | null> {
+/** O fotógrafo pode enviar fotos ao evento: é o dono ou um colaborador dele. */
+async function podeEnviarAoEvento(eventoId: string, fotografoId: string) {
   const banco = await obterBanco();
-  const [evento] = await banco.select().from(t.eventos).where(eq(t.eventos.id, eventoId));
+  const [evento] = await banco
+    .select({ dono: t.eventos.fotografoId })
+    .from(t.eventos)
+    .where(eq(t.eventos.id, eventoId));
+  if (!evento) return false;
+  if (evento.dono === fotografoId) return true;
   const [colaborador] = await banco
     .select({ id: t.colaboradores.id })
     .from(t.colaboradores)
     .where(
       and(eq(t.colaboradores.eventoId, eventoId), eq(t.colaboradores.fotografoId, fotografoId)),
     );
-  if (!evento || (evento.fotografoId !== fotografoId && !colaborador)) return null;
+  return colaborador !== undefined;
+}
 
+async function ultimaOrdem(eventoId: string) {
+  const banco = await obterBanco();
   const [{ ultima }] = await banco
     .select({ ultima: sql<number>`coalesce(max(${t.fotos.ordem}), 0)::int` })
     .from(t.fotos)
     .where(eq(t.fotos.eventoId, eventoId));
+  return ultima;
+}
+
+/**
+ * Envio simulado (só fora da produção e sem R2): cria os itens com as imagens de exemplo, já
+ * prontos. Envia o dono do evento ou um colaborador dele; o item fica no nome de quem enviou,
+ * que é quem recebe pela venda.
+ */
+export async function adicionarItensSimulados(
+  eventoId: string,
+  fotografoId: string,
+  arquivos: { nome: string; tamanhoBytes: number }[],
+): Promise<Foto[] | null> {
+  // Defesa em profundidade: na produção, item de exemplo nunca entra (docs/tarefas.md, Fase 12).
+  if (emProducao()) {
+    throw new Error("Envio simulado não existe na produção");
+  }
+  if (!(await podeEnviarAoEvento(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const ultima = await ultimaOrdem(eventoId);
   const agora = Date.now();
   const novos = arquivos.map((arquivo, i) => {
     const imagem = (ultima + i) % imagens.length;
@@ -276,6 +296,137 @@ export async function adicionarItensSimulados(
   if (novos.length === 0) return [];
   const linhas = await banco.insert(t.fotos).values(novos).returning();
   return linhas.map(paraFoto);
+}
+
+/** Onde cada objeto de uma foto enviada fica no R2 (montado em src/servicos/envios.ts). */
+export type ChavesDaFoto = {
+  /** Original enquanto chega do navegador (bucket privado, prefixo `envios/`). */
+  temporaria: string;
+  /** Prévia e miniatura no bucket público. */
+  previa: string;
+  miniatura: string;
+};
+
+/**
+ * Registra as fotos de um envio real, cada uma em `processando`, com o original na chave
+ * temporária e o hash informado pelo navegador (conferido depois com o arquivo). Uma foto do
+ * mesmo fotógrafo com o mesmo hash que ficou em `processando` ou `erro` (envio que caiu ou
+ * falhou) é reaproveitada, em vez de virar outro item. Devolve o id de cada foto, na ordem
+ * dos arquivos, ou `null` se o fotógrafo não pode enviar ao evento.
+ */
+export async function registrarFotosEmEnvio(
+  eventoId: string,
+  fotografoId: string,
+  arquivos: { nome: string; tamanhoBytes: number; hash: string }[],
+  chaves: (fotoId: string) => ChavesDaFoto,
+): Promise<string[] | null> {
+  if (!(await podeEnviarAoEvento(eventoId, fotografoId))) return null;
+  if (arquivos.length === 0) return [];
+  const banco = await obterBanco();
+  const pendentes = await banco
+    .select({ id: t.fotos.id, hash: t.fotos.hashConteudo })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.eventoId, eventoId),
+        eq(t.fotos.enviadaPor, fotografoId),
+        inArray(t.fotos.status, ["processando", "erro"]),
+        isNull(t.fotos.excluidaEm),
+        inArray(
+          t.fotos.hashConteudo,
+          arquivos.map((a) => a.hash),
+        ),
+      ),
+    );
+  const reaproveitar = new Map(pendentes.map((p) => [p.hash, p.id]));
+
+  let ordem = await ultimaOrdem(eventoId);
+  const agora = Date.now();
+  const ids: string[] = [];
+  for (const [i, arquivo] of arquivos.entries()) {
+    const existente = reaproveitar.get(arquivo.hash);
+    reaproveitar.delete(arquivo.hash);
+    const id = existente ?? crypto.randomUUID();
+    const c = chaves(id);
+    const dados = {
+      chaveOriginal: c.temporaria,
+      urlPrevia: c.previa,
+      urlMiniatura: c.miniatura,
+      nomeArquivo: arquivo.nome,
+      tamanhoBytes: arquivo.tamanhoBytes,
+      hashConteudo: arquivo.hash,
+      status: "processando" as const,
+    };
+    if (existente) {
+      await banco.update(t.fotos).set(dados).where(eq(t.fotos.id, existente));
+    } else {
+      await banco.insert(t.fotos).values({
+        ...dados,
+        id,
+        eventoId,
+        enviadaPor: fotografoId,
+        tipo: "foto",
+        // Lidas do arquivo quando ele é processado.
+        largura: 0,
+        altura: 0,
+        ordem: ++ordem,
+        criadoEm: new Date(agora + i),
+      });
+    }
+    ids.push(id);
+  }
+  return ids;
+}
+
+/** Foto em `processando` enviada pelo fotógrafo, com o que a confirmação precisa, ou `null`. */
+export async function buscarFotoEmEnvio(fotoId: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({
+      id: t.fotos.id,
+      eventoId: t.fotos.eventoId,
+      chaveTemporaria: t.fotos.chaveOriginal,
+      hash: t.fotos.hashConteudo,
+      tamanhoBytes: t.fotos.tamanhoBytes,
+    })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.id, fotoId),
+        eq(t.fotos.enviadaPor, fotografoId),
+        eq(t.fotos.status, "processando"),
+        isNull(t.fotos.excluidaEm),
+      ),
+    );
+  return linha ?? null;
+}
+
+/** Marca a foto como `pronta`, com o original no lugar definitivo. Só a partir de `processando`. */
+export async function concluirFoto(
+  fotoId: string,
+  dados: {
+    chaveOriginal: string;
+    largura: number;
+    altura: number;
+    capturadaEm: Date | null;
+  },
+): Promise<boolean> {
+  const banco = await obterBanco();
+  const atualizadas = await banco
+    .update(t.fotos)
+    .set({ ...dados, status: "pronta" })
+    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")))
+    .returning({ id: t.fotos.id });
+  return atualizadas.length > 0;
+}
+
+/** Envio que falhou: a foto fica em `erro` (não aparece na galeria) até ser enviada de novo. */
+export async function marcarFotoComErro(fotoId: string) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotos)
+    .set({ status: "erro" })
+    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
 }
 
 /**
