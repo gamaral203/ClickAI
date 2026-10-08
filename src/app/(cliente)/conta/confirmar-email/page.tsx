@@ -29,7 +29,7 @@ async function Conteudo({
 }: Pick<PageProps<"/conta/confirmar-email">, "searchParams">) {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar");
-  const { token } = await searchParams;
+  const { token, limite } = await searchParams;
   const valor = typeof token === "string" && /^[\w-]{20,100}$/.test(token) ? token : null;
 
   return (
@@ -46,11 +46,16 @@ async function Conteudo({
           liga à sua conta as compras que você fez sem conta com este mesmo e-mail.
         </p>
       )}
+      {limite === "1" && (
+        <p role="alert" className="text-sm text-destructive">
+          Você pediu vários links seguidos. Espere um pouco antes de pedir outro.
+        </p>
+      )}
       {!usuario.emailConfirmado && valor && (
         <div className="w-full rounded-lg border border-dashed bg-highlight/20 p-4 text-left text-sm">
           <p className="mb-3">
-            <strong>Ambiente de exemplo:</strong> ainda não enviamos e-mails (Fase 13). Este é o
-            link que iria no e-mail:
+            <strong>Ambiente de exemplo:</strong> o envio de e-mail (Resend) não está configurado.
+            Este é o link que iria no e-mail:
           </p>
           {/* <a>: a rota de confirmação responde com redirecionamento, não com uma página. */}
           <a

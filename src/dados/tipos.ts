@@ -318,7 +318,7 @@ export type Mensagem = {
   /** Pedido da mensagem; `null` nas mensagens de denúncia. */
   pedidoId: string | null;
   canal: "email" | "whatsapp";
-  tipo: "entrega" | "lembrete" | "denuncia";
+  tipo: "entrega" | "lembrete" | "denuncia" | "lembrete_pix" | "venda";
   /** E-mail ou número de WhatsApp. */
   para: string;
   assunto: string;

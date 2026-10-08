@@ -3,7 +3,10 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro } from "@/lib/redirecionamento";
+import { cadastroBloqueado, loginBloqueado, loginDeuCerto } from "@/servicos/limites";
+import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
 import {
   cadastrar,
   entrar,
@@ -34,9 +37,16 @@ export async function entrarAcao(
   if (!dados.success) {
     return { erro: "Informe e-mail e senha.", valores: { email } };
   }
+  if (await loginBloqueado(dados.data.email)) {
+    return {
+      erro: "Muitas tentativas seguidas. Espere 15 minutos e tente de novo, ou entre com o Google.",
+      valores: { email },
+    };
+  }
   const usuario = await entrar(dados.data.email, dados.data.senha);
   // Mesma mensagem para e-mail inexistente e senha errada.
   if (!usuario) return { erro: "E-mail ou senha incorretos.", valores: { email } };
+  await loginDeuCerto(dados.data.email);
   // Sem ?proximo=, cada papel vai para a sua área (gestão, painel ou compras).
   redirect(caminhoSeguro(formulario.get("proximo"), inicioDoPapel(usuario.papel)));
 }
@@ -77,6 +87,9 @@ export async function cadastrarAcao(
     return { erros, valores };
   }
 
+  if (await cadastroBloqueado()) {
+    return { erro: "Muitos cadastros seguidos daqui. Espere um pouco e tente de novo.", valores };
+  }
   const resultado = await cadastrar(dados.data);
   if (!resultado.ok) {
     return {
@@ -84,7 +97,11 @@ export async function cadastrarAcao(
       valores,
     };
   }
-  redirect(`/conta/confirmar-email?token=${resultado.tokenConfirmacao}`);
+  return confirmarPorEmail(
+    resultado.usuario.email,
+    resultado.usuario.nome,
+    resultado.tokenConfirmacao,
+  );
 }
 
 export async function sairAcao() {
@@ -92,11 +109,21 @@ export async function sairAcao() {
   redirect("/");
 }
 
-/** Gera um novo link de confirmação para o usuário logado (o e-mail real entra na Fase 13). */
+/** Gera e envia um novo link de confirmação para o usuário logado. */
 export async function reenviarConfirmacaoAcao() {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar");
   if (usuario.emailConfirmado) redirect("/minhas-compras");
+  if (await cadastroBloqueado()) redirect("/conta/confirmar-email?limite=1");
   const token = await gerarConfirmacaoEmail(usuario.id);
-  redirect(`/conta/confirmar-email?token=${token}`);
+  await confirmarPorEmail(usuario.email, usuario.nome, token);
+}
+
+/**
+ * Manda o link de confirmação por e-mail. Sem o Resend configurado (ambiente de exemplo), o link
+ * aparece na própria tela, como antes; com ele, a tela só avisa que o e-mail foi enviado.
+ */
+async function confirmarPorEmail(email: string, nome: string, token: string): Promise<never> {
+  const enviado = emailConfigurado() && (await enviarConfirmacaoDeEmail(email, nome, token));
+  redirect(enviado ? "/conta/confirmar-email?enviado=1" : `/conta/confirmar-email?token=${token}`);
 }

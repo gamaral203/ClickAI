@@ -19,7 +19,7 @@ import {
 } from "@/dados";
 
 import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
-import { enviarEntrega, linkDoPedidoConfere } from "./mensagens";
+import { avisarVenda, enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 
 // Regras de pedido (docs/arquitetura.md, "Compra e pagamento" e "Divisão da venda").
 
@@ -242,6 +242,9 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
   // comprador continua com o link da página do pedido e com Minhas compras.
   await enviarEntrega(encontrado.pedido).catch((erro) =>
     console.error(`Falha ao enviar a entrega do pedido ${pedidoId}`, erro),
+  );
+  await avisarVenda(pedidoId).catch((erro) =>
+    console.error(`Falha ao avisar a venda do pedido ${pedidoId}`, erro),
   );
   return true;
 }

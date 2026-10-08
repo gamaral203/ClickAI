@@ -66,6 +66,11 @@ export function FormularioCadastro({ papelInicial }: { papelInicial: "cliente" |
   const erros = estado.erros ?? {};
   return (
     <form action={acao} noValidate className="flex flex-col gap-4">
+      {estado.erro && (
+        <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-destructive">
+          {estado.erro}
+        </p>
+      )}
       <fieldset className="grid gap-3 sm:grid-cols-2">
         <legend className="mb-2 text-sm font-medium">Tipo de conta</legend>
         {(

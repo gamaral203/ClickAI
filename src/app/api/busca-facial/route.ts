@@ -1,7 +1,12 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { buscarEventoPublicado, fotosEncontradas, rostosDeExemploDoEvento } from "@/dados";
+import {
+  buscarEventoPublicado,
+  caixasDosRostos,
+  fotosEncontradas,
+  rostosDeExemploDoEvento,
+} from "@/dados";
 import { buscarFotosPorSelfie } from "@/lib/reconhecimento";
 import { ofertaDePacote } from "@/servicos/pacotes";
 
@@ -82,11 +87,13 @@ export async function POST(request: NextRequest) {
   if (!evento) return resposta({ erro: "Evento não encontrado." }, 404);
 
   try {
-    const ids = await buscarFotosPorSelfie(evento.id, selfie, () =>
+    const { fotoIds, rostoIds } = await buscarFotosPorSelfie(evento.id, selfie, () =>
       rostosDeExemploDoEvento(evento.id),
     );
-    const fotos = await fotosEncontradas(evento.id, ids);
-    return resposta({ fotos, pacote: await ofertaDePacote(evento, fotos) });
+    const fotos = await fotosEncontradas(evento.id, fotoIds);
+    // Onde está o rosto da pessoa em cada foto: a tela amplia a miniatura nele.
+    const recortes = await caixasDosRostos(rostoIds);
+    return resposta({ fotos, recortes, pacote: await ofertaDePacote(evento, fotos) });
   } catch {
     return resposta({ erro: "A busca falhou. Tente de novo em instantes." }, 502);
   } finally {
