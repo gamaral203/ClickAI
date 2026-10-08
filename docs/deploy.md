@@ -10,7 +10,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
 | Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Saque em produção só com a chave pública cadastrada no Mercado Pago e `MP_PAYOUTS_HABILITADO=1` (item 3) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
-| Banco (Supabase) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Supabase), região São Paulo; cria `POSTGRES_URL` (pooler) e `POSTGRES_URL_NON_POOLING` (direta) no projeto. O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
+| Banco (Supabase) | Dados | Agora | Região São Paulo. A produção usa `DATABASE_URL` (pooler, porta 6543) e `DATABASE_URL_DIRETA` (direta, porta 5432), cadastradas à mão na Vercel; `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING` são a alternativa, criadas pela integração do Marketplace (Storage → Supabase). O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
 | Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
 | AWS | Reconhecimento facial (Rekognition) | Fase 12 | Usuário IAM só com as permissões do `.env.example` |
 | WhatsApp (Meta ou parceiro) | Entrega pelo WhatsApp | Fase 13 | Decisão em aberto |
@@ -25,7 +25,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 
 | Variável | O que é |
 |---|---|
-| `DATABASE_URL` ou `POSTGRES_URL` | Banco (a integração do Supabase cria `POSTGRES_URL`). Sem ela, o build de produção falha de propósito: o banco em memória seria um por servidor e os pedidos Pix sumiriam |
+| `DATABASE_URL` e `DATABASE_URL_DIRETA` (ou `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`) | Banco: a produção usa as duas primeiras, cadastradas à mão; as `POSTGRES_*` são as que a integração do Supabase cria. Sem ela, o build de produção falha de propósito: o banco em memória seria um por servidor e os pedidos Pix sumiriam |
 | `APP_URL` | Endereço do site, ex. `https://clicouai.com.br`. Usado nos links, no QR Code, no login com Google e nas lojas |
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` |

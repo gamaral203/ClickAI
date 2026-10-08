@@ -101,12 +101,14 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   - Envio de fotos em lotes de 25 com barra de progresso, "Continuar envio" se a conexão cair, e fotos repetidas puladas pelo SHA-256 do arquivo
   - Divulgação: mensagem pronta editável para o WhatsApp e imagens automáticas de story (1080×1920) e feed (1080×1350) com o QR Code
   - Já existiam: reconhecimento facial e por número, pacotes, desconto progressivo, cupons, carrinho abandonado, QR Code, link e equipe com divisão automática
-- [x] Decisão: banco Supabase (Postgres, no lugar do Neon), pelo Marketplace da Vercel, região São Paulo
+- [x] Decisão: banco Supabase (Postgres), região São Paulo, no lugar do Neon
 - [x] Schema do banco em `src/db/schema.ts` (Drizzle), com as tabelas e os índices da arquitetura e as tabelas que só existiam em memória (confirmação de e-mail, acessos por senha de evento, mensagens); primeira migração em `src/db/migracoes`
 - [x] Código pronto para o Supabase: driver postgres.js (pooler em modo transaction), RLS em todas as tabelas e acesso de `anon` e `authenticated` revogado, com testes `[R-alta]`
 - [x] Camada de dados sobre o banco, com as mesmas funções: Postgres pela URL com pooler (postgres.js, com transações) e PGlite em memória sem `DATABASE_URL` `[R-alta]`
 - [x] Dados de exemplo como semente do banco; `npm run db:migrar` aplica as migrações (roda antes de cada build) e grava a semente num banco vazio; gestores de `GESTORES` sincronizados a cada início
 - [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
+- [x] Supabase criado (São Paulo) e ligado à Vercel: `DATABASE_URL` (pooler, porta 6543) e `DATABASE_URL_DIRETA` (direta, porta 5432) cadastradas à mão em Production, não pela integração; migrações rodando no build e deploy de produção no ar. O código também aceita `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING` (alternativa da integração) `[R-alta]`
+- [x] Job de pedidos agendado a cada 10 minutos pelo GitHub Actions (`.github/workflows/jobs.yml`, com `APP_URL` e `CRON_SECRET`); o cron diário da Vercel fica de reserva, porque no plano Hobby ele só roda uma vez por dia
 - [x] Correção: produção sem `DATABASE_URL`/`POSTGRES_URL` não cai mais no PGlite (cada servidor da Vercel tinha seu banco e pedidos Pix sumiam); o app e `npm run db:migrar` param com erro, e preview e desenvolvimento seguem com o PGlite `[R-alta]`
 - [x] Correção: a semente na produção grava só as categorias, sem contas de exemplo com a senha pública; `SEMEAR_EXEMPLOS=1` liga os eventos de exemplo, sob fotógrafos sem login `[R-alta]`
 - [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
@@ -125,13 +127,16 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Em andamento
 
-- [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, o deploy de produção falha de propósito (antes caía no PGlite em cada servidor da Vercel e os pedidos se perdiam entre servidores). Para terminar, nesta ordem:
-  1. Fazer o merge do PR do `feat/supabase` na `main`.
-  2. Criar o banco: `vercel integration add supabase --scope amaralgabriel357-9380s-projects` (ou no painel: Storage → Supabase), região São Paulo (`sa-east-1`), plano gratuito, ligado ao projeto `clickai`. Se a Vercel pedir, aceitar os termos do Supabase no navegador. A integração cadastra `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`.
-  3. Fazer um novo deploy de produção (`vercel redeploy` do último deploy, ou um push na `main`). O build roda `npm run db:migrar`: aplica as migrações e, no banco vazio, grava só as categorias (os eventos de exemplo só com `SEMEAR_EXEMPLOS=1`). Sem a URL do banco, o build de produção falha.
-  4. Conferir no site (`clickai-hazel.vercel.app`): login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
-  5. Cadastrar o webhook do Mercado Pago (ver [deploy.md](deploy.md), item 6).
-  6. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).
+- [ ] **Colocar a produção em uso real** (`clickai-hazel.vercel.app`). O banco e o deploy já estão no ar; falta conferir e configurar:
+  1. Conferir no site o login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
+  2. Cadastrar e confirmar o webhook do Mercado Pago ([deploy.md](deploy.md), item 6; o prazo de liberação do cartão fica na Fase 13).
+  3. Resend: verificar o domínio e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` (e `NEXT_PUBLIC_EMAIL_PRIVACIDADE`).
+  4. Google OAuth: cadastrar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
+  5. Sentry: cadastrar `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN`.
+  6. Testar a busca por selfie com fotos reais.
+  7. Conferir o CORS e o ciclo de vida dos buckets do R2.
+  8. Conferir no GitHub os segredos `APP_URL` e `CRON_SECRET` do job de pedidos (Actions → Job de pedidos → Run workflow).
+  9. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
 ## Decisões de produto em aberto
@@ -201,21 +206,25 @@ Concluída (ver **Concluído**). Ficaram para depois: logo da loja e anexos da d
 O código está pronto (ver **Concluído**); falta a parte de fora do código, seguindo [deploy.md](deploy.md):
 
 - [ ] Criar contas: Vercel, Sentry, banco (região São Paulo), Cloudflare R2, AWS (Rekognition), Google Cloud (OAuth) e WhatsApp
-- [ ] Domínio próprio do site, com o curinga `*.` nos nameservers da Vercel, e as variáveis de produção dos serviços (Mercado Pago, Google, Sentry)
+- [ ] Domínio próprio do site, com o curinga `*.` nos nameservers da Vercel
+- [x] Variáveis de produção do Mercado Pago, do R2 e da AWS já cadastradas na Vercel
+- [ ] Variáveis de produção do Google (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) e do Sentry (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`)
 - [ ] Alertas de erro no Sentry
 
 ## Fase 11 — Banco e autenticação
 
-- [ ] Criar o Supabase pela Vercel e rodar as migrações no banco de produção (passos em **Em andamento**)
+- [x] Criar o Supabase e rodar as migrações no banco de produção
 - [ ] Avaliar o Better Auth no lugar da sessão em cookie assinado, mantendo o login com Google e os quatro papéis (com sessões revogáveis no banco)
 
 ## Fase 12 — Upload, processamento e reconhecimento
 
-- [ ] Criar os buckets na Cloudflare (CORS, acesso público, ciclo de vida de `envios/`) e cadastrar as variáveis `R2_*` na Vercel ([deploy.md](deploy.md), item 7); depois, enviar uma foto de teste e comprar para conferir o download
+- [x] Variáveis `R2_*` (6) cadastradas na Vercel
+- [ ] Conferir nos buckets da Cloudflare o CORS, o acesso público e o ciclo de vida de `envios/` ([deploy.md](deploy.md), item 7); depois, enviar uma foto de teste e comprar para conferir o download
 - [ ] Levar o processamento da foto (hoje síncrono na Server Action `confirmarEnvioAcao`) para um job no Inngest, com nova tentativa automática
 - [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
 - [x] Indexar os rostos de cada foto no Rekognition ao concluir o envio e gravar em `rostos` (com a posição do rosto, para a prévia ampliada); botão no evento para cadastrar os que faltam
-- [ ] Configurar a AWS na Vercel e testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
+- [x] Chaves da AWS e `REKOGNITION_REGIAO` cadastradas na Vercel
+- [ ] Testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
 - [x] Banner e logo da página do fotógrafo em Minha loja (valem no link /fotografo/<endereço> e na loja)
 - [ ] Anexos da denúncia no bucket privado, por URL assinada
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
@@ -229,9 +238,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 - [ ] Mercado Pago registrar a chave pública do Payouts (`docs/mercadopago/payouts-chave-publica.pem`) e liberar o Payouts Pix em produção; depois ligar `MP_PAYOUTS_HABILITADO=1` `[R-alta]`
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
-- [ ] Cadastrar o webhook de produção e conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado)
+- [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
 - [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
-- [ ] Agendar o job de pedidos (`/api/jobs/pedidos`) de hora em hora, pelo Inngest ou pelo cron da Vercel (no plano Hobby o cron é só diário)
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
 - [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
