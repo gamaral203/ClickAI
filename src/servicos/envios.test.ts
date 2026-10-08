@@ -8,7 +8,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import sharp from "sharp";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +31,9 @@ import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { dataDeCaptura } from "@/lib/exif";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, reiniciarClienteR2 } from "@/lib/r2";
+import { autorizarDownload } from "@/servicos/downloads";
 import { chavesDaFoto, confirmarEnvio, iniciarEnvio } from "@/servicos/envios";
+import { confirmarPagamento, criarPedido } from "@/servicos/pedidos";
 
 const [lia, pedro] = fotografos;
 // Evento da Lia sem colaboradores: o Pedro não tem nada a ver com ele.
@@ -297,6 +299,43 @@ describe("envio de fotos ao R2", () => {
     expect((await linhaDaFoto(doPedro.fotoId)).enviadaPor).toBe(pedro.id);
     // E a Lia, dona do evento, não confirma o envio que é dele.
     expect(await confirmarEnvio(lia.id, doPedro.fotoId)).toEqual({ erro: "Foto não encontrada." });
+  });
+
+  it("download de foto enviada redireciona para a URL assinada do original", async () => {
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    await confirmarEnvio(lia.id, fotoId);
+
+    const pedido = await criarPedido([fotoId], {
+      clienteId: null,
+      nome: "Cliente Teste",
+      email: "cliente-envio@exemplo.com",
+      whatsapp: null,
+      aceitaWhatsapp: false,
+      metodo: "pix",
+    });
+    expect(pedido.ok).toBe(true);
+    if (!pedido.ok) return;
+    const banco = await obterBanco();
+    const [item] = await banco
+      .select()
+      .from(t.itensPedido)
+      .where(and(eq(t.itensPedido.pedidoId, pedido.pedidoId), eq(t.itensPedido.fotoId, fotoId)));
+
+    // Antes do pagamento, não baixa.
+    expect(await autorizarDownload(item.id, { token: pedido.token }, null)).toBeNull();
+    expect(await confirmarPagamento(pedido.pedidoId)).toBe(true);
+
+    const original = await autorizarDownload(item.id, { token: pedido.token }, null);
+    expect(original?.tipo).toBe("r2");
+    const url = new URL(original!.url);
+    expect(url.pathname).toBe(`/${chavesDaFoto(lia.id, evento.id, fotoId).original}`);
+    expect(url.hostname).toBe("fotos-originais.conta-teste.r2.cloudflarestorage.com");
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("900");
+    expect(url.searchParams.get("response-content-disposition")).toMatch(/^attachment; filename=/);
+    // Sem o token do pedido, nada.
+    expect(await autorizarDownload(item.id, { token: "x".repeat(40) }, null)).toBeNull();
   });
 });
 

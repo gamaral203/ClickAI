@@ -287,7 +287,7 @@ Um job de hora em hora marca como `expirado` os pedidos `pendente` com `expira_e
 **Download**
 
 1. Na tela de confirmação, na área "Minhas compras" ou pelo link do e-mail ou do WhatsApp, o cliente clica em baixar.
-2. O servidor confere se o item pertence a um pedido pago daquele cliente (ou do token do convidado), registra em `downloads` e responde com uma URL assinada de 15 minutos para o original. Itens com `excluida_em` preenchido continuam disponíveis para quem comprou.
+2. O servidor (`/api/download/[itemId]`) confere se o item pertence a um pedido pago daquele cliente (ou do token do convidado), registra em `downloads` e redireciona para uma URL assinada de 15 minutos do original no bucket privado, gerada com `Content-Disposition` de anexo e o nome `{evento}-{arquivo}.jpg`. O original não passa pelo Next.js. Itens com `excluida_em` preenchido continuam disponíveis para quem comprou. Os originais dos dados de exemplo (imagens do picsum) só baixam fora da produção.
 
 **Acesso às compras: cliente logado e convidado**
 

@@ -115,6 +115,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Envio real de fotos ao Cloudflare R2 (Fase 12, fotos): URL assinada de PUT por foto (tipo e tamanho na assinatura), pedida em lotes de 25 com a foto em `processando`; envio direto do navegador ao bucket privado, 3 por vez, com progresso por arquivo e total, erro por arquivo e "Tentar de novo" (reaproveita o item pelo hash) `[R-alta]`
 - [x] Confirmação de cada foto no servidor (síncrona, até o Inngest): tamanho, JPEG de verdade pelo conteúdo e SHA-256 conferidos; prévia e miniatura com marca d'água no bucket público; original movido de `envios/` (pasta temporária com ciclo de vida) para `originais/`; largura, altura e data de captura do EXIF; `erro` com mensagem clara em qualquer falha `[Média]`
 - [x] Prévias e miniaturas montadas a partir das chaves com `R2_URL_PUBLICA`, sem o otimizador da Vercel; `public/logo.png` incluída nas funções do painel para a marca d'água
+- [x] Download real: redireciona para a URL assinada de 15 minutos do original, com `Content-Disposition` de anexo `[R-alta]`
 - [x] Produção nunca cria itens de exemplo: sem R2, o envio responde "Armazenamento de fotos não configurado"; fora da produção, sem R2, segue o envio simulado
 
 ## Em andamento
@@ -217,7 +218,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Rota de busca facial real: selfie só em memória, sem log, rate limit `[R-alta]`
 - [ ] Job que revisa itens presos em `processando`
 - [ ] Domínio de imagens na CDN da Cloudflare
-- [ ] Download real por URL assinada de 15 minutos
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
