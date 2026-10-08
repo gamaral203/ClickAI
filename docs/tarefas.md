@@ -127,6 +127,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Exclusão de conta pelo próprio usuário (cliente e fotógrafo) em `/conta/excluir`, com senha (ou o e-mail, para quem só usa o Google): dados pessoais anonimizados e pedidos, lançamentos e saques mantidos para fins fiscais; fotógrafo só exclui sem saldo sacável, saque em `processando` ou pedido pendente; fotos com exclusão lógica (quem comprou continua baixando), rostos tirados do banco e do Rekognition; sessão derrubada em todos os aparelhos (`usuarios.excluido_em`, migração 0004)
 - [x] Canal de remoção de fotos (LGPD) em `/remover-foto`: quem aparece na foto cola o link da foto ou do evento e o pedido entra na fila de denúncias com o motivo `privacidade`, com limite por IP no banco; o encarregado aparece pelo `NEXT_PUBLIC_EMAIL_PRIVACIDADE` quando existir. Correção: a política de privacidade apontava para `/denunciar` sem evento (página 404)
 - [x] Termos de uso (`/termos`) e política de conteúdo (`/politica-de-conteudo`), rascunhos com as regras reais (Pix de 1 hora, comissão de 10%, antecipação com 1% a mais, saque só para o próprio CPF/CNPJ) e aviso de revisão jurídica no topo; linkados no rodapé e no cadastro
+- [x] Central de ajuda (`/ajuda`) com artigos curtos para quem compra (achar fotos, selfie, pagar, baixar, reembolso, remoção, excluir conta) e para quem vende (começar, enviar, preços, divulgar, taxas com exemplo, saque, colaboradores, denúncias, excluir conta), no rodapé e no menu do celular
 
 ## Em andamento
 
@@ -266,4 +267,4 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
 - [ ] Backup do banco com recuperação para um ponto no tempo
 - [ ] Fluxo de estorno e chargeback
-- [ ] Central de ajuda com artigos para comprador e fotógrafo
+- [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra
