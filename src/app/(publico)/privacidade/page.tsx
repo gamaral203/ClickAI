@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { AvisoRevisaoJuridica, ContatoPrivacidade } from "@/components/site/pagina-legal";
+
 // Política de privacidade (LGPD, Lei 13.709/2018). Descreve o que o site faz de verdade, com os
 // operadores usados hoje. Rascunho técnico: precisa da revisão de um advogado antes do
 // lançamento (docs/tarefas.md, Fase 14). O e-mail do encarregado vem de
-// NEXT_PUBLIC_EMAIL_PRIVACIDADE; sem ele, a página aponta o canal de denúncia.
+// NEXT_PUBLIC_EMAIL_PRIVACIDADE; sem ele, a página aponta o formulário de remoção (/remover-foto).
 
 export const metadata: Metadata = {
   title: "Política de privacidade",
@@ -25,20 +27,10 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 }
 
 export default function PaginaPrivacidade() {
-  const email = process.env.NEXT_PUBLIC_EMAIL_PRIVACIDADE;
-  const contato = email ? (
-    <a href={`mailto:${email}`} className="font-medium text-primary hover:underline">
-      {email}
-    </a>
-  ) : (
-    <Link href="/denunciar" className="font-medium text-primary hover:underline">
-      o formulário de remoção e denúncia
-    </Link>
-  );
-
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
       <header className="flex flex-col gap-2">
+        <AvisoRevisaoJuridica />
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Política de privacidade</h1>
         <p className="text-muted-foreground">Atualizada em {ATUALIZADA_EM}.</p>
         <p className="leading-relaxed">
@@ -137,7 +129,9 @@ export default function PaginaPrivacidade() {
         <p>
           As fotos compradas ficam disponíveis para você baixar enquanto o serviço existir. Dados de
           compra são guardados pelo prazo exigido pela legislação fiscal. A selfie não é guardada.
-          Contas podem ser excluídas a pedido, respeitando esses prazos legais.
+          Você pode excluir a sua conta quando quiser: os dados pessoais são apagados e os registros
+          de venda e de saque ficam guardados sem eles, pelos prazos legais. Se um fotógrafo exclui
+          a conta, as fotos dele saem do ar, mas quem já comprou continua baixando.
         </p>
       </Secao>
 
@@ -147,7 +141,18 @@ export default function PaginaPrivacidade() {
           exclusão, a portabilidade, informações sobre o compartilhamento e retirar o consentimento.
           Você também pode pedir a <strong>remoção de uma foto em que aparece</strong>.
         </p>
-        <p>Para qualquer pedido, fale com o nosso encarregado de dados por {contato}.</p>
+        <p>
+          Para qualquer pedido, fale com o nosso encarregado de dados por <ContatoPrivacidade />. Se
+          você tem conta, pode excluí-la a qualquer momento em{" "}
+          <Link href="/conta/excluir" className="font-medium text-primary hover:underline">
+            Excluir minha conta
+          </Link>
+          ; para tirar uma foto em que aparece, use{" "}
+          <Link href="/remover-foto" className="font-medium text-primary hover:underline">
+            Remover uma foto
+          </Link>
+          .
+        </p>
       </Secao>
 
       <Secao titulo="Mudanças nesta política">

@@ -34,6 +34,7 @@ export async function AreaUsuario() {
             { href: "/entrar", rotulo: "Entrar" },
             { href: "/cadastro", rotulo: "Criar conta" },
             { href: "/cadastro?tipo=fotografo", rotulo: "Quero vender minhas fotos" },
+            { href: "/ajuda", rotulo: "Ajuda" },
           ]}
         />
       </div>
@@ -73,6 +74,7 @@ export async function AreaUsuario() {
           { href: "/eventos", rotulo: "Eventos" },
           ...areas,
           { href: "/minhas-compras", rotulo: "Minhas compras" },
+          { href: "/ajuda", rotulo: "Ajuda" },
         ]}
       />
     </div>

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { destinoSemEnvio } from "@/servicos/confirmacao-email";
+import { excluirConta } from "@/servicos/exclusao-conta";
 import {
   cadastroBloqueado,
   limiteAtingido,
@@ -147,4 +148,59 @@ async function confirmarPorEmail(
   const enviado = emailConfigurado() && (await enviarConfirmacaoDeEmail(email, nome, token));
   if (enviado) redirect(destino);
   redirect(destinoSemEnvio(token, destino));
+}
+
+export type EstadoExclusao = {
+  erro?: string;
+  erros?: Partial<Record<"senha" | "email" | "entendo", string>>;
+};
+
+const exclusao = z.object({
+  senha: z.string().max(200).optional(),
+  email: z.string().max(254).optional(),
+  entendo: z.literal("sim", "Marque que você entendeu que a exclusão não pode ser desfeita."),
+});
+
+/**
+ * Exclui a conta do usuário logado (docs/arquitetura.md, "Exclusão de conta"). Quem tem senha
+ * confirma com ela, com o mesmo limite de tentativas do login; quem só entra com o Google digita
+ * o e-mail. Depois, apaga o cookie: os de outros aparelhos já não valem (versão da sessão).
+ */
+export async function excluirContaAcao(
+  _anterior: EstadoExclusao,
+  formulario: FormData,
+): Promise<EstadoExclusao> {
+  const usuario = await usuarioAtual();
+  if (!usuario) redirect("/entrar?proximo=/conta/excluir");
+
+  const dados = exclusao.safeParse({
+    senha: formulario.get("senha") ?? undefined,
+    email: formulario.get("email") ?? undefined,
+    entendo: formulario.get("entendo") ?? undefined,
+  });
+  if (!dados.success) {
+    return { erros: { entendo: "Marque que você entendeu que a exclusão não pode ser desfeita." } };
+  }
+  if (await loginBloqueado(usuario.email)) {
+    return { erro: "Muitas tentativas seguidas. Espere 15 minutos e tente de novo." };
+  }
+
+  const resultado = await excluirConta(usuario, dados.data);
+  if (resultado.ok) {
+    await sair();
+    redirect("/conta/excluida");
+  }
+  switch (resultado.motivo) {
+    case "senha":
+      return { erros: { senha: "Senha incorreta." } };
+    case "confirmacao":
+      return { erros: { email: "Digite o e-mail da sua conta, igual ao mostrado acima." } };
+    case "gestor":
+      return { erro: "Contas de gestor não podem ser excluídas por aqui." };
+    case "impedimento":
+      // A página mostra o motivo; recarregar atualiza a explicação.
+      redirect("/conta/excluir");
+    default:
+      return { erro: "Não foi possível excluir a conta. Recarregue a página e tente de novo." };
+  }
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { CheckCircle2, Landmark } from "lucide-react";
 
@@ -69,6 +70,20 @@ async function Conteudo() {
         ) : (
           <p className="text-sm font-medium">Informe e salve o CPF ou CNPJ acima primeiro.</p>
         )}
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-xl border p-5">
+        <h2 className="text-lg font-semibold">Excluir conta</h2>
+        <p className="text-sm text-muted-foreground">
+          Seus eventos saem do ar e seus dados pessoais são apagados; quem já comprou continua
+          baixando. Antes, é preciso sacar todo o saldo.
+        </p>
+        <Link
+          href="/conta/excluir"
+          className="w-fit text-sm font-medium text-primary hover:underline"
+        >
+          Excluir minha conta
+        </Link>
       </section>
     </>
   );

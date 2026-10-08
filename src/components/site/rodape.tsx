@@ -4,7 +4,11 @@ const links = [
   { href: "/como-funciona", rotulo: "Como funciona" },
   { href: "/eventos", rotulo: "Eventos" },
   { href: "/cadastro?tipo=fotografo", rotulo: "Venda suas fotos" },
+  { href: "/ajuda", rotulo: "Ajuda" },
+  { href: "/termos", rotulo: "Termos de uso" },
   { href: "/privacidade", rotulo: "Privacidade" },
+  { href: "/politica-de-conteudo", rotulo: "Política de conteúdo" },
+  { href: "/remover-foto", rotulo: "Remover uma foto" },
 ];
 
 export function Rodape() {

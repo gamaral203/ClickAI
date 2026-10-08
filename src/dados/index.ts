@@ -1176,7 +1176,8 @@ export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Prom
  */
 export async function versaoDaSessao(usuarioId: string): Promise<string | null> {
   const u = await usuarioPorId(usuarioId);
-  if (!u) return null;
+  // Conta excluída: nenhum cookie vale mais, nem um assinado antes da exclusão.
+  if (!u || u.excluidoEm) return null;
   return createHash("sha256")
     .update(`${u.senhaHash ? "com-senha" : "sem-senha"}|${u.googleId ?? ""}`)
     .digest("base64url")
@@ -1332,3 +1333,4 @@ export * from "./rostos";
 export * from "./notificacoes";
 export * from "./relatorio";
 export * from "./estornos";
+export * from "./exclusao";

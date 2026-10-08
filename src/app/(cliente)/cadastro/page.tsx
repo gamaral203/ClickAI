@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { BotaoGoogle } from "@/components/conta/botao-google";
@@ -41,6 +42,21 @@ async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "search
         </>
       )}
       <FormularioCadastro papelInicial={vender ? "fotografo" : "cliente"} proximo={destino} />
+      <p className="text-center text-sm text-muted-foreground">
+        Ao criar a conta, você concorda com os{" "}
+        <Link href="/termos" className="font-medium text-primary hover:underline">
+          Termos de uso
+        </Link>
+        , a{" "}
+        <Link href="/politica-de-conteudo" className="font-medium text-primary hover:underline">
+          Política de conteúdo
+        </Link>{" "}
+        (para quem vende) e a{" "}
+        <Link href="/privacidade" className="font-medium text-primary hover:underline">
+          Política de privacidade
+        </Link>
+        .
+      </p>
     </div>
   );
 }

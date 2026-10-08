@@ -12,9 +12,11 @@ import { createHash } from "node:crypto";
 
 import {
   CreateCollectionCommand,
+  DeleteFacesCommand,
   IndexFacesCommand,
   RekognitionClient,
   ResourceAlreadyExistsException,
+  ResourceNotFoundException,
   SearchFacesByImageCommand,
 } from "@aws-sdk/client-rekognition";
 
@@ -108,6 +110,30 @@ export async function indexarRostos(
         : null;
     return [{ rostoId: r.Face.FaceId, caixa }];
   });
+}
+
+/**
+ * Tira rostos da coleção do evento (ex.: o fotógrafo excluiu a conta e as fotos saíram). Sem a
+ * AWS, não há nada a tirar. Coleção que não existe mais conta como feito.
+ */
+export async function removerRostos(eventoId: string, rostoIds: string[]) {
+  const config = configRekognition();
+  if (!config || rostoIds.length === 0) return;
+  const rk = rekognition(config);
+  // O DeleteFaces aceita até 4096 ids por chamada.
+  for (let i = 0; i < rostoIds.length; i += 4096) {
+    try {
+      await rk.send(
+        new DeleteFacesCommand({
+          CollectionId: colecao(config, eventoId),
+          FaceIds: rostoIds.slice(i, i + 4096),
+        }),
+      );
+    } catch (erro) {
+      if (erro instanceof ResourceNotFoundException) return;
+      throw erro;
+    }
+  }
 }
 
 /**

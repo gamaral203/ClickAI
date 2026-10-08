@@ -29,6 +29,8 @@ export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
   /** Identificador da conta Google (`sub`), nunca muda mesmo se o e-mail mudar. */
   googleId: string | null;
   emailConfirmadoEm: string | null;
+  /** Conta excluída pelo próprio usuário (dados anonimizados). */
+  excluidoEm?: string | null;
 };
 
 export type RedesSociais = {
