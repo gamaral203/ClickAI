@@ -120,6 +120,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Prévias e miniaturas montadas a partir das chaves com `R2_URL_PUBLICA`, sem o otimizador da Vercel; `public/logo.png` incluída nas funções do painel para a marca d'água
 - [x] Download real: redireciona para a URL assinada de 15 minutos do original, com `Content-Disposition` de anexo `[R-alta]`
 - [x] Produção nunca cria itens de exemplo: sem R2, o envio responde "Armazenamento de fotos não configurado"; fora da produção, sem R2, segue o envio simulado
+- [x] Saque em produção pelo Payouts: `X-signature` Ed25519 sobre os bytes exatos do corpo (chave em `MP_PAYOUTS_PRIVATE_KEY`, pública em `docs/mercadopago/`), headers por ambiente, status lido em `/v1/payouts/{id}/transactions` (`pago` só com `success` + `accredited`), descrições sem acento e trava `MP_PAYOUTS_HABILITADO=1`; saldo só volta com recusa clara no primeiro envio, e recusa ambígua, recusa em reenvio ou Pix devolvido ficam em `processando` com alerta `[R-alta]`
 
 ## Em andamento
 
@@ -224,7 +225,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
-- [ ] Saque em produção: implementar o header `X-signature` do Payouts (confirmar o algoritmo com o Mercado Pago) `[R-alta]`
+- [ ] Mercado Pago registrar a chave pública do Payouts (`docs/mercadopago/payouts-chave-publica.pem`) e liberar o Payouts Pix em produção; depois ligar `MP_PAYOUTS_HABILITADO=1` `[R-alta]`
+- [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Cadastrar o webhook de produção e conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado)
 - [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
 - [ ] Agendar o job de pedidos (`/api/jobs/pedidos`) de hora em hora, pelo Inngest ou pelo cron da Vercel (no plano Hobby o cron é só diário)

@@ -8,7 +8,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 |---|---|---|---|
 | Vercel | Hospedar o site | Agora | Funções na região `gru1` (São Paulo), já em `vercel.json` |
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
-| Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Produção só depois de validar o saque (Fase 13) |
+| Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Saque em produção só com a chave pública cadastrada no Mercado Pago e `MP_PAYOUTS_HABILITADO=1` (item 3) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
 | Banco (Supabase) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Supabase), região São Paulo; cria `POSTGRES_URL` (pooler) e `POSTGRES_URL_NON_POOLING` (direta) no projeto. O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
 | Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
@@ -30,6 +30,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` |
 | `MP_ACCESS_TOKEN`, `NEXT_PUBLIC_MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`, `MP_AMBIENTE` | Mercado Pago |
+| `MP_PAYOUTS_PRIVATE_KEY`, `MP_PAYOUTS_HABILITADO` | Saque real pelo Payouts (ver "Saque em produção" abaixo). Sem as duas, o saque em produção é recusado sem chamar a API |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_EMAILS` | Login com Google e quem entra como gestor |
 | `GESTORES` | Contas de gestor da equipe com e-mail e senha (só o hash, gerado por `npm run senha:hash`). Em produção, a conta de exemplo de gestor não existe |
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Erros no Sentry |
@@ -49,7 +50,27 @@ Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e What
 
 ### Liberação temporária do prazo de saque (só para teste)
 
-`SAQUE_SEM_PRAZO_EMAILS` (e-mails separados por vírgula) faz o **gestor** (papel `admin`) com esse e-mail sacar as próprias vendas sem esperar 1/30 dias, com a comissão normal de 10%. Fotógrafos comuns não são afetados, mesmo que o e-mail esteja na lista. A tela Financeiro mostra um aviso enquanto está ativa e cada saque liberado fica registrado no log. Serve só para validar o saque: cadastre em *Production*, faça **Redeploy**, teste e depois apague a variável e faça outro Redeploy. Lembre que, com `MP_AMBIENTE=producao`, o saque ainda é recusado até implementarmos o `X-signature` do Payouts.
+`SAQUE_SEM_PRAZO_EMAILS` (e-mails separados por vírgula) faz o **gestor** (papel `admin`) com esse e-mail sacar as próprias vendas sem esperar 1/30 dias, com a comissão normal de 10%. Fotógrafos comuns não são afetados, mesmo que o e-mail esteja na lista. A tela Financeiro mostra um aviso enquanto está ativa e cada saque liberado fica registrado no log. Serve só para validar o saque: cadastre em *Production*, faça **Redeploy**, teste e depois apague a variável e faça outro Redeploy. Lembre que, com `MP_AMBIENTE=producao`, o saque só sai depois de ligar o Payouts (abaixo).
+
+### Saque em produção (Payouts com `X-signature`)
+
+Em produção, o Mercado Pago exige em cada `POST /v1/payouts` o header `X-signature`: assinatura **Ed25519** dos bytes exatos do corpo JSON enviado, em base64. O app assina com a chave privada de `MP_PAYOUTS_PRIVATE_KEY` e manda `X-enforce-signature: true` (sem `X-test-token`). A chave pública fica cadastrada no Mercado Pago.
+
+1. **Gerar o par** (uma vez; já feito em 07/10/2026). Num terminal na raiz do projeto:
+
+   ```
+   node -e "const c=require('crypto');const {privateKey,publicKey}=c.generateKeyPairSync('ed25519');require('fs').writeFileSync('docs/mercadopago/payouts-chave-publica.pem',publicKey.export({type:'spki',format:'pem'}));process.stdout.write(Buffer.from(privateKey.export({type:'pkcs8',format:'pem'})).toString('base64'))" > chave-privada.b64
+   ```
+
+   `chave-privada.b64` é a privada (PEM PKCS8 em base64, numa linha). Nunca a commite nem cole em chat ou e-mail.
+2. **Cadastrar a privada na Vercel**, só em *Production*, pelo terminal (o valor vai pela entrada padrão, não aparece no histórico): `npx vercel env add MP_PAYOUTS_PRIVATE_KEY production < chave-privada.b64`. Para rodar local, a mesma linha em `MP_PAYOUTS_PRIVATE_KEY=` no `.env`. Depois apague `chave-privada.b64`.
+3. **Enviar a pública ao Mercado Pago** (`docs/mercadopago/payouts-chave-publica.pem`, formato PEM SPKI), pedindo o cadastro para a aplicação e a liberação do Payouts Pix em produção. A mensagem pronta está em [mercadopago/mensagem-para-o-mercado-pago.md](mercadopago/mensagem-para-o-mercado-pago.md).
+4. **Ligar a trava** só quando o Mercado Pago confirmar: `MP_PAYOUTS_HABILITADO=1` em *Production* e **Redeploy**. Até lá, o saque em produção é recusado antes de chamar a API e o saldo volta ao fotógrafo.
+5. **Primeiro saque real de R$ 1,00** (o mínimo) para validar: conferir no painel do Mercado Pago e na tela Financeiro que ficou `pago`.
+
+**Trocar a chave** (vazamento ou rotina): desligue `MP_PAYOUTS_HABILITADO`, gere um par novo (passo 1), envie a pública nova ao Mercado Pago, troque `MP_PAYOUTS_PRIVATE_KEY` na Vercel (`npx vercel env rm MP_PAYOUTS_PRIVATE_KEY production` e o passo 2) e, quando o Mercado Pago confirmar a nova pública, ligue a trava e faça Redeploy.
+
+**Saque que não sai como esperado:** recusa clara no primeiro envio (assinatura, token, permissão, corpo inválido) marca `falhou` e devolve o saldo. Recusa ambígua (referência repetida, conflito, código desconhecido), qualquer recusa num reenvio e Pix devolvido (`refunded`) deixam o saque em `processando` com um log `ALERTA saque para revisão manual`: confira no painel do Mercado Pago se o Pix saiu antes de mexer no saldo.
 
 ## 4. Domínio do site e lojas
 

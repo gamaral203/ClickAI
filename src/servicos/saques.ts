@@ -20,8 +20,9 @@ import {
   enviarPayoutPix,
   ErroMercadoPago,
   mercadoPagoConfigurado,
+  recusaDoPayout,
   SaqueNaoHabilitado,
-  type SituacaoPayout,
+  type ResultadoPayout,
 } from "@/lib/mercadopago";
 
 // Saque do fotógrafo (docs/arquitetura.md, "Saque do fotógrafo"). O cliente paga na conta da
@@ -198,44 +199,74 @@ export type ResultadoSaque =
       motivo: "sem_chave" | "saque_em_andamento" | "abaixo_do_minimo" | "conflito" | "falhou";
     };
 
+/**
+ * Alerta para revisão manual: o saque fica em `processando` (o fotógrafo não pede outro e o
+ * gestor o vê em /admin/saques) e nada é devolvido sozinho, porque o Pix pode ter saído.
+ */
+function alertarRevisao(motivo: string, dados: Record<string, unknown>) {
+  console.error(`ALERTA saque para revisão manual: ${motivo}`, dados);
+}
+
 /** Aplica ao saque a situação que o Mercado Pago informou. */
-async function aplicarSituacao(saqueId: string, situacao: SituacaoPayout, gatewayId: string) {
-  if (situacao === "pago") {
+async function aplicarSituacao(saqueId: string, payout: ResultadoPayout) {
+  const gatewayId = payout.id;
+  if (payout.situacao === "pago") {
     await mudarStatusSaque(saqueId, "processando", "pago", {
       gatewayId,
       pagoEm: new Date().toISOString(),
     });
-  } else if (situacao === "falhou") {
+  } else if (payout.situacao === "falhou") {
     if (await mudarStatusSaque(saqueId, "processando", "falhou", { gatewayId })) {
       await soltarLancamentosDoSaque(saqueId);
     }
   } else {
+    if (payout.situacao === "revisao") {
+      alertarRevisao("o Mercado Pago informou o Pix como devolvido", {
+        saque: saqueId,
+        payout: payout.id,
+        transacao: payout.transacaoId,
+        status: payout.status,
+        detalhe: payout.detalhe,
+      });
+    }
     await mudarStatusSaque(saqueId, "processando", "processando", { gatewayId });
   }
 }
 
 /**
  * Envia (ou reenvia, com a mesma chave de idempotência) o payout de um saque em
- * processamento. Recusa clara do Mercado Pago (4xx) encerra o saque e devolve o saldo; erro de
- * rede ou 5xx deixa em processamento, porque o Pix pode ter saído: a próxima conferência
- * reenvia com a mesma chave e descobre.
+ * processamento. O saldo só volta ao fotógrafo quando é certo que o Pix não saiu:
+ *   - no PRIMEIRO envio, recusa clara do Mercado Pago (assinatura, token, permissão, corpo
+ *     inválido) ou saque não habilitado (nada foi enviado);
+ *   - recusa ambígua (referência repetida, conflito, código desconhecido) ou qualquer 4xx num
+ *     REENVIO (o primeiro envio pode ter criado o payout) fica em `processando` com alerta;
+ *   - erro de rede, timeout, 5xx ou resposta ilegível ficam em `processando`: a próxima
+ *     conferência reenvia com a mesma chave e descobre, sem pagar duas vezes.
  */
-async function enviar(saque: Saque) {
+async function enviar(saque: Saque, primeiroEnvio: boolean) {
   try {
-    const { id, situacao } = await enviarPayoutPix({
+    const payout = await enviarPayoutPix({
       saqueId: saque.id,
       liquidoCentavos: saque.liquidoCentavos,
       chavePix: saque.chavePix,
     });
-    await aplicarSituacao(saque.id, situacao, id);
+    await aplicarSituacao(saque.id, payout);
   } catch (erro) {
-    // Só encerra quando é certo que o Pix não saiu. Timeout, erro de rede, 5xx ou resposta
-    // ilegível ficam em processamento.
-    const recusado = erro instanceof ErroMercadoPago && erro.status >= 400 && erro.status < 500;
-    if (recusado || erro instanceof SaqueNaoHabilitado) {
-      console.error("Saque recusado", { saque: saque.id, erro });
-      if (await mudarStatusSaque(saque.id, "processando", "falhou")) {
-        await soltarLancamentosDoSaque(saque.id);
+    const quatroXX = erro instanceof ErroMercadoPago && erro.status >= 400 && erro.status < 500;
+    const naoEnviado = erro instanceof SaqueNaoHabilitado;
+    if (quatroXX || naoEnviado) {
+      const clara =
+        naoEnviado || (erro instanceof ErroMercadoPago && recusaDoPayout(erro) === "clara");
+      if (primeiroEnvio && clara) {
+        console.error("Saque recusado; saldo devolvido", { saque: saque.id, erro });
+        if (await mudarStatusSaque(saque.id, "processando", "falhou")) {
+          await soltarLancamentosDoSaque(saque.id);
+        }
+      } else {
+        alertarRevisao(
+          primeiroEnvio ? "recusa ambígua do Mercado Pago" : "recusa do Mercado Pago num reenvio",
+          { saque: saque.id, erro },
+        );
       }
     } else {
       console.error("Saque sem resposta; fica em processamento", { saque: saque.id, erro });
@@ -299,7 +330,7 @@ export async function solicitarSaque(
     // Sem credenciais (Parte A): o saque é simulado e sai pago na hora.
     await mudarStatusSaque(saque.id, "processando", "pago", { pagoEm: new Date().toISOString() });
   } else {
-    await enviar(saque);
+    await enviar(saque, true);
   }
   return { ok: true, saque };
 }
@@ -309,12 +340,12 @@ export async function conferirSaques(fotografoId: string) {
   if (!mercadoPagoConfigurado()) return;
   for (const saque of await listarSaquesProcessando(fotografoId)) {
     if (!saque.gatewayId) {
-      await enviar(saque);
+      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência.
+      await enviar(saque, false);
       continue;
     }
     try {
-      const { situacao } = await buscarPayout(saque.gatewayId);
-      await aplicarSituacao(saque.id, situacao, saque.gatewayId);
+      await aplicarSituacao(saque.id, await buscarPayout(saque.gatewayId, saque.id));
     } catch (erro) {
       console.error("Falha ao consultar o saque no Mercado Pago", { saque: saque.id, erro });
     }

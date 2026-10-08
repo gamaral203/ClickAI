@@ -7,7 +7,7 @@
 
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, createPrivateKey, sign, timingSafeEqual, type KeyObject } from "node:crypto";
 
 import { z } from "zod";
 
@@ -67,20 +67,32 @@ export class ErroMercadoPago extends Error {
 
 async function requisitar(
   caminho: string,
-  init: { method: "GET" | "POST"; corpo?: unknown; idempotencia?: string; headers?: HeadersInit },
+  init: {
+    method: "GET" | "POST";
+    corpo?: unknown;
+    /**
+     * Corpo já serializado, enviado byte a byte como está. O Payouts assina exatamente estes
+     * bytes: serializar de novo poderia mudar o texto e invalidar a assinatura.
+     */
+    corpoJson?: string;
+    idempotencia?: string;
+    headers?: Record<string, string>;
+  },
 ): Promise<unknown> {
   const { accessToken } = exigirConfig();
+  const body =
+    init.corpoJson ?? (init.corpo === undefined ? undefined : JSON.stringify(init.corpo));
   const resposta = await fetch(`${API}${caminho}`, {
     method: init.method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
-      ...(init.corpo !== undefined && { "Content-Type": "application/json" }),
+      ...(body !== undefined && { "Content-Type": "application/json" }),
       // Repetir a mesma chave devolve a mesma order/payout em vez de cobrar ou pagar de novo.
       ...(init.idempotencia && { "X-Idempotency-Key": init.idempotencia }),
       ...init.headers,
     },
-    body: init.corpo === undefined ? undefined : JSON.stringify(init.corpo),
+    body,
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),
   });
@@ -262,32 +274,156 @@ export function assinaturaDoWebhookConfere(entrada: {
 }
 
 // ---------------------------------------------------------------- Payouts (saque)
+//
+// Em produção, todo POST /v1/payouts leva `X-signature`: assinatura Ed25519 dos bytes exatos do
+// corpo JSON enviado, em base64, feita com a chave privada da plataforma
+// (MP_PAYOUTS_PRIVATE_KEY). A chave pública correspondente fica cadastrada no Mercado Pago
+// (docs/mercadopago/payouts-chave-publica.pem). Como gerar e trocar a chave: docs/deploy.md.
 
-const payout = z.object({
-  id: z.string(),
-  status: z.string(),
-  transactions: z.array(z.object({ status: z.string().optional() })).default([]),
-});
+/**
+ * - `pago`: transação `success` + `accredited` (o Pix chegou);
+ * - `falhou`: o Mercado Pago informou que a transação não saiu (`error`, `rejected`,
+ *   `canceled`); o saldo volta ao fotógrafo;
+ * - `revisao`: o Pix saiu e voltou (`refunded`, `partially_refunded`); nada é devolvido
+ *   sozinho, alguém precisa olhar;
+ * - `processando`: todo o resto, inclusive status desconhecido.
+ */
+export type SituacaoPayout = "processando" | "pago" | "falhou" | "revisao";
 
-export type SituacaoPayout = "processando" | "pago" | "falhou";
-
-/** O saque nem foi enviado: em produção, falta a assinatura do Payouts. */
+/** O saque nem foi enviado ao Mercado Pago: falta configurar ou liberar o Payouts em produção. */
 export class SaqueNaoHabilitado extends Error {
-  constructor() {
-    super("Saque em produção ainda não habilitado: falta a assinatura do Payouts");
+  constructor(motivo: string) {
+    super(`Saque em produção não habilitado: ${motivo}`);
   }
 }
 
-function situacaoDoPayout(corpo: unknown): { id: string; situacao: SituacaoPayout } {
-  const p = payout.parse(corpo);
-  const transacao = p.transactions[0]?.status;
-  const situacao: SituacaoPayout =
-    transacao === "success"
-      ? "pago"
-      : transacao === "error" || transacao === "canceled"
-        ? "falhou"
-        : "processando";
-  return { id: p.id, situacao };
+type ConfigPayouts = { producao: false } | { producao: true; chave: KeyObject };
+
+/** MP_PAYOUTS_PRIVATE_KEY: o PEM PKCS8 da chave Ed25519 codificado em base64 numa linha. */
+export function lerChavePrivadaPayouts(valor: string): KeyObject {
+  const texto = valor.trim();
+  // Aceita também o PEM direto (com \n escritos como texto), mas o padrão é o base64.
+  const pem = texto.includes("-----BEGIN")
+    ? texto.replace(/\\n/g, "\n")
+    : Buffer.from(texto, "base64").toString("utf8");
+  const chave = createPrivateKey(pem);
+  if (chave.asymmetricKeyType !== "ed25519") {
+    throw new Error("MP_PAYOUTS_PRIVATE_KEY não é uma chave Ed25519");
+  }
+  return chave;
+}
+
+/**
+ * Em teste, o Payouts roda sem assinatura. Em produção, só envia com a chave privada E com
+ * MP_PAYOUTS_HABILITADO=1, ligado depois que o Mercado Pago confirmar o cadastro da chave
+ * pública. Sem isso, recusa antes de chamar a API.
+ */
+export function configPayouts(): ConfigPayouts {
+  const { producao } = exigirConfig();
+  if (!producao) return { producao: false };
+  const valor = process.env.MP_PAYOUTS_PRIVATE_KEY;
+  if (!valor) {
+    throw new SaqueNaoHabilitado("falta MP_PAYOUTS_PRIVATE_KEY, a chave que assina o Payouts");
+  }
+  if (process.env.MP_PAYOUTS_HABILITADO !== "1") {
+    throw new SaqueNaoHabilitado(
+      "MP_PAYOUTS_HABILITADO não está ligado (aguardando o Mercado Pago confirmar a chave pública)",
+    );
+  }
+  try {
+    return { producao: true, chave: lerChavePrivadaPayouts(valor) };
+  } catch {
+    throw new SaqueNaoHabilitado(
+      "MP_PAYOUTS_PRIVATE_KEY inválida (esperado PEM Ed25519 em base64)",
+    );
+  }
+}
+
+/** Assinatura Ed25519 dos bytes UTF-8 do corpo, em base64 padrão: o valor do `X-signature`. */
+export function assinarCorpoPayout(corpoJson: string, chave: KeyObject) {
+  return sign(null, Buffer.from(corpoJson, "utf8"), chave).toString("base64");
+}
+
+/** Headers próprios do POST de payout: em teste, `X-test-token`; em produção, a assinatura. */
+export function headersDoPayout(config: ConfigPayouts, corpoJson: string): Record<string, string> {
+  if (!config.producao) return { "X-test-token": "true", "X-enforce-signature": "false" };
+  return {
+    "X-enforce-signature": "true",
+    "X-signature": assinarCorpoPayout(corpoJson, config.chave),
+  };
+}
+
+const id = z.union([z.string(), z.number()]).transform(String);
+
+const transacaoPayout = z.object({
+  id: id.optional(),
+  status: z.string().optional(),
+  status_detail: z.string().optional(),
+  external_reference: z.string().optional(),
+});
+
+const respostaPayout = z.object({
+  id,
+  status: z.string().optional(),
+  status_detail: z.string().optional(),
+  transactions: z.array(transacaoPayout).optional(),
+});
+
+type TransacaoPayout = z.infer<typeof transacaoPayout>;
+
+export type ResultadoPayout = {
+  id: string;
+  transacaoId: string | null;
+  situacao: SituacaoPayout;
+  status: string | null;
+  detalhe: string | null;
+};
+
+const DETALHES_DE_DEVOLUCAO = new Set(["refunded", "partially_refunded"]);
+
+/** Status e detalhe da transação → o que fazer com o saque. Na dúvida, `processando`. */
+export function situacaoDaTransacao(
+  status: string | null | undefined,
+  detalhe: string | null | undefined,
+): SituacaoPayout {
+  if (DETALHES_DE_DEVOLUCAO.has(status ?? "") || DETALHES_DE_DEVOLUCAO.has(detalhe ?? "")) {
+    return "revisao";
+  }
+  switch (status) {
+    case "success":
+      // `success` + `in_progress` ainda não creditou.
+      return detalhe === "accredited" ? "pago" : "processando";
+    case "error":
+    case "rejected":
+    case "canceled":
+    case "cancelled":
+      return "falhou";
+    default:
+      // created, approved, transaction_in_process e qualquer status novo.
+      return "processando";
+  }
+}
+
+/** A transação do saque (pela referência) ou, sem ela, a primeira. */
+function escolherTransacao(lista: TransacaoPayout[], referencia: string) {
+  return lista.find((t) => t.external_reference === referencia) ?? lista[0] ?? null;
+}
+
+function resultado(payoutId: string, transacao: TransacaoPayout | null): ResultadoPayout {
+  const status = transacao?.status ?? null;
+  const detalhe = transacao?.status_detail ?? null;
+  return {
+    id: payoutId,
+    transacaoId: transacao?.id ?? null,
+    situacao: situacaoDaTransacao(status, detalhe),
+    status,
+    detalhe,
+  };
+}
+
+/** `external_reference` da transação Pix: até 50 caracteres, só letras, números, - e _. */
+export function referenciaDaTransacao(saqueId: string) {
+  return `${saqueId}-pix`;
 }
 
 /** "00000000000" → "000.000.000-00"; 14 dígitos → "00.000.000/0000-00". */
@@ -297,53 +433,130 @@ function formatarChave(digitos: string) {
     : digitos.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }
 
+/** Corpo do POST /v1/payouts. Descrições só com letras, números, espaços, - e _ (sem acento). */
+export function corpoDoPayout(dados: {
+  saqueId: string;
+  liquidoCentavos: number;
+  chavePix: string;
+}) {
+  return {
+    external_reference: dados.saqueId,
+    description: "Saque ClicouAi",
+    transactions: [
+      {
+        description: "Saque do fotografo",
+        type: "pix",
+        pix: {
+          type: dados.chavePix.length === 11 ? "CPF" : "CNPJ",
+          chave: formatarChave(dados.chavePix),
+        },
+        amount: { currency: "BRL", value: Number(centavosParaValor(dados.liquidoCentavos)) },
+        external_reference: referenciaDaTransacao(dados.saqueId),
+      },
+    ],
+  };
+}
+
 /**
  * Envia o saque por Pix da conta da plataforma para a chave do fotógrafo (o CPF/CNPJ dele).
- * A chave de idempotência é o id do saque: repetir a chamada não paga duas vezes.
+ * A chave de idempotência é o id do saque: repetir a chamada não paga duas vezes. O corpo é
+ * serializado uma única vez, e esse mesmo texto é assinado e enviado.
  */
 export async function enviarPayoutPix(dados: {
   saqueId: string;
   liquidoCentavos: number;
   chavePix: string;
-}) {
-  const config = exigirConfig();
-  if (config.producao) {
-    // Em produção o Payouts exige o header X-signature, gerado com as chaves da integração.
-    // A documentação pública não descreve o algoritmo; falta confirmar com o Mercado Pago
-    // antes de liberar o saque real (docs/tarefas.md, Fase 13).
-    throw new SaqueNaoHabilitado();
-  }
-  const valor = Number(centavosParaValor(dados.liquidoCentavos));
-  const corpo = await requisitar("/v1/payouts", {
-    method: "POST",
-    idempotencia: dados.saqueId,
-    headers: { "X-test-token": "true", "X-enforce-signature": "false" },
-    corpo: {
-      external_reference: dados.saqueId,
-      description: "Saque ClicouAí",
-      transactions: [
-        {
-          description: "Saque do fotógrafo",
-          type: "pix",
-          pix: {
-            type: dados.chavePix.length === 11 ? "CPF" : "CNPJ",
-            chave: formatarChave(dados.chavePix),
-          },
-          amount: { currency: "BRL", value: valor },
-          external_reference: dados.saqueId,
-        },
-      ],
-    },
-  });
-  return situacaoDoPayout(corpo);
-}
-
-export async function buscarPayout(payoutId: string) {
-  const { producao } = exigirConfig();
-  return situacaoDoPayout(
-    await requisitar(`/v1/payouts/${encodeURIComponent(payoutId)}`, {
-      method: "GET",
-      headers: producao ? {} : { "X-test-token": "true" },
+}): Promise<ResultadoPayout> {
+  const config = configPayouts();
+  const corpoJson = JSON.stringify(corpoDoPayout(dados));
+  const resposta = respostaPayout.parse(
+    await requisitar("/v1/payouts", {
+      method: "POST",
+      idempotencia: dados.saqueId,
+      corpoJson,
+      headers: headersDoPayout(config, corpoJson),
     }),
   );
+  const transacao =
+    escolherTransacao(resposta.transactions ?? [], referenciaDaTransacao(dados.saqueId)) ??
+    (resposta.status ? { status: resposta.status, status_detail: resposta.status_detail } : null);
+  return resultado(resposta.id, transacao);
+}
+
+/** Lista de transações em qualquer dos formatos que a API pode devolver. */
+function lerTransacoes(corpo: unknown): TransacaoPayout[] {
+  if (Array.isArray(corpo)) return z.array(transacaoPayout).parse(corpo);
+  if (corpo && typeof corpo === "object") {
+    const objeto = corpo as Record<string, unknown>;
+    const lista = ["results", "transactions", "data", "elements"]
+      .map((chave) => objeto[chave])
+      .find(Array.isArray);
+    if (lista) return z.array(transacaoPayout).parse(lista);
+    if ("status" in objeto) return [transacaoPayout.parse(objeto)];
+  }
+  return [];
+}
+
+/**
+ * Situação do saque lida na API. `GET /v1/payouts/{id}` só traz o resumo, sem as transações;
+ * o status do Pix vem de `GET /v1/payouts/{id}/transactions`.
+ */
+export async function buscarPayout(payoutId: string, saqueId: string): Promise<ResultadoPayout> {
+  const { producao } = exigirConfig();
+  const corpo = await requisitar(`/v1/payouts/${encodeURIComponent(payoutId)}/transactions`, {
+    method: "GET",
+    headers: producao ? {} : { "X-test-token": "true" },
+  });
+  return resultado(
+    payoutId,
+    escolherTransacao(lerTransacoes(corpo), referenciaDaTransacao(saqueId)),
+  );
+}
+
+/** Códigos de erro que dizem, sem dúvida, que o payout foi recusado antes de existir. */
+const RECUSAS_CLARAS = new Set([
+  "invalid_signature",
+  "signature_required",
+  "idempotency_key_required",
+  "invalid_token",
+  "unauthorized",
+  "forbidden",
+  "validation_error",
+]);
+
+/** Indício de que o payout talvez já exista (referência ou chave repetida, conflito). */
+const INDICIO_DE_DUPLICIDADE = /duplicat|already|exist|conflict|reference|in_use|repeat/i;
+
+function textosDoErro(corpo: unknown): { codigos: string[]; mensagens: string[] } {
+  const codigos: string[] = [];
+  const mensagens: string[] = [];
+  const visitar = (valor: unknown) => {
+    if (!valor || typeof valor !== "object") return;
+    const o = valor as Record<string, unknown>;
+    for (const chave of ["code", "error"]) {
+      if (typeof o[chave] === "string") codigos.push((o[chave] as string).toLowerCase());
+    }
+    for (const chave of ["message", "description", "details"]) {
+      if (typeof o[chave] === "string") mensagens.push(o[chave] as string);
+    }
+    for (const chave of ["errors", "cause"]) {
+      if (Array.isArray(o[chave])) (o[chave] as unknown[]).forEach(visitar);
+    }
+  };
+  visitar(corpo);
+  return { codigos, mensagens };
+}
+
+/**
+ * Um 4xx do POST de payout é recusa CLARA (o Pix certamente não saiu: assinatura, token,
+ * permissão, idempotência ausente, corpo inválido) ou AMBÍGUA (referência repetida, conflito,
+ * código desconhecido: o payout pode já existir). Só a clara pode devolver o saldo.
+ */
+export function recusaDoPayout(erro: ErroMercadoPago): "clara" | "ambigua" {
+  if (erro.status < 400 || erro.status >= 500 || erro.status === 409) return "ambigua";
+  const { codigos, mensagens } = textosDoErro(erro.corpo);
+  if ([...codigos, ...mensagens].some((t) => INDICIO_DE_DUPLICIDADE.test(t))) return "ambigua";
+  if (erro.status === 401 || erro.status === 403) return "clara";
+  if (codigos.some((c) => RECUSAS_CLARAS.has(c) || /^invalid_|_required$/.test(c))) return "clara";
+  return "ambigua";
 }
