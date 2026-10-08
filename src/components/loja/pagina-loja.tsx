@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Script from "next/script";
 
-import { CartaoEvento } from "@/components/galeria/cartao-evento";
 import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
+import { numerosDoFotografo, VitrineDoFotografo } from "@/components/loja/vitrine-do-fotografo";
 import { listarEventosPublicados, type LojaPublica } from "@/dados";
+import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto, idGaSeguro, idGtmSeguro } from "@/lib/loja";
 
 // Loja própria do fotógrafo (docs/arquitetura.md, "Loja própria"). Nada do que o fotógrafo
@@ -37,23 +38,12 @@ export async function PaginaDaLoja({ loja }: { loja: LojaPublica }) {
         corPrimaria={loja.corPrimaria}
         corSecundaria={loja.corSecundaria}
         redes={loja.fotografo.redesSociais}
+        numeros={numerosDoFotografo(eventos)}
+        urlParaCompartilhar={urlDoSite(`/fotografo/${loja.fotografo.slug}`)}
       />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-10">
-        <h2 className="text-2xl font-semibold">Eventos</h2>
-        {eventos.length > 0 ? (
-          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {eventos.map((evento) => (
-              <li key={evento.id} className="flex">
-                <CartaoEvento evento={evento} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
-            Nenhum evento publicado ainda. Volte em breve.
-          </p>
-        )}
+      <main className="flex flex-1 flex-col">
+        <VitrineDoFotografo eventos={eventos} />
       </main>
 
       <footer className="border-t">

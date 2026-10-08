@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Search } from "lucide-react";
 
-import { CartaoEvento } from "@/components/galeria/cartao-evento";
 import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { numerosDoFotografo, VitrineDoFotografo } from "@/components/loja/vitrine-do-fotografo";
 import { buscarFotografoPublico, buscarLojaDoFotografo, listarEventosPublicados } from "@/dados";
+import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto } from "@/lib/loja";
 import { FORMATO_SLUG } from "@/lib/slug";
 
@@ -34,11 +31,9 @@ export async function generateMetadata({
 
 export default function PaginaFotografo({ params, searchParams }: PageProps<"/fotografo/[slug]">) {
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
-      <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}>
-        <Conteudo params={params} searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Suspense fallback={<div className="h-96 animate-pulse bg-muted" />}>
+      <Conteudo params={params} searchParams={searchParams} />
+    </Suspense>
   );
 }
 
@@ -47,11 +42,9 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
   if (!fotografo) notFound();
   const { busca } = await searchParams;
   const termo = typeof busca === "string" ? busca.trim().slice(0, 100) : "";
-  const [eventos, salva] = await Promise.all([
-    listarEventosPublicados({
-      fotografoId: fotografo.id,
-      ...(termo && { busca: termo }),
-    }),
+  const [todos, encontrados, salva] = await Promise.all([
+    listarEventosPublicados({ fotografoId: fotografo.id }),
+    termo ? listarEventosPublicados({ fotografoId: fotografo.id, busca: termo }) : null,
     buscarLojaDoFotografo(fotografo.id),
   ]);
   // O que o fotógrafo configurou em Minha loja (nome, descrição e cores) vale aqui também.
@@ -61,7 +54,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
 
   return (
     <div
-      className="contents"
+      className="flex flex-col"
       style={
         loja
           ? ({
@@ -80,52 +73,17 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
         corPrimaria={corPrimaria}
         corSecundaria={corSecundaria}
         redes={fotografo.redesSociais}
-        className="rounded-2xl"
+        numeros={numerosDoFotografo(todos)}
+        urlParaCompartilhar={urlDoSite(`/fotografo/${fotografo.slug}`)}
       />
-
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="text-2xl font-semibold">Eventos</h2>
-          <form role="search" className="flex gap-2 sm:w-80">
-            <Input
-              name="busca"
-              type="search"
-              defaultValue={termo}
-              maxLength={100}
-              aria-label={`Buscar nos eventos de ${fotografo.nomePublico}`}
-              placeholder="Buscar evento ou cidade"
-              className="h-11"
-            />
-            <button type="submit" className={buttonVariants({ size: "touch" })}>
-              <Search aria-hidden="true" />
-              <span className="sr-only">Buscar</span>
-            </button>
-          </form>
-        </div>
-
-        {eventos.length > 0 ? (
-          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {eventos.map((evento) => (
-              <li key={evento.id} className="flex">
-                <CartaoEvento evento={evento} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
-            {termo ? (
-              <>
-                Nenhum evento encontrado para “{termo}”.{" "}
-                <Link href={`/fotografo/${fotografo.slug}`} className="font-medium text-primary">
-                  Ver todos
-                </Link>
-              </>
-            ) : (
-              "Nenhum evento publicado ainda. Volte em breve."
-            )}
-          </div>
-        )}
-      </section>
+      <VitrineDoFotografo
+        eventos={encontrados ?? todos}
+        busca={{
+          termo,
+          limpar: `/fotografo/${fotografo.slug}`,
+          rotulo: `Buscar nos eventos de ${fotografo.nomePublico}`,
+        }}
+      />
     </div>
   );
 }
