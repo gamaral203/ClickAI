@@ -1,6 +1,7 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { RekognitionClient } from "@aws-sdk/client-rekognition";
 import sharp from "sharp";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // `connection()` só existe dentro de uma requisição do Next; aqui as funções rodam direto.
@@ -16,8 +17,10 @@ vi.mock("@/servicos/sessao", () => ({
 }));
 
 import { indexarRostosDoEventoAcao } from "@/app/(fotografo)/painel/eventos/rostos-acoes";
-import { fotosParaIndexar } from "@/dados";
+import { fotosParaIndexar, situacaoDosRostos } from "@/dados";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
+import { obterBanco } from "@/db";
+import * as t from "@/db/schema";
 import { reiniciarClienteR2 } from "@/lib/r2";
 
 const [lia, pedro] = fotografos;
@@ -70,7 +73,25 @@ async function pendentesNoPrimeiroLote() {
   return fotos.filter((f) => !f.temRosto && f.chaveOriginal).length;
 }
 
+describe("situação dos rostos do evento", () => {
+  it("conta as fotos com rosto gravado (os dados de exemplo têm rostos)", async () => {
+    const { prontas, comRosto } = await situacaoDosRostos(evento.id);
+    expect(comRosto).toBeGreaterThan(0);
+    expect(comRosto).toBeLessThanOrEqual(prontas);
+  });
+});
+
 describe("cadastrar rostos que faltam", () => {
+  // Como num evento enviado antes do reconhecimento estar ligado: nenhuma foto com rosto gravado.
+  beforeAll(async () => {
+    const banco = await obterBanco();
+    const fotosDoEvento = banco
+      .select({ id: t.fotos.id })
+      .from(t.fotos)
+      .where(eq(t.fotos.eventoId, evento.id));
+    await banco.delete(t.rostos).where(inArray(t.rostos.fotoId, fotosDoEvento));
+  });
+
   it("só o dono do evento", async () => {
     sessao.fotografoId = pedro.id;
     const r = await indexarRostosDoEventoAcao(evento.id, null);

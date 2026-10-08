@@ -38,13 +38,20 @@ export async function caixasDosRostos(rostoIds: string[]): Promise<Record<string
   return caixas;
 }
 
+/**
+ * A foto tem rosto gravado. Nomes escritos por extenso: dentro do sql``, o Drizzle escreve a
+ * coluna sem a tabela ("foto_id" = "id"), e na subconsulta os dois viravam colunas de `rostos`:
+ * a conta dava sempre 0 e toda foto voltava ao reconhecimento a cada clique.
+ */
+const TEM_ROSTO = sql`exists (select 1 from "rostos" where "rostos"."foto_id" = "fotos"."id")`;
+
 /** Quantas fotos prontas do evento têm rosto cadastrado na busca por selfie. */
 export async function situacaoDosRostos(eventoId: string) {
   const banco = await obterBanco();
   const [linha] = await banco
     .select({
       prontas: sql<number>`count(*)::int`,
-      comRosto: sql<number>`count(*) filter (where exists (select 1 from ${t.rostos} where ${t.rostos.fotoId} = ${t.fotos.id}))::int`,
+      comRosto: sql<number>`count(*) filter (where ${TEM_ROSTO})::int`,
     })
     .from(t.fotos)
     .where(
@@ -64,7 +71,7 @@ export async function fotosParaIndexar(eventoId: string, depoisDe: string | null
     .select({
       id: t.fotos.id,
       chaveOriginal: t.fotos.chaveOriginal,
-      temRosto: sql<boolean>`exists (select 1 from ${t.rostos} where ${t.rostos.fotoId} = ${t.fotos.id})`,
+      temRosto: sql<boolean>`${TEM_ROSTO}`,
     })
     .from(t.fotos)
     .where(

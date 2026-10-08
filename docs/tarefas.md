@@ -124,6 +124,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Produção nunca mostra o link de confirmação de e-mail na tela: se o e-mail não sair, a tela avisa que o envio está indisponível e o erro vai ao log, sem o token na URL nem no log; o link na tela fica só fora da produção `[R-alta]`
 - [x] Correção: a busca por selfie falhava na Vercel porque lia `AWS_REGION`, `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`, nomes que a plataforma preenche com a região da função e credenciais que não valem na nossa conta. Agora lê só `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` e passa as chaves direto ao cliente; o log mostra só o nome do erro da AWS (nunca a selfie)
 - [x] Correção: "Cadastrar rostos que faltam" contava como feita a foto em que o reconhecimento falhou. Agora mostra quantas entraram e quantas falharam, e com credencial recusada para na primeira foto e avisa o fotógrafo para conferir as credenciais
+- [x] Correção: o painel mostrava sempre "0 fotos com rosto cadastrado" e o "Cadastrar rostos que faltam" mandava de novo ao Rekognition até as fotos que já tinham rosto (rosto repetido na coleção). A subconsulta comparava `rostos.foto_id` com `rostos.id`, porque o Drizzle escreve a coluna sem a tabela dentro do `sql`
 
 ## Em andamento
 
