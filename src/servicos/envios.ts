@@ -32,7 +32,12 @@ import {
   tamanhoDoOriginal,
   urlDeEnvio,
 } from "@/lib/r2";
-import { indexarRostos, provedorFacial } from "@/lib/reconhecimento";
+import {
+  ehErroDeCredencial,
+  indexarRostos,
+  nomeDoErro,
+  provedorFacial,
+} from "@/lib/reconhecimento";
 
 import { gerarMiniatura, gerarPrevia } from "./imagens";
 
@@ -206,13 +211,25 @@ export async function confirmarEnvio(
 }
 
 /**
- * Cadastra os rostos da foto no reconhecimento facial (com credenciais da AWS), para a busca por
- * selfie encontrá-la. Vai uma cópia reduzida (o Rekognition aceita até 5 MB) e já girada pelo
- * EXIF, para a posição do rosto bater com a prévia. Uma falha aqui não derruba o envio: a foto
- * continua à venda, só não aparece na busca por selfie (fica no log, só com o id).
+ * Como terminou o cadastro dos rostos de uma foto: `indexada` (mesmo sem nenhum rosto),
+ * `desligado` (sem o Rekognition configurado), `falha_credencial` (chave, região ou permissão
+ * erradas: as outras fotos vão falhar igual) ou `falha` (problema só desta foto, ou passageiro).
  */
-export async function indexarRostosDaFoto(eventoId: string, fotoId: string, original: Buffer) {
-  if (provedorFacial() !== "rekognition") return;
+export type IndexacaoDeRostos = "indexada" | "desligado" | "falha_credencial" | "falha";
+
+/**
+ * Cadastra os rostos da foto no reconhecimento facial (com as credenciais REKOGNITION_*), para a
+ * busca por selfie encontrá-la. Vai uma cópia reduzida (o Rekognition aceita até 5 MB) e já
+ * girada pelo EXIF, para a posição do rosto bater com a prévia. Uma falha aqui nunca derruba o
+ * envio (nunca lança): a foto continua à venda, só não aparece na busca por selfie. O resultado
+ * serve ao painel, para avisar o fotógrafo em vez de contar a falha como feita.
+ */
+export async function indexarRostosDaFoto(
+  eventoId: string,
+  fotoId: string,
+  original: Buffer,
+): Promise<IndexacaoDeRostos> {
+  if (provedorFacial() !== "rekognition") return "desligado";
   try {
     const imagem = await sharp(original)
       .rotate()
@@ -220,7 +237,13 @@ export async function indexarRostosDaFoto(eventoId: string, fotoId: string, orig
       .jpeg({ quality: 85 })
       .toBuffer();
     await salvarRostos(fotoId, await indexarRostos(eventoId, fotoId, imagem));
+    return "indexada";
   } catch (erro) {
-    console.error(`[envios] falha ao indexar os rostos da foto ${fotoId}`, erro);
+    // Só o id da foto e o nome do erro (ex.: UnrecognizedClientException): nada da imagem.
+    console.error(
+      `[envios] falha ao indexar os rostos da foto ${fotoId}: ${nomeDoErro(erro)}` +
+        (erro instanceof Error ? ` (${erro.message})` : ""),
+    );
+    return ehErroDeCredencial(erro) ? "falha_credencial" : "falha";
   }
 }

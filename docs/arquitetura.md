@@ -141,14 +141,14 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada), liberado_em, filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
 | `pastas` | id, evento_id, nome, ordem | eventos (N:1) |
-| `fotos` | id, evento_id, pasta_id (opcional), enviada_por (fotografo_id), tipo (foto, video), chave_original, chave_previa, chave_miniatura, nome_arquivo, largura, altura, duracao_s (vídeo), tamanho_bytes, hash_conteudo, capturada_em, preco_centavos (opcional, sobrepõe o do evento), ordem, status (processando, pronta, erro), criado_em, excluida_em (opcional) | eventos, pastas, fotografos |
+| `fotos` | id, evento_id, pasta_id (opcional), enviada_por (fotografo_id), tipo (foto, video), chave_original, chave_previa, chave_miniatura, nome_arquivo, largura, altura, duracao_s (vídeo), tamanho_bytes, hash_conteudo, capturada_em, preco_centavos (opcional, sobrepõe o do evento), ordem, status (processando, pronta, erro), criado_em, excluida_em (opcional), rostos_indexados_em (opcional: já passou pelo reconhecimento facial, com ou sem rosto) | eventos, pastas, fotografos |
 | `colaboradores` | id, evento_id, fotografo_id, comissao_dono_pct, nota | eventos, fotografos |
 
 **Busca**
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `rostos` | id, foto_id, rosto_id_provedor | fotos (N:1) |
+| `rostos` | id, foto_id, rosto_id_provedor, caixa (posição do rosto, para a prévia ampliada) | fotos (N:1) |
 | `numeros` | id, foto_id, numero | fotos (N:1) |
 
 A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
@@ -272,7 +272,7 @@ Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da p
 
 1. Na página do evento, o botão "Buscar pelo meu rosto" abre um modal. A pessoa aceita o aviso de uso da selfie e escolhe "Tirar foto" (abre a câmera frontal; só aparece no celular e no tablet, porque no computador o navegador abriria o mesmo seletor de arquivos) ou "Carregar foto" (uma foto da galeria). O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados. Ao encontrar fotos, o modal fecha e a página rola até o resultado.
 2. `POST /api/busca-facial` confere o consentimento, o tipo real da imagem (JPEG, PNG ou WebP, até 5 MB) e o limite de 10 buscas por IP a cada 10 minutos.
-3. Com o Amazon Rekognition, a selfie vai para `SearchFacesByImage` na coleção do evento (`{prefixo}-{evento_id}`), com semelhança mínima de 95%. O Rekognition não guarda a imagem da busca. Sem credenciais da AWS, os rostos dos dados de exemplo simulam o resultado.
+3. Com o Amazon Rekognition, a selfie vai para `SearchFacesByImage` na coleção do evento (`{prefixo}-{evento_id}`), com semelhança mínima de 90% por padrão (ajustável entre 80 e 99 por `REKOGNITION_SEMELHANCA`: em foto de evento a mesma pessoa costuma dar entre 85 e 95, e 95 escondia fotos certas). O Rekognition não guarda a imagem da busca. As credenciais vêm de `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY`, passadas direto ao cliente (nunca das `AWS_*`, que a Vercel preenche com a região da função e credenciais da plataforma). Sem elas, os rostos dos dados de exemplo simulam o resultado (em produção, a busca responde "indisponível").
 4. A selfie fica só na memória da requisição, é zerada no fim e nunca vai para log, banco ou R2. Volta a lista de fotos do evento em que a pessoa aparece, com a mesma regra de visibilidade da galeria (evento com senha ou aguardando liberação não abre).
 5. A indexação (`IndexFaces`, com o id da foto como `ExternalImageId`) roda no job de processamento quando o upload real existir (Fase 12).
 
@@ -433,7 +433,8 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
 - [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
 - [x] Banco gerenciado: Supabase (troca do Neon em 07/10/2026), na região São Paulo (`sa-east-1`). Usado só como Postgres: sem o login, o storage nem a API REST dele (usamos os nossos e o R2). Como o Supabase expõe o schema `public` pela API REST com a chave pública, toda tabela tem RLS ligado (`.enableRLS()` no schema, sem políticas) e os papéis `anon` e `authenticated` não têm acesso (migração 0002); o app conecta como dono das tabelas, que não passa pelo RLS. O app usa a URL do pooler em modo transaction (`DATABASE_URL` na produção, ou `POSTGRES_URL` da integração; porta 6543, driver node-postgres, sem prepared statements com nome e com uma consulta por vez em cada conexão: o pooler trava quando recebe a próxima consulta antes da resposta da anterior, o que o postgres.js fazia com consultas em paralelo); as migrações usam a conexão direta (`DATABASE_URL_DIRETA`, ou `POSTGRES_URL_NON_POOLING` da integração). No desenvolvimento local e nos testes, sem `DATABASE_URL`, o app usa o PGlite (Postgres em memória) com as mesmas migrações.
-- [ ] Reconhecimento: confirmar a região do Amazon Rekognition (transferência internacional de dado biométrico, LGPD) e escolher o provedor de OCR para os números de peito.
+- [x] Região do Amazon Rekognition: `sa-east-1` (São Paulo), que tem `IndexFaces` e `SearchFacesByImage`; a selfie e os rostos indexados, dado biométrico, não saem do Brasil (LGPD). Cota padrão nessa região: 5 chamadas por segundo para cada uma dessas operações (08/10/2026)
+- [ ] Reconhecimento numérico: escolher o provedor de OCR para os números de peito.
 - [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?
 - [ ] Onde roda o worker de vídeo: Fly.io ou Railway?
 

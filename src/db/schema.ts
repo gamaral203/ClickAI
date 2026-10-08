@@ -225,6 +225,12 @@ export const fotos = pgTable(
     status: statusFoto().notNull().default("processando"),
     criadoEm: momento(),
     excluidaEm: data(),
+    /**
+     * Quando a foto foi cadastrada no reconhecimento facial, mesmo que sem nenhum rosto
+     * (paisagem, de costas). Sem esta marca, a foto sem rosto voltava ao Rekognition a cada
+     * "Cadastrar rostos que faltam". Nulo: ainda não foi (ou o cadastro falhou).
+     */
+    rostosIndexadosEm: data(),
   },
   (t) => [
     index().on(t.eventoId, t.ordem),

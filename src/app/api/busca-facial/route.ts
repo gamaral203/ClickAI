@@ -85,7 +85,9 @@ export async function POST(request: NextRequest) {
     return resposta({ fotos, recortes, pacote: await ofertaDePacote(evento, fotos) });
   } catch (erro) {
     if (erro instanceof BuscaFacialDesligada) {
-      console.error("Busca por selfie sem AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY");
+      console.error(
+        "[busca-facial] desligada: faltam REKOGNITION_REGIAO, REKOGNITION_ACCESS_KEY_ID ou REKOGNITION_SECRET_ACCESS_KEY",
+      );
       return resposta(
         {
           erro: "A busca por selfie está indisponível agora. Use o número de peito ou veja a galeria.",

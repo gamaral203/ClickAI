@@ -161,6 +161,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         eventoId={evento.id}
         prontas={rostos.prontas}
         comRosto={rostos.comRosto}
+        pendentes={rostos.pendentes}
         configurado={provedorFacial() === "rekognition"}
       />
 
