@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+# A chave PÚBLICA do Payouts não é segredo (a privada fica só nas variáveis de ambiente).
+!docs/mercadopago/payouts-chave-publica.pem
 
 # debug
 npm-debug.log*
