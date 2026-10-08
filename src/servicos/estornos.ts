@@ -9,6 +9,7 @@ import {
   type PedidoInterno,
   type Usuario,
 } from "@/dados";
+import { emProducao } from "@/db/conexao";
 import {
   buscarOrder,
   ErroMercadoPago,
@@ -114,6 +115,12 @@ export async function reembolsarPedido(
   const { pedido } = encontrado;
   if (pedido.status === "estornado") return { ok: true, situacao: "estornado" };
   if (pedido.status !== "pago") return { ok: false, motivo: "nao_pago" };
+  // Na produção, reembolso simulado nunca: sem as credenciais do Mercado Pago, o pedido sairia
+  // estornado (e o fotógrafo com o lançamento negativo) sem dinheiro devolvido ao cliente.
+  if (emProducao() && !mercadoPagoConfigurado()) {
+    console.error("Reembolso recusado: Mercado Pago sem credenciais na produção");
+    return { ok: false, motivo: "falhou" };
+  }
 
   await marcarReembolsoSolicitado(pedido.id, gestor.id);
 
