@@ -25,7 +25,7 @@ export function Cabecalho() {
         <nav aria-label="Principal">
           <ul className="flex items-center gap-1">
             {links.map((link) => (
-              <li key={link.href}>
+              <li key={link.href} className="hidden sm:block">
                 <Link
                   href={link.href}
                   className="inline-flex h-11 items-center rounded-lg px-3 font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50"

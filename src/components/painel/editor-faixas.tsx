@@ -87,34 +87,44 @@ export function EditorFaixas({
       ) : (
         <ul className="flex flex-col gap-3">
           {linhas.map((linha, i) => (
-            <li key={linha.chave} className="flex flex-wrap items-center gap-2 text-sm">
-              <label htmlFor={`qtd-${eventoId}-${linha.chave}`}>A partir de</label>
-              <Input
-                id={`qtd-${eventoId}-${linha.chave}`}
-                type="number"
-                inputMode="numeric"
-                min={2}
-                max={500}
-                value={linha.quantidadeMin}
-                onChange={(e) => mudar(linha.chave, "quantidadeMin", e.target.value)}
-                className="h-11 w-20"
-              />
-              <label htmlFor={`pct-${eventoId}-${linha.chave}`}>fotos,</label>
-              <Input
-                id={`pct-${eventoId}-${linha.chave}`}
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={90}
-                value={linha.descontoPct}
-                onChange={(e) => mudar(linha.chave, "descontoPct", e.target.value)}
-                className="h-11 w-20"
-              />
-              <span>% de desconto</span>
+            // Duas partes que não se quebram ao meio ("a partir de N fotos" e "X% de desconto"):
+            // no celular uma fica embaixo da outra, num cartão.
+            <li
+              key={linha.chave}
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border p-3 text-sm sm:border-0 sm:p-0"
+            >
+              <span className="flex items-center gap-2">
+                <label htmlFor={`qtd-${eventoId}-${linha.chave}`}>A partir de</label>
+                <Input
+                  id={`qtd-${eventoId}-${linha.chave}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={2}
+                  max={500}
+                  value={linha.quantidadeMin}
+                  onChange={(e) => mudar(linha.chave, "quantidadeMin", e.target.value)}
+                  className="h-11 w-20"
+                />
+                <span>fotos,</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <Input
+                  id={`pct-${eventoId}-${linha.chave}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={90}
+                  value={linha.descontoPct}
+                  onChange={(e) => mudar(linha.chave, "descontoPct", e.target.value)}
+                  className="h-11 w-20"
+                />
+                <label htmlFor={`pct-${eventoId}-${linha.chave}`}>% de desconto</label>
+              </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-lg"
+                className="ml-auto sm:ml-0"
                 aria-label={`Remover a faixa ${i + 1}`}
                 onClick={() => {
                   setSalvo(false);

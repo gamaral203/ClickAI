@@ -14,8 +14,11 @@ import {
 } from "lucide-react";
 
 import { CartaoNumero } from "@/components/admin/tabela";
+import { GraficoVendas } from "@/components/graficos/grafico-vendas";
+import { LinkDoFotografo } from "@/components/painel/link-do-fotografo";
 import { buttonVariants } from "@/components/ui/button";
-import { dashboardDoFotografo } from "@/dados";
+import { dashboardDoFotografo, vendasPorDiaDoFotografo } from "@/dados";
+import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
 import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -41,9 +44,10 @@ function plural(n: number, um: string, varios: string) {
 
 async function Conteudo() {
   const { usuario, conta } = await exigirFotografo();
-  const [painel, financeiro] = await Promise.all([
+  const [painel, financeiro, porDia] = await Promise.all([
     dashboardDoFotografo(conta.id),
     situacaoFinanceira(conta),
+    vendasPorDiaDoFotografo(conta.id),
   ]);
   const { saldo } = financeiro;
 
@@ -68,6 +72,8 @@ async function Conteudo() {
           Novo evento
         </Link>
       </div>
+
+      <LinkDoFotografo url={urlDoSite(`/fotografo/${conta.slug}`)} nome={conta.nomePublico} />
 
       {!pronto && (
         <section className="flex flex-col gap-4 rounded-xl border p-5">
@@ -102,7 +108,7 @@ async function Conteudo() {
         <h2 id="resumo" className="text-xl font-semibold">
           Resumo
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           <CartaoNumero
             icone={<TrendingUp aria-hidden="true" className="size-4" />}
             titulo="Vendas de hoje"
@@ -140,6 +146,11 @@ async function Conteudo() {
             texto={`${plural(painel.pedidos30d, "pedido", "pedidos")} em ${plural(painel.visitas30d, "visita", "visitas")} (30 dias)`}
           />
         </div>
+        <GraficoVendas
+          titulo="Vendas por dia"
+          descricao="Últimos 30 dias, a sua parte de cada venda"
+          pontos={porDia}
+        />
         <p className="text-sm text-muted-foreground">
           Valores das vendas e do saldo são brutos: a taxa da plataforma sai no saque. Detalhes em{" "}
           <Link href="/painel/vendas" className="font-medium text-primary hover:underline">

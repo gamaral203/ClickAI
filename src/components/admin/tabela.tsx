@@ -1,5 +1,7 @@
 // Peças comuns das telas de gestão: cartão de número e tabela com o mesmo visual do painel.
 
+import { Children, cloneElement, isValidElement, type ReactElement } from "react";
+
 import type { Papel } from "@/dados";
 
 export const ROTULO_PAPEL: Record<Papel, string> = {
@@ -20,17 +22,33 @@ export function CartaoNumero({
   texto?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border p-5">
-      <span className="flex items-center gap-2 text-sm text-muted-foreground">
-        {icone}
+    // No celular os cartões ficam dois por linha: menos padding e número um pouco menor.
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl border p-3 sm:p-5">
+      <span className="flex items-start gap-2 text-xs text-muted-foreground sm:items-center sm:text-sm">
+        <span className="mt-0.5 shrink-0 sm:mt-0">{icone}</span>
         {titulo}
       </span>
-      <span className="text-2xl font-bold tabular-nums sm:text-3xl">{valor}</span>
-      {texto && <span className="text-sm text-muted-foreground">{texto}</span>}
+      <span className="text-lg font-bold break-words sm:text-3xl">{valor}</span>
+      {texto && <span className="text-xs text-muted-foreground sm:text-sm">{texto}</span>}
     </div>
   );
 }
 
+type PropsCelula = {
+  children: React.ReactNode;
+  direita?: boolean;
+  forte?: boolean;
+  /** Preenchido pela Tabela: o nome da coluna, mostrado ao lado do valor no celular. */
+  rotulo?: string;
+  /** Preenchido pela Tabela na primeira coluna: no celular vira o título do cartão. */
+  principal?: boolean;
+};
+
+/**
+ * Tabela das telas de painel. No computador, uma tabela comum; no celular (abaixo de 768 px),
+ * cada linha vira um cartão: a primeira coluna é o título e as outras aparecem como
+ * "coluna: valor", uma embaixo da outra, sem rolar para o lado.
+ */
 export function Tabela({
   colunas,
   vazio,
@@ -41,8 +59,8 @@ export function Tabela({
   vazio?: string;
   children: React.ReactNode;
 }) {
-  const temLinhas = Array.isArray(children) ? children.length > 0 : Boolean(children);
-  if (!temLinhas && vazio) {
+  const linhas = Children.toArray(children).filter(isValidElement);
+  if (linhas.length === 0 && vazio) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
         {vazio}
@@ -50,13 +68,14 @@ export function Tabela({
     );
   }
   return (
-    <div className="overflow-x-auto rounded-xl border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
+    <div className="md:overflow-x-auto md:rounded-xl md:border">
+      <table className="block w-full text-sm md:table">
+        <thead className="sr-only bg-muted/50 text-left text-muted-foreground md:not-sr-only md:table-header-group">
           <tr>
             {colunas.map((c) => (
               <th
                 key={c.rotulo}
+                scope="col"
                 className={`px-4 py-3 font-medium whitespace-nowrap ${c.direita ? "text-right" : ""}`}
               >
                 {c.rotulo}
@@ -64,25 +83,56 @@ export function Tabela({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y">{children}</tbody>
+        <tbody className="flex flex-col gap-3 md:table-row-group md:divide-y">
+          {linhas.map((linha) => {
+            const tr = linha as ReactElement<{ children?: React.ReactNode; className?: string }>;
+            let indice = 0;
+            const celulas = Children.map(tr.props.children, (celula) => {
+              if (!isValidElement(celula)) return celula;
+              const coluna = colunas[indice];
+              const principal = indice === 0;
+              indice++;
+              return celula.type === Celula
+                ? cloneElement(celula as ReactElement<PropsCelula>, {
+                    rotulo: coluna?.rotulo,
+                    principal,
+                  })
+                : celula;
+            });
+            return cloneElement(
+              tr,
+              {
+                className:
+                  "flex flex-col rounded-xl border p-3 md:table-row md:rounded-none md:border-0 md:p-0",
+              },
+              celulas,
+            );
+          })}
+        </tbody>
       </table>
     </div>
   );
 }
 
 /** Célula padrão; `direita` para valores. */
-export function Celula({
-  children,
-  direita,
-  forte,
-}: {
-  children: React.ReactNode;
-  direita?: boolean;
-  forte?: boolean;
-}) {
+export function Celula({ children, direita, forte, rotulo, principal }: PropsCelula) {
   return (
     <td
-      className={`px-4 py-3 ${direita ? "text-right whitespace-nowrap tabular-nums" : ""} ${forte ? "font-semibold" : ""}`}
+      data-rotulo={principal ? undefined : rotulo}
+      className={[
+        "md:table-cell md:px-4 md:py-3",
+        principal
+          ? "pb-2 text-base md:text-sm"
+          : // No celular: "Rótulo ........ valor" numa linha só.
+            "flex items-baseline justify-between gap-4 py-1 before:shrink-0 before:text-muted-foreground before:content-[attr(data-rotulo)] md:before:content-none",
+        // No celular o valor fica à direita do rótulo; no computador, só os valores em dinheiro.
+        direita
+          ? "text-right tabular-nums md:whitespace-nowrap"
+          : principal
+            ? ""
+            : "text-right md:text-left",
+        forte ? "font-semibold" : "",
+      ].join(" ")}
     >
       {children}
     </td>

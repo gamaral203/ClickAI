@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Clock, Hourglass, Wallet } from "lucide-react";
 
+import { Celula, Tabela } from "@/components/admin/tabela";
 import { BotoesSaque } from "@/components/painel/botoes-saque";
 import type { Saque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
@@ -113,38 +114,31 @@ async function Conteudo() {
       {saques.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold">Saques</h2>
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Pedido em</th>
-                  <th className="px-4 py-3 font-medium">Tipo</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Bruto</th>
-                  <th className="px-4 py-3 text-right font-medium">Taxas</th>
-                  <th className="px-4 py-3 text-right font-medium">Recebido</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {saques.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-4 py-3 whitespace-nowrap">{formatarDataEHora(s.criadoEm)}</td>
-                    <td className="px-4 py-3">{s.antecipado ? "Antecipado" : "Normal"}</td>
-                    <td className="px-4 py-3">{STATUS_SAQUE[s.status]}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {formatarPreco(s.brutoCentavos)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      − {formatarPreco(s.taxaCentavos)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                      {formatarPreco(s.liquidoCentavos)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Tabela
+            colunas={[
+              { rotulo: "Pedido em" },
+              { rotulo: "Tipo" },
+              { rotulo: "Status" },
+              { rotulo: "Bruto", direita: true },
+              { rotulo: "Taxas", direita: true },
+              { rotulo: "Recebido", direita: true },
+            ]}
+          >
+            {saques.map((s) => (
+              <tr key={s.id}>
+                <Celula>
+                  <span className="whitespace-nowrap">{formatarDataEHora(s.criadoEm)}</span>
+                </Celula>
+                <Celula>{s.antecipado ? "Antecipado" : "Normal"}</Celula>
+                <Celula>{STATUS_SAQUE[s.status]}</Celula>
+                <Celula direita>{formatarPreco(s.brutoCentavos)}</Celula>
+                <Celula direita>− {formatarPreco(s.taxaCentavos)}</Celula>
+                <Celula direita forte>
+                  {formatarPreco(s.liquidoCentavos)}
+                </Celula>
+              </tr>
+            ))}
+          </Tabela>
         </section>
       )}
 
@@ -155,56 +149,44 @@ async function Conteudo() {
             Nenhuma venda ainda. Elas aparecem aqui assim que o pagamento é confirmado.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Venda</th>
-                  <th className="px-4 py-3 font-medium">Evento</th>
-                  <th className="px-4 py-3 text-right font-medium">Cliente pagou</th>
-                  <th className="px-4 py-3 text-right font-medium">Sua parte</th>
-                  <th className="px-4 py-3 text-right font-medium">Taxa ({conta.comissaoPct}%)</th>
-                  <th className="px-4 py-3 text-right font-medium">Líquido</th>
-                  <th className="px-4 py-3 font-medium">Previsão de repasse</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {lancamentos.map((l) => {
-                  const taxa = Math.max(0, Math.floor((l.valorCentavos * conta.comissaoPct) / 100));
-                  return (
-                    <tr key={l.id}>
-                      <td className="px-4 py-3 whitespace-nowrap">
+          <Tabela
+            colunas={[
+              { rotulo: "Venda" },
+              { rotulo: "Cliente pagou", direita: true },
+              { rotulo: "Sua parte", direita: true },
+              { rotulo: `Taxa (${conta.comissaoPct}%)`, direita: true },
+              { rotulo: "Líquido", direita: true },
+              { rotulo: "Previsão de repasse" },
+            ]}
+          >
+            {lancamentos.map((l) => {
+              const taxa = Math.max(0, Math.floor((l.valorCentavos * conta.comissaoPct) / 100));
+              return (
+                <tr key={l.id}>
+                  <Celula>
+                    <span className="flex flex-col">
+                      <span className="font-medium">{l.eventoTitulo}</span>
+                      <span className="text-xs text-muted-foreground">
                         {l.pagoEm ? formatarDataEHora(l.pagoEm) : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="flex flex-col">
-                          {l.eventoTitulo}
-                          {l.papel === "dono" && (
-                            <span className="text-xs text-muted-foreground">
-                              Sua parte como dono (foto de colaborador)
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {formatarPreco(l.valorPagoCentavos)}
-                      </td>
-                      <td
-                        className={`px-4 py-3 text-right tabular-nums ${l.valorCentavos < 0 ? "text-destructive" : ""}`}
-                      >
-                        {formatarPreco(l.valorCentavos)}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">− {formatarPreco(taxa)}</td>
-                      <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        {formatarPreco(l.valorCentavos - taxa)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{situacao(l, agora)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {l.papel === "dono" && " · sua parte como dono (foto de colaborador)"}
+                      </span>
+                    </span>
+                  </Celula>
+                  <Celula direita>{formatarPreco(l.valorPagoCentavos)}</Celula>
+                  <Celula direita>
+                    <span className={l.valorCentavos < 0 ? "text-destructive" : undefined}>
+                      {formatarPreco(l.valorCentavos)}
+                    </span>
+                  </Celula>
+                  <Celula direita>− {formatarPreco(taxa)}</Celula>
+                  <Celula direita forte>
+                    {formatarPreco(l.valorCentavos - taxa)}
+                  </Celula>
+                  <Celula>{situacao(l, agora)}</Celula>
+                </tr>
+              );
+            })}
+          </Tabela>
         )}
         <p className="text-sm text-muted-foreground">
           Cada linha é um item vendido: o que o cliente pagou, a sua parte (todo o valor, ou a sua

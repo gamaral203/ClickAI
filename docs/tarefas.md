@@ -101,6 +101,9 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   - Envio de fotos em lotes de 25 com barra de progresso, "Continuar envio" se a conexão cair, e fotos repetidas puladas pelo SHA-256 do arquivo
   - Divulgação: mensagem pronta editável para o WhatsApp e imagens automáticas de story (1080×1920) e feed (1080×1350) com o QR Code
   - Já existiam: reconhecimento facial e por número, pacotes, desconto progressivo, cupons, carrinho abandonado, QR Code, link e equipe com divisão automática
+- [x] Celular: cabeçalho com menu (logo, carrinho e botão), menu dos painéis com a página atual marcada (barra com "Menu" no celular, lateral no computador), tabelas que viram cartões, cartões de números em duas colunas, lista de eventos e faixas de desconto reorganizadas, fotos do evento no painel mostradas de 24 em 24. Conferido com Playwright em 390 px: 27 páginas sem rolar para o lado
+- [x] Gráfico de vendas por dia (30 dias) no dashboard do fotógrafo e na visão geral da gestão, com tooltip e tabela
+- [x] Link próprio de cada fotógrafo (`/fotografo/<endereço>`), com só os eventos dele, mostrado no painel com Copiar e WhatsApp; o nome do fotógrafo na página do evento leva a esse link
 ## Em andamento
 
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)

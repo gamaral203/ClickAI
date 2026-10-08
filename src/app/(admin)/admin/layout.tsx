@@ -1,35 +1,19 @@
-import Link from "next/link";
+import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
 
-const itens = [
-  { href: "/admin", rotulo: "Visão geral" },
-  { href: "/admin/vendas", rotulo: "Financeiro" },
-  { href: "/admin/saques", rotulo: "Saques" },
-  { href: "/admin/denuncias", rotulo: "Denúncias" },
-  { href: "/admin/mensagens", rotulo: "Mensagens" },
-  { href: "/admin/usuarios", rotulo: "Usuários" },
+const itens: ItemMenu[] = [
+  { href: "/admin", rotulo: "Visão geral", icone: "inicio" },
+  { href: "/admin/vendas", rotulo: "Financeiro", icone: "financeiro" },
+  { href: "/admin/saques", rotulo: "Saques", icone: "saques" },
+  { href: "/admin/denuncias", rotulo: "Denúncias", icone: "denuncias" },
+  { href: "/admin/mensagens", rotulo: "Mensagens", icone: "mensagens" },
+  { href: "/admin/usuarios", rotulo: "Usuários", icone: "usuarios" },
 ];
 
 // O menu não decide quem entra: cada página e ação da gestão confere o papel (exigirGestor).
 export default function LayoutGestao({ children }: LayoutProps<"/admin">) {
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-[200px_minmax(0,1fr)]">
-      <nav aria-label="Gestão do ClicouAí">
-        <p className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-          Gestão
-        </p>
-        <ul className="flex gap-1 overflow-x-auto md:flex-col">
-          {itens.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="inline-flex h-11 items-center rounded-lg px-3 font-medium whitespace-nowrap hover:bg-accent hover:text-accent-foreground"
-              >
-                {item.rotulo}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10">
+      <MenuPainel titulo="Gestão" itens={itens} raiz="/admin" />
       <div className="min-w-0">{children}</div>
     </div>
   );
