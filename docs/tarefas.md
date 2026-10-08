@@ -101,18 +101,35 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   - Envio de fotos em lotes de 25 com barra de progresso, "Continuar envio" se a conexão cair, e fotos repetidas puladas pelo SHA-256 do arquivo
   - Divulgação: mensagem pronta editável para o WhatsApp e imagens automáticas de story (1080×1920) e feed (1080×1350) com o QR Code
   - Já existiam: reconhecimento facial e por número, pacotes, desconto progressivo, cupons, carrinho abandonado, QR Code, link e equipe com divisão automática
+- [x] Decisão: banco Supabase (Postgres, no lugar do Neon), pelo Marketplace da Vercel, região São Paulo
+- [x] Schema do banco em `src/db/schema.ts` (Drizzle), com as tabelas e os índices da arquitetura e as tabelas que só existiam em memória (confirmação de e-mail, acessos por senha de evento, mensagens); primeira migração em `src/db/migracoes`
+- [x] Código pronto para o Supabase: driver postgres.js (pooler em modo transaction), RLS em todas as tabelas e acesso de `anon` e `authenticated` revogado, com testes `[R-alta]`
+- [x] Camada de dados sobre o banco, com as mesmas funções: Postgres pela URL com pooler (postgres.js, com transações) e PGlite em memória sem `DATABASE_URL` `[R-alta]`
+- [x] Dados de exemplo como semente do banco; `npm run db:migrar` aplica as migrações (roda antes de cada build) e grava a semente num banco vazio; gestores de `GESTORES` sincronizados a cada início
+- [x] Usuários, contas de fotógrafo, confirmações de e-mail, pedidos, lançamentos, saques, mensagens e denúncias no banco; transações no pedido com itens, nas faixas, nos cupons e na reserva do saque
+- [x] Correção: produção sem `DATABASE_URL`/`POSTGRES_URL` não cai mais no PGlite (cada servidor da Vercel tinha seu banco e pedidos Pix sumiam); o app e `npm run db:migrar` param com erro, e preview e desenvolvimento seguem com o PGlite `[R-alta]`
+- [x] Correção: a semente na produção grava só as categorias, sem contas de exemplo com a senha pública; `SEMEAR_EXEMPLOS=1` liga os eventos de exemplo, sob fotógrafos sem login `[R-alta]`
+- [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
+- [x] Gestor usa, com a própria conta, as áreas de cliente (Minhas compras, carrinho, checkout, downloads) e todo o painel do fotógrafo, além do `/admin`; a conta de fotógrafo dele é criada no primeiro acesso ao painel, sem duplicar em acessos simultâneos
+- [x] Correção: páginas do painel (como "Novo evento") ficavam carregando até a função da Vercel estourar o tempo. O postgres.js mandava a próxima consulta pela mesma conexão antes da resposta da anterior, e o pooler do Supabase em modo transaction travava; o driver passou a ser o node-postgres, com uma consulta por vez em cada conexão `[R-alta]`
 - [x] Celular: cabeçalho com menu (logo, carrinho e botão), menu dos painéis com a página atual marcada (barra com "Menu" no celular, lateral no computador), tabelas que viram cartões, cartões de números em duas colunas, lista de eventos e faixas de desconto reorganizadas, fotos do evento no painel mostradas de 24 em 24. Conferido com Playwright em 390 px: 27 páginas sem rolar para o lado
 - [x] Gráfico de vendas por dia (30 dias) no dashboard do fotógrafo e na visão geral da gestão, com tooltip e tabela
 - [x] Link próprio de cada fotógrafo (`/fotografo/<endereço>`), com só os eventos dele, mostrado no painel com Copiar e WhatsApp; o nome do fotógrafo na página do evento leva a esse link
 ## Em andamento
 
+- [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, o deploy de produção falha de propósito (antes caía no PGlite em cada servidor da Vercel e os pedidos se perdiam entre servidores). Para terminar, nesta ordem:
+  1. Fazer o merge do PR do `feat/supabase` na `main`.
+  2. Criar o banco: `vercel integration add supabase --scope amaralgabriel357-9380s-projects` (ou no painel: Storage → Supabase), região São Paulo (`sa-east-1`), plano gratuito, ligado ao projeto `clickai`. Se a Vercel pedir, aceitar os termos do Supabase no navegador. A integração cadastra `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`.
+  3. Fazer um novo deploy de produção (`vercel redeploy` do último deploy, ou um push na `main`). O build roda `npm run db:migrar`: aplica as migrações e, no banco vazio, grava só as categorias (os eventos de exemplo só com `SEMEAR_EXEMPLOS=1`). Sem a URL do banco, o build de produção falha.
+  4. Conferir no site (`clickai-hazel.vercel.app`): login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
+  5. Cadastrar o webhook do Mercado Pago (ver [deploy.md](deploy.md), item 6).
+  6. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
 ## Decisões de produto em aberto
 
 Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, o que a Fotto fez.
 
-- [ ] Banco gerenciado: Supabase ou Neon?
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (só eventos)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (indeterminado)
 - [ ] Acesso do cliente logado e do convidado: para sempre ou com prazo? (para sempre)
@@ -181,11 +198,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 11 — Banco e autenticação
 
-- [ ] Escrever o `schema.ts` com as tabelas e os índices iniciais de [arquitetura.md](arquitetura.md#modelo-de-dados)
-- [ ] Conectar o Drizzle ao banco pela URL com pooler `[R-alta]`
-- [ ] Rodar a primeira migração
-- [ ] Implementação da camada de dados com o banco, no lugar da de exemplo
-- [ ] Usuários, sessões e contas Google no banco (avaliar Better Auth mantendo o login com Google e os quatro papéis)
+- [ ] Criar o Supabase pela Vercel e rodar as migrações no banco de produção (passos em **Em andamento**)
+- [ ] Avaliar o Better Auth no lugar da sessão em cookie assinado, mantendo o login com Google e os quatro papéis (com sessões revogáveis no banco)
 
 ## Fase 12 — Upload, processamento e reconhecimento
 

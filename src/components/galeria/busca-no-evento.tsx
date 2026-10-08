@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Hash, Loader2, Package, ScanFace, ShieldCheck } from "lucide-react";
+import { Hash, Loader2, Package, ScanFace } from "lucide-react";
 
 import { buscarPorNumero, type ResultadoBusca } from "@/app/(publico)/eventos/[slug]/acoes";
 import { escolherPacote } from "@/components/carrinho/carrinho";
+import { DialogoBuscaFacial } from "@/components/galeria/dialogo-busca-facial";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,14 +50,15 @@ export function BuscaNoEvento({
   temNumeros: boolean;
 }) {
   const [aba, setAba] = useState<"selfie" | "numero">("selfie");
-  const [consentiu, setConsentiu] = useState(false);
+  const [dialogoAberto, setDialogoAberto] = useState(false);
   const [resultado, setResultado] = useState<Resultado>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroSelfie, setErroSelfie] = useState<string | null>(null);
   const [buscando, startTransition] = useTransition();
-  const campoArquivo = useRef<HTMLInputElement>(null);
+  const areaResultado = useRef<HTMLDivElement>(null);
 
   function buscarSelfie(arquivo: File) {
-    setErro(null);
+    setErroSelfie(null);
     startTransition(async () => {
       const corpo = new FormData();
       corpo.set("slug", slug);
@@ -66,15 +68,17 @@ export function BuscaNoEvento({
         const resposta = await fetch("/api/busca-facial", { method: "POST", body: corpo });
         const dados = (await resposta.json()) as Partial<ResultadoBusca> & { erro?: string };
         if (!resposta.ok || !dados.fotos) {
-          setErro(dados.erro ?? "A busca falhou. Tente de novo.");
+          setErroSelfie(dados.erro ?? "A busca falhou. Tente de novo.");
           return;
         }
         setResultado({ fotos: dados.fotos, pacote: dados.pacote ?? null, origem: "selfie" });
+        setDialogoAberto(false);
+        // Leva a pessoa até as fotos encontradas, que aparecem abaixo do botão.
+        requestAnimationFrame(() =>
+          areaResultado.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        );
       } catch {
-        setErro("Sem conexão. Confira a internet e tente de novo.");
-      } finally {
-        // Limpa o campo: a selfie não fica guardada nem no formulário.
-        if (campoArquivo.current) campoArquivo.current.value = "";
+        setErroSelfie("Sem conexão. Confira a internet e tente de novo.");
       }
     });
   }
@@ -108,7 +112,7 @@ export function BuscaNoEvento({
           Encontre suas fotos
         </h2>
         <p className="text-sm text-muted-foreground">
-          Tire uma selfie e mostramos só as fotos em que você aparece.
+          Use uma selfie ou uma foto sua e mostramos só as fotos em que você aparece.
         </p>
       </div>
 
@@ -138,47 +142,27 @@ export function BuscaNoEvento({
       )}
 
       {aba === "selfie" ? (
-        <div className="flex flex-col gap-3">
-          <label className="flex items-start gap-3 rounded-lg bg-background p-3 text-sm">
-            <input
-              type="checkbox"
-              checked={consentiu}
-              onChange={(e) => setConsentiu(e.target.checked)}
-              className="mt-0.5 size-5 shrink-0 accent-primary"
-            />
-            <span>
-              <ShieldCheck aria-hidden="true" className="mr-1 inline size-4 text-primary" />
-              Autorizo usar minha selfie só para esta busca. Ela é comparada com os rostos das fotos
-              deste evento e descartada em seguida: não guardamos a sua foto nem os traços do seu
-              rosto.
-            </span>
-          </label>
-          <input
-            ref={campoArquivo}
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="sr-only"
-            id="selfie"
-            onChange={(e) => {
-              const arquivo = e.target.files?.[0];
-              if (arquivo) buscarSelfie(arquivo);
-            }}
-          />
+        <>
           <Button
             size="touch"
             className="w-fit"
-            disabled={!consentiu || buscando}
-            onClick={() => campoArquivo.current?.click()}
+            disabled={buscando}
+            onClick={() => {
+              setErroSelfie(null);
+              setDialogoAberto(true);
+            }}
           >
-            {buscando ? (
-              <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
-            ) : (
-              <ScanFace aria-hidden="true" data-icon="inline-start" />
-            )}
-            {buscando ? "Procurando suas fotos…" : "Tirar selfie e buscar"}
+            <ScanFace aria-hidden="true" data-icon="inline-start" />
+            Buscar pelo meu rosto
           </Button>
-        </div>
+          <DialogoBuscaFacial
+            aberto={dialogoAberto}
+            aoMudarAberto={setDialogoAberto}
+            aoEscolher={buscarSelfie}
+            buscando={buscando}
+            erro={erroSelfie}
+          />
+        </>
       ) : (
         <form action={buscarNumero} className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="flex flex-col gap-2">
@@ -209,7 +193,7 @@ export function BuscaNoEvento({
       )}
 
       {resultado && (
-        <div className="flex flex-col gap-3">
+        <div ref={areaResultado} className="flex scroll-mt-4 flex-col gap-3">
           <p role="status" className="font-medium">
             {resultado.fotos.length === 0
               ? resultado.origem === "selfie"

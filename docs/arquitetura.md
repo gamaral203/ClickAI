@@ -66,7 +66,7 @@ flowchart TB
     end
 
     R2["Cloudflare R2<br/>originais (privado)<br/>prévias e miniaturas"]
-    DB["PostgreSQL<br/>Supabase ou Neon<br/>região São Paulo"]
+    DB["PostgreSQL<br/>Supabase<br/>região São Paulo"]
     I["Inngest<br/>fila e jobs agendados"]
     W["Worker de vídeo<br/>FFmpeg"]
     RF["Provedor de reconhecimento<br/>facial e numérico"]
@@ -251,12 +251,13 @@ O pagamento só é considerado confirmado quando o servidor lê a order na API d
 |---|---|---|
 | Cliente | Compra e baixa | Minhas compras |
 | Fotógrafo (vendedor) | Cria eventos, envia e publica fotos, acompanha vendas e saca | `/painel` |
-| Gestor (admin) | Vê vendas, saques e usuários de todos e muda o papel de qualquer usuário | `/admin` |
+| Gestor (admin) | Vê vendas, saques e usuários de todos e muda o papel de qualquer usuário. Também compra e vende com a própria conta, como cliente e fotógrafo | `/admin`, `/painel` e Minhas compras |
 
 1. O login pode ser com o Google ou com e-mail e senha. O Google usa o fluxo de código com PKCE e `state` num cookie de 10 minutos; o servidor troca o código e lê o perfil direto no Google, e só aceita e-mail verificado. O endereço de volta vem de `APP_URL`, nunca do cabeçalho Host.
 2. O usuário é procurado pela conta Google (`usuarios.google_id`, o `sub` do Google); se não existir, pelo e-mail, e as contas são ligadas. Se a conta com aquele e-mail nunca confirmou o e-mail, a senha e as sessões dela caem ao ligar: alguém pode ter criado a conta com o e-mail de outra pessoa.
 3. Conta nova pelo Google nasce como cliente, ou como fotógrafo pelo botão "Vender fotos com Google". E-mails em `ADMIN_EMAILS` entram como gestores. As compras feitas como convidado com o mesmo e-mail são ligadas à conta.
 4. Cada página e ação confere o papel no servidor (`exigirFotografo`, `exigirGestor`); o menu só esconde links. Ninguém muda o próprio papel.
+5. O gestor usa o painel do fotógrafo com a própria conta de fotógrafo, criada no primeiro acesso ao `/painel` (nome dele, slug único, CPF e chave Pix vazios para completar em Perfil e recebimento; `fotografos.usuario_id` único impede duas contas em acessos simultâneos). Não é personificação: ele só mexe nos próprios eventos, fotos e saques, colaboração continua exigindo convite e o saque segue as mesmas regras (só para a chave Pix do próprio CPF/CNPJ). Os dados de outros vendedores ele vê só no `/admin`. Se deixar de ser gestor, perde o painel como qualquer cliente; a conta de fotógrafo fica, sem acesso.
 
 **Painel de gestão (`/admin`)**
 
@@ -264,7 +265,7 @@ Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da p
 
 **Busca por selfie**
 
-1. Na página do evento, a pessoa aceita o aviso de uso da selfie e tira ou escolhe uma foto. O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados.
+1. Na página do evento, o botão "Buscar pelo meu rosto" abre um modal. A pessoa aceita o aviso de uso da selfie e escolhe "Tirar foto" (abre a câmera frontal; só aparece no celular e no tablet, porque no computador o navegador abriria o mesmo seletor de arquivos) ou "Carregar foto" (uma foto da galeria). O navegador reduz a imagem a 1024 px e a regrava em JPEG, o que descarta os metadados. Ao encontrar fotos, o modal fecha e a página rola até o resultado.
 2. `POST /api/busca-facial` confere o consentimento, o tipo real da imagem (JPEG, PNG ou WebP, até 5 MB) e o limite de 10 buscas por IP a cada 10 minutos.
 3. Com o Amazon Rekognition, a selfie vai para `SearchFacesByImage` na coleção do evento (`{prefixo}-{evento_id}`), com semelhança mínima de 95%. O Rekognition não guarda a imagem da busca. Sem credenciais da AWS, os rostos dos dados de exemplo simulam o resultado.
 4. A selfie fica só na memória da requisição, é zerada no fim e nunca vai para log, banco ou R2. Volta a lista de fotos do evento em que a pessoa aparece, com a mesma regra de visibilidade da galeria (evento com senha ou aguardando liberação não abre).
@@ -399,7 +400,7 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (Fotto: só eventos reais, banco de imagens proibido)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
 - [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
-- [ ] Banco gerenciado: Supabase ou Neon?
+- [x] Banco gerenciado: Supabase (troca do Neon em 07/10/2026), criado pelo Marketplace da Vercel na região São Paulo (`sa-east-1`). Usado só como Postgres: sem o login, o storage nem a API REST dele (usamos os nossos e o R2). Como o Supabase expõe o schema `public` pela API REST com a chave pública, toda tabela tem RLS ligado (`.enableRLS()` no schema, sem políticas) e os papéis `anon` e `authenticated` não têm acesso (migração 0002); o app conecta como dono das tabelas, que não passa pelo RLS. O app usa a URL do pooler em modo transaction (`POSTGRES_URL`, porta 6543, driver node-postgres, sem prepared statements com nome e com uma consulta por vez em cada conexão: o pooler trava quando recebe a próxima consulta antes da resposta da anterior, o que o postgres.js fazia com consultas em paralelo); as migrações usam a conexão direta (`POSTGRES_URL_NON_POOLING`). No desenvolvimento local e nos testes, sem `DATABASE_URL`, o app usa o PGlite (Postgres em memória) com as mesmas migrações.
 - [ ] Reconhecimento: confirmar a região do Amazon Rekognition (transferência internacional de dado biométrico, LGPD) e escolher o provedor de OCR para os números de peito.
 - [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?
 - [ ] Onde roda o worker de vídeo: Fly.io ou Railway?

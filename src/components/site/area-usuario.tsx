@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LogOut, UserRound } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
-import { usuarioAtual } from "@/servicos/sessao";
+import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 
 import { MenuCelular } from "./menu-celular";
 
@@ -40,21 +40,20 @@ export async function AreaUsuario() {
   }
 
   const primeiroNome = usuario.nome.split(" ")[0];
-  const area =
-    usuario.papel === "fotografo"
-      ? { href: "/painel", rotulo: "Painel" }
-      : usuario.papel === "admin"
-        ? { href: "/admin", rotulo: "Gestão" }
-        : null;
+  // O gestor também usa o painel de fotógrafo com a própria conta (podeUsarPainel).
+  const areas = [
+    ...(podeUsarPainel(usuario) ? [{ href: "/painel", rotulo: "Painel" }] : []),
+    ...(usuario.papel === "admin" ? [{ href: "/admin", rotulo: "Gestão" }] : []),
+  ];
 
   return (
     <div className="flex items-center gap-1">
       <div className="hidden items-center gap-1 sm:flex">
-        {area && (
-          <Link href={area.href} className={estiloLink}>
+        {areas.map((area) => (
+          <Link key={area.href} href={area.href} className={estiloLink}>
             {area.rotulo}
           </Link>
-        )}
+        ))}
         <Link href="/minhas-compras" className={estiloLink}>
           <UserRound aria-hidden="true" className="size-5" />
           <span className="max-w-32 truncate">{primeiroNome}</span>
@@ -71,7 +70,7 @@ export async function AreaUsuario() {
         nome={primeiroNome}
         itens={[
           { href: "/eventos", rotulo: "Eventos" },
-          ...(area ? [area] : []),
+          ...areas,
           { href: "/minhas-compras", rotulo: "Minhas compras" },
         ]}
       />
