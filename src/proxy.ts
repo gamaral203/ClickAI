@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { gerarNonce, politicaDeSeguranca } from "@/lib/csp";
+
 // Loja própria (docs/arquitetura.md, "Loja própria"):
 // - no subdomínio: liaramos.clicouai.com.br abre a loja de quem escolheu "liaramos";
 // - no domínio próprio: fotos.liaramos.com.br abre a loja que conectou esse domínio.
@@ -40,33 +42,65 @@ function hostDaPlataforma(host: string) {
   );
 }
 
-function reescrever(request: NextRequest, caminho: string) {
-  const destino = request.nextUrl.clone();
-  destino.pathname = caminho;
-  return NextResponse.rewrite(destino);
-}
-
-export function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname !== "/") return NextResponse.next();
+/** Página da loja para este host, ou `null` se a raiz é a do site. Só vale para "/". */
+function lojaDoHost(request: NextRequest): string | null {
   const host = hostDaRequisicao(request);
   // Sem APP_URL, "localhost" faz o papel do domínio do site (desenvolvimento).
   const base = hostDoSite() ?? "localhost";
-  if (host === base || host === `www.${base}`) return NextResponse.next();
+  if (host === base || host === `www.${base}`) return null;
 
   if (host.endsWith(`.${base}`)) {
     const subdominio = host.slice(0, -(base.length + 1));
     // Só um nível (nada de a.b.clicouai.com.br) e nunca o www.
-    if (subdominio === "www" || !SUBDOMINIO.test(subdominio)) return NextResponse.next();
-    return reescrever(request, `/loja/${subdominio}`);
+    if (subdominio === "www" || !SUBDOMINIO.test(subdominio)) return null;
+    return `/loja/${subdominio}`;
   }
 
   // Domínio próprio: só com APP_URL configurado. Sem ele, o domínio real do site seria
   // confundido com o domínio de uma loja e a página inicial viraria "loja não encontrada".
-  if (!hostDoSite() || hostDaPlataforma(host) || !DOMINIO.test(host)) return NextResponse.next();
-  return reescrever(request, `/loja/dominio/${host}`);
+  if (!hostDoSite() || hostDaPlataforma(host) || !DOMINIO.test(host)) return null;
+  return `/loja/dominio/${host}`;
+}
+
+export function proxy(request: NextRequest) {
+  // CSP com nonce novo (src/lib/csp.ts). O Next.js lê o nonce do cabeçalho da requisição e o
+  // coloca nos próprios scripts ao renderizar a página.
+  const nonce = gerarNonce();
+  const csp = politicaDeSeguranca({
+    nonce,
+    desenvolvimento: process.env.NODE_ENV === "development",
+    https: request.nextUrl.protocol === "https:",
+    sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  });
+  const cabecalhos = new Headers(request.headers);
+  cabecalhos.set("x-nonce", nonce);
+  cabecalhos.set("content-security-policy", csp);
+
+  const loja = request.nextUrl.pathname === "/" ? lojaDoHost(request) : null;
+  let resposta: NextResponse;
+  if (loja) {
+    const destino = request.nextUrl.clone();
+    destino.pathname = loja;
+    resposta = NextResponse.rewrite(destino, { request: { headers: cabecalhos } });
+  } else {
+    resposta = NextResponse.next({ request: { headers: cabecalhos } });
+  }
+  resposta.headers.set("content-security-policy", csp);
+  return resposta;
 }
 
 export const config = {
-  // Só a raiz: as outras páginas são as mesmas do site em qualquer host.
-  matcher: "/",
+  matcher: [
+    // A raiz sempre (até no prefetch), por causa da loja no subdomínio ou domínio próprio.
+    "/",
+    // As outras páginas, para a CSP. Ficam de fora as rotas de API, os arquivos do build e os
+    // arquivos estáticos, que não são HTML, e os prefetches do next/link.
+    {
+      source: "/((?!api/|_next/static|_next/image|.*\\.(?:png|jpg|jpeg|webp|svg|ico|txt|xml)$).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };
