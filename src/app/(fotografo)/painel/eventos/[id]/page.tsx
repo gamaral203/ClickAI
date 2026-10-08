@@ -30,7 +30,12 @@ import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
+import { modoEnvio } from "@/lib/r2";
 import { exigirFotografo } from "@/servicos/sessao";
+
+// As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
+// gera prévia e miniatura e grava de volta, uma foto por chamada (docs/arquitetura.md, "Upload").
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Gerenciar evento",
@@ -260,7 +265,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
-        <EnvioFotos eventoId={evento.id} />
+        <EnvioFotos eventoId={evento.id} modo={modoEnvio()} />
         <GradeFotosPainel
           itens={itens.map((i) => ({
             id: i.id,

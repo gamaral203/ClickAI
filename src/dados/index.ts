@@ -17,6 +17,7 @@ import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
+import { urlPublica } from "@/lib/url-publica";
 
 import { eventosDosCupons } from "./comum";
 import {
@@ -197,6 +198,7 @@ async function chavesVisiveisDoEvento(evento: Evento): Promise<ChaveItem[]> {
     .where(and(eq(t.fotos.eventoId, evento.id), itemVisivel));
   const itens = linhas.map((l) => ({
     ...l,
+    urlMiniatura: urlPublica(l.urlMiniatura),
     criadoEm: iso(l.criadoEm),
     capturadaEm: iso(l.capturadaEm),
   }));
@@ -985,7 +987,7 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
       {
         item,
         tipo: l.tipo,
-        urlMiniatura: l.urlMiniatura,
+        urlMiniatura: urlPublica(l.urlMiniatura),
         eventoTitulo: l.eventoTitulo,
         eventoSlug: l.eventoSlug,
       },

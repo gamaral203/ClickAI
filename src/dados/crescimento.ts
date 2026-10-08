@@ -9,6 +9,7 @@ import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
+import { urlPublica } from "@/lib/url-publica";
 
 import { iso, omitir } from "./mapas";
 import type { ConfigModelo, Evento, Foto, ModeloEvento, TipoMetrica } from "./tipos";
@@ -240,7 +241,7 @@ export async function desempenhoDoFotografo(fotografoId: string): Promise<{
   return {
     eventos: linhas,
     fotos: destaque.map((d) => ({
-      foto: { id: d.fotoId, urlMiniatura: d.urlMiniatura },
+      foto: { id: d.fotoId, urlMiniatura: urlPublica(d.urlMiniatura) },
       eventoTitulo: d.eventoTitulo,
       vendas: d.vendas,
       visitas: visitasFoto.find((x) => x.fotoId === d.fotoId)?.total ?? 0,
@@ -379,6 +380,8 @@ export async function hashesDoEvento(eventoId: string): Promise<Set<string>> {
     .where(
       and(
         eq(t.fotos.eventoId, eventoId),
+        // Envio que falhou ou não terminou não conta: a mesma foto pode ser enviada de novo.
+        eq(t.fotos.status, "pronta"),
         isNull(t.fotos.excluidaEm),
         isNotNull(t.fotos.hashConteudo),
       ),

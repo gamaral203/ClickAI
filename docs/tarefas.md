@@ -112,6 +112,11 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Modal da busca por reconhecimento facial: "Tirar foto" (câmera, no celular) ou "Carregar foto" (galeria), com o consentimento antes e a rolagem até as fotos encontradas
 - [x] Gestor usa, com a própria conta, as áreas de cliente (Minhas compras, carrinho, checkout, downloads) e todo o painel do fotógrafo, além do `/admin`; a conta de fotógrafo dele é criada no primeiro acesso ao painel, sem duplicar em acessos simultâneos
 - [x] Correção: páginas do painel (como "Novo evento") ficavam carregando até a função da Vercel estourar o tempo. O postgres.js mandava a próxima consulta pela mesma conexão antes da resposta da anterior, e o pooler do Supabase em modo transaction travava; o driver passou a ser o node-postgres, com uma consulta por vez em cada conexão `[R-alta]`
+- [x] Envio real de fotos ao Cloudflare R2 (Fase 12, fotos): URL assinada de PUT por foto (tipo e tamanho na assinatura), pedida em lotes de 25 com a foto em `processando`; envio direto do navegador ao bucket privado, 3 por vez, com progresso por arquivo e total, erro por arquivo e "Tentar de novo" (reaproveita o item pelo hash) `[R-alta]`
+- [x] Confirmação de cada foto no servidor (síncrona, até o Inngest): tamanho, JPEG de verdade pelo conteúdo e SHA-256 conferidos; prévia e miniatura com marca d'água no bucket público; original movido de `envios/` (pasta temporária com ciclo de vida) para `originais/`; largura, altura e data de captura do EXIF; `erro` com mensagem clara em qualquer falha `[Média]`
+- [x] Prévias e miniaturas montadas a partir das chaves com `R2_URL_PUBLICA`, sem o otimizador da Vercel; `public/logo.png` incluída nas funções do painel para a marca d'água
+- [x] Produção nunca cria itens de exemplo: sem R2, o envio responde "Armazenamento de fotos não configurado"; fora da produção, sem R2, segue o envio simulado
+
 ## Em andamento
 
 - [ ] **Fase 11 (banco): trocar para o Supabase.** O código já está pronto para ele (branch `feat/supabase`): driver postgres.js com o pooler, RLS ligado em todas as tabelas e acesso público revogado. Sem banco, o deploy de produção falha de propósito (antes caía no PGlite em cada servidor da Vercel e os pedidos se perdiam entre servidores). Para terminar, nesta ordem:
@@ -200,16 +205,13 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 12 — Upload, processamento e reconhecimento
 
+- [ ] Criar os buckets na Cloudflare (CORS, acesso público, ciclo de vida de `envios/`) e cadastrar as variáveis `R2_*` na Vercel ([deploy.md](deploy.md), item 7); depois, enviar uma foto de teste e comprar para conferir o download
+- [ ] Levar o processamento da foto (hoje síncrono na Server Action `confirmarEnvioAcao`) para um job no Inngest, com nova tentativa automática
+- [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
 - [ ] Indexar os rostos de cada foto no Rekognition no job de processamento (`indexarRostos` em `src/lib/reconhecimento.ts`) e gravar em `rostos`
-- [ ] Rota que gera URL assinada de upload e cria o item como `processando`
 - [ ] Foto de perfil e capa do fotógrafo, e logo da loja
 - [ ] Anexos da denúncia no bucket privado, por URL assinada
-- [ ] Upload direto do navegador ao R2, em lote `[R-alta]`
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
-- [ ] Pasta temporária com regra de ciclo de vida no R2 (evita órfãos)
-- [ ] Conferir o tipo real do arquivo e limitar o tamanho (JPEG até 30 MB; MP4/MOV até 500 MB e 5 minutos)
-- [ ] Job no Inngest que chama `gerarPrevia` e `gerarMiniatura` (função já pronta em `src/servicos/imagens.ts`) e envia o resultado ao R2
-- [ ] Ler a data de captura do EXIF e calcular o hash para marcar duplicados
 - [ ] Worker de vídeo com FFmpeg: prévia 720p com marca d'água, miniatura e quadros para o reconhecimento (testar com vídeos reais)
 - [ ] Indexar rostos e números no job (fotos e quadros de vídeo)
 - [ ] Rota de busca facial real: selfie só em memória, sem log, rate limit `[R-alta]`
