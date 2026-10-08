@@ -238,6 +238,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 ## Fase 14 — Antes do lançamento
 
 - [ ] Revisar os 10 riscos de prioridade alta
+- [ ] Remover SAQUE_SEM_PRAZO_EMAILS da produção depois do teste de saque
 - [ ] CSP completa de scripts (com nonce), depois de definir os scripts do gateway, do Sentry e do Google Analytics/Tag Manager das lojas
 - [ ] Rodar o checklist da `vibe-code-security` ([skills.md](skills.md))
 - [ ] Rate limit em login, cadastro, busca facial, envio de e-mail e geração de URLs assinadas

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Lancamento } from "@/dados/tipos";
 
-import { calcularSaldo, calcularSaque } from "./saques";
+import { aplicarLiberacao, calcularSaldo, calcularSaque, saqueSemPrazo } from "./saques";
 
 const DIA = 24 * 60 * 60 * 1000;
 const agora = Date.UTC(2026, 9, 7, 12);
@@ -59,5 +59,58 @@ describe("calcularSaldo", () => {
     expect(saldo.disponivelCentavos).toBe(10_000);
     expect(saldo.antecipavelCentavos).toBe(5_000);
     expect(saldo.aLiberarCentavos).toBe(2_000);
+  });
+});
+
+describe("liberação de teste (SAQUE_SEM_PRAZO_EMAILS)", () => {
+  const gestor = { id: "u1", email: "Gestor@Exemplo.com", papel: "admin" as const };
+  const contaDoGestor = { usuarioId: "u1" };
+  const lista = " outro@exemplo.com , gestor@exemplo.com ";
+  const hoje = [venda("hoje", 10_000, 0)];
+
+  function saldoCom(
+    usuario: Parameters<typeof saqueSemPrazo>[0],
+    conta: Parameters<typeof saqueSemPrazo>[1],
+    variavel: string | undefined,
+  ) {
+    const liberado = saqueSemPrazo(usuario, conta, variavel);
+    return calcularSaldo(aplicarLiberacao(hoje, agora, liberado), agora, 10);
+  }
+
+  it("gestor na lista: venda de hoje fica disponível, com a comissão normal", () => {
+    expect(saqueSemPrazo(gestor, contaDoGestor, lista)).toBe(true);
+    const saldo = saldoCom(gestor, contaDoGestor, lista);
+    expect(saldo.disponivelCentavos).toBe(10_000);
+    expect(saldo.aLiberarCentavos).toBe(0);
+    expect(saldo.normal.lancamentoIds).toEqual(["hoje"]);
+    expect(saldo.normal.taxaCentavos).toBe(1_000);
+    expect(saldo.normal.liquidoCentavos).toBe(9_000);
+  });
+
+  it("e-mail na lista mas papel fotógrafo: prazo normal", () => {
+    const fotografo = { ...gestor, papel: "fotografo" as const };
+    expect(saqueSemPrazo(fotografo, contaDoGestor, lista)).toBe(false);
+    expect(saldoCom(fotografo, contaDoGestor, lista).disponivelCentavos).toBe(0);
+  });
+
+  it("sem a variável: prazo normal", () => {
+    expect(saqueSemPrazo(gestor, contaDoGestor, undefined)).toBe(false);
+    expect(saqueSemPrazo(gestor, contaDoGestor, "")).toBe(false);
+    const saldo = saldoCom(gestor, contaDoGestor, undefined);
+    expect(saldo.disponivelCentavos).toBe(0);
+    expect(saldo.aLiberarCentavos).toBe(10_000);
+  });
+
+  it("outro fotógrafo: prazo normal", () => {
+    const outro = { id: "u2", email: "fulano@exemplo.com", papel: "fotografo" as const };
+    expect(saqueSemPrazo(outro, { usuarioId: "u2" }, lista)).toBe(false);
+    expect(saldoCom(outro, { usuarioId: "u2" }, lista).disponivelCentavos).toBe(0);
+    // Outro gestor fora da lista também não.
+    const outroGestor = { ...outro, papel: "admin" as const };
+    expect(saqueSemPrazo(outroGestor, { usuarioId: "u2" }, lista)).toBe(false);
+  });
+
+  it("conta de fotógrafo de outro usuário: não libera", () => {
+    expect(saqueSemPrazo(gestor, { usuarioId: "u2" }, lista)).toBe(false);
   });
 });

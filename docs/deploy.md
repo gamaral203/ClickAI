@@ -47,6 +47,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e WhatsApp.
 
+### Liberação temporária do prazo de saque (só para teste)
+
+`SAQUE_SEM_PRAZO_EMAILS` (e-mails separados por vírgula) faz o **gestor** (papel `admin`) com esse e-mail sacar as próprias vendas sem esperar 1/30 dias, com a comissão normal de 10%. Fotógrafos comuns não são afetados, mesmo que o e-mail esteja na lista. A tela Financeiro mostra um aviso enquanto está ativa e cada saque liberado fica registrado no log. Serve só para validar o saque: cadastre em *Production*, faça **Redeploy**, teste e depois apague a variável e faça outro Redeploy. Lembre que, com `MP_AMBIENTE=producao`, o saque ainda é recusado até implementarmos o `X-signature` do Payouts.
+
 ## 4. Domínio do site e lojas
 
 - Em **Settings → Domains**, adicione o domínio do site (ex. `clicouai.com.br`) e o curinga `*.clicouai.com.br`, que abre as lojas por subdomínio (`liaramos.clicouai.com.br`).

@@ -54,13 +54,25 @@ function CartaoSaldo({
 }
 
 async function Conteudo() {
-  const { conta } = await exigirFotografo("/painel/vendas");
-  const { agora, lancamentos, saques, saldo } = await situacaoFinanceira(conta);
+  const { usuario, conta } = await exigirFotografo("/painel/vendas");
+  const { agora, lancamentos, saques, saldo, liberacaoTeste } = await situacaoFinanceira(
+    conta,
+    usuario,
+  );
   const temChave = chavePixValida(conta);
   const emAndamento = saques.some((s) => s.status === "processando");
 
   return (
     <>
+      {liberacaoTeste && (
+        <p
+          role="alert"
+          className="rounded-lg border-2 border-amber-500 bg-amber-50 p-4 text-sm font-medium text-amber-950 dark:bg-amber-950 dark:text-amber-50"
+        >
+          Liberação de teste ativa: prazo de saque ignorado nesta conta. Remova
+          SAQUE_SEM_PRAZO_EMAILS depois do teste.
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-3">
         <CartaoSaldo
           icone={<Wallet aria-hidden="true" className="size-4" />}
