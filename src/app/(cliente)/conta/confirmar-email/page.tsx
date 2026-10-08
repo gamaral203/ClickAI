@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { MailCheck } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
+import { caminhoSeguro } from "@/lib/redirecionamento";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -29,7 +30,8 @@ async function Conteudo({
 }: Pick<PageProps<"/conta/confirmar-email">, "searchParams">) {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar");
-  const { token, limite } = await searchParams;
+  const { token, limite, proximo } = await searchParams;
+  const destino = proximo ? caminhoSeguro(proximo, "/") : null;
   const valor = typeof token === "string" && /^[\w-]{20,100}$/.test(token) ? token : null;
 
   return (
@@ -66,9 +68,15 @@ async function Conteudo({
           </a>
         </div>
       )}
-      <Link href="/eventos" className="text-sm font-medium text-primary hover:underline">
-        Ver os eventos
-      </Link>
+      {destino ? (
+        <Link href={destino} className={buttonVariants({ variant: "outline", size: "touch" })}>
+          Continuar
+        </Link>
+      ) : (
+        <Link href="/" className="text-sm font-medium text-primary hover:underline">
+          Ir para a página inicial
+        </Link>
+      )}
     </div>
   );
 }

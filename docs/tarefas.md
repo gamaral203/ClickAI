@@ -212,8 +212,9 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Criar os buckets na Cloudflare (CORS, acesso público, ciclo de vida de `envios/`) e cadastrar as variáveis `R2_*` na Vercel ([deploy.md](deploy.md), item 7); depois, enviar uma foto de teste e comprar para conferir o download
 - [ ] Levar o processamento da foto (hoje síncrono na Server Action `confirmarEnvioAcao`) para um job no Inngest, com nova tentativa automática
 - [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
-- [ ] Indexar os rostos de cada foto no Rekognition no job de processamento (`indexarRostos` em `src/lib/reconhecimento.ts`) e gravar em `rostos`
-- [ ] Foto de perfil e capa do fotógrafo, e logo da loja
+- [x] Indexar os rostos de cada foto no Rekognition ao concluir o envio e gravar em `rostos` (com a posição do rosto, para a prévia ampliada); botão no evento para cadastrar os que faltam
+- [ ] Configurar a AWS na Vercel e testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
+- [x] Banner e logo da página do fotógrafo em Minha loja (valem no link /fotografo/<endereço> e na loja)
 - [ ] Anexos da denúncia no bucket privado, por URL assinada
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
 - [ ] Worker de vídeo com FFmpeg: prévia 720p com marca d'água, miniatura e quadros para o reconhecimento (testar com vídeos reais)
@@ -230,7 +231,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Agendar o job de pedidos (`/api/jobs/pedidos`) de hora em hora, pelo Inngest ou pelo cron da Vercel (no plano Hobby o cron é só diário)
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
 - [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
-- [ ] E-mail de confirmação com o link de downloads (Resend)
+- [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
+- [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)
 - [ ] Convite de colaborador por e-mail para quem ainda não tem conta
 - [ ] Liberação agendada e aviso aos colaboradores por e-mail
@@ -240,9 +242,11 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Revisar os 10 riscos de prioridade alta
 - [ ] CSP completa de scripts (com nonce), depois de definir os scripts do gateway, do Sentry e do Google Analytics/Tag Manager das lojas
 - [ ] Rodar o checklist da `vibe-code-security` ([skills.md](skills.md))
-- [ ] Rate limit em login, cadastro, busca facial, envio de e-mail e geração de URLs assinadas
+- [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
+- [ ] Rate limit na busca facial (hoje só na memória de cada servidor), no envio de e-mail e na geração de URLs assinadas
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
-- [ ] Política de privacidade (com selfie e DPO), termos de uso, política de conteúdo, exclusão de conta e canal de remoção de fotos (LGPD)
+- [x] Política de privacidade (com selfie), página Como funciona
+- [ ] Revisão jurídica da política de privacidade e e-mail do encarregado (`NEXT_PUBLIC_EMAIL_PRIVACIDADE`); termos de uso, política de conteúdo, exclusão de conta e canal de remoção de fotos (LGPD)
 - [ ] Backup do banco com recuperação para um ponto no tempo
 - [ ] Fluxo de estorno e chargeback
 - [ ] Central de ajuda com artigos para comprador e fotógrafo

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { emailConfigurado } from "@/lib/email";
-import { caminhoSeguro } from "@/lib/redirecionamento";
+import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { cadastroBloqueado, loginBloqueado, loginDeuCerto } from "@/servicos/limites";
 import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
 import {
@@ -97,10 +97,12 @@ export async function cadastrarAcao(
       valores,
     };
   }
+  // Conta nova vai para a tela principal; quem veio pelo link do fotógrafo volta para ele.
   return confirmarPorEmail(
     resultado.usuario.email,
     resultado.usuario.nome,
     resultado.tokenConfirmacao,
+    destinoDoCadastro(formulario.get("proximo"), dados.data.papel),
   );
 }
 
@@ -116,14 +118,20 @@ export async function reenviarConfirmacaoAcao() {
   if (usuario.emailConfirmado) redirect("/minhas-compras");
   if (await cadastroBloqueado()) redirect("/conta/confirmar-email?limite=1");
   const token = await gerarConfirmacaoEmail(usuario.id);
-  await confirmarPorEmail(usuario.email, usuario.nome, token);
+  await confirmarPorEmail(usuario.email, usuario.nome, token, "/conta/confirmar-email?enviado=1");
 }
 
 /**
- * Manda o link de confirmação por e-mail. Sem o Resend configurado (ambiente de exemplo), o link
- * aparece na própria tela, como antes; com ele, a tela só avisa que o e-mail foi enviado.
+ * Manda o link de confirmação por e-mail e segue para o destino. Sem o Resend configurado
+ * (ambiente de exemplo), mostra antes o link na tela, com um botão para continuar ao destino.
  */
-async function confirmarPorEmail(email: string, nome: string, token: string): Promise<never> {
+async function confirmarPorEmail(
+  email: string,
+  nome: string,
+  token: string,
+  destino: string,
+): Promise<never> {
   const enviado = emailConfigurado() && (await enviarConfirmacaoDeEmail(email, nome, token));
-  redirect(enviado ? "/conta/confirmar-email?enviado=1" : `/conta/confirmar-email?token=${token}`);
+  if (enviado) redirect(destino);
+  redirect(`/conta/confirmar-email?token=${token}&proximo=${encodeURIComponent(destino)}`);
 }

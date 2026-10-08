@@ -1,17 +1,22 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
+import sharp from "sharp";
 import { z } from "zod";
 
 import {
   buscarLojaDoFotografo,
   definirDominioDaLoja,
+  definirImagemDoFotografo,
   dominioEmUso,
   marcarDominioVerificado,
   salvarLoja,
   subdominioEmUso,
 } from "@/dados";
 import { enderecoDoSite } from "@/lib/endereco";
+import { ERRO_SEM_ARMAZENAMENTO, gravarPublico, modoEnvio } from "@/lib/r2";
 import {
   dominioProprioValido,
   FORMATO_COR,
@@ -153,4 +158,75 @@ export async function removerDominioAcao(): Promise<ResultadoDominio> {
   await definirDominioDaLoja(conta.id, null);
   revalidarLoja();
   return { ok: true, verificado: false, desafios: [] };
+}
+
+// ---------------------------------------------------------------- Banner e logo
+
+export type ImagemDaLoja = "capa" | "fotoPerfil";
+export type ResultadoImagem = { ok: true } | { ok: false; erro: string };
+
+/** O navegador já reduz a imagem antes de enviar; isto é só o teto (Server Action: até 1 MB). */
+const LIMITE_IMAGEM_BYTES = 950 * 1024;
+const MEDIDAS: Record<ImagemDaLoja, { largura: number; altura: number; fit: "inside" | "cover" }> =
+  {
+    capa: { largura: 1920, altura: 1080, fit: "inside" },
+    fotoPerfil: { largura: 400, altura: 400, fit: "cover" },
+  };
+
+/**
+ * Troca o banner (capa) ou o logo da página pública do fotógrafo. A imagem é decodificada e
+ * regravada pelo sharp (nada do arquivo original passa adiante, nem metadados) e vai para o
+ * bucket público do R2. Sem R2, só fora da produção, fica no banco como data URL.
+ */
+export async function enviarImagemDaLojaAcao(
+  campo: unknown,
+  dados: FormData,
+): Promise<ResultadoImagem> {
+  const { conta } = await exigirFotografo("/painel/loja");
+  if (campo !== "capa" && campo !== "fotoPerfil") return { ok: false, erro: "Imagem inválida." };
+  const arquivo = dados.get("arquivo");
+  if (!(arquivo instanceof File) || arquivo.size === 0) {
+    return { ok: false, erro: "Escolha uma imagem." };
+  }
+  if (arquivo.size > LIMITE_IMAGEM_BYTES) {
+    return { ok: false, erro: "Imagem grande demais. Use uma de até 1 MB." };
+  }
+  const modo = modoEnvio();
+  if (modo === "indisponivel") return { ok: false, erro: ERRO_SEM_ARMAZENAMENTO };
+
+  let webp: Buffer;
+  try {
+    const { largura, altura, fit } = MEDIDAS[campo];
+    webp = await sharp(Buffer.from(await arquivo.arrayBuffer()), { limitInputPixels: 50_000_000 })
+      .rotate()
+      .resize(largura, altura, { fit, withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+  } catch {
+    return { ok: false, erro: "Não conseguimos ler esta imagem. Envie um JPEG ou PNG." };
+  }
+
+  let valor: string;
+  if (modo === "r2") {
+    valor = `perfis/${conta.id}/${campo === "capa" ? "banner" : "logo"}-${randomUUID()}.webp`;
+    await gravarPublico(valor, webp, "image/webp");
+  } else {
+    valor = `data:image/webp;base64,${webp.toString("base64")}`;
+  }
+  await definirImagemDoFotografo(conta.id, campo, valor);
+  revalidarPaginasPublicas(conta.slug);
+  return { ok: true };
+}
+
+export async function removerImagemDaLojaAcao(campo: unknown): Promise<ResultadoImagem> {
+  const { conta } = await exigirFotografo("/painel/loja");
+  if (campo !== "capa" && campo !== "fotoPerfil") return { ok: false, erro: "Imagem inválida." };
+  await definirImagemDoFotografo(conta.id, campo, null);
+  revalidarPaginasPublicas(conta.slug);
+  return { ok: true };
+}
+
+function revalidarPaginasPublicas(slug: string) {
+  revalidatePath("/painel/loja");
+  revalidatePath(`/fotografo/${slug}`);
 }

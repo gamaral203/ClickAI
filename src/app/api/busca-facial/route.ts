@@ -7,7 +7,7 @@ import {
   fotosEncontradas,
   rostosDeExemploDoEvento,
 } from "@/dados";
-import { buscarFotosPorSelfie } from "@/lib/reconhecimento";
+import { BuscaFacialDesligada, buscarFotosPorSelfie } from "@/lib/reconhecimento";
 import { ofertaDePacote } from "@/servicos/pacotes";
 
 // Busca por selfie (docs/arquitetura.md, "Galeria e busca"). A selfie é dado biométrico
@@ -94,7 +94,16 @@ export async function POST(request: NextRequest) {
     // Onde está o rosto da pessoa em cada foto: a tela amplia a miniatura nele.
     const recortes = await caixasDosRostos(rostoIds);
     return resposta({ fotos, recortes, pacote: await ofertaDePacote(evento, fotos) });
-  } catch {
+  } catch (erro) {
+    if (erro instanceof BuscaFacialDesligada) {
+      console.error("Busca por selfie sem AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY");
+      return resposta(
+        {
+          erro: "A busca por selfie está indisponível agora. Use o número de peito ou veja a galeria.",
+        },
+        503,
+      );
+    }
     return resposta({ erro: "A busca falhou. Tente de novo em instantes." }, 502);
   } finally {
     // Some com a selfie assim que possível, mesmo que o coletor de lixo ainda não tenha passado.

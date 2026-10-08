@@ -420,7 +420,12 @@ export async function buscarFotografoPublico(slug: string): Promise<Fotografo | 
     })
     .from(t.fotografos)
     .where(eq(t.fotografos.slug, slug));
-  return f ?? null;
+  if (!f) return null;
+  return {
+    ...f,
+    capa: f.capa ? urlPublica(f.capa) : null,
+    fotoPerfil: f.fotoPerfil ? urlPublica(f.fotoPerfil) : null,
+  };
 }
 
 // ---------------------------------------------------------------- Vendas por dia (gráficos)
@@ -484,4 +489,19 @@ export async function vendasPorDiaDaPlataforma(dias = 30): Promise<VendasDoDia[]
     dias,
     agora,
   );
+}
+
+// ---------------------------------------------------------------- Imagens da página pública
+
+/** Banner (`capa`) ou logo (`fotoPerfil`) da página pública do fotógrafo; `null` tira. */
+export async function definirImagemDoFotografo(
+  fotografoId: string,
+  campo: "capa" | "fotoPerfil",
+  valor: string | null,
+) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotografos)
+    .set({ [campo]: valor })
+    .where(eq(t.fotografos.id, fotografoId));
 }

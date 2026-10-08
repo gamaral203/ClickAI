@@ -211,7 +211,7 @@ export async function confirmarEnvio(
  * EXIF, para a posição do rosto bater com a prévia. Uma falha aqui não derruba o envio: a foto
  * continua à venda, só não aparece na busca por selfie (fica no log, só com o id).
  */
-async function indexarRostosDaFoto(eventoId: string, fotoId: string, original: Buffer) {
+export async function indexarRostosDaFoto(eventoId: string, fotoId: string, original: Buffer) {
   if (provedorFacial() !== "rekognition") return;
   try {
     const imagem = await sharp(original)

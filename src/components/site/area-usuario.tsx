@@ -4,6 +4,7 @@ import { LogOut, UserRound } from "lucide-react";
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
 import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 
+import { LinkConta } from "./link-conta";
 import { MenuCelular } from "./menu-celular";
 
 const estiloLink =
@@ -21,10 +22,10 @@ export async function AreaUsuario() {
       <div className="flex items-center gap-1">
         {/* No celular, "Entrar" fica dentro do menu. */}
         <span className="hidden sm:block">
-          <Link href="/entrar" className={estiloLink}>
+          <LinkConta href="/entrar" className={estiloLink}>
             <UserRound aria-hidden="true" className="size-5" />
             Entrar
-          </Link>
+          </LinkConta>
         </span>
         <MenuCelular
           logado={false}

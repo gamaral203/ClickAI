@@ -6,7 +6,8 @@
 
 /** URL da imagem a partir do que está gravado em `fotos.url_previa` / `fotos.url_miniatura`. */
 export function urlPublica(valor: string): string {
-  if (!valor || valor.startsWith("/") || /^https?:\/\//i.test(valor)) return valor;
+  // "data:" só no ambiente de exemplo, sem R2 (banner e logo da página do fotógrafo).
+  if (!valor || valor.startsWith("/") || /^(https?:\/\/|data:image\/)/i.test(valor)) return valor;
   const base = (process.env.R2_URL_PUBLICA ?? "").replace(/\/+$/, "");
   return `${base}/${valor}`;
 }

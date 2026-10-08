@@ -14,8 +14,10 @@ const itens: ItemMenu[] = [
 // O menu não decide quem entra: cada página e ação do painel confere a sessão (exigirFotografo).
 export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10">
-      <MenuPainel titulo="Painel do fotógrafo" itens={itens} raiz="/painel" />
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10 print:block print:p-0">
+      <div className="print:hidden">
+        <MenuPainel titulo="Painel do fotógrafo" itens={itens} raiz="/painel" />
+      </div>
       <div className="min-w-0">{children}</div>
     </div>
   );

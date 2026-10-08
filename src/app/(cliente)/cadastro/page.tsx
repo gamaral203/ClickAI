@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { BotaoGoogle } from "@/components/conta/botao-google";
 import { FormularioCadastro } from "@/components/conta/formularios";
 import { googleConfigurado } from "@/lib/google";
+import { caminhoSeguro } from "@/lib/redirecionamento";
 
 export const metadata: Metadata = { title: "Criar conta" };
 
@@ -19,14 +20,17 @@ export default function PaginaCadastro({ searchParams }: PageProps<"/cadastro">)
 }
 
 async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "searchParams">) {
-  const { tipo } = await searchParams;
+  const { tipo, proximo } = await searchParams;
   const vender = tipo === "fotografo";
+  // Veio do link de um fotógrafo: depois do cadastro, volta para a biblioteca dele.
+  const valor = Array.isArray(proximo) ? proximo[0] : proximo;
+  const destino = valor ? caminhoSeguro(valor, "/") : undefined;
   return (
     <div className="flex flex-col gap-6">
       {googleConfigurado() && (
         <>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <BotaoGoogle texto="Comprar fotos com Google" />
+            <BotaoGoogle proximo={destino} texto="Comprar fotos com Google" />
             <BotaoGoogle vender texto="Vender fotos com Google" />
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -36,7 +40,7 @@ async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "search
           </div>
         </>
       )}
-      <FormularioCadastro papelInicial={vender ? "fotografo" : "cliente"} />
+      <FormularioCadastro papelInicial={vender ? "fotografo" : "cliente"} proximo={destino} />
     </div>
   );
 }

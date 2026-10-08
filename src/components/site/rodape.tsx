@@ -9,7 +9,7 @@ const links = [
 
 export function Rodape() {
   return (
-    <footer className="border-t">
+    <footer className="border-t print:hidden">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>© ClicouAí · Instagram @clicouai</span>
         <nav aria-label="Rodapé">

@@ -3,8 +3,11 @@ import { Suspense } from "react";
 
 import { DominioProprio } from "@/components/painel/dominio-proprio";
 import { FormularioLoja } from "@/components/painel/formulario-loja";
+import { ImagensDaLoja } from "@/components/painel/imagens-da-loja";
+import { LinkDoFotografo } from "@/components/painel/link-do-fotografo";
 import { buscarLojaDoFotografo } from "@/dados";
-import { enderecoDaLoja, enderecoDoSite } from "@/lib/endereco";
+import { enderecoDaLoja, enderecoDoSite, urlDoSite } from "@/lib/endereco";
+import { urlPublica } from "@/lib/url-publica";
 import { gerarSlug } from "@/lib/slug";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -16,8 +19,8 @@ export default function PaginaLoja() {
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight">Minha loja</h1>
         <p className="text-muted-foreground">
-          Uma página só sua, com seu nome e suas cores, mostrando os seus eventos. Boa para divulgar
-          no Instagram e no cartão de visita.
+          A página do seu link: banner, logo, nome, descrição e cores, mostrando só os seus eventos.
+          Boa para divulgar no Instagram e no cartão de visita.
         </p>
       </div>
       <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-muted" />}>
@@ -31,12 +34,21 @@ async function Conteudo() {
   const { conta } = await exigirFotografo("/painel/loja");
   const loja = await buscarLojaDoFotografo(conta.id);
   const base = new URL(enderecoDoSite());
+  // Subdomínio (nome.clicouai.com.br) só existe no domínio próprio do site: em *.vercel.app e no
+  // localhost sem DNS curinga, o endereço não abre.
+  const temSubdominio = !/(^localhost$|\.vercel\.app$)/.test(base.hostname);
 
   return (
     <>
+      <LinkDoFotografo url={urlDoSite(`/fotografo/${conta.slug}`)} nome={conta.nomePublico} />
+      <ImagensDaLoja
+        capa={conta.capa ? urlPublica(conta.capa) : null}
+        logo={conta.fotoPerfil ? urlPublica(conta.fotoPerfil) : null}
+      />
       <FormularioLoja
         enderecoBase={{ protocolo: base.protocol, host: base.host.replace(/^www\./, "") }}
-        enderecoAtual={loja?.ativa ? enderecoDaLoja(loja.subdominio) : null}
+        enderecoAtual={loja?.ativa && temSubdominio ? enderecoDaLoja(loja.subdominio) : null}
+        temSubdominio={temSubdominio}
         loja={{
           nome: loja?.nome ?? conta.nomePublico,
           descricao: loja?.descricao ?? "",

@@ -60,7 +60,12 @@ export async function salvarLoja(fotografoId: string, dados: DadosLoja): Promise
 export type LojaPublica = Pick<
   Loja,
   "nome" | "descricao" | "logo" | "corPrimaria" | "corSecundaria" | "subdominio" | "gaId" | "gtmId"
-> & { fotografo: Pick<Fotografo, "id" | "nomePublico" | "bio" | "redesSociais"> };
+> & {
+  fotografo: Pick<
+    Fotografo,
+    "id" | "nomePublico" | "slug" | "bio" | "redesSociais" | "capa" | "fotoPerfil"
+  >;
+};
 
 async function lojaPublica(condicao: ReturnType<typeof and>): Promise<LojaPublica | null> {
   // Lida a cada requisição: a loja muda quando o fotógrafo salva no painel.
@@ -85,8 +90,11 @@ async function lojaPublica(condicao: ReturnType<typeof and>): Promise<LojaPublic
     fotografo: {
       id: fotografo.id,
       nomePublico: fotografo.nomePublico,
+      slug: fotografo.slug,
       bio: fotografo.bio,
       redesSociais: fotografo.redesSociais,
+      capa: fotografo.capa ? urlPublica(fotografo.capa) : null,
+      fotoPerfil: fotografo.fotoPerfil ? urlPublica(fotografo.fotoPerfil) : null,
     },
   };
 }

@@ -1327,3 +1327,4 @@ export * from "./loja-moderacao";
 export * from "./crescimento";
 export * from "./rostos";
 export * from "./notificacoes";
+export * from "./relatorio";

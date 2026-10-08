@@ -18,8 +18,24 @@ import {
   SearchFacesByImageCommand,
 } from "@aws-sdk/client-rekognition";
 
-/** Semelhança mínima (0–100). Alta, para não mostrar fotos de outra pessoa (docs/riscos.md). */
-const SEMELHANCA_MINIMA = 95;
+/**
+ * Semelhança mínima (0–100) para a foto entrar no resultado. Alta, para não mostrar fotos de
+ * outra pessoa (docs/riscos.md), mas não tanto: em foto de evento (rosto pequeno, de lado, suado,
+ * com óculos) a mesma pessoa costuma dar entre 85 e 95, e 95 escondia fotos certas. Ajustável por
+ * REKOGNITION_SEMELHANCA, entre 80 e 99.
+ */
+function semelhancaMinima() {
+  const valor = Number(process.env.REKOGNITION_SEMELHANCA);
+  return Number.isFinite(valor) && valor >= 80 && valor <= 99 ? valor : 90;
+}
+
+/** Sem a AWS em produção a busca não pode cair nos dados de exemplo: avisa que está desligada. */
+export class BuscaFacialDesligada extends Error {
+  constructor() {
+    super("Busca por selfie não configurada");
+    this.name = "BuscaFacialDesligada";
+  }
+}
 
 type ConfigRekognition = { regiao: string; prefixo: string };
 
@@ -77,8 +93,10 @@ export async function indexarRostos(
       Image: { Bytes: imagem },
       ExternalImageId: fotoId,
       DetectionAttributes: [],
-      MaxFaces: 50,
-      QualityFilter: "AUTO",
+      MaxFaces: 100,
+      // "LOW" guarda também rostos menores, de lado ou tremidos, comuns em corrida e festa; o
+      // filtro "AUTO" descartava boa parte deles e a pessoa não se achava.
+      QualityFilter: "LOW",
     }),
   );
   return (resposta.FaceRecords ?? []).flatMap((r) => {
@@ -103,6 +121,9 @@ export async function buscarFotosPorSelfie(
   rostosDeExemplo: () => Promise<string[][]>,
 ): Promise<{ fotoIds: string[]; rostoIds: string[] }> {
   const config = configRekognition();
+  if (!config && process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production") {
+    throw new BuscaFacialDesligada();
+  }
   if (!config) {
     const pessoas = await rostosDeExemplo();
     if (pessoas.length === 0) return { fotoIds: [], rostoIds: [] };
@@ -115,9 +136,10 @@ export async function buscarFotosPorSelfie(
       new SearchFacesByImageCommand({
         CollectionId: colecao(config, eventoId),
         Image: { Bytes: selfie },
-        FaceMatchThreshold: SEMELHANCA_MINIMA,
+        FaceMatchThreshold: semelhancaMinima(),
         MaxFaces: 1000,
-        QualityFilter: "AUTO",
+        // A selfie já é boa o bastante; o filtro só recusaria selfies escuras sem necessidade.
+        QualityFilter: "NONE",
       }),
     );
     const encontrados = resposta.FaceMatches ?? [];

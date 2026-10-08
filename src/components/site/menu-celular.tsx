@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
+import { comRetorno } from "@/lib/redirecionamento";
 
 /**
  * Menu do cabeçalho no celular: um botão que abre a lista de links (Eventos, painel, compras,
@@ -66,7 +67,11 @@ export function MenuCelular({
             {itens.map((item) => (
               <li key={item.href}>
                 <Link
-                  href={item.href}
+                  href={
+                    item.href === "/entrar" || item.href === "/cadastro"
+                      ? comRetorno(item.href, caminho)
+                      : item.href
+                  }
                   aria-current={caminho === item.href ? "page" : undefined}
                   className="flex h-11 items-center rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary"
                 >
