@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { opcoesCompra } from "@/app/(cliente)/carrinho/validacao";
 import { mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import { iniciarCobrancaPix } from "@/servicos/pagamentos";
 import { criarPedido } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -50,6 +51,14 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
   const { ids, aceitaWhatsapp, whatsapp, opcoes, ...comprador } = validacao.data;
   if (aceitaWhatsapp && !whatsapp) {
     return { ok: false, erros: { whatsapp: "Informe o WhatsApp ou desmarque a opção." } };
+  }
+
+  if (await limiteDoIpAtingido("checkout_ip")) {
+    return {
+      ok: false,
+      erros: {},
+      mensagem: "Muitos pedidos seguidos daqui. Espere um pouco e tente de novo.",
+    };
   }
 
   // Cliente logado: o pedido fica na conta dele (Minhas compras), além do link com token.

@@ -29,6 +29,7 @@ import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { UFS } from "@/lib/ufs";
 import { confirmarEnvio, iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
+import { limiteAtingido } from "@/servicos/limites";
 import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -309,6 +310,9 @@ export async function iniciarEnvioAcao(
   lista: unknown,
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   const { conta } = await exigirFotografo("/painel/eventos");
+  if (await limiteAtingido("url_envio_usuario", conta.id)) {
+    return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
+  }
   return iniciarEnvio(conta.id, eventoId, lista);
 }
 
