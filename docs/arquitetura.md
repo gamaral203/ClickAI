@@ -106,11 +106,16 @@ Cada foto vira três arquivos no R2 e cada vídeo vira três ou quatro, separado
 **Padrão de nomes das chaves:**
 
 ```
+envios/{fotografo_id}/{evento_id}/{foto_id}.jpg  # original chegando do navegador (privado, temporário)
 originais/{fotografo_id}/{evento_id}/{foto_id}.{jpg|mp4|mov}
 previas/{fotografo_id}/{evento_id}/{foto_id}.{webp|mp4}
 miniaturas/{fotografo_id}/{evento_id}/{foto_id}.webp
 denuncias/{denuncia_id}/{arquivo_id}          # anexos, no bucket privado
 ```
+
+- `fotos.chave_original` guarda a chave no bucket privado (`envios/...` enquanto a foto está em `processando`, `originais/...` depois). `fotos.url_previa` e `fotos.url_miniatura` guardam as chaves no bucket público, e o endereço é montado na leitura com `R2_URL_PUBLICA` (`src/lib/url-publica.ts`): trocar o `r2.dev` por um domínio próprio não mexe no banco. Os dados de exemplo guardam caminhos `/exemplo/...`, que passam como estão.
+- O prefixo `envios/` tem regra de ciclo de vida no R2 que apaga o que ficar lá mais de 1 dia (envio abandonado ou recusado); o original só vai para `originais/` depois de conferido.
+- O acesso ao R2 fica em `src/lib/r2.ts` (API compatível com o S3, só no servidor). Sem as variáveis `R2_*`, o build e o site funcionam; o envio de fotos responde "Armazenamento de fotos não configurado" na produção e usa o envio simulado (imagens de exemplo) fora dela.
 
 - Usar o `foto_id` (UUID) como nome evita colisão e não expõe o nome original do arquivo.
 - O bucket público fica atrás de um domínio próprio na Cloudflare (ex.: `img.seusite.com.br`), com cache de CDN e sem listagem. As prévias de eventos com senha ou visíveis só após o reconhecimento também ficam nele: a proteção é o UUID impossível de adivinhar, não o bucket.
@@ -208,12 +213,12 @@ O pagamento só é considerado confirmado quando o servidor lê a order na API d
 **Upload (fotógrafo ou colaborador)**
 
 1. O fotógrafo escolhe o evento (e a pasta, se quiser) e seleciona os arquivos.
-2. O site pede ao servidor uma URL assinada de upload para cada arquivo e cria o registro em `fotos` com status `processando`.
-3. O navegador envia cada arquivo direto ao bucket privado, sem passar pelo servidor. Vídeos usam upload multipart com retomada.
-4. Ao fim de cada envio, o servidor dispara um job no Inngest.
-5. O job confere o tipo real do arquivo, calcula o hash (para marcar duplicados) e lê a data de captura do EXIF.
-6. Foto: gera prévia com marca d'água e miniatura com Sharp. Vídeo: chama o worker de FFmpeg.
-7. O job envia a foto (ou os quadros do vídeo) ao provedor de reconhecimento, grava os rostos e números encontrados e marca o item como `pronta`.
+2. O navegador confere cada arquivo (JPEG pelo conteúdo, até 30 MB) e calcula o SHA-256. Em lotes de até 25, a Server Action `iniciarEnvioAcao` confere se o fotógrafo é dono ou colaborador do evento, pula as fotos que já estão prontas no evento (mesmo hash), cria cada registro em `fotos` com status `processando`, o hash informado e a chave temporária `envios/...`, e devolve uma URL assinada de PUT (15 min, com `Content-Type: image/jpeg` e o tamanho na assinatura). Uma foto do mesmo fotógrafo e mesmo hash que ficou em `processando` ou `erro` é reaproveitada, para "tentar de novo" não duplicar itens.
+3. O navegador envia cada arquivo direto ao bucket privado (3 por vez, com progresso), sem passar pelo servidor. Vídeos usarão upload multipart com retomada.
+4. Ao fim de cada envio, o navegador chama a Server Action `confirmarEnvioAcao` com o id da foto. **Por enquanto o processamento é síncrono nessa ação, uma foto por chamada** (`maxDuration` de 60 s nas páginas do painel que enviam); depois ele passa para um job no Inngest, com nova tentativa automática.
+5. O servidor baixa o arquivo temporário, confere o tamanho, a assinatura real de JPEG (`FF D8 FF`) e o SHA-256 informado no início, e lê largura, altura e a data de captura do EXIF.
+6. Foto: gera prévia com marca d'água e miniatura com Sharp, grava as duas no bucket público e move o original de `envios/` para `originais/`. Vídeo: chamará o worker de FFmpeg.
+7. Marca o item como `pronta`. Em qualquer falha, o item fica em `erro` (fora da galeria), o arquivo recusado é apagado e a tela mostra o motivo com "Tentar de novo". Ainda falta: enviar a foto (ou os quadros do vídeo) ao provedor de reconhecimento e gravar os rostos e números encontrados.
 
 **Liberação das fotos**
 
@@ -282,7 +287,7 @@ Um job de hora em hora marca como `expirado` os pedidos `pendente` com `expira_e
 **Download**
 
 1. Na tela de confirmação, na área "Minhas compras" ou pelo link do e-mail ou do WhatsApp, o cliente clica em baixar.
-2. O servidor confere se o item pertence a um pedido pago daquele cliente (ou do token do convidado), registra em `downloads` e responde com uma URL assinada de 15 minutos para o original. Itens com `excluida_em` preenchido continuam disponíveis para quem comprou.
+2. O servidor (`/api/download/[itemId]`) confere se o item pertence a um pedido pago daquele cliente (ou do token do convidado), registra em `downloads` e redireciona para uma URL assinada de 15 minutos do original no bucket privado, gerada com `Content-Disposition` de anexo e o nome `{evento}-{arquivo}.jpg`. O original não passa pelo Next.js. Itens com `excluida_em` preenchido continuam disponíveis para quem comprou. Os originais dos dados de exemplo (imagens do picsum) só baixam fora da produção.
 
 **Acesso às compras: cliente logado e convidado**
 

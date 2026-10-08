@@ -3,6 +3,7 @@
 // do original no R2) não saem daqui.
 
 import type * as t from "@/db/schema";
+import { urlPublica } from "@/lib/url-publica";
 
 import type {
   Colaborador,
@@ -64,6 +65,8 @@ export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
   const f = omitir(r, "chaveOriginal", "tamanhoBytes", "hashConteudo");
   return {
     ...f,
+    urlPrevia: urlPublica(f.urlPrevia),
+    urlMiniatura: urlPublica(f.urlMiniatura),
     capturadaEm: iso(f.capturadaEm),
     criadoEm: iso(f.criadoEm),
     excluidaEm: iso(f.excluidaEm),

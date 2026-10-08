@@ -16,6 +16,17 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+/** Domínio próprio do bucket público, se R2_URL_PUBLICA não for um r2.dev. */
+function dominioPublicoDoR2() {
+  try {
+    const url = new URL(process.env.R2_URL_PUBLICA ?? "");
+    if (url.hostname.endsWith(".r2.dev")) return [];
+    return [{ protocol: "https" as const, hostname: url.hostname, pathname: "/**" }];
+  } catch {
+    return [];
+  }
+}
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
@@ -29,6 +40,17 @@ const nextConfig: NextConfig = {
     // As prévias e miniaturas já são geradas otimizadas no upload e servidas pela CDN da
     // Cloudflare; o otimizador da Vercel só aumentaria a conta (docs/riscos.md, Custos).
     unoptimized: true,
+    // Bucket público do R2 (prévias e miniaturas). O build não depende de R2_URL_PUBLICA: sem
+    // ela, vale só o r2.dev.
+    remotePatterns: [
+      { protocol: "https", hostname: "*.r2.dev", pathname: "/**" },
+      ...dominioPublicoDoR2(),
+    ],
+  },
+  // A marca d'água das prévias usa public/logo.png, lida do disco por src/servicos/imagens.ts
+  // nas Server Actions de envio do painel; sem isto, o arquivo não vai para a função da Vercel.
+  outputFileTracingIncludes: {
+    "/painel/**": ["./public/logo.png"],
   },
   turbopack: {
     rules: {
