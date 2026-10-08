@@ -141,14 +141,14 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada), liberado_em, filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
 | `pastas` | id, evento_id, nome, ordem | eventos (N:1) |
-| `fotos` | id, evento_id, pasta_id (opcional), enviada_por (fotografo_id), tipo (foto, video), chave_original, chave_previa, chave_miniatura, nome_arquivo, largura, altura, duracao_s (vídeo), tamanho_bytes, hash_conteudo, capturada_em, preco_centavos (opcional, sobrepõe o do evento), ordem, status (processando, pronta, erro), criado_em, excluida_em (opcional) | eventos, pastas, fotografos |
+| `fotos` | id, evento_id, pasta_id (opcional), enviada_por (fotografo_id), tipo (foto, video), chave_original, chave_previa, chave_miniatura, nome_arquivo, largura, altura, duracao_s (vídeo), tamanho_bytes, hash_conteudo, capturada_em, preco_centavos (opcional, sobrepõe o do evento), ordem, status (processando, pronta, erro), criado_em, excluida_em (opcional), rostos_indexados_em (opcional: já passou pelo reconhecimento facial, com ou sem rosto) | eventos, pastas, fotografos |
 | `colaboradores` | id, evento_id, fotografo_id, comissao_dono_pct, nota | eventos, fotografos |
 
 **Busca**
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `rostos` | id, foto_id, rosto_id_provedor | fotos (N:1) |
+| `rostos` | id, foto_id, rosto_id_provedor, caixa (posição do rosto, para a prévia ampliada) | fotos (N:1) |
 | `numeros` | id, foto_id, numero | fotos (N:1) |
 
 A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.

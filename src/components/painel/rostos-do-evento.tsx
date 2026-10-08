@@ -4,33 +4,42 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2, ScanFace } from "lucide-react";
 
-import { indexarRostosDoEventoAcao } from "@/app/(fotografo)/painel/eventos/rostos-acoes";
+import {
+  indexarRostosDoEventoAcao,
+  reiniciarRostosDoEventoAcao,
+} from "@/app/(fotografo)/painel/eventos/rostos-acoes";
 import { Button } from "@/components/ui/button";
 
 /**
- * Situação da busca por selfie no evento e o botão para cadastrar os rostos que faltam. As fotos
- * sem rosto cadastrado não aparecem quando o cliente busca pela selfie.
+ * Situação da busca por selfie no evento, o botão para cadastrar as fotos que ainda não passaram
+ * pelo reconhecimento e a opção de refazer o evento inteiro. As fotos sem rosto cadastrado não
+ * aparecem quando o cliente busca pela selfie.
  */
 export function RostosDoEvento({
   eventoId,
   prontas,
   comRosto,
+  pendentes,
   configurado,
 }: {
   eventoId: string;
   prontas: number;
   comRosto: number;
+  pendentes: number;
   configurado: boolean;
 }) {
   const router = useRouter();
   const [rodando, setRodando] = useState(false);
+  const [confirmandoRefazer, setConfirmandoRefazer] = useState(false);
   const [feitas, setFeitas] = useState(0);
   const [falhas, setFalhas] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [terminou, setTerminou] = useState(false);
   if (prontas === 0) return null;
 
-  async function cadastrar() {
+  /** Cadastra, em lotes, as fotos sem a marca de cadastrada; com `refazer`, todas do evento. */
+  async function cadastrar(refazer: boolean) {
+    setConfirmandoRefazer(false);
     setRodando(true);
     setErro(null);
     setTerminou(false);
@@ -38,6 +47,13 @@ export function RostosDoEvento({
     setFalhas(0);
     let depoisDe: string | null = null;
     try {
+      if (refazer) {
+        const r = await reiniciarRostosDoEventoAcao(eventoId);
+        if (!r.ok) {
+          setErro(r.erro);
+          return;
+        }
+      }
       do {
         const r = await indexarRostosDoEventoAcao(eventoId, depoisDe);
         if (!r.ok) {
@@ -53,7 +69,7 @@ export function RostosDoEvento({
       setTerminou(true);
       router.refresh();
     } catch {
-      setErro("A conexão caiu. Clique de novo para continuar de onde parou.");
+      setErro("A conexão caiu. Clique em “Cadastrar rostos que faltam” para continuar.");
     } finally {
       setRodando(false);
     }
@@ -74,15 +90,31 @@ export function RostosDoEvento({
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {comRosto} de {prontas} fotos com rosto cadastrado. Fotos sem rosto (paisagem, de
-            costas) são normais; se o número estiver baixo, cadastre de novo as que faltam.
+            {comRosto} de {prontas} fotos com rosto cadastrado
+            {pendentes > 0
+              ? `; ${pendentes} ${pendentes === 1 ? "ainda não passou" : "ainda não passaram"} pelo reconhecimento.`
+              : "."}{" "}
+            Fotos sem rosto (paisagem, de costas) são normais.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="touch" disabled={rodando} onClick={cadastrar}>
+            <Button
+              variant="outline"
+              size="touch"
+              disabled={rodando || pendentes === 0}
+              onClick={() => cadastrar(false)}
+            >
               {rodando && (
                 <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
               )}
               {rodando ? `Cadastrando… ${feitas} fotos` : "Cadastrar rostos que faltam"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="touch"
+              disabled={rodando}
+              onClick={() => setConfirmandoRefazer(true)}
+            >
+              Refazer o cadastro de todas
             </Button>
             {terminou && !rodando && (
               <span role="status" className="text-sm text-primary">
@@ -91,6 +123,22 @@ export function RostosDoEvento({
               </span>
             )}
           </div>
+          {confirmandoRefazer && (
+            <div className="flex flex-col gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground">
+              <p>
+                Todas as {prontas} fotos do evento voltam ao reconhecimento. Enquanto o cadastro não
+                termina, a busca por selfie deste evento encontra menos fotos.
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => cadastrar(true)}>
+                  Refazer
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmandoRefazer(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
           {terminou && !rodando && falhas > 0 && (
             <p role="alert" className="text-sm text-destructive">
               {falhas}{" "}

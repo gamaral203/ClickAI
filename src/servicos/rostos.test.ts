@@ -16,7 +16,10 @@ vi.mock("@/servicos/sessao", () => ({
   exigirFotografo: async () => ({ conta: { id: sessao.fotografoId } }),
 }));
 
-import { indexarRostosDoEventoAcao } from "@/app/(fotografo)/painel/eventos/rostos-acoes";
+import {
+  indexarRostosDoEventoAcao,
+  reiniciarRostosDoEventoAcao,
+} from "@/app/(fotografo)/painel/eventos/rostos-acoes";
 import { fotosParaIndexar, situacaoDosRostos } from "@/dados";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
@@ -70,7 +73,7 @@ afterEach(() => {
 /** Fotos do primeiro lote que a ação vai mandar ao Rekognition. */
 async function pendentesNoPrimeiroLote() {
   const fotos = await fotosParaIndexar(evento.id, null, 8);
-  return fotos.filter((f) => !f.temRosto && f.chaveOriginal).length;
+  return fotos.filter((f) => f.chaveOriginal).length;
 }
 
 describe("situação dos rostos do evento", () => {
@@ -124,5 +127,81 @@ describe("cadastrar rostos que faltam", () => {
     const r = await indexarRostosDoEventoAcao(evento.id, null);
     envio.mockRestore();
     expect(r).toMatchObject({ ok: true, indexadas: 0, falhas: pendentes });
+  });
+
+  it("foto sem nenhum rosto fica marcada e não volta ao reconhecimento", async () => {
+    const antes = await situacaoDosRostos(evento.id);
+    expect(antes.pendentes).toBeGreaterThan(0);
+    const envio = vi
+      .spyOn(RekognitionClient.prototype, "send")
+      .mockResolvedValue({ FaceRecords: [] } as never);
+    let depoisDe: string | null = null;
+    let indexadas = 0;
+    do {
+      const r = await indexarRostosDoEventoAcao(evento.id, depoisDe);
+      if (!r.ok) throw new Error(r.erro);
+      expect(r.falhas).toBe(0);
+      indexadas += r.indexadas;
+      depoisDe = r.proximo;
+    } while (depoisDe);
+    expect(indexadas).toBe(antes.pendentes);
+    expect((await situacaoDosRostos(evento.id)).pendentes).toBe(0);
+
+    // Segunda vez: nada a mandar, nem as fotos sem rosto.
+    envio.mockClear();
+    const r = await indexarRostosDoEventoAcao(evento.id, null);
+    expect(r).toEqual({ ok: true, indexadas: 0, falhas: 0, proximo: null });
+    expect(envio).not.toHaveBeenCalled();
+    envio.mockRestore();
+  });
+
+  it("refazer o cadastro de todas: só o dono", async () => {
+    sessao.fotografoId = pedro.id;
+    expect(await reiniciarRostosDoEventoAcao(evento.id)).toEqual({
+      ok: false,
+      erro: "Evento não encontrado.",
+    });
+    expect((await situacaoDosRostos(evento.id)).pendentes).toBe(0);
+  });
+
+  it("refazer o cadastro de todas: apaga os rostos e as marcas do evento", async () => {
+    // Sem a permissão opcional DeleteFaces, segue mesmo assim.
+    const envio = vi
+      .spyOn(RekognitionClient.prototype, "send")
+      .mockRejectedValue(
+        Object.assign(new Error("no"), { name: "AccessDeniedException" }) as never,
+      );
+    const antes = await situacaoDosRostos(evento.id);
+    expect(await reiniciarRostosDoEventoAcao(evento.id)).toEqual({ ok: true });
+    envio.mockRestore();
+    const depois = await situacaoDosRostos(evento.id);
+    expect(depois.pendentes).toBe(antes.prontas);
+    expect(depois.comRosto).toBe(0);
+  });
+
+  it("refazer com credencial recusada: não apaga nada", async () => {
+    // Um lote cadastrado com um rosto por foto, para haver o que apagar.
+    let n = 0;
+    const envio = vi.spyOn(RekognitionClient.prototype, "send").mockImplementation((async () => ({
+      FaceRecords: [
+        { Face: { FaceId: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}` } },
+      ],
+    })) as never);
+    await indexarRostosDoEventoAcao(evento.id, null);
+    envio.mockRestore();
+    const antes = await situacaoDosRostos(evento.id);
+    expect(antes.comRosto).toBeGreaterThan(0);
+
+    const recusa = vi
+      .spyOn(RekognitionClient.prototype, "send")
+      .mockRejectedValue(
+        Object.assign(new Error("no"), { name: "UnrecognizedClientException" }) as never,
+      );
+    const r = await reiniciarRostosDoEventoAcao(evento.id);
+    expect(recusa).toHaveBeenCalled();
+    recusa.mockRestore();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erro).toContain("confira as credenciais");
+    expect(await situacaoDosRostos(evento.id)).toEqual(antes);
   });
 });

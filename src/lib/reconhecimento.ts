@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 
 import {
   CreateCollectionCommand,
+  DeleteFacesCommand,
   IndexFacesCommand,
   RekognitionClient,
   ResourceAlreadyExistsException,
@@ -149,6 +150,28 @@ export async function indexarRostos(
         : null;
     return [{ rostoId: r.Face.FaceId, caixa }];
   });
+}
+
+/** O DeleteFaces aceita até 4096 rostos por chamada. */
+const ROSTOS_POR_EXCLUSAO = 4096;
+
+/**
+ * Apaga rostos da coleção do evento (antes de cadastrar o evento de novo, para a coleção não
+ * ficar com o mesmo rosto duas vezes). Precisa da permissão rekognition:DeleteFaces; sem ela, ou
+ * sem a coleção, lança o erro da AWS e quem chama decide se segue.
+ */
+export async function apagarRostos(eventoId: string, rostoIds: string[]) {
+  const config = configRekognition();
+  if (!config || rostoIds.length === 0) return;
+  const rk = rekognition(config);
+  for (let i = 0; i < rostoIds.length; i += ROSTOS_POR_EXCLUSAO) {
+    await rk.send(
+      new DeleteFacesCommand({
+        CollectionId: colecao(config, eventoId),
+        FaceIds: rostoIds.slice(i, i + ROSTOS_POR_EXCLUSAO),
+      }),
+    );
+  }
 }
 
 /**

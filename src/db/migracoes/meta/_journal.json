@@ -29,6 +29,13 @@
       "when": 1791424663035,
       "tag": "0003_lembrete_pix_vendas_e_tentativas",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791430907348,
+      "tag": "0004_marca_rostos_indexados",
+      "breakpoints": true
     }
   ]
 }

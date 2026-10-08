@@ -2,10 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 
-import { buscarEventoDoFotografo, fotosParaIndexar } from "@/dados";
+import {
+  buscarEventoDoFotografo,
+  fotosParaIndexar,
+  limparRostosDoEvento,
+  rostosDoEvento,
+} from "@/dados";
 import { ehIdValido } from "@/lib/validacao";
 import { lerOriginal, r2Configurado } from "@/lib/r2";
-import { provedorFacial } from "@/lib/reconhecimento";
+import { apagarRostos, ehErroDeCredencial, nomeDoErro, provedorFacial } from "@/lib/reconhecimento";
 import { indexarRostosDaFoto } from "@/servicos/envios";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -46,7 +51,7 @@ export async function indexarRostosDoEventoAcao(
   let indexadas = 0;
   let falhas = 0;
   for (const foto of fotos) {
-    if (foto.temRosto || !foto.chaveOriginal) continue;
+    if (!foto.chaveOriginal) continue;
     let original: Buffer;
     try {
       original = await lerOriginal(foto.chaveOriginal);
@@ -65,4 +70,49 @@ export async function indexarRostosDoEventoAcao(
   const proximo = fotos.length === POR_CHAMADA ? fotos[fotos.length - 1].id : null;
   if (!proximo) revalidatePath(`/painel/eventos/${evento.id}`);
   return { ok: true, indexadas, falhas, proximo };
+}
+
+/**
+ * Prepara o evento para cadastrar todas as fotos de novo (depois de trocar a região ou o filtro
+ * de qualidade, por exemplo): apaga os rostos da coleção e da tabela `rostos` e tira a marca de
+ * cadastrada. Depois a tela chama `indexarRostosDoEventoAcao` em lotes, como no "que faltam".
+ * Só o dono do evento.
+ */
+export async function reiniciarRostosDoEventoAcao(
+  eventoId: unknown,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  if (typeof eventoId !== "string" || !ehIdValido(eventoId)) {
+    return { ok: false, erro: "Evento inválido." };
+  }
+  const evento = await buscarEventoDoFotografo(eventoId, conta.id);
+  if (!evento) return { ok: false, erro: "Evento não encontrado." };
+  if (provedorFacial() !== "rekognition" || !r2Configurado()) {
+    return { ok: false, erro: "O reconhecimento facial não está configurado no servidor." };
+  }
+
+  try {
+    await apagarRostos(evento.id, await rostosDoEvento(evento.id));
+  } catch (erro) {
+    const nome = nomeDoErro(erro);
+    // Sem a permissão opcional DeleteFaces, sem a coleção (outra região) ou com ids que a
+    // coleção não conhece, segue: o rosto antigo que sobrar na coleção não aparece na busca,
+    // porque a foto volta pelo id e a posição vem só dos rostos gravados de novo.
+    const podeSeguir =
+      nome === "AccessDeniedException" ||
+      nome === "ResourceNotFoundException" ||
+      nome === "InvalidParameterException";
+    console.error(`[rostos] não apagou os rostos antigos do evento ${evento.id}: ${nome}`);
+    if (!podeSeguir) {
+      return {
+        ok: false,
+        erro: ehErroDeCredencial(erro)
+          ? ERRO_DE_CREDENCIAL
+          : "Não foi possível falar com o reconhecimento facial. Tente de novo em instantes.",
+      };
+    }
+  }
+  await limparRostosDoEvento(evento.id);
+  revalidatePath(`/painel/eventos/${evento.id}`);
+  return { ok: true };
 }
