@@ -58,7 +58,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Login com Google (OAuth com PKCE), ligado à conta de mesmo e-mail, com conta de vendedor pelo botão "Vender fotos com Google" e gestores por `ADMIN_EMAILS`
 - [x] Papéis cliente, fotógrafo e gestor, conferidos no servidor; cada papel cai na sua área depois do login
 - [x] Painel de gestão (`/admin`): visão geral com entradas, saídas, receita e o que é devido por vendedor; todas as vendas; histórico de saques; usuários com troca de papel (só gestor)
-- [x] Busca por selfie na página do evento: consentimento, selfie reduzida no navegador, só em memória no servidor, limite por IP; Amazon Rekognition com credenciais da AWS ou rostos de exemplo sem elas `[R-alta]`
+- [x] Busca por selfie na página do evento: consentimento, selfie reduzida no navegador, só em memória no servidor, limite por IP; Amazon Rekognition com as credenciais `REKOGNITION_*` ou rostos de exemplo sem elas `[R-alta]`
 - [x] Busca por número de peito
 - [x] Correção: a busca por número de peito recusava todo número no servidor (regex sem `\d`)
 - [x] Testes automatizados com Vitest (`npm run test`): divisão da venda, saque e saldo, conversão de reais, CPF/CNPJ e validação dos filtros
@@ -125,6 +125,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Correção: a busca por selfie falhava na Vercel porque lia `AWS_REGION`, `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`, nomes que a plataforma preenche com a região da função e credenciais que não valem na nossa conta. Agora lê só `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` e passa as chaves direto ao cliente; o log mostra só o nome do erro da AWS (nunca a selfie)
 - [x] Correção: "Cadastrar rostos que faltam" contava como feita a foto em que o reconhecimento falhou. Agora mostra quantas entraram e quantas falharam, e com credencial recusada para na primeira foto e avisa o fotógrafo para conferir as credenciais
 - [x] Correção: o painel mostrava sempre "0 fotos com rosto cadastrado" e o "Cadastrar rostos que faltam" mandava de novo ao Rekognition até as fotos que já tinham rosto (rosto repetido na coleção). A subconsulta comparava `rostos.foto_id` com `rostos.id`, porque o Drizzle escreve a coluna sem a tabela dentro do `sql`
+- [x] Job de pedidos agendado a cada 10 minutos pelo GitHub Actions ([`.github/workflows/jobs.yml`](../.github/workflows/jobs.yml)), para o lembrete do Pix sair uns 20 minutos depois do pedido, mais o cron diário da Vercel como reserva (no plano Hobby ele não roda mais vezes). Depende dos segredos do repositório (Fase 13)
 - [x] Marca `fotos.rostos_indexados_em` (migração 0004): a foto que já passou pelo reconhecimento, mesmo sem nenhum rosto, não volta a ele no "Cadastrar rostos que faltam"; o quadro mostra quantas ainda não passaram. "Refazer o cadastro de todas", só para o dono do evento, apaga os rostos da coleção (com `rekognition:DeleteFaces`, opcional) e da tabela e cadastra o evento de novo
 
 ## Em andamento
@@ -235,7 +236,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Cadastrar o webhook de produção e conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado)
 - [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
-- [ ] Agendar o job de pedidos (`/api/jobs/pedidos`) de hora em hora, pelo Inngest ou pelo cron da Vercel (no plano Hobby o cron é só diário)
+- [ ] Cadastrar no GitHub (**Settings → Secrets and variables → Actions**) os segredos `APP_URL` e `CRON_SECRET` (o mesmo da Vercel) e conferir a primeira execução de "Job de pedidos" em **Actions**; sem eles, o workflow falha e o job só roda pelo cron diário da Vercel
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
 - [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
