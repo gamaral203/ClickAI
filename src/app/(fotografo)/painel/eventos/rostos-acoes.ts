@@ -13,7 +13,14 @@ import { exigirFotografo } from "@/servicos/sessao";
 const POR_CHAMADA = 8;
 
 export type ResultadoIndexacao =
-  { ok: true; processadas: number; proximo: string | null } | { ok: false; erro: string };
+  | { ok: true; indexadas: number; falhas: number; proximo: string | null }
+  | { ok: false; erro: string };
+
+/** Credencial errada falha em todas as fotos: para na primeira e diz o que conferir. */
+const ERRO_DE_CREDENCIAL =
+  "Não foi possível falar com o reconhecimento facial: confira as credenciais do Rekognition " +
+  "(REKOGNITION_REGIAO, REKOGNITION_ACCESS_KEY_ID e REKOGNITION_SECRET_ACCESS_KEY) e as " +
+  "permissões do usuário na AWS.";
 
 /**
  * Cadastra os rostos das fotos do evento que ainda não estão na busca por selfie (enviadas antes
@@ -36,17 +43,26 @@ export async function indexarRostosDoEventoAcao(
   }
 
   const fotos = await fotosParaIndexar(evento.id, depoisDe, POR_CHAMADA);
-  let processadas = 0;
+  let indexadas = 0;
+  let falhas = 0;
   for (const foto of fotos) {
     if (foto.temRosto || !foto.chaveOriginal) continue;
+    let original: Buffer;
     try {
-      await indexarRostosDaFoto(evento.id, foto.id, await lerOriginal(foto.chaveOriginal));
-      processadas++;
+      original = await lerOriginal(foto.chaveOriginal);
     } catch (erro) {
       console.error(`[rostos] falha ao ler o original da foto ${foto.id}`, erro);
+      falhas++;
+      continue;
     }
+    const resultado = await indexarRostosDaFoto(evento.id, foto.id, original);
+    if (resultado === "indexada") indexadas++;
+    else if (resultado === "falha_credencial") {
+      revalidatePath(`/painel/eventos/${evento.id}`);
+      return { ok: false, erro: ERRO_DE_CREDENCIAL };
+    } else falhas++;
   }
   const proximo = fotos.length === POR_CHAMADA ? fotos[fotos.length - 1].id : null;
   if (!proximo) revalidatePath(`/painel/eventos/${evento.id}`);
-  return { ok: true, processadas, proximo };
+  return { ok: true, indexadas, falhas, proximo };
 }

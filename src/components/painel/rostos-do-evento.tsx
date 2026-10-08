@@ -25,6 +25,7 @@ export function RostosDoEvento({
   const router = useRouter();
   const [rodando, setRodando] = useState(false);
   const [feitas, setFeitas] = useState(0);
+  const [falhas, setFalhas] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [terminou, setTerminou] = useState(false);
   if (prontas === 0) return null;
@@ -32,16 +33,21 @@ export function RostosDoEvento({
   async function cadastrar() {
     setRodando(true);
     setErro(null);
+    setTerminou(false);
     setFeitas(0);
+    setFalhas(0);
     let depoisDe: string | null = null;
     try {
       do {
         const r = await indexarRostosDoEventoAcao(eventoId, depoisDe);
         if (!r.ok) {
           setErro(r.erro);
+          // As que já entraram continuam valendo: atualiza o "x de y fotos com rosto".
+          router.refresh();
           return;
         }
-        setFeitas((n) => n + r.processadas);
+        setFeitas((n) => n + r.indexadas);
+        setFalhas((n) => n + r.falhas);
         depoisDe = r.proximo;
       } while (depoisDe);
       setTerminou(true);
@@ -80,10 +86,18 @@ export function RostosDoEvento({
             </Button>
             {terminou && !rodando && (
               <span role="status" className="text-sm text-primary">
-                Pronto: {feitas} fotos enviadas ao reconhecimento.
+                Pronto: {feitas} {feitas === 1 ? "foto enviada" : "fotos enviadas"} ao
+                reconhecimento.
               </span>
             )}
           </div>
+          {terminou && !rodando && falhas > 0 && (
+            <p role="alert" className="text-sm text-destructive">
+              {falhas}{" "}
+              {falhas === 1 ? "foto não pôde ser cadastrada" : "fotos não puderam ser cadastradas"}{" "}
+              agora. Clique de novo em alguns minutos para tentar só as que faltam.
+            </p>
+          )}
         </>
       )}
       {erro && (

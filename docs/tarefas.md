@@ -123,6 +123,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Saque em produção pelo Payouts: `X-signature` Ed25519 sobre os bytes exatos do corpo (chave em `MP_PAYOUTS_PRIVATE_KEY`, pública em `docs/mercadopago/`), headers por ambiente, status lido em `/v1/payouts/{id}/transactions` (`pago` só com `success` + `accredited`), descrições sem acento e trava `MP_PAYOUTS_HABILITADO=1`; saldo só volta com recusa clara no primeiro envio, e recusa ambígua, recusa em reenvio ou Pix devolvido ficam em `processando` com alerta `[R-alta]`
 - [x] Produção nunca mostra o link de confirmação de e-mail na tela: se o e-mail não sair, a tela avisa que o envio está indisponível e o erro vai ao log, sem o token na URL nem no log; o link na tela fica só fora da produção `[R-alta]`
 - [x] Correção: a busca por selfie falhava na Vercel porque lia `AWS_REGION`, `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`, nomes que a plataforma preenche com a região da função e credenciais que não valem na nossa conta. Agora lê só `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` e passa as chaves direto ao cliente; o log mostra só o nome do erro da AWS (nunca a selfie)
+- [x] Correção: "Cadastrar rostos que faltam" contava como feita a foto em que o reconhecimento falhou. Agora mostra quantas entraram e quantas falharam, e com credencial recusada para na primeira foto e avisa o fotógrafo para conferir as credenciais
 
 ## Em andamento
 
