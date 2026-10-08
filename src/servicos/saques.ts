@@ -187,9 +187,9 @@ export function pendenciaDeRecebimento(conta: Pick<FotografoConta, "chavePix" | 
 
 export const MENSAGEM_PENDENCIA_RECEBIMENTO = {
   sem_documento:
-    "Falta o CPF ou CNPJ: em Perfil e recebimento, informe e salve o seu CPF ou CNPJ e depois clique em “Usar meu CPF/CNPJ como chave Pix”.",
+    "Falta o CPF ou CNPJ para receber as vendas. Informe e salve o seu CPF ou CNPJ e depois clique em “Usar meu CPF/CNPJ como chave Pix”.",
   chave_pendente:
-    "Falta confirmar a chave Pix: em Perfil e recebimento, clique em “Usar meu CPF/CNPJ como chave Pix”. Só salvar o CPF/CNPJ não confirma a chave.",
+    "Falta confirmar a chave Pix para receber as vendas. Clique em “Usar meu CPF/CNPJ como chave Pix”: só salvar o CPF/CNPJ não basta.",
 };
 
 export type ResultadoSaque =
