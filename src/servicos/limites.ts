@@ -6,9 +6,12 @@ import { headers } from "next/headers";
 
 import { limparTentativas, registrarTentativa } from "@/dados";
 
-// Limite de tentativas de login e cadastro (docs/riscos.md: senha por força bruta e cadastro em
-// massa). A contagem fica no banco, para valer entre todos os servidores da Vercel. A chave é um
-// HMAC de ação + IP (e e-mail): nem o IP nem o e-mail ficam gravados.
+// Limites de tentativas (docs/riscos.md: senha por força bruta, cadastro em massa, custo da busca
+// facial, spam de e-mail e abuso de URL assinada). A contagem fica no banco (tabela
+// `tentativas`), para valer entre todos os servidores da Vercel: um contador na memória de cada
+// função não seguraria nada. A chave é um HMAC de regra + IP (ou id do usuário, ou e-mail):
+// nem o IP nem o e-mail ficam gravados. Nada do conteúdo da requisição entra na chave (a selfie
+// da busca facial, por exemplo, nunca passa por aqui).
 
 const MINUTO = 60 * 1000;
 
@@ -18,11 +21,37 @@ const REGRAS = {
   /** Por IP: quem testa muitas contas do mesmo lugar. */
   login_ip: { limite: 30, janelaMs: 15 * MINUTO },
   cadastro_ip: { limite: 5, janelaMs: 60 * MINUTO },
+  /** Reenvio do e-mail de confirmação, por usuário (cada reenvio manda um e-mail pelo Resend). */
+  email_confirmacao_usuario: { limite: 3, janelaMs: 60 * MINUTO },
+  /** Busca por selfie, por IP: cada busca custa uma chamada ao provedor de reconhecimento. */
+  busca_facial_ip: { limite: 10, janelaMs: 10 * MINUTO },
+  /** Senha de evento protegido, por IP e evento (força bruta). */
+  senha_evento_ip: { limite: 8, janelaMs: 15 * MINUTO },
+  /**
+   * Pedidos criados por IP. Cada pedido gera uma cobrança no Mercado Pago e e-mails (lembrete do
+   * Pix, carrinho abandonado) para o endereço digitado: sem limite, viraria canal de spam.
+   */
+  checkout_ip: { limite: 20, janelaMs: 60 * MINUTO },
+  /** Denúncias por IP (cada uma confirma o recebimento por e-mail ao denunciante). */
+  denuncia_ip: { limite: 5, janelaMs: 60 * MINUTO },
+  /** Pedidos de remoção de foto (LGPD) por IP; cada um também confirma por e-mail. */
+  remocao_ip: { limite: 5, janelaMs: 60 * MINUTO },
+  /**
+   * Lotes de URLs assinadas de envio (até 25 fotos cada) por fotógrafo. 300 lotes em 10 minutos
+   * são 7.500 fotos: folga para um evento grande, mas segura um script descontrolado.
+   */
+  url_envio_usuario: { limite: 300, janelaMs: 10 * MINUTO },
+  /**
+   * URLs assinadas de download por IP. 600 em 10 minutos cobre quem baixa um pacote grande foto
+   * a foto, mas não quem tenta varrer ids ou tokens.
+   */
+  url_download_ip: { limite: 600, janelaMs: 10 * MINUTO },
 } as const;
 
-type Regra = keyof typeof REGRAS;
+export type Regra = keyof typeof REGRAS;
 
-async function ipDaRequisicao() {
+/** IP de quem fez a requisição (a Vercel preenche x-forwarded-for e x-real-ip). */
+export async function ipDaRequisicao() {
   const h = await headers();
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "local";
 }
@@ -35,20 +64,31 @@ function chave(regra: Regra, valor: string) {
 }
 
 /**
+ * Conta uma tentativa da regra para o valor (IP, id do usuário...) e devolve `true` se passou do
+ * limite na janela. A tentativa recusada não entra na contagem.
+ */
+export async function limiteAtingido(regra: Regra, valor: string): Promise<boolean> {
+  const { limite, janelaMs } = REGRAS[regra];
+  const { bloqueado } = await registrarTentativa(chave(regra, valor), limite, janelaMs);
+  return bloqueado;
+}
+
+/** Mesmo que limiteAtingido, pelo IP da requisição atual (com um complemento opcional). */
+export async function limiteDoIpAtingido(regra: Regra, complemento = ""): Promise<boolean> {
+  const ip = await ipDaRequisicao();
+  return limiteAtingido(regra, complemento ? `${ip}:${complemento}` : ip);
+}
+
+/**
  * Conta uma tentativa de login. Devolve `true` se passou do limite: aí a ação recusa sem nem
  * conferir a senha.
  */
 export async function loginBloqueado(email: string): Promise<boolean> {
-  const ip = await ipDaRequisicao();
   const [porEmail, porIp] = await Promise.all([
-    registrarTentativa(
-      chave("login_email", email),
-      REGRAS.login_email.limite,
-      REGRAS.login_email.janelaMs,
-    ),
-    registrarTentativa(chave("login_ip", ip), REGRAS.login_ip.limite, REGRAS.login_ip.janelaMs),
+    limiteAtingido("login_email", email),
+    limiteDoIpAtingido("login_ip"),
   ]);
-  return porEmail.bloqueado || porIp.bloqueado;
+  return porEmail || porIp;
 }
 
 /** Login certo zera as tentativas daquele e-mail. */
@@ -57,11 +97,5 @@ export async function loginDeuCerto(email: string) {
 }
 
 export async function cadastroBloqueado(): Promise<boolean> {
-  const ip = await ipDaRequisicao();
-  const { bloqueado } = await registrarTentativa(
-    chave("cadastro_ip", ip),
-    REGRAS.cadastro_ip.limite,
-    REGRAS.cadastro_ip.janelaMs,
-  );
-  return bloqueado;
+  return limiteDoIpAtingido("cadastro_ip");
 }

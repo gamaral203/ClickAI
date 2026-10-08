@@ -37,7 +37,8 @@ const ROTULO_STATUS: Record<StatusPedido, string> = {
   pago: "Pago",
   expirado: "Prazo encerrado",
   cancelado: "Cancelado",
-  estornado: "Estornado",
+  estornado: "Reembolsado",
+  contestado: "Contestado",
 };
 
 async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "searchParams">) {
@@ -129,7 +130,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
                       <span className="font-medium">{tipo === "video" ? "Vídeo" : "Foto"}</span>
                       <span className="text-muted-foreground">{eventoTitulo}</span>
                     </span>
-                    {pedido.status === "pago" && (
+                    {pedido.status === "pago" && !pedido.reembolsoSolicitadoEm && (
                       <span className="flex flex-col items-end gap-1">
                         {/* Sem token: a rota confere a sessão do dono do pedido. */}
                         <a
@@ -166,6 +167,18 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
           ))}
         </ul>
       )}
+
+      <p className="border-t pt-6 text-sm text-muted-foreground">
+        Dúvidas sobre compras e downloads na{" "}
+        <Link href="/ajuda" className="font-medium text-primary hover:underline">
+          central de ajuda
+        </Link>
+        . Quer sair do ClicouAí?{" "}
+        <Link href="/conta/excluir" className="font-medium text-primary hover:underline">
+          Excluir minha conta
+        </Link>
+        .
+      </p>
     </>
   );
 }

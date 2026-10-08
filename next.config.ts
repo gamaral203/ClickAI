@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 // Headers de segurança aplicados a todas as rotas (ver docs/skills.md, vibe-code-security).
-// A CSP completa de scripts (com nonce) fica para depois, quando os scripts do gateway e do
-// Sentry estiverem definidos; por enquanto só as diretivas que não quebram nada.
+// A CSP completa de scripts, com nonce, é montada a cada requisição no src/proxy.ts (ver
+// src/lib/csp.ts) para as páginas. Esta aqui vale para tudo, inclusive rotas de API e arquivos
+// que o proxy não vê; quando as duas chegam, o navegador aplica as duas.
 const securityHeaders = [
   {
     key: "Content-Security-Policy",

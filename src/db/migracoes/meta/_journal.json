@@ -33,8 +33,22 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1791430907348,
-      "tag": "0004_marca_rostos_indexados",
+      "when": 1791473651799,
+      "tag": "0004_estorno_e_contestacao",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791482655626,
+      "tag": "0005_exclusao_de_conta",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791485702422,
+      "tag": "0006_marca_rostos_indexados",
       "breakpoints": true
     }
   ]

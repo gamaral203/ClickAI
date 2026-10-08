@@ -60,6 +60,7 @@ export async function semear(banco: Banco) {
       ...u,
       emailConfirmadoEm: data(u.emailConfirmadoEm),
       criadoEm: new Date(u.criadoEm),
+      excluidoEm: data(u.excluidoEm ?? null),
     })),
   );
   await banco.insert(t.fotografos).values(exemplo.fotografos);

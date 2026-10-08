@@ -811,7 +811,10 @@ export async function buscarRegrasDeDivisao(fotoIds: string[]): Promise<RegraDeD
 }
 
 function linhaDoPedido(p: PedidoInterno): typeof t.pedidos.$inferInsert {
-  const { pix, ...resto } = p;
+  // Reembolso, contestação e estorno nunca nascem com o pedido: só as funções de estorno gravam.
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  const { pix, reembolsoSolicitadoEm, contestadoEm, estornadoEm, motivoEstorno, ...resto } = p;
+  /* eslint-enable @typescript-eslint/no-unused-vars */
   return {
     ...resto,
     acessoExpiraEm: deIso(p.acessoExpiraEm),
@@ -1173,7 +1176,8 @@ export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Prom
  */
 export async function versaoDaSessao(usuarioId: string): Promise<string | null> {
   const u = await usuarioPorId(usuarioId);
-  if (!u) return null;
+  // Conta excluída: nenhum cookie vale mais, nem um assinado antes da exclusão.
+  if (!u || u.excluidoEm) return null;
   return createHash("sha256")
     .update(`${u.senhaHash ? "com-senha" : "sem-senha"}|${u.googleId ?? ""}`)
     .digest("base64url")
@@ -1328,3 +1332,5 @@ export * from "./crescimento";
 export * from "./rostos";
 export * from "./notificacoes";
 export * from "./relatorio";
+export * from "./estornos";
+export * from "./exclusao";

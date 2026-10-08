@@ -1,5 +1,5 @@
 {
-  "id": "ef31a747-6d55-4b29-b863-b2bcd9802cfa",
+  "id": "7cc20ed3-d470-4f4c-822e-7c31ec4c3f78",
   "prevId": "5dd9a1e7-54c4-4716-ab9b-369516bdc9b1",
   "version": "7",
   "dialect": "postgresql",
@@ -1270,12 +1270,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
-        },
-        "rostos_indexados_em": {
-          "name": "rostos_indexados_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -1552,6 +1546,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "estorno_de": {
+          "name": "estorno_de",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1590,6 +1590,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "lancamentos_estorno_de_index": {
+          "name": "lancamentos_estorno_de_index",
+          "columns": [
+            {
+              "expression": "estorno_de",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1616,6 +1631,15 @@
           "tableFrom": "lancamentos",
           "tableTo": "saques",
           "columnsFrom": ["saque_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lancamentos_estorno_de_lancamentos_id_fk": {
+          "name": "lancamentos_estorno_de_lancamentos_id_fk",
+          "tableFrom": "lancamentos",
+          "tableTo": "lancamentos",
+          "columnsFrom": ["estorno_de"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -2409,6 +2433,37 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reembolso_solicitado_em": {
+          "name": "reembolso_solicitado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reembolso_solicitado_por": {
+          "name": "reembolso_solicitado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contestado_em": {
+          "name": "contestado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estornado_em": {
+          "name": "estornado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "motivo_estorno": {
+          "name": "motivo_estorno",
+          "type": "motivo_estorno",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "criado_em": {
           "name": "criado_em",
           "type": "timestamp with time zone",
@@ -2487,6 +2542,15 @@
           "columnsFrom": ["cupom_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pedidos_reembolso_solicitado_por_usuarios_id_fk": {
+          "name": "pedidos_reembolso_solicitado_por_usuarios_id_fk",
+          "tableFrom": "pedidos",
+          "tableTo": "usuarios",
+          "columnsFrom": ["reembolso_solicitado_por"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2873,6 +2937,11 @@
       "schema": "public",
       "values": ["nenhum", "valor", "quantidade"]
     },
+    "public.motivo_estorno": {
+      "name": "motivo_estorno",
+      "schema": "public",
+      "values": ["reembolso", "chargeback"]
+    },
     "public.ordenacao": {
       "name": "ordenacao",
       "schema": "public",
@@ -2901,7 +2970,7 @@
     "public.status_pedido": {
       "name": "status_pedido",
       "schema": "public",
-      "values": ["pendente", "pago", "expirado", "cancelado", "estornado"]
+      "values": ["pendente", "pago", "expirado", "cancelado", "estornado", "contestado"]
     },
     "public.status_saque": {
       "name": "status_saque",

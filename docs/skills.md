@@ -29,7 +29,7 @@ Arquivos:
 | Tokens de auth | O Better Auth já usa cookie `HttpOnly`. Não guardar token em `localStorage`. |
 | Upload | Vale direto: tipo real por magic bytes no job, limite de tamanho, reprocessar com Sharp, nome do arquivo é o UUID da foto. |
 | Supabase / RLS | O banco só é acessado pelo servidor via Drizzle, sem chave pública no navegador, então RLS não é obrigatório. Se o Supabase for escolhido, nunca expor a `service_role` e nunca usar o cliente do Supabase no navegador para dados. |
-| Rate limits | Vale para login, cadastro, envio de e-mail, geração de URL de upload e de download. |
+| Rate limits | Vale para login, cadastro, envio de e-mail, busca facial, geração de URL de upload e de download. Contados no banco por `src/servicos/limites.ts` (nunca em memória: cada requisição pode cair num servidor diferente). |
 | Budget caps (IA) | Não se aplica no MVP (sem chamadas de IA). Passa a valer se entrar busca por rosto. Configurar alertas de cobrança na Vercel, R2 e Inngest. |
 | Injections | Drizzle já parametriza as queries. Validar toda entrada com Zod. Não usar `sql.raw` com dado do usuário. |
 | Auth e autorização | Vale direto: cada rota e cada Server Action confere se o usuário pode mexer naquele evento, foto ou pedido. |

@@ -8,6 +8,7 @@ import {
   rostosDeExemploDoEvento,
 } from "@/dados";
 import { BuscaFacialDesligada, buscarFotosPorSelfie } from "@/lib/reconhecimento";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import { ofertaDePacote } from "@/servicos/pacotes";
 
 // Busca por selfie (docs/arquitetura.md, "Galeria e busca"). A selfie é dado biométrico
@@ -17,19 +18,6 @@ import { ofertaDePacote } from "@/servicos/pacotes";
 
 /** O navegador já reduz a selfie; 5 MB é folga para quem envia direto. */
 const TAMANHO_MAXIMO = 5 * 1024 * 1024;
-/** Tentativas por IP numa janela de 10 minutos (docs/riscos.md, falso positivo e custo). */
-const LIMITE_TENTATIVAS = 10;
-const JANELA_MS = 10 * 60 * 1000;
-const tentativas = new Map<string, number[]>();
-
-function limiteAtingido(ip: string) {
-  const agora = Date.now();
-  const recentes = (tentativas.get(ip) ?? []).filter((t) => agora - t < JANELA_MS);
-  recentes.push(agora);
-  tentativas.set(ip, recentes);
-  return recentes.length > LIMITE_TENTATIVAS;
-}
-
 /** Confere o tipo pelo conteúdo (JPEG, PNG ou WebP), não pela extensão nem pelo navegador. */
 function ehImagem(bytes: Uint8Array) {
   const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -53,8 +41,9 @@ function resposta(corpo: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (limiteAtingido(ip)) {
+  // Limite por IP no banco (vale entre todos os servidores), contado antes de ler o corpo: a
+  // selfie não entra na chave nem é lida se a pessoa passou do limite.
+  if (await limiteDoIpAtingido("busca_facial_ip")) {
     return resposta(
       { erro: "Muitas buscas seguidas. Espere alguns minutos e tente de novo." },
       429,

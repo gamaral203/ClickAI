@@ -10,7 +10,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
 | Mercado Pago | Pix, cartão e saque | Agora (credenciais de teste) | Saque em produção só com a chave pública cadastrada no Mercado Pago e `MP_PAYOUTS_HABILITADO=1` (item 3) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
-| Banco (Supabase) | Dados | Agora | Pelo Marketplace da Vercel (Storage → Supabase), região São Paulo; cria `POSTGRES_URL` (pooler) e `POSTGRES_URL_NON_POOLING` (direta) no projeto. O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
+| Banco (Supabase) | Dados | Agora | Região São Paulo. A produção usa `DATABASE_URL` (pooler, porta 6543) e `DATABASE_URL_DIRETA` (direta, porta 5432), cadastradas à mão na Vercel; `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING` são a alternativa, criadas pela integração do Marketplace (Storage → Supabase). O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
 | Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
 | AWS | Reconhecimento facial (Rekognition) | Fase 12 | Região `sa-east-1` (São Paulo). Usuário IAM só com as permissões do `.env.example`; chaves em `REKOGNITION_*`, nunca em `AWS_*` (item 3) |
 | WhatsApp (Meta ou parceiro) | Entrega pelo WhatsApp | Fase 13 | Decisão em aberto |
@@ -25,7 +25,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 
 | Variável | O que é |
 |---|---|
-| `DATABASE_URL` ou `POSTGRES_URL` | Banco (a integração do Supabase cria `POSTGRES_URL`). Sem ela, o build de produção falha de propósito: o banco em memória seria um por servidor e os pedidos Pix sumiriam |
+| `DATABASE_URL` e `DATABASE_URL_DIRETA` (ou `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`) | Banco: a produção usa as duas primeiras, cadastradas à mão; as `POSTGRES_*` são as que a integração do Supabase cria. Sem ela, o build de produção falha de propósito: o banco em memória seria um por servidor e os pedidos Pix sumiriam |
 | `APP_URL` | Endereço do site, ex. `https://clicouai.com.br`. Usado nos links, no QR Code, no login com Google e nas lojas |
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` |
@@ -91,7 +91,7 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 
 ## 6. Depois do deploy
 
-- **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
+- **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` nos eventos "Order (Mercado Pago)" e "Chargebacks" (reembolso e chargeback de order chegam como `type: "order"`).
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
 - **Busca por selfie:** as fotos enviadas antes de configurar o Rekognition (ou em que a indexação falhou) não aparecem na busca. Em cada evento do painel, o quadro "Busca por selfie" mostra quantas fotos têm rosto cadastrado e quantas ainda não passaram pelo reconhecimento, com o botão "Cadastrar rostos que faltam" (só as que não passaram; foto sem rosto não volta) e "Refazer o cadastro de todas" (apaga os rostos do evento e cadastra de novo; para apagar também da coleção, o usuário IAM precisa de `rekognition:DeleteFaces`).
 - **Job de pedidos:** `GET /api/jobs/pedidos` (expira o Pix vencido, manda o lembrete do Pix 20 minutos depois do pedido e o de carrinho) roda a cada 10 minutos pelo GitHub Actions ([`.github/workflows/jobs.yml`](../.github/workflows/jobs.yml)). Cadastre no repositório, em **Settings → Secrets and variables → Actions**, os segredos `APP_URL` e `CRON_SECRET` (o mesmo da Vercel). O cron da Vercel em `vercel.json` roda uma vez por dia, só como reserva (no plano Hobby não dá para rodar mais vezes). Para testar na hora: **Actions → Job de pedidos → Run workflow**.

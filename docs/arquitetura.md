@@ -136,7 +136,7 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, admin), senha_hash (opcional: quem só usa Google não tem), google_id (opcional, único), email_confirmado_em, criado_em | — |
+| `usuarios` | id, nome, email, telefone (opcional), papel (cliente, fotografo, admin), senha_hash (opcional: quem só usa Google não tem), google_id (opcional, único), email_confirmado_em, criado_em, excluido_em (opcional: conta excluída pelo próprio usuário, com os dados pessoais anonimizados) | — |
 | `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, capa, redes_sociais, cpf_cnpj, chave_pix (o próprio CPF/CNPJ, confirmado), comissao_pct | usuarios (1:1) |
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada), liberado_em, filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
@@ -157,7 +157,7 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `pedidos` | id, cliente_id (opcional), email_comprador, nome_comprador, whatsapp (opcional), aceita_whatsapp, token_acesso_hash, acesso_expira_em, cupom_id (opcional), subtotal_centavos, desconto_centavos, total_centavos, metodo (pix, cartao), status (pendente, pago, expirado, cancelado, estornado), expira_em, gateway_id, pix_copia_e_cola, pix_qr_code_base64, pago_em, lembrete_enviado_em | usuarios (N:1, opcional), cupons |
+| `pedidos` | id, cliente_id (opcional), email_comprador, nome_comprador, whatsapp (opcional), aceita_whatsapp, token_acesso_hash, acesso_expira_em, cupom_id (opcional), subtotal_centavos, desconto_centavos, total_centavos, metodo (pix, cartao), status (pendente, pago, expirado, cancelado, estornado, contestado), expira_em, gateway_id, pix_copia_e_cola, pix_qr_code_base64, pago_em, lembrete_enviado_em, reembolso_solicitado_em, reembolso_solicitado_por, contestado_em, estornado_em, motivo_estorno (reembolso, chargeback) | usuarios (N:1, opcional), cupons |
 | `itens_pedido` | id, pedido_id, foto_id, fotografo_id (quem recebe), preco_centavos, desconto_centavos, valor_fotografo_centavos, valor_dono_evento_centavos, via_pacote | pedidos, fotos, fotografos |
 | `cupons` | id, fotografo_id, codigo, tipo (percentual, valor, fotos_gratis), valor, usos_max (opcional), usos, inicio_em, expira_em (opcional), minimo_tipo (nenhum, valor, quantidade), minimo_valor, todos_eventos, ativo | fotografos (N:1) |
 | `cupons_eventos` | cupom_id, evento_id | cupons, eventos |
@@ -169,7 +169,7 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 
 | Tabela | Campos principais | Relaciona com |
 |---|---|---|
-| `lancamentos` | id, fotografo_id, item_pedido_id, valor_centavos (bruto; negativo em estorno), disponivel_em (venda + 30 dias), antecipavel_em (venda + 1 dia), saque_id (opcional) | fotografos, itens_pedido, saques |
+| `lancamentos` | id, fotografo_id, item_pedido_id, valor_centavos (bruto; negativo em estorno), disponivel_em (venda + 30 dias), antecipavel_em (venda + 1 dia), saque_id (opcional), estorno_de (opcional, único: o lançamento que este desfaz) | fotografos, itens_pedido, saques, lancamentos |
 | `saques` | id, fotografo_id, antecipado, bruto_centavos, taxa_centavos, liquido_centavos, chave_pix, gateway_id (payout), status (processando, pago, falhou), criado_em, pago_em | fotografos (N:1) |
 
 **Crescimento do fotógrafo**
@@ -266,7 +266,7 @@ O pagamento só é considerado confirmado quando o servidor lê a order na API d
 
 **Painel de gestão (`/admin`)**
 
-Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da plataforma em taxas, o que ainda é devido aos fotógrafos e uma linha por vendedor), todas as vendas, o histórico de todos os saques (com a chave Pix mascarada) e os usuários com o papel de cada um.
+Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da plataforma em taxas, o que ainda é devido aos fotógrafos e uma linha por vendedor), todas as vendas (com reembolso e a lista de estornos e contestações), o histórico de todos os saques (com a chave Pix mascarada) e os usuários com o papel de cada um.
 
 **Busca por selfie**
 
@@ -288,6 +288,21 @@ Um job de hora em hora marca como `expirado` os pedidos `pendente` com `expira_e
 
 1. Na tela de confirmação, na área "Minhas compras" ou pelo link do e-mail ou do WhatsApp, o cliente clica em baixar.
 2. O servidor (`/api/download/[itemId]`) confere se o item pertence a um pedido pago daquele cliente (ou do token do convidado), registra em `downloads` e redireciona para uma URL assinada de 15 minutos do original no bucket privado, gerada com `Content-Disposition` de anexo e o nome `{evento}-{arquivo}.jpg`. O original não passa pelo Next.js. Itens com `excluida_em` preenchido continuam disponíveis para quem comprou. Os originais dos dados de exemplo (imagens do picsum) só baixam fora da produção.
+
+**Estorno e chargeback**
+
+O status vem sempre da order lida na API do Mercado Pago (`GET /v1/orders/{id}`), nunca do corpo do webhook nem do navegador; sem `MP_ACCESS_TOKEN`, o gateway simulado conclui o reembolso na hora. Código: `src/servicos/estornos.ts` e `src/dados/estornos.ts`.
+
+1. Reembolso pelo gestor: em `/admin/vendas`, "Reembolsar" num pedido pago abre a confirmação, e o gestor digita o valor do pedido. O servidor confere o papel, marca `reembolso_solicitado_em` (os downloads param na hora) e chama `POST /v1/orders/{id}/refund` com o corpo vazio (reembolso total; o valor nunca vem do navegador) e a chave de idempotência fixa `reembolso-<pedido>`, depois lê a order. Repetir o clique repete a mesma chamada e não devolve duas vezes; "já reembolsada" ou "em andamento" seguem para a leitura. Se o Mercado Pago falhar, o pedido continua pago, com o reembolso pedido e os downloads parados, até o gestor tentar de novo. Não fazemos reembolso parcial.
+2. Webhook: reembolso (`order.refunded`) e chargeback (`order.charged_back`) chegam como `type: "order"` com o id da order, pelo mesmo caminho do pagamento (assinatura conferida, order lida na API, referência conferida). Eventos a ligar no painel do Mercado Pago: "Order (Mercado Pago)" e "Chargebacks".
+3. Leitura da order: `refunded`, ou `processed` com `refunded`/`partially_refunded` → reembolsada (parcial feito no painel do Mercado Pago conta como total: a plataforma não repassa o que já devolveu). `charged_back` + `in_process` (ou detalhe desconhecido) → disputa aberta. `charged_back` + `settled` ou `reimbursed` → disputa perdida (a documentação do Mercado Pago descreve os dois como valor devolvido ao comprador).
+4. Efeitos, numa transação e só a partir dos status esperados (idempotente, inclusive com avisos simultâneos):
+   - reembolsada ou disputa perdida → `estornado` (final), com `estornado_em` e `motivo_estorno`;
+   - disputa aberta → `contestado`. Conservador: os downloads param e os lançamentos já são estornados na abertura, porque o Mercado Pago retém o valor da disputa;
+   - cada lançamento positivo ainda não desfeito ganha um lançamento negativo com `estorno_de` (índice único: um lançamento é desfeito no máximo uma vez). Se a venda ainda não entrou em saque, o negativo tem o mesmo prazo e os dois se anulam. Se já entrou num saque (pago ou em processamento), o saque nunca é tocado: o negativo fica disponível na hora, é abatido do próximo saque (normal ou antecipado), e o saldo pode ficar negativo até lá;
+   - o download só sai de pedido `pago` sem reembolso pedido.
+5. Disputa ganha: não é automática, porque um aviso antigo de "paga" processado depois do aviso do chargeback restauraria por engano. O gestor clica em "Contestação ganha: restaurar"; o servidor lê a order na hora e só restaura com `processed` + `accredited` e o valor batendo. O pedido volta a `pago` e cada estorno ganha o lançamento positivo de volta (também com `estorno_de`).
+6. O caso aparece em `/admin/vendas` ("Estornos e contestações": reembolso aguardando, disputa aberta, reembolsado, chargeback perdido) e nos números da visão geral; o fotógrafo vê o estorno no extrato.
 
 **Acesso às compras: cliente logado e convidado**
 
@@ -333,6 +348,15 @@ Todo pagamento cai na conta Mercado Pago da plataforma. O fotógrafo saca pelo p
 1. Em qualquer evento ou foto, o menu ⋮ abre o formulário: motivo, descrição, anexos (enviados ao bucket privado por URL assinada) e contato.
 2. O sistema confirma o recebimento por e-mail ao denunciante.
 3. A equipe analisa no painel de admin. Se procedente, avisa o fotógrafo e o dono do evento e pode despublicar o evento (status `revisao`, que só a equipe tira) ou pedir correção; se improcedente, avisa as partes.
+4. **Remoção de foto (LGPD):** quem aparece numa foto pede a remoção em `/remover-foto`, colando o link da foto (`/fotos/<id>`) ou do evento (`/eventos/<endereço>`). O pedido vira uma denúncia com o motivo `privacidade` e cai na mesma fila do admin; procedente tira a foto da galeria (exclusão lógica). Limite de 5 pedidos por IP por hora, contado na tabela `tentativas` (chave em HMAC, sem o IP). O e-mail do encarregado (`NEXT_PUBLIC_EMAIL_PRIVACIDADE`) aparece na política de privacidade, nos termos e nessa página; sem ele, as páginas apontam para `/remover-foto`.
+
+**Exclusão de conta**
+
+1. O próprio usuário (cliente ou fotógrafo) exclui a conta em `/conta/excluir`, confirmando com a senha (com o mesmo limite de tentativas do login) ou, se só entra com o Google, digitando o e-mail. Gestor não se exclui por aqui.
+2. O fotógrafo só exclui sem saldo a sacar (líquido de pelo menos R$ 1,00, o mínimo do Pix; saldo menor nunca seria sacável e a tela avisa que ele abre mão do valor), sem saque em `processando` (conferido antes no Mercado Pago) e sem pedido pendente com fotos dele. Cliente com pedido pendente também espera ele vencer ou ser pago.
+3. Nada que tenha valor fiscal é apagado: pedidos, itens, lançamentos e saques ficam. Os dados pessoais são trocados por marcadores numa transação só (`src/dados/exclusao.ts`): nome vira "Conta excluída", e-mail vira `excluida-<id>@clicouai.invalid`, telefone, senha, Google e confirmações saem; os pedidos dele perdem nome, e-mail e WhatsApp; mensagens desses pedidos perdem destinatário e texto; downloads perdem o IP.
+4. Fotógrafo: perfil público apagado ("Fotógrafo removido", endereço novo), eventos arquivados, fotos (dele ou dos eventos dele) com exclusão lógica, rostos e números apagados do banco e da coleção do Rekognition, cupons desligados, loja desativada (sem domínio próprio, GA e GTM), modelos de evento apagados. O CPF/CNPJ fica, com o histórico de saques (obrigação legal, LGPD art. 16, I). Quem comprou continua baixando.
+5. A versão da sessão passa a ser `null` para conta excluída: todo cookie de sessão, em qualquer aparelho, deixa de valer na hora.
 
 ## Segurança, LGPD e backups
 
@@ -344,7 +368,9 @@ O original é o ativo que se vende, então a regra central é: nenhum original f
 - **Autorização:** fotógrafo só vê e edita os próprios eventos e os eventos em que é colaborador (colaborador não mexe em preço nem em configurações); cliente só baixa o que comprou.
 - **Selfie (dado biométrico):** tratada como dado pessoal sensível pela LGPD. Consentimento explícito antes da captura, envio ao provedor só para a busca, nada gravado em banco, arquivo ou log, e contrato com o provedor como operador de dados. Rate limit na rota de busca.
 - **Loja própria:** sem HTML ou script do fotógrafo; cookies de sessão presos ao domínio principal.
-- **LGPD:** banco na região São Paulo, política de privacidade publicada com o encarregado (DPO), opção de excluir conta, coleta mínima de dados (CPF/CNPJ só do fotógrafo, telefone só com consentimento para o WhatsApp). Fotos com pessoas são dado pessoal: o canal de denúncia também recebe pedidos de remoção.
+- **Limites de tentativas:** contados no banco (tabela `tentativas`, chave HMAC de regra + IP ou id do usuário, sem guardar IP, e-mail nem conteúdo), para valer entre todos os servidores: login, cadastro, reenvio do e-mail de confirmação, busca facial, senha do evento, denúncia, pedido de remoção de foto, criação de pedido e geração de URLs assinadas de envio e de download. As regras ficam em `src/servicos/limites.ts`.
+- **CSP:** o `proxy.ts` gera um nonce por requisição e manda a política de `src/lib/csp.ts` (`script-src` com nonce e `'strict-dynamic'`, sem `'unsafe-inline'` nem `eval` na produção). Por isso o layout raiz espera a requisição (`connection()` com `instant = false`): com nonce, a casca estática do Cache Components não serve, porque os scripts prerenderizados no build não teriam o nonce. Os dados continuam em `"use cache"`. Script de terceiro novo precisa entrar na política (hoje: Brick do Mercado Pago, Sentry, GA/GTM das lojas).
+- **LGPD:** banco na região São Paulo, política de privacidade, termos de uso e política de conteúdo publicados (rascunhos até a revisão jurídica), com o encarregado (DPO); exclusão de conta pelo próprio usuário, com anonimização (ver **Exclusão de conta**); coleta mínima de dados (CPF/CNPJ só do fotógrafo, telefone só com consentimento para o WhatsApp). Fotos com pessoas são dado pessoal: `/remover-foto` recebe os pedidos de remoção, na fila das denúncias.
 - **Backups:** backup diário automático do Postgres com recuperação para um ponto no tempo (incluso nos planos pagos do Supabase e do Neon); originais no R2 com uma cópia em outro provedor (ex.: Backblaze B2) quando o volume justificar.
 - **Cartão:** os dados do cartão nunca passam pelo nosso servidor; o Card Payment Brick do Mercado Pago coleta e devolve só um token de uso único.
 - **Saque:** só para a chave Pix do próprio CPF/CNPJ do fotógrafo; valor calculado no servidor; idempotente pelo id do saque.
@@ -356,7 +382,7 @@ Um único projeto Next.js, com as regras de negócio separadas das páginas para
 
 ```
 src/
-  proxy.ts                  # resolve o host das lojas próprias
+  proxy.ts                  # resolve o host das lojas próprias e manda a CSP com nonce
   app/
     (publico)/              # home, categorias, eventos, página do item, busca
     (cliente)/              # carrinho, checkout, minhas compras
@@ -406,7 +432,7 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (Fotto: só eventos reais, banco de imagens proibido)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
 - [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
-- [x] Banco gerenciado: Supabase (troca do Neon em 07/10/2026), criado pelo Marketplace da Vercel na região São Paulo (`sa-east-1`). Usado só como Postgres: sem o login, o storage nem a API REST dele (usamos os nossos e o R2). Como o Supabase expõe o schema `public` pela API REST com a chave pública, toda tabela tem RLS ligado (`.enableRLS()` no schema, sem políticas) e os papéis `anon` e `authenticated` não têm acesso (migração 0002); o app conecta como dono das tabelas, que não passa pelo RLS. O app usa a URL do pooler em modo transaction (`POSTGRES_URL`, porta 6543, driver node-postgres, sem prepared statements com nome e com uma consulta por vez em cada conexão: o pooler trava quando recebe a próxima consulta antes da resposta da anterior, o que o postgres.js fazia com consultas em paralelo); as migrações usam a conexão direta (`POSTGRES_URL_NON_POOLING`). No desenvolvimento local e nos testes, sem `DATABASE_URL`, o app usa o PGlite (Postgres em memória) com as mesmas migrações.
+- [x] Banco gerenciado: Supabase (troca do Neon em 07/10/2026), na região São Paulo (`sa-east-1`). Usado só como Postgres: sem o login, o storage nem a API REST dele (usamos os nossos e o R2). Como o Supabase expõe o schema `public` pela API REST com a chave pública, toda tabela tem RLS ligado (`.enableRLS()` no schema, sem políticas) e os papéis `anon` e `authenticated` não têm acesso (migração 0002); o app conecta como dono das tabelas, que não passa pelo RLS. O app usa a URL do pooler em modo transaction (`DATABASE_URL` na produção, ou `POSTGRES_URL` da integração; porta 6543, driver node-postgres, sem prepared statements com nome e com uma consulta por vez em cada conexão: o pooler trava quando recebe a próxima consulta antes da resposta da anterior, o que o postgres.js fazia com consultas em paralelo); as migrações usam a conexão direta (`DATABASE_URL_DIRETA`, ou `POSTGRES_URL_NON_POOLING` da integração). No desenvolvimento local e nos testes, sem `DATABASE_URL`, o app usa o PGlite (Postgres em memória) com as mesmas migrações.
 - [x] Região do Amazon Rekognition: `sa-east-1` (São Paulo), que tem `IndexFaces` e `SearchFacesByImage`; a selfie e os rostos indexados, dado biométrico, não saem do Brasil (LGPD). Cota padrão nessa região: 5 chamadas por segundo para cada uma dessas operações (08/10/2026)
 - [ ] Reconhecimento numérico: escolher o provedor de OCR para os números de peito.
 - [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?

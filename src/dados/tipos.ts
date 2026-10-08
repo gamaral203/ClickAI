@@ -29,6 +29,8 @@ export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
   /** Identificador da conta Google (`sub`), nunca muda mesmo se o e-mail mudar. */
   googleId: string | null;
   emailConfirmadoEm: string | null;
+  /** Conta excluída pelo próprio usuário (dados anonimizados). */
+  excluidoEm?: string | null;
 };
 
 export type RedesSociais = {
@@ -248,7 +250,16 @@ export type Pacote = {
 };
 
 export type MetodoPagamento = "pix" | "cartao";
-export type StatusPedido = "pendente" | "pago" | "expirado" | "cancelado" | "estornado";
+export type StatusPedido =
+  | "pendente"
+  | "pago"
+  | "expirado"
+  | "cancelado"
+  | "estornado"
+  /** Chargeback em disputa (docs/arquitetura.md, "Estorno e chargeback"). */
+  | "contestado";
+
+export type MotivoEstorno = "reembolso" | "chargeback";
 
 export type Pedido = {
   id: string;
@@ -283,6 +294,11 @@ export type PedidoInterno = Pedido & {
   gatewayId: string | null;
   pix: CobrancaPix | null;
   lembreteEnviadoEm: string | null;
+  /** O gestor pediu o reembolso: os downloads param na hora (docs/arquitetura.md). */
+  reembolsoSolicitadoEm?: string | null;
+  contestadoEm?: string | null;
+  estornadoEm?: string | null;
+  motivoEstorno?: MotivoEstorno | null;
 };
 
 /**
@@ -340,6 +356,8 @@ export type Lancamento = {
   /** A partir daqui pode entrar no saque antecipado (1 dia depois da venda). */
   antecipavelEm: string;
   saqueId: string | null;
+  /** Lançamento que este desfaz (estorno ou volta de estorno); vazio na venda. */
+  estornoDe?: string | null;
 };
 
 export type StatusSaque = "processando" | "pago" | "falhou";
