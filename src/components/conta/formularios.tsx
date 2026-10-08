@@ -53,7 +53,10 @@ export function FormularioEntrar({ proximo }: { proximo?: string }) {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Ainda não tem conta?{" "}
-        <Link href="/cadastro" className="font-medium text-primary hover:underline">
+        <Link
+          href={proximo ? `/cadastro?proximo=${encodeURIComponent(proximo)}` : "/cadastro"}
+          className="font-medium text-primary hover:underline"
+        >
           Criar conta
         </Link>
       </p>
@@ -61,11 +64,23 @@ export function FormularioEntrar({ proximo }: { proximo?: string }) {
   );
 }
 
-export function FormularioCadastro({ papelInicial }: { papelInicial: "cliente" | "fotografo" }) {
+export function FormularioCadastro({
+  papelInicial,
+  proximo,
+}: {
+  papelInicial: "cliente" | "fotografo";
+  proximo?: string;
+}) {
   const [estado, acao, enviando] = useActionState(cadastrarAcao, inicial);
   const erros = estado.erros ?? {};
   return (
     <form action={acao} noValidate className="flex flex-col gap-4">
+      {proximo && <input type="hidden" name="proximo" value={proximo} />}
+      {estado.erro && (
+        <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-destructive">
+          {estado.erro}
+        </p>
+      )}
       <fieldset className="grid gap-3 sm:grid-cols-2">
         <legend className="mb-2 text-sm font-medium">Tipo de conta</legend>
         {(

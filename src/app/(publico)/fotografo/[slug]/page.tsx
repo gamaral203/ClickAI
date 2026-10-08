@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Camera, Globe, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { CartaoEvento } from "@/components/galeria/cartao-evento";
+import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { buscarFotografoPublico, listarEventosPublicados, type Fotografo } from "@/dados";
+import { buscarFotografoPublico, buscarLojaDoFotografo, listarEventosPublicados } from "@/dados";
+import { corDoTexto } from "@/lib/loja";
 import { FORMATO_SLUG } from "@/lib/slug";
 
 // Link do fotógrafo: /fotografo/<endereço>. Todo fotógrafo tem o seu, sem configurar nada, para
@@ -45,26 +47,41 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
   if (!fotografo) notFound();
   const { busca } = await searchParams;
   const termo = typeof busca === "string" ? busca.trim().slice(0, 100) : "";
-  const eventos = await listarEventosPublicados({
-    fotografoId: fotografo.id,
-    ...(termo && { busca: termo }),
-  });
+  const [eventos, salva] = await Promise.all([
+    listarEventosPublicados({
+      fotografoId: fotografo.id,
+      ...(termo && { busca: termo }),
+    }),
+    buscarLojaDoFotografo(fotografo.id),
+  ]);
+  // O que o fotógrafo configurou em Minha loja (nome, descrição e cores) vale aqui também.
+  const loja = salva?.ativa ? salva : null;
+  const corPrimaria = loja?.corPrimaria ?? "#2362FE";
+  const corSecundaria = loja?.corSecundaria ?? "#BCFA34";
 
   return (
-    <>
-      <header className="flex flex-col gap-3 rounded-2xl bg-primary p-6 text-primary-foreground sm:p-8">
-        <span
-          aria-hidden="true"
-          className="flex size-14 items-center justify-center rounded-full bg-highlight text-xl font-bold text-highlight-foreground"
-        >
-          {fotografo.nomePublico.trim().charAt(0).toUpperCase()}
-        </span>
-        <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
-          {fotografo.nomePublico}
-        </h1>
-        {fotografo.bio && <p className="max-w-2xl text-lg opacity-90">{fotografo.bio}</p>}
-        <Redes fotografo={fotografo} />
-      </header>
+    <div
+      className="contents"
+      style={
+        loja
+          ? ({
+              "--primary": corPrimaria,
+              "--primary-foreground": corDoTexto(corPrimaria),
+              "--ring": corPrimaria,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      <CabecalhoLoja
+        nome={loja?.nome ?? fotografo.nomePublico}
+        descricao={loja?.descricao ?? fotografo.bio}
+        capa={fotografo.capa}
+        logo={fotografo.fotoPerfil}
+        corPrimaria={corPrimaria}
+        corSecundaria={corSecundaria}
+        redes={fotografo.redesSociais}
+        className="rounded-2xl"
+      />
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -109,38 +126,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
           </div>
         )}
       </section>
-    </>
-  );
-}
-
-function Redes({ fotografo }: { fotografo: Fotografo }) {
-  const { instagram, site } = fotografo.redesSociais;
-  // Só https: um "javascript:" salvo no perfil nunca vira link.
-  const siteSeguro = site && /^https:\/\//i.test(site) ? site : null;
-  if (!instagram && !siteSeguro) return null;
-  return (
-    <div className="flex flex-wrap gap-4 text-sm font-medium">
-      {instagram && (
-        <a
-          href={`https://instagram.com/${encodeURIComponent(instagram.replace(/^@/, ""))}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 underline-offset-4 hover:underline"
-        >
-          <Camera aria-hidden="true" className="size-4" />@{instagram.replace(/^@/, "")}
-        </a>
-      )}
-      {siteSeguro && (
-        <a
-          href={siteSeguro}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 underline-offset-4 hover:underline"
-        >
-          <Globe aria-hidden="true" className="size-4" />
-          {new URL(siteSeguro).host}
-        </a>
-      )}
     </div>
   );
 }

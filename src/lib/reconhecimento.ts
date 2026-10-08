@@ -18,8 +18,24 @@ import {
   SearchFacesByImageCommand,
 } from "@aws-sdk/client-rekognition";
 
-/** Semelhança mínima (0–100). Alta, para não mostrar fotos de outra pessoa (docs/riscos.md). */
-const SEMELHANCA_MINIMA = 95;
+/**
+ * Semelhança mínima (0–100) para a foto entrar no resultado. Alta, para não mostrar fotos de
+ * outra pessoa (docs/riscos.md), mas não tanto: em foto de evento (rosto pequeno, de lado, suado,
+ * com óculos) a mesma pessoa costuma dar entre 85 e 95, e 95 escondia fotos certas. Ajustável por
+ * REKOGNITION_SEMELHANCA, entre 80 e 99.
+ */
+function semelhancaMinima() {
+  const valor = Number(process.env.REKOGNITION_SEMELHANCA);
+  return Number.isFinite(valor) && valor >= 80 && valor <= 99 ? valor : 90;
+}
+
+/** Sem a AWS em produção a busca não pode cair nos dados de exemplo: avisa que está desligada. */
+export class BuscaFacialDesligada extends Error {
+  constructor() {
+    super("Busca por selfie não configurada");
+    this.name = "BuscaFacialDesligada";
+  }
+}
 
 type ConfigRekognition = { regiao: string; prefixo: string };
 
@@ -47,12 +63,21 @@ function colecao(config: ConfigRekognition, eventoId: string) {
   return `${config.prefixo}-${eventoId}`;
 }
 
+/** Onde está o rosto na foto, em frações de 0 a 1 (canto superior esquerdo, largura e altura). */
+export type CaixaDoRosto = { esquerda: number; topo: number; largura: number; altura: number };
+
+export type RostoIndexado = { rostoId: string; caixa: CaixaDoRosto | null };
+
 /**
- * Indexa os rostos de uma foto do evento. Chamado pelo job de processamento quando a foto
- * fica pronta (docs/tarefas.md, Fase 12); o `ExternalImageId` é o id da foto, que volta na
- * busca. Devolve os ids dos rostos para gravar na tabela `rostos`.
+ * Indexa os rostos de uma foto do evento. Chamado quando a foto fica pronta, no fim do
+ * processamento do envio (src/servicos/envios.ts); o `ExternalImageId` é o id da foto, que
+ * volta na busca. Devolve o id e a posição de cada rosto, para gravar na tabela `rostos`.
  */
-export async function indexarRostos(eventoId: string, fotoId: string, imagem: Uint8Array) {
+export async function indexarRostos(
+  eventoId: string,
+  fotoId: string,
+  imagem: Uint8Array,
+): Promise<RostoIndexado[]> {
   const config = configRekognition();
   if (!config) return [];
   const rk = rekognition(config);
@@ -68,28 +93,42 @@ export async function indexarRostos(eventoId: string, fotoId: string, imagem: Ui
       Image: { Bytes: imagem },
       ExternalImageId: fotoId,
       DetectionAttributes: [],
-      MaxFaces: 50,
-      QualityFilter: "AUTO",
+      MaxFaces: 100,
+      // "LOW" guarda também rostos menores, de lado ou tremidos, comuns em corrida e festa; o
+      // filtro "AUTO" descartava boa parte deles e a pessoa não se achava.
+      QualityFilter: "LOW",
     }),
   );
-  return (resposta.FaceRecords ?? []).flatMap((r) => (r.Face?.FaceId ? [r.Face.FaceId] : []));
+  return (resposta.FaceRecords ?? []).flatMap((r) => {
+    if (!r.Face?.FaceId) return [];
+    const b = r.Face.BoundingBox;
+    const caixa =
+      b && b.Left !== undefined && b.Top !== undefined && b.Width && b.Height
+        ? { esquerda: b.Left, topo: b.Top, largura: b.Width, altura: b.Height }
+        : null;
+    return [{ rostoId: r.Face.FaceId, caixa }];
+  });
 }
 
 /**
- * Fotos do evento em que aparece o rosto da selfie. No modo de exemplo, a mesma selfie sempre
- * cai na mesma "pessoa" dos dados de exemplo.
+ * Fotos do evento em que aparece o rosto da selfie, e os rostos que bateram (para a prévia
+ * ampliada no rosto). No modo de exemplo, a mesma selfie sempre cai na mesma "pessoa" dos
+ * dados de exemplo.
  */
 export async function buscarFotosPorSelfie(
   eventoId: string,
   selfie: Uint8Array,
   rostosDeExemplo: () => Promise<string[][]>,
-): Promise<string[]> {
+): Promise<{ fotoIds: string[]; rostoIds: string[] }> {
   const config = configRekognition();
+  if (!config && process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production") {
+    throw new BuscaFacialDesligada();
+  }
   if (!config) {
     const pessoas = await rostosDeExemplo();
-    if (pessoas.length === 0) return [];
+    if (pessoas.length === 0) return { fotoIds: [], rostoIds: [] };
     const indice = createHash("sha256").update(selfie).digest().readUInt32BE(0) % pessoas.length;
-    return pessoas[indice];
+    return { fotoIds: pessoas[indice], rostoIds: [] };
   }
 
   try {
@@ -97,20 +136,25 @@ export async function buscarFotosPorSelfie(
       new SearchFacesByImageCommand({
         CollectionId: colecao(config, eventoId),
         Image: { Bytes: selfie },
-        FaceMatchThreshold: SEMELHANCA_MINIMA,
+        FaceMatchThreshold: semelhancaMinima(),
         MaxFaces: 1000,
-        QualityFilter: "AUTO",
+        // A selfie já é boa o bastante; o filtro só recusaria selfies escuras sem necessidade.
+        QualityFilter: "NONE",
       }),
     );
-    const ids = (resposta.FaceMatches ?? []).flatMap((m) =>
+    const encontrados = resposta.FaceMatches ?? [];
+    const fotoIds = encontrados.flatMap((m) =>
       m.Face?.ExternalImageId ? [m.Face.ExternalImageId] : [],
     );
-    return [...new Set(ids)];
+    const rostoIds = encontrados.flatMap((m) => (m.Face?.FaceId ? [m.Face.FaceId] : []));
+    return { fotoIds: [...new Set(fotoIds)], rostoIds };
   } catch (erro) {
     // Sem rosto na selfie, ou evento ainda sem coleção: nenhum resultado. Só o nome do erro
     // vai para o log, nunca a requisição (que tem a selfie).
     const nome = erro instanceof Error ? erro.name : "desconhecido";
-    if (nome === "InvalidParameterException" || nome === "ResourceNotFoundException") return [];
+    if (nome === "InvalidParameterException" || nome === "ResourceNotFoundException") {
+      return { fotoIds: [], rostoIds: [] };
+    }
     console.error("Falha na busca facial", nome);
     throw new Error("Falha na busca facial");
   }

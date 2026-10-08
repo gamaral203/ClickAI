@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
 import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
+import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
 import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/pagamento/pix";
 import { buttonVariants } from "@/components/ui/button";
 import { contarDownloads, detalharItensDoPedido } from "@/dados";
@@ -153,7 +154,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
         </h2>
         <ul className="flex flex-col divide-y rounded-xl border">
           {detalhes.map(({ item, tipo, urlMiniatura, eventoTitulo }) => (
-            <li key={item.id} className="flex items-center gap-4 p-3">
+            <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
               <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted">
                 <Image src={urlMiniatura} alt="" fill sizes="64px" className="object-cover" />
               </div>
@@ -177,6 +178,12 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                       Baixado{" "}
                       {baixados.get(item.id) === 1 ? "1 vez" : `${baixados.get(item.id)} vezes`}
                     </span>
+                  )}
+                  {tipo === "foto" && (
+                    <CompartilharFoto
+                      urlDownload={linkDownload(item.id, dados.data.token)}
+                      eventoTitulo={eventoTitulo}
+                    />
                   )}
                 </span>
               ) : (

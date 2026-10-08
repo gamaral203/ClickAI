@@ -22,6 +22,13 @@
       "when": 1791400776628,
       "tag": "0002_revoga_acesso_publico",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791424663035,
+      "tag": "0003_lembrete_pix_vendas_e_tentativas",
+      "breakpoints": true
     }
   ]
 }

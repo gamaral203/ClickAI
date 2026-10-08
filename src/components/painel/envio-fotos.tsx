@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import {
   TriangleAlert,
+  Camera,
   CheckCircle2,
   Copy,
   ImageUp,
@@ -288,7 +289,10 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           data-arrastando={arrastando}
         >
           <ImageUp aria-hidden="true" className="size-8 text-primary" />
-          <span className="font-medium">Arraste as fotos aqui ou clique para escolher</span>
+          <span className="font-medium">
+            <span className="sm:hidden">Toque para escolher as fotos da galeria</span>
+            <span className="hidden sm:inline">Arraste as fotos aqui ou clique para escolher</span>
+          </span>
           <span className="text-sm text-muted-foreground">
             JPEG de até 30 MB, até {MAXIMO} por envio. Fotos repetidas são puladas sozinhas.
           </span>
@@ -297,6 +301,22 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
             type="file"
             accept="image/jpeg"
             multiple
+            className="sr-only"
+            disabled={enviando}
+            onChange={(e) => void selecionar(e.target.files)}
+          />
+        </label>
+      )}
+
+      {/* No celular: tirar a foto e já enviar, sem passar pela galeria. */}
+      {!indisponivel && (
+        <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border text-sm font-medium has-disabled:opacity-50 sm:hidden">
+          <Camera aria-hidden="true" className="size-4" />
+          Tirar foto com a câmera
+          <input
+            type="file"
+            accept="image/jpeg"
+            capture="environment"
             className="sr-only"
             disabled={enviando}
             onChange={(e) => void selecionar(e.target.files)}

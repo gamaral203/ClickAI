@@ -60,7 +60,15 @@ export const statusDenuncia = pgEnum("status_denuncia", [
   "improcedente",
 ]);
 export const canalMensagem = pgEnum("canal_mensagem", ["email", "whatsapp"]);
-export const tipoMensagem = pgEnum("tipo_mensagem", ["entrega", "lembrete", "denuncia"]);
+export const tipoMensagem = pgEnum("tipo_mensagem", [
+  "entrega",
+  "lembrete",
+  "denuncia",
+  /** Pix gerado e ainda não pago, antes de vencer. */
+  "lembrete_pix",
+  /** Aviso ao fotógrafo de que vendeu. */
+  "venda",
+]);
 export const tipoMetrica = pgEnum("tipo_metrica", ["visita_evento", "visita_foto", "carrinho"]);
 
 // ---------------------------------------------------------------- Núcleo
@@ -241,6 +249,11 @@ export const rostos = pgTable(
       .notNull()
       .references(() => fotos.id, { onDelete: "cascade" }),
     rostoIdProvedor: text().notNull(),
+    /**
+     * Onde está o rosto na foto, em frações de 0 a 1 (o Rekognition devolve assim). Serve para a
+     * prévia ampliada no rosto, nos resultados da busca por selfie.
+     */
+    caixa: jsonb().$type<{ esquerda: number; topo: number; largura: number; altura: number }>(),
   },
   (t) => [index().on(t.rostoIdProvedor), index().on(t.fotoId)],
 ).enableRLS();
@@ -353,6 +366,8 @@ export const pedidos = pgTable(
     pixQrCodeBase64: text(),
     pagoEm: data(),
     lembreteEnviadoEm: data(),
+    /** Lembrete "seu Pix vence em X minutos", uma vez por pedido. */
+    lembretePixEm: data(),
     criadoEm: momento(),
   },
   (t) => [index().on(t.clienteId), index().on(t.status, t.expiraEm), uniqueIndex().on(t.gatewayId)],
@@ -539,4 +554,21 @@ export const modelosEvento = pgTable(
     criadoEm: momento(),
   },
   (t) => [index().on(t.fotografoId)],
+).enableRLS();
+
+// ---------------------------------------------------------------- Proteção contra abuso
+
+/**
+ * Tentativas de login, cadastro e outras ações sensíveis, para limitar abuso entre todos os
+ * servidores (na Vercel, cada requisição pode cair num servidor diferente, então um contador na
+ * memória não funcionaria). A chave já vem como hash (ex.: ação + IP), sem guardar o IP.
+ */
+export const tentativas = pgTable(
+  "tentativas",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    chave: text().notNull(),
+    em: momento(),
+  },
+  (t) => [index().on(t.chave, t.em)],
 ).enableRLS();

@@ -32,12 +32,15 @@ export function FormularioLoja({
   loja,
   enderecoBase,
   enderecoAtual,
+  temSubdominio,
 }: {
   loja: LojaNoFormulario;
   /** Domínio da plataforma, para mostrar o endereço da loja enquanto digita. */
   enderecoBase: { protocolo: string; host: string };
   /** Endereço da loja salva, se já existe e está ativa. */
   enderecoAtual: string | null;
+  /** O site está num domínio com DNS curinga (o endereço curto da loja abre)? */
+  temSubdominio: boolean;
 }) {
   const [estado, acao, salvando] = useActionState(salvarLojaAcao, inicial);
   const [subdominio, setSubdominio] = useState(loja.subdominio);
@@ -57,13 +60,13 @@ export function FormularioLoja({
           rel="noopener noreferrer"
           className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
         >
-          Abrir a loja
+          Abrir no endereço curto
           <ExternalLink aria-hidden="true" className="size-4" />
         </a>
       )}
 
       <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Identidade</legend>
+        <legend className="mb-2 text-lg font-semibold">Nome e descrição</legend>
         <Campo rotulo="Nome da loja" id="loja-nome" erro={erros.nome}>
           <Input {...campo("nome")} defaultValue={loja.nome} maxLength={80} className="h-11" />
         </Campo>
@@ -71,7 +74,7 @@ export function FormularioLoja({
           rotulo="Descrição (opcional)"
           id="loja-descricao"
           erro={erros.descricao}
-          ajuda="Aparece no topo da loja. Até 300 caracteres."
+          ajuda="Aparece no topo da página, embaixo do nome. Até 300 caracteres."
         >
           <textarea
             {...campo("descricao")}
@@ -85,7 +88,11 @@ export function FormularioLoja({
           rotulo="Endereço"
           id="loja-subdominio"
           erro={erros.subdominio}
-          ajuda={`${enderecoBase.protocolo}//${subdominio || "sua-loja"}.${enderecoBase.host}`}
+          ajuda={
+            temSubdominio
+              ? `${enderecoBase.protocolo}//${subdominio || "sua-loja"}.${enderecoBase.host}`
+              : "Endereço curto (nome.clicouai.com.br): passa a funcionar quando o site estiver no domínio próprio. Até lá, divulgue o link acima."
+          }
         >
           <Input
             {...campo("subdominio")}
@@ -97,9 +104,6 @@ export function FormularioLoja({
             className="h-11 sm:w-72"
           />
         </Campo>
-        <p className="text-sm text-muted-foreground">
-          O logo da loja entra junto com o envio de imagens (o mesmo da foto de perfil).
-        </p>
       </fieldset>
 
       <fieldset className="flex flex-col gap-4">

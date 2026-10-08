@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, CheckCircle2, ChevronDown, ExternalLink } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, ExternalLink, FileText } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
@@ -13,6 +13,7 @@ import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
 import { ReaproveitarEvento } from "@/components/painel/reaproveitar-evento";
+import { RostosDoEvento } from "@/components/painel/rostos-do-evento";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import {
@@ -23,6 +24,7 @@ import {
   listarFaixas,
   listarItensDoPainel,
   listarPastasDoPainel,
+  situacaoDosRostos,
 } from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
@@ -31,6 +33,7 @@ import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
+import { provedorFacial } from "@/lib/reconhecimento";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -68,7 +71,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   const { criado, publicado, copiado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
-  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas] =
+  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas, rostos] =
     await Promise.all([
       listarItensDoPainel(evento.id, conta.id),
       listarFaixas(conta.id, evento.id),
@@ -76,6 +79,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
       buscarPacoteDoEvento(evento.id, conta.id),
       listarColaboradores(evento.id, conta.id),
       listarPastasDoPainel(evento.id, conta.id),
+      situacaoDosRostos(evento.id),
     ]);
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
@@ -128,21 +132,37 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             ` · liberação em ${formatarDataEHora(evento.liberadoEm)}`}
           {liberacaoManualPendente && " · fotos ainda não liberadas"}
         </p>
-        {evento.status === "publicado" && (
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {evento.status === "publicado" && (
+            <Link
+              href={`/eventos/${evento.slug}`}
+              className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Ver a página pública
+              <ExternalLink aria-hidden="true" className="size-4" />
+            </Link>
+          )}
           <Link
-            href={`/eventos/${evento.slug}`}
+            href={`/painel/eventos/${evento.id}/relatorio`}
             className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
           >
-            Ver a página pública
-            <ExternalLink aria-hidden="true" className="size-4" />
+            Relatório do evento (PDF)
+            <FileText aria-hidden="true" className="size-4" />
           </Link>
-        )}
+        </div>
         <AcoesEvento
           eventoId={evento.id}
           status={evento.status}
           liberacaoManualPendente={liberacaoManualPendente}
         />
       </header>
+
+      <RostosDoEvento
+        eventoId={evento.id}
+        prontas={rostos.prontas}
+        comRosto={rostos.comRosto}
+        configurado={provedorFacial() === "rekognition"}
+      />
 
       {qrCode && (
         <CompartilharEvento

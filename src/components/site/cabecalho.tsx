@@ -10,7 +10,7 @@ const links = [{ href: "/eventos", rotulo: "Eventos" }];
 
 export function Cabecalho() {
   return (
-    <header className="border-b bg-background">
+    <header className="border-b bg-background print:hidden">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         <Link href="/" className="rounded-md focus-visible:ring-3 focus-visible:ring-ring/50">
           <Image

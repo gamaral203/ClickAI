@@ -47,7 +47,15 @@ async function Conteudo() {
             )}
             <span className="font-medium">{m.canal === "email" ? "E-mail" : "WhatsApp"}</span>
             <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
-              {{ entrega: "Entrega", lembrete: "Lembrete", denuncia: "Denúncia" }[m.tipo]}
+              {
+                {
+                  entrega: "Entrega",
+                  lembrete: "Lembrete",
+                  denuncia: "Denúncia",
+                  lembrete_pix: "Lembrete do Pix",
+                  venda: "Aviso de venda",
+                }[m.tipo]
+              }
             </span>
             <span className="text-muted-foreground">
               para {m.para} · {formatarDataEHora(m.criadoEm)}

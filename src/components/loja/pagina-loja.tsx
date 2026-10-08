@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Script from "next/script";
-import { Camera, Globe } from "lucide-react";
 
 import { CartaoEvento } from "@/components/galeria/cartao-evento";
+import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
 import { listarEventosPublicados, type LojaPublica } from "@/dados";
 import { corDoTexto, idGaSeguro, idGtmSeguro } from "@/lib/loja";
 
@@ -29,22 +29,15 @@ export async function PaginaDaLoja({ loja }: { loja: LojaPublica }) {
       }
     >
       <Medicao loja={loja} />
-      <header style={{ backgroundColor: loja.corPrimaria, color: textoPrimaria }}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-12">
-          <span
-            className="flex size-14 items-center justify-center rounded-full text-xl font-bold"
-            style={{ backgroundColor: loja.corSecundaria, color: corDoTexto(loja.corSecundaria) }}
-            aria-hidden="true"
-          >
-            {loja.nome.trim().charAt(0).toUpperCase()}
-          </span>
-          <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
-            {loja.nome}
-          </h1>
-          {loja.descricao && <p className="max-w-2xl text-lg opacity-90">{loja.descricao}</p>}
-          <Redes loja={loja} />
-        </div>
-      </header>
+      <CabecalhoLoja
+        nome={loja.nome}
+        descricao={loja.descricao}
+        capa={loja.fotografo.capa}
+        logo={loja.fotografo.fotoPerfil}
+        corPrimaria={loja.corPrimaria}
+        corSecundaria={loja.corSecundaria}
+        redes={loja.fotografo.redesSociais}
+      />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-10">
         <h2 className="text-2xl font-semibold">Eventos</h2>
@@ -71,38 +64,6 @@ export async function PaginaDaLoja({ loja }: { loja: LojaPublica }) {
           </Link>
         </div>
       </footer>
-    </div>
-  );
-}
-
-function Redes({ loja }: { loja: LojaPublica }) {
-  const { instagram, site } = loja.fotografo.redesSociais;
-  if (!instagram && !site) return null;
-  // Só https: um "javascript:" salvo no perfil nunca vira link.
-  const siteSeguro = site && /^https:\/\//i.test(site) ? site : null;
-  return (
-    <div className="flex flex-wrap gap-4 text-sm font-medium">
-      {instagram && (
-        <a
-          href={`https://instagram.com/${encodeURIComponent(instagram.replace(/^@/, ""))}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 underline-offset-4 hover:underline"
-        >
-          <Camera aria-hidden="true" className="size-4" />@{instagram.replace(/^@/, "")}
-        </a>
-      )}
-      {siteSeguro && (
-        <a
-          href={siteSeguro}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 underline-offset-4 hover:underline"
-        >
-          <Globe aria-hidden="true" className="size-4" />
-          {new URL(siteSeguro).host}
-        </a>
-      )}
     </div>
   );
 }

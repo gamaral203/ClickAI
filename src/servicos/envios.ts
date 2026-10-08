@@ -18,6 +18,7 @@ import {
   hashesDoEvento,
   marcarFotoComErro,
   registrarFotosEmEnvio,
+  salvarRostos,
   type ChavesDaFoto,
 } from "@/dados";
 import { dataDeCaptura } from "@/lib/exif";
@@ -31,6 +32,7 @@ import {
   tamanhoDoOriginal,
   urlDeEnvio,
 } from "@/lib/r2";
+import { indexarRostos, provedorFacial } from "@/lib/reconhecimento";
 
 import { gerarMiniatura, gerarPrevia } from "./imagens";
 
@@ -188,6 +190,7 @@ export async function confirmarEnvio(
       capturadaEm: dataDeCaptura(info.exif),
     });
     if (!concluiu) return { erro: "Esta foto já foi processada." };
+    await indexarRostosDaFoto(foto.eventoId, foto.id, original);
     return { eventoId: foto.eventoId };
   } catch (erro) {
     await marcarFotoComErro(foto.id);
@@ -199,5 +202,25 @@ export async function confirmarEnvio(
     // Só o id: nada do conteúdo do arquivo vai para o log.
     console.error(`[envios] falha ao processar a foto ${foto.id}`, erro);
     return { erro: "Não foi possível processar a foto. Tente de novo." };
+  }
+}
+
+/**
+ * Cadastra os rostos da foto no reconhecimento facial (com credenciais da AWS), para a busca por
+ * selfie encontrá-la. Vai uma cópia reduzida (o Rekognition aceita até 5 MB) e já girada pelo
+ * EXIF, para a posição do rosto bater com a prévia. Uma falha aqui não derruba o envio: a foto
+ * continua à venda, só não aparece na busca por selfie (fica no log, só com o id).
+ */
+export async function indexarRostosDaFoto(eventoId: string, fotoId: string, original: Buffer) {
+  if (provedorFacial() !== "rekognition") return;
+  try {
+    const imagem = await sharp(original)
+      .rotate()
+      .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    await salvarRostos(fotoId, await indexarRostos(eventoId, fotoId, imagem));
+  } catch (erro) {
+    console.error(`[envios] falha ao indexar os rostos da foto ${fotoId}`, erro);
   }
 }

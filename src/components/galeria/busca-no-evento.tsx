@@ -2,10 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Hash, Loader2, Package, ScanFace } from "lucide-react";
+import { Check, Hash, Loader2, Package, ScanFace, ShoppingCart } from "lucide-react";
 
 import { buscarPorNumero, type ResultadoBusca } from "@/app/(publico)/eventos/[slug]/acoes";
-import { escolherPacote } from "@/components/carrinho/carrinho";
+import {
+  adicionarAoCarrinho,
+  escolherPacote,
+  MAXIMO_ITENS,
+  useCarrinho,
+} from "@/components/carrinho/carrinho";
+import { enviarMetrica } from "@/components/metricas/registrar";
 import { DialogoBuscaFacial } from "@/components/galeria/dialogo-busca-facial";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
 import { Button } from "@/components/ui/button";
@@ -37,7 +43,16 @@ async function prepararSelfie(arquivo: File): Promise<Blob> {
   }
 }
 
-type Resultado = (ResultadoBusca & { origem: "selfie" | "numero" }) | null;
+type Resultado =
+  | (ResultadoBusca & {
+      origem: "selfie" | "numero";
+      /** Onde está o rosto em cada foto (só na busca por selfie com o provedor real). */
+      recortes?: Record<
+        string,
+        { esquerda: number; topo: number; largura: number; altura: number }
+      >;
+    })
+  | null;
 
 export function BuscaNoEvento({
   slug,
@@ -66,12 +81,19 @@ export function BuscaNoEvento({
       corpo.set("selfie", await prepararSelfie(arquivo), "selfie.jpg");
       try {
         const resposta = await fetch("/api/busca-facial", { method: "POST", body: corpo });
-        const dados = (await resposta.json()) as Partial<ResultadoBusca> & { erro?: string };
+        const dados = (await resposta.json()) as Partial<NonNullable<Resultado>> & {
+          erro?: string;
+        };
         if (!resposta.ok || !dados.fotos) {
           setErroSelfie(dados.erro ?? "A busca falhou. Tente de novo.");
           return;
         }
-        setResultado({ fotos: dados.fotos, pacote: dados.pacote ?? null, origem: "selfie" });
+        setResultado({
+          fotos: dados.fotos,
+          pacote: dados.pacote ?? null,
+          recortes: dados.recortes,
+          origem: "selfie",
+        });
         setDialogoAberto(false);
         // Leva a pessoa até as fotos encontradas, que aparecem abaixo do botão.
         requestAnimationFrame(() =>
@@ -201,13 +223,20 @@ export function BuscaNoEvento({
                 : "Nenhuma foto com esse número."
               : `${resultado.fotos.length} ${resultado.fotos.length === 1 ? "foto encontrada" : "fotos encontradas"}`}
           </p>
-          {resultado.pacote && <OfertaPacote oferta={resultado.pacote} />}
+          {resultado.pacote ? (
+            <OfertaPacote oferta={resultado.pacote} />
+          ) : (
+            resultado.fotos.length > 1 && (
+              <AdicionarTodas fotoIds={resultado.fotos.map((f) => f.id)} />
+            )
+          )}
           {resultado.fotos.length > 0 && (
             <GaleriaFotos
               key={resultado.fotos.map((f) => f.id).join()}
               slug={slug}
               tituloEvento={tituloEvento}
               paginaInicial={{ fotos: resultado.fotos, proximoCursor: null }}
+              recortes={resultado.recortes}
             />
           )}
         </div>
@@ -241,6 +270,52 @@ function OfertaPacote({ oferta }: { oferta: NonNullable<ResultadoBusca["pacote"]
         }}
       >
         Comprar todas
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Sem pacote no evento: põe de uma vez todas as fotos encontradas no carrinho. O desconto
+ * progressivo do fotógrafo, se houver, vale no carrinho.
+ */
+function AdicionarTodas({ fotoIds }: { fotoIds: string[] }) {
+  const router = useRouter();
+  const noCarrinho = useCarrinho();
+  const faltam = fotoIds.filter((id) => !noCarrinho.includes(id));
+  const cabe = noCarrinho.length + faltam.length <= MAXIMO_ITENS;
+  if (faltam.length === 0) {
+    return (
+      <p className="flex items-center gap-2 text-sm font-medium text-primary">
+        <Check aria-hidden="true" className="size-4" />
+        Todas as suas fotos já estão no carrinho.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border-2 border-primary bg-background p-4 sm:flex-row sm:items-center">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <ShoppingCart aria-hidden="true" className="size-5" />
+      </span>
+      <div className="flex flex-1 flex-col">
+        <p className="font-semibold">Leve todas as suas {fotoIds.length} fotos</p>
+        <p className="text-sm text-muted-foreground">
+          Coloque todas no carrinho de uma vez. Se o fotógrafo der desconto por quantidade, ele
+          aparece no carrinho.
+        </p>
+      </div>
+      <Button
+        size="touch"
+        disabled={!cabe}
+        onClick={() => {
+          faltam.forEach((id) => {
+            adicionarAoCarrinho(id);
+            enviarMetrica({ tipo: "carrinho", fotoId: id });
+          });
+          router.push("/carrinho");
+        }}
+      >
+        Adicionar todas
       </Button>
     </div>
   );

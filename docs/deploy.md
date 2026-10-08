@@ -36,6 +36,9 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Erros no Sentry |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | Envio dos source maps no build (opcional, mas ajuda a ler os erros) |
 | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | Domínio próprio das lojas |
+| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Busca por selfie (Amazon Rekognition). Sem elas, a busca responde "indisponível" em produção. O usuário IAM precisa de `rekognition:CreateCollection`, `IndexFaces` e `SearchFacesByImage`. Opcional: `REKOGNITION_SEMELHANCA` (padrão 90) |
+| `RESEND_API_KEY`, `EMAIL_REMETENTE` | E-mails (confirmação de conta, entrega, lembrete do Pix, aviso de venda). O domínio do remetente precisa estar verificado no Resend |
+| `NEXT_PUBLIC_EMAIL_PRIVACIDADE` | E-mail do encarregado de dados na política de privacidade |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_ORIGINAIS`, `R2_BUCKET_PUBLICO`, `R2_URL_PUBLICA` | Armazenamento das fotos (item 7). Sem elas o site funciona, mas o envio de fotos responde "Armazenamento de fotos não configurado" |
 
 Contas de exemplo (`clicouai123`) não existem em produção. Os eventos de exemplo só entram com `SEMEAR_EXEMPLOS=1` (opcional, lido só quando o banco está vazio), sob fotógrafos de exemplo sem login. Preview e desenvolvimento continuam com o PGlite e todos os exemplos quando não há banco.
@@ -90,9 +93,12 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 
 - **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
-- **Job de pedidos:** agende `GET /api/jobs/pedidos` de hora em hora, com o cabeçalho `Authorization: Bearer <CRON_SECRET>`. O cron da Vercel faz isso no plano Pro; no Hobby ele só roda uma vez por dia. Alternativa: o Inngest, previsto na arquitetura (Fase 13).
+- **Busca por selfie:** as fotos enviadas antes de configurar a AWS (ou em que a indexação falhou) não aparecem na busca. Em cada evento do painel, o quadro "Busca por selfie" mostra quantas fotos têm rosto cadastrado e tem o botão "Cadastrar rostos que faltam".
+- **Job de pedidos:** agende `GET /api/jobs/pedidos` a cada 10 minutos (o lembrete do Pix sai 20 minutos depois do pedido; de hora em hora ele chega tarde), com o cabeçalho `Authorization: Bearer <CRON_SECRET>`. O cron da Vercel faz isso no plano Pro; no Hobby ele só roda uma vez por dia. Alternativa: o Inngest, previsto na arquitetura (Fase 13).
 
 ## 7. Cloudflare R2 (fotos)
+
+> O bucket de originais precisa de CORS com `GET` para o domínio do site, além do `PUT` do envio: o botão "Compartilhar" do pedido baixa a foto no navegador para mandar ao Instagram.
 
 As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o servidor só confere, gera prévia e miniatura com marca d'água e move o original (docs/arquitetura.md, "Upload"). São dois buckets: o de originais é **privado** (só se baixa por URL assinada de 15 minutos, depois da compra) e o público guarda só prévias e miniaturas.
 

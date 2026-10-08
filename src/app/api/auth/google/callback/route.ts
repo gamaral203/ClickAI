@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { COOKIE_GOOGLE, concluirLoginGoogle } from "@/lib/google";
+import { destinoDoCadastro } from "@/lib/redirecionamento";
 import { entrarComGoogle, inicioDoPapel } from "@/servicos/sessao";
 
 const desafio = z.object({
@@ -47,7 +48,10 @@ export async function GET(request: NextRequest) {
     if (!perfil) return erro("google");
     const resultado = await entrarComGoogle(perfil, salvo.vender);
     if (!resultado.ok) return erro("google_outra_conta");
-    const destino = salvo.proximo ?? inicioDoPapel(resultado.usuario.papel);
+    // Conta nova vai para a tela principal (ou volta ao fotógrafo); login segue para a sua área.
+    const destino = resultado.novo
+      ? destinoDoCadastro(salvo.proximo, resultado.usuario.papel)
+      : (salvo.proximo ?? inicioDoPapel(resultado.usuario.papel));
     return Response.redirect(new URL(destino, request.url), 303);
   } catch (falha) {
     console.error("Falha no login com Google", falha);

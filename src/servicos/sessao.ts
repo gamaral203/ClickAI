@@ -148,7 +148,7 @@ export async function confirmarEmail(token: string): Promise<number | null> {
 }
 
 export type ResultadoGoogle =
-  { ok: true; usuario: Usuario } | { ok: false; motivo: "conta_google_diferente" };
+  { ok: true; usuario: Usuario; novo: boolean } | { ok: false; motivo: "conta_google_diferente" };
 
 /**
  * Entra com o perfil que o Google confirmou. Procura pela conta Google; se não achar, pelo
@@ -161,6 +161,7 @@ export async function entrarComGoogle(
   querVender: boolean,
 ): Promise<ResultadoGoogle> {
   let usuario = await buscarUsuarioPorGoogle(perfil.googleId);
+  let novo = false;
   if (!usuario) {
     const existente = await buscarUsuarioParaLogin(perfil.email);
     if (existente) {
@@ -177,6 +178,7 @@ export async function entrarComGoogle(
         googleId: perfil.googleId,
         emailConfirmado: true,
       });
+      novo = true;
     }
   }
   if (!usuario) return { ok: false, motivo: "conta_google_diferente" };
@@ -197,7 +199,7 @@ export async function entrarComGoogle(
   await iniciarSessao(usuario.id);
   const atualizado = await buscarUsuario(usuario.id);
   return atualizado
-    ? { ok: true, usuario: atualizado }
+    ? { ok: true, usuario: atualizado, novo }
     : { ok: false, motivo: "conta_google_diferente" };
 }
 
