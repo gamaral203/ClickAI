@@ -27,11 +27,11 @@ export async function solicitarSaqueAcao(
   _anterior: EstadoSaque,
   formulario: FormData,
 ): Promise<EstadoSaque> {
-  const { conta } = await exigirFotografo("/painel/vendas");
+  const { usuario, conta } = await exigirFotografo("/painel/vendas");
   const dados = entrada.safeParse(Object.fromEntries(formulario));
   if (!dados.success) return { erro: MOTIVOS.falhou };
 
-  const resultado = await solicitarSaque(conta, dados.data.tipo === "antecipado");
+  const resultado = await solicitarSaque(conta, usuario, dados.data.tipo === "antecipado");
   revalidatePath("/painel/vendas");
   if (!resultado.ok) return { erro: MOTIVOS[resultado.motivo] };
   return {

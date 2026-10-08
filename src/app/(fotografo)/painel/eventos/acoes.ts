@@ -20,7 +20,6 @@ import {
   registrarHashes,
   salvarModeloDoEvento,
   slugDeEventoEmUso,
-  temContaDeRecebimento,
   type DadosDoEvento,
 } from "@/dados";
 import { campoParaIso } from "@/lib/datas";
@@ -30,6 +29,7 @@ import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { UFS } from "@/lib/ufs";
 import { confirmarEnvio, iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
+import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export type CampoEvento =
@@ -187,14 +187,18 @@ async function slugDisponivel(d: { titulo: string; inicioEm: string }) {
 const idEvento = z.uuid();
 
 /**
- * Publica um evento em rascunho ou arquivado. Exige chave Pix confirmada: sem ela, o fotógrafo
- * não teria como sacar o que vender (docs/riscos.md, fotógrafo sem chave Pix confirmada).
+ * Publica um evento em rascunho ou arquivado. Exige chave Pix confirmada (o próprio CPF/CNPJ):
+ * sem ela, o fotógrafo não teria como sacar o que vender (docs/riscos.md, fotógrafo sem chave
+ * Pix confirmada). O erro diz exatamente o que falta e leva ao perfil.
  */
-export async function publicarEventoAcao(eventoId: string): Promise<{ erro?: string }> {
+export async function publicarEventoAcao(
+  eventoId: string,
+): Promise<{ erro?: string; irParaPerfil?: boolean }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
-  if (!(await temContaDeRecebimento(conta.id))) {
-    return { erro: "Confirme sua chave Pix em Perfil e recebimento antes de publicar." };
+  const pendencia = pendenciaDeRecebimento(conta);
+  if (pendencia) {
+    return { erro: MENSAGEM_PENDENCIA_RECEBIMENTO[pendencia], irParaPerfil: true };
   }
   const publicou =
     (await mudarStatusDoEvento(eventoId, conta.id, "rascunho", "publicado")) ||

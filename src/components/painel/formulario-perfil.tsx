@@ -28,7 +28,9 @@ export function FormularioPerfil({ inicial }: { inicial: Valores }) {
           className="flex items-center gap-2 rounded-lg bg-accent p-3 text-accent-foreground"
         >
           <CheckCircle2 aria-hidden="true" className="size-5" />
-          Perfil salvo.
+          {estado.chavePendente
+            ? "Perfil salvo. Agora confirme a chave Pix logo abaixo, em “Usar meu CPF/CNPJ como chave Pix”: sem isso, não dá para publicar eventos."
+            : "Perfil salvo."}
         </p>
       )}
       <Campo

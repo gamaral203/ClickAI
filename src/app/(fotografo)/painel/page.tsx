@@ -46,7 +46,7 @@ async function Conteudo() {
   const { usuario, conta } = await exigirFotografo();
   const [painel, financeiro, porDia] = await Promise.all([
     dashboardDoFotografo(conta.id),
-    situacaoFinanceira(conta),
+    situacaoFinanceira(conta, usuario),
     vendasPorDiaDoFotografo(conta.id),
   ]);
   const { saldo } = financeiro;

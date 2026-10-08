@@ -12,8 +12,9 @@ import {
   type FotografoConta,
   type Lancamento,
   type Saque,
+  type Usuario,
 } from "@/dados";
-import { somenteDigitos } from "@/lib/documentos";
+import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import {
   buscarPayout,
   enviarPayoutPix,
@@ -82,6 +83,41 @@ export function calcularSaque(
   };
 }
 
+/**
+ * Liberação TEMPORÁRIA de teste: o gestor (papel `admin`) cujo e-mail está em
+ * SAQUE_SEM_PRAZO_EMAILS (lista separada por vírgula) saca as próprias vendas sem esperar o
+ * prazo. Só o prazo muda: comissão, chave Pix do próprio CPF/CNPJ, valor calculado aqui,
+ * idempotência e `processando` sem resposta continuam iguais. Sem a variável, nada muda.
+ * Remover a variável da produção depois do teste (docs/tarefas.md, Fase 14).
+ */
+export function saqueSemPrazo(
+  usuario: Pick<Usuario, "id" | "email" | "papel">,
+  conta: Pick<FotografoConta, "usuarioId">,
+  lista = process.env.SAQUE_SEM_PRAZO_EMAILS,
+) {
+  if (!lista || usuario.papel !== "admin" || conta.usuarioId !== usuario.id) return false;
+  const emails = lista
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return emails.includes(usuario.email.trim().toLowerCase());
+}
+
+/** Com a liberação de teste, todo lançamento conta como já disponível (venda com 30 dias). */
+export function aplicarLiberacao<T extends Pick<Lancamento, "disponivelEm" | "antecipavelEm">>(
+  lancamentos: T[],
+  agora: number,
+  liberado: boolean,
+): T[] {
+  if (!liberado) return lancamentos;
+  const agoraIso = new Date(agora).toISOString();
+  return lancamentos.map((l) =>
+    new Date(l.disponivelEm).getTime() <= agora
+      ? l
+      : { ...l, disponivelEm: agoraIso, antecipavelEm: agoraIso },
+  );
+}
+
 export type SaldoDoFotografo = {
   /** Vendas com 30 dias ou mais, prontas para o saque normal. */
   disponivelCentavos: number;
@@ -115,17 +151,20 @@ export function calcularSaldo(
  * O que a página de vendas mostra: saldo, extrato e saques, depois de conferir os saques em
  * processamento. A hora é lida aqui, como o NOW() do banco faria.
  */
-export async function situacaoFinanceira(conta: FotografoConta) {
+export async function situacaoFinanceira(conta: FotografoConta, usuario: Usuario) {
   await conferirSaques(conta.id);
-  const [lancamentos, saques] = await Promise.all([
+  const [doBanco, saques] = await Promise.all([
     listarLancamentosDoFotografo(conta.id),
     listarSaquesDoFotografo(conta.id),
   ]);
   const agora = Date.now();
+  const liberacaoTeste = saqueSemPrazo(usuario, conta);
+  const lancamentos = aplicarLiberacao(doBanco, agora, liberacaoTeste);
   return {
     agora,
     lancamentos,
     saques,
+    liberacaoTeste,
     saldo: calcularSaldo(lancamentos, agora, conta.comissaoPct),
   };
 }
@@ -135,6 +174,22 @@ export function chavePixValida(conta: Pick<FotografoConta, "chavePix" | "cpfCnpj
   const documento = somenteDigitos(conta.cpfCnpj);
   return Boolean(conta.chavePix) && conta.chavePix === documento && documento.length >= 11;
 }
+
+/**
+ * O que falta para o fotógrafo poder receber (e, por isso, publicar evento), ou `null` se nada.
+ * Salvar o CPF/CNPJ não confirma a chave: é preciso clicar em "Usar meu CPF/CNPJ como chave Pix".
+ */
+export function pendenciaDeRecebimento(conta: Pick<FotografoConta, "chavePix" | "cpfCnpj">) {
+  if (chavePixValida(conta)) return null;
+  return cpfOuCnpjValido(conta.cpfCnpj) ? ("chave_pendente" as const) : ("sem_documento" as const);
+}
+
+export const MENSAGEM_PENDENCIA_RECEBIMENTO = {
+  sem_documento:
+    "Falta o CPF ou CNPJ: em Perfil e recebimento, informe e salve o seu CPF ou CNPJ e depois clique em “Usar meu CPF/CNPJ como chave Pix”.",
+  chave_pendente:
+    "Falta confirmar a chave Pix: em Perfil e recebimento, clique em “Usar meu CPF/CNPJ como chave Pix”. Só salvar o CPF/CNPJ não confirma a chave.",
+};
 
 export type ResultadoSaque =
   | { ok: true; saque: Saque }
@@ -191,6 +246,7 @@ async function enviar(saque: Saque) {
 /** Pede o saque de todo o saldo que dá para sacar agora, normal ou antecipado. */
 export async function solicitarSaque(
   conta: FotografoConta,
+  usuario: Usuario,
   antecipado: boolean,
 ): Promise<ResultadoSaque> {
   if (!chavePixValida(conta) || !conta.chavePix) return { ok: false, motivo: "sem_chave" };
@@ -199,8 +255,13 @@ export async function solicitarSaque(
     return { ok: false, motivo: "saque_em_andamento" };
   }
 
-  const lancamentos = await listarLancamentosDoFotografo(conta.id);
   const agora = Date.now();
+  const liberacaoTeste = saqueSemPrazo(usuario, conta);
+  const lancamentos = aplicarLiberacao(
+    await listarLancamentosDoFotografo(conta.id),
+    agora,
+    liberacaoTeste,
+  );
   const calculo = calcularSaque(
     lancamentos.filter((l) => l.saqueId === null),
     agora,
@@ -226,6 +287,12 @@ export async function solicitarSaque(
   };
   if (!(await reservarLancamentosParaSaque(saque, calculo.lancamentoIds))) {
     return { ok: false, motivo: "conflito" };
+  }
+  if (liberacaoTeste) {
+    console.warn("Saque com liberação de teste (SAQUE_SEM_PRAZO_EMAILS): prazo ignorado", {
+      saque: saque.id,
+      fotografo: conta.id,
+    });
   }
 
   if (!mercadoPagoConfigurado()) {

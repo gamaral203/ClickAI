@@ -320,6 +320,7 @@ Todo pagamento cai na conta Mercado Pago da plataforma. O fotógrafo saca pelo p
 4. O payout vai com o id do saque como chave de idempotência. Recusa clara (4xx) marca o saque como `falhou` e devolve os lançamentos ao saldo. Timeout, erro de rede ou 5xx deixam em `processando`, porque o Pix pode ter saído: a próxima conferência reenvia com a mesma chave e descobre o resultado, sem pagar duas vezes.
 5. A página de vendas confere no Mercado Pago (`GET /v1/payouts/{id}`) os saques em processamento.
 6. Em produção, o Payouts exige o header `X-signature`, gerado com as chaves da integração. A documentação pública não descreve o algoritmo; até confirmarmos com o Mercado Pago, o saque só funciona com credenciais de teste.
+7. Liberação temporária de teste: o gestor (papel `admin`) com e-mail em `SAQUE_SEM_PRAZO_EMAILS` saca as próprias vendas sem esperar o prazo, com a comissão normal; todas as outras regras continuam, a tela avisa e o log registra. Fotógrafo comum nunca é afetado; a variável sai da produção depois do teste.
 
 **Loja própria**
 

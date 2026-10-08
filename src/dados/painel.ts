@@ -502,16 +502,6 @@ export async function listarLancamentosDoFotografo(
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
 }
 
-/** Fotógrafo tem chave Pix confirmada? Condição para publicar evento e sacar (docs/riscos.md). */
-export async function temContaDeRecebimento(fotografoId: string) {
-  const banco = await obterBanco();
-  const [linha] = await banco
-    .select({ chavePix: t.fotografos.chavePix })
-    .from(t.fotografos)
-    .where(eq(t.fotografos.id, fotografoId));
-  return Boolean(linha?.chavePix);
-}
-
 // ---------------------------------------------------------------- Saques
 
 /**
