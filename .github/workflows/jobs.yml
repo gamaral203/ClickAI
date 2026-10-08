@@ -1,0 +1,32 @@
+# Agenda do job de pedidos (/api/jobs/pedidos): expira Pix vencido, manda o lembrete do Pix
+# 20 minutos depois do pedido e o lembrete de carrinho. O cron da Vercel no plano Hobby só roda
+# uma vez por dia, então quem chama a cada 10 minutos é o GitHub Actions (grátis). O GitHub
+# pode atrasar alguns minutos em horário de pico; o lembrete sai entre 20 e ~35 minutos.
+#
+# Segredos do repositório (Settings → Secrets and variables → Actions):
+#   APP_URL      endereço do site, ex. https://clickai-hazel.vercel.app
+#   CRON_SECRET  o mesmo valor cadastrado na Vercel
+name: Job de pedidos
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  pedidos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Chamar /api/jobs/pedidos
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Cadastre os segredos APP_URL e CRON_SECRET no repositório."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/jobs/pedidos"
