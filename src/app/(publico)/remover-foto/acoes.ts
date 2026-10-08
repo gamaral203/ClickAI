@@ -1,8 +1,5 @@
 "use server";
 
-import { createHmac } from "node:crypto";
-
-import { headers } from "next/headers";
 import { z } from "zod";
 
 import {
@@ -10,19 +7,15 @@ import {
   buscarFotoPublica,
   criarDenuncia,
   registrarMensagem,
-  registrarTentativa,
 } from "@/dados";
 import { lerLinkDoConteudo } from "@/lib/denuncias";
 import { somenteDigitos } from "@/lib/documentos";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 
 // Pedido de remoção de foto pela pessoa que aparece nela (LGPD; docs/arquitetura.md, "Denúncia").
 // Reaproveita a denúncia com o motivo "privacidade": cai na mesma fila de /admin/denuncias, onde
 // "procedente" tira a foto da galeria. A diferença é a entrada: aqui a pessoa cola o link da foto
 // ou do evento, sem precisar achar o botão na página.
-
-/** Pedidos por IP numa janela de 1 hora, contados no banco (vale entre os servidores). */
-const LIMITE = 5;
-const JANELA_MS = 60 * 60 * 1000;
 
 const opcional = (v: unknown) =>
   v === undefined || (typeof v === "string" && v.trim() === "") ? null : v;
@@ -52,16 +45,6 @@ export type EstadoRemocao = {
   erros?: Partial<Record<CampoRemocao, string>>;
 };
 
-async function limiteAtingido() {
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "local";
-  // A chave é um HMAC: o IP não fica gravado.
-  const chave = createHmac("sha256", process.env.APP_SECRET ?? "desenvolvimento")
-    .update(`remocao_ip:${ip}`)
-    .digest("hex");
-  return (await registrarTentativa(chave, LIMITE, JANELA_MS)).bloqueado;
-}
-
 export async function pedirRemocaoAcao(
   _anterior: EstadoRemocao,
   dados: FormData,
@@ -83,7 +66,8 @@ export async function pedirRemocaoAcao(
     };
   }
 
-  if (await limiteAtingido()) {
+  // 5 pedidos por IP por hora, contados no banco (src/servicos/limites.ts).
+  if (await limiteDoIpAtingido("remocao_ip")) {
     return { erro: "Recebemos vários pedidos seguidos daqui. Tente de novo em uma hora." };
   }
 

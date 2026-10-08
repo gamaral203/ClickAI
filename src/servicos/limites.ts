@@ -34,6 +34,8 @@ const REGRAS = {
   checkout_ip: { limite: 20, janelaMs: 60 * MINUTO },
   /** Denúncias por IP (cada uma confirma o recebimento por e-mail ao denunciante). */
   denuncia_ip: { limite: 5, janelaMs: 60 * MINUTO },
+  /** Pedidos de remoção de foto (LGPD) por IP; cada um também confirma por e-mail. */
+  remocao_ip: { limite: 5, janelaMs: 60 * MINUTO },
   /**
    * Lotes de URLs assinadas de envio (até 25 fotos cada) por fotógrafo. 300 lotes em 10 minutos
    * são 7.500 fotos: folga para um evento grande, mas segura um script descontrolado.
