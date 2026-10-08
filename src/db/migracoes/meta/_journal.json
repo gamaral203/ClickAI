@@ -29,6 +29,13 @@
       "when": 1791424663035,
       "tag": "0003_lembrete_pix_vendas_e_tentativas",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791473447139,
+      "tag": "0004_exclusao_de_conta",
+      "breakpoints": true
     }
   ]
 }

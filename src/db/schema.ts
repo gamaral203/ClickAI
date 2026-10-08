@@ -86,6 +86,11 @@ export const usuarios = pgTable(
     googleId: text(),
     emailConfirmadoEm: data(),
     criadoEm: momento(),
+    /**
+     * Conta excluída pelo próprio usuário (LGPD). A linha fica, com os dados pessoais trocados por
+     * marcadores, porque pedidos, lançamentos e saques apontam para ela (src/dados/exclusao.ts).
+     */
+    excluidoEm: data(),
   },
   (t) => [uniqueIndex().on(t.email), uniqueIndex().on(t.googleId)],
 ).enableRLS();

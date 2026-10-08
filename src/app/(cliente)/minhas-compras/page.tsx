@@ -166,6 +166,18 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
           ))}
         </ul>
       )}
+
+      <p className="border-t pt-6 text-sm text-muted-foreground">
+        Dúvidas sobre compras e downloads na{" "}
+        <Link href="/ajuda" className="font-medium text-primary hover:underline">
+          central de ajuda
+        </Link>
+        . Quer sair do ClicouAí?{" "}
+        <Link href="/conta/excluir" className="font-medium text-primary hover:underline">
+          Excluir minha conta
+        </Link>
+        .
+      </p>
     </>
   );
 }

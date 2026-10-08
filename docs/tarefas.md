@@ -124,6 +124,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Produção nunca cria itens de exemplo: sem R2, o envio responde "Armazenamento de fotos não configurado"; fora da produção, sem R2, segue o envio simulado
 - [x] Saque em produção pelo Payouts: `X-signature` Ed25519 sobre os bytes exatos do corpo (chave em `MP_PAYOUTS_PRIVATE_KEY`, pública em `docs/mercadopago/`), headers por ambiente, status lido em `/v1/payouts/{id}/transactions` (`pago` só com `success` + `accredited`), descrições sem acento e trava `MP_PAYOUTS_HABILITADO=1`; saldo só volta com recusa clara no primeiro envio, e recusa ambígua, recusa em reenvio ou Pix devolvido ficam em `processando` com alerta `[R-alta]`
 - [x] Produção nunca mostra o link de confirmação de e-mail na tela: se o e-mail não sair, a tela avisa que o envio está indisponível e o erro vai ao log, sem o token na URL nem no log; o link na tela fica só fora da produção `[R-alta]`
+- [x] Exclusão de conta pelo próprio usuário (cliente e fotógrafo) em `/conta/excluir`, com senha (ou o e-mail, para quem só usa o Google): dados pessoais anonimizados e pedidos, lançamentos e saques mantidos para fins fiscais; fotógrafo só exclui sem saldo sacável, saque em `processando` ou pedido pendente; fotos com exclusão lógica (quem comprou continua baixando), rostos tirados do banco e do Rekognition; sessão derrubada em todos os aparelhos (`usuarios.excluido_em`, migração 0004)
 
 ## Em andamento
 
@@ -258,7 +259,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Rate limit na busca facial (hoje só na memória de cada servidor), no envio de e-mail e na geração de URLs assinadas
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
-- [ ] Revisão jurídica da política de privacidade e e-mail do encarregado (`NEXT_PUBLIC_EMAIL_PRIVACIDADE`); termos de uso, política de conteúdo, exclusão de conta e canal de remoção de fotos (LGPD)
+- [ ] Revisão jurídica da política de privacidade e e-mail do encarregado (`NEXT_PUBLIC_EMAIL_PRIVACIDADE`); termos de uso, política de conteúdo e canal de remoção de fotos (LGPD)
+- [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
 - [ ] Backup do banco com recuperação para um ponto no tempo
 - [ ] Fluxo de estorno e chargeback
 - [ ] Central de ajuda com artigos para comprador e fotógrafo
