@@ -151,7 +151,8 @@ export async function avisarVenda(pedidoId: string) {
 
 /**
  * Link de confirmação do cadastro. Não vai para a caixa de saída: o link dá acesso à conta.
- * Devolve se o e-mail saiu (sem Resend, a tela mostra o link, como no ambiente de exemplo).
+ * Devolve se o e-mail saiu (se não sair, só fora da produção a tela mostra o link; ver
+ * destinoSemEnvio).
  */
 export async function enviarConfirmacaoDeEmail(para: string, nome: string, token: string) {
   return enviarEmail({

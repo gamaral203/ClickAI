@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
+import { destinoSemEnvio } from "@/servicos/confirmacao-email";
 import { cadastroBloqueado, loginBloqueado, loginDeuCerto } from "@/servicos/limites";
 import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
 import {
@@ -122,8 +123,9 @@ export async function reenviarConfirmacaoAcao() {
 }
 
 /**
- * Manda o link de confirmação por e-mail e segue para o destino. Sem o Resend configurado
- * (ambiente de exemplo), mostra antes o link na tela, com um botão para continuar ao destino.
+ * Manda o link de confirmação por e-mail e segue para o destino. Se o e-mail não sair, fora da
+ * produção mostra o link na tela (ambiente de exemplo); na produção, só avisa que o envio está
+ * indisponível, sem o link (ver destinoSemEnvio).
  */
 async function confirmarPorEmail(
   email: string,
@@ -133,5 +135,5 @@ async function confirmarPorEmail(
 ): Promise<never> {
   const enviado = emailConfigurado() && (await enviarConfirmacaoDeEmail(email, nome, token));
   if (enviado) redirect(destino);
-  redirect(`/conta/confirmar-email?token=${token}&proximo=${encodeURIComponent(destino)}`);
+  redirect(destinoSemEnvio(token, destino));
 }

@@ -6,6 +6,7 @@ import { MailCheck } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { caminhoSeguro } from "@/lib/redirecionamento";
+import { tokenDeExemplo } from "@/servicos/confirmacao-email";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -30,9 +31,11 @@ async function Conteudo({
 }: Pick<PageProps<"/conta/confirmar-email">, "searchParams">) {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar");
-  const { token, limite, proximo } = await searchParams;
+  const { token, limite, proximo, indisponivel } = await searchParams;
   const destino = proximo ? caminhoSeguro(proximo, "/") : null;
-  const valor = typeof token === "string" && /^[\w-]{20,100}$/.test(token) ? token : null;
+  // Na produção, nunca há link na tela: só o e-mail prova que a pessoa é dona do endereço.
+  const valor = tokenDeExemplo(token);
+  const semEnvio = indisponivel === "1";
 
   return (
     <div className="flex flex-col items-center gap-4 text-center">
@@ -42,6 +45,12 @@ async function Conteudo({
       <h1 className="text-2xl font-bold tracking-tight">Confirme seu e-mail</h1>
       {usuario.emailConfirmado ? (
         <p className="text-muted-foreground">Seu e-mail já está confirmado.</p>
+      ) : semEnvio ? (
+        <p role="alert" className="text-muted-foreground">
+          O envio de e-mail não está disponível no momento, então não conseguimos mandar o link de
+          confirmação para <strong>{usuario.email}</strong>. Sua conta foi criada e você já pode
+          usá-la; tente pedir o link de novo mais tarde.
+        </p>
       ) : (
         <p className="text-muted-foreground">
           Enviamos um link de confirmação para <strong>{usuario.email}</strong>. Confirmar o e-mail
