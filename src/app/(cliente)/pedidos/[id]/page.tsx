@@ -58,6 +58,8 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   const baixados = await contarDownloads(itens.map((i) => i.id));
   const gateway = mercadoPagoConfigurado();
   const chavePublica = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
+  // Reembolso pedido pelo gestor: os downloads param antes de o Mercado Pago concluir a devolução.
+  const liberado = pedido.status === "pago" && !pedido.reembolsoSolicitadoEm;
 
   return (
     <>
@@ -118,7 +120,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
         </section>
       )}
 
-      {pedido.status === "pago" && (
+      {liberado && (
         <section className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-accent p-6 text-accent-foreground">
           <div className="flex items-center gap-3">
             <CheckCircle2 aria-hidden="true" className="size-6" />
@@ -127,6 +129,26 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
           <p>
             Obrigado, {pedido.nomeComprador.split(" ")[0]}! Suas fotos estão liberadas. Guarde este
             link: ele é o seu acesso às fotos compradas.
+          </p>
+        </section>
+      )}
+
+      {(pedido.status === "estornado" ||
+        pedido.status === "contestado" ||
+        (pedido.status === "pago" && !liberado)) && (
+        <section className="flex flex-col gap-3 rounded-xl border p-6">
+          <div className="flex items-center gap-3">
+            <XCircle aria-hidden="true" className="size-6 text-destructive" />
+            <h1 className="text-2xl font-bold tracking-tight">
+              {pedido.status === "contestado" ? "Pagamento contestado" : "Pedido reembolsado"}
+            </h1>
+          </div>
+          <p className="text-muted-foreground">
+            {pedido.status === "contestado"
+              ? "O pagamento deste pedido foi contestado junto ao emissor do cartão. Os downloads ficam suspensos até a contestação terminar."
+              : pedido.status === "pago"
+                ? "O reembolso deste pedido está em andamento. Os downloads foram encerrados."
+                : "O valor deste pedido foi devolvido. Os downloads foram encerrados."}
           </p>
         </section>
       )}
@@ -162,7 +184,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                 <span className="font-medium">{tipo === "video" ? "Vídeo" : "Foto"}</span>
                 <span className="text-muted-foreground">{eventoTitulo}</span>
               </span>
-              {pedido.status === "pago" ? (
+              {liberado ? (
                 <span className="flex flex-col items-end gap-1">
                   {/* <a> e não <Link>: a rota devolve o arquivo como anexo, não uma página. */}
                   <a

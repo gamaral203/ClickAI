@@ -8,6 +8,7 @@
 
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   index,
@@ -50,7 +51,11 @@ export const statusPedido = pgEnum("status_pedido", [
   "expirado",
   "cancelado",
   "estornado",
+  /** Chargeback em disputa: downloads bloqueados e lançamentos estornados até o fim da disputa. */
+  "contestado",
 ]);
+/** Por que o pedido foi estornado: reembolso (pelo gestor ou no Mercado Pago) ou chargeback perdido. */
+export const motivoEstorno = pgEnum("motivo_estorno", ["reembolso", "chargeback"]);
 export const statusSaque = pgEnum("status_saque", ["processando", "pago", "falhou"]);
 export const alvoDenuncia = pgEnum("alvo_denuncia", ["evento", "foto"]);
 export const statusDenuncia = pgEnum("status_denuncia", [
@@ -373,6 +378,16 @@ export const pedidos = pgTable(
     lembreteEnviadoEm: data(),
     /** Lembrete "seu Pix vence em X minutos", uma vez por pedido. */
     lembretePixEm: data(),
+    /**
+     * O gestor pediu o reembolso no /admin. Daqui em diante os downloads param, mesmo que o
+     * Mercado Pago ainda não tenha concluído a devolução.
+     */
+    reembolsoSolicitadoEm: data(),
+    reembolsoSolicitadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+    /** Abertura de chargeback lida na order (fica gravada mesmo se a disputa for ganha). */
+    contestadoEm: data(),
+    estornadoEm: data(),
+    motivoEstorno: motivoEstorno(),
     criadoEm: momento(),
   },
   (t) => [index().on(t.clienteId), index().on(t.status, t.expiraEm), uniqueIndex().on(t.gatewayId)],
@@ -451,8 +466,17 @@ export const lancamentos = pgTable(
     disponivelEm: data().notNull(),
     antecipavelEm: data().notNull(),
     saqueId: uuid().references(() => saques.id),
+    /**
+     * Lançamento que este desfaz (estorno, com o valor negativo, ou a volta de um estorno depois
+     * de uma contestação ganha). Único: cada lançamento é desfeito no máximo uma vez.
+     */
+    estornoDe: uuid().references((): AnyPgColumn => lancamentos.id),
   },
-  (t) => [index().on(t.fotografoId, t.saqueId), index().on(t.itemPedidoId)],
+  (t) => [
+    index().on(t.fotografoId, t.saqueId),
+    index().on(t.itemPedidoId),
+    uniqueIndex().on(t.estornoDe),
+  ],
 ).enableRLS();
 
 // ---------------------------------------------------------------- Loja e moderação

@@ -14,6 +14,7 @@ import {
   type Saque,
   type Usuario,
 } from "@/dados";
+import { emProducao } from "@/db/conexao";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import {
   buscarPayout,
@@ -281,6 +282,12 @@ export async function solicitarSaque(
   antecipado: boolean,
 ): Promise<ResultadoSaque> {
   if (!chavePixValida(conta) || !conta.chavePix) return { ok: false, motivo: "sem_chave" };
+  // Na produção, saque simulado nunca: sem as credenciais do Mercado Pago, o saque sairia
+  // "pago" sem Pix nenhum. Recusa antes de reservar o saldo.
+  if (emProducao() && !mercadoPagoConfigurado()) {
+    console.error("Saque recusado: Mercado Pago sem credenciais na produção");
+    return { ok: false, motivo: "falhou" };
+  }
   // Um saque por vez: evita somar saldo enquanto outro ainda não terminou.
   if ((await listarSaquesProcessando(conta.id)).length > 0) {
     return { ok: false, motivo: "saque_em_andamento" };

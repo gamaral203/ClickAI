@@ -207,11 +207,30 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
   if (encontrado.pedido.cupomId && !(await registrarUsoDoCupom(encontrado.pedido.cupomId))) {
     console.warn(`Cupom ${encontrado.pedido.cupomId} sem uso disponível no pedido ${pedidoId}`);
   }
+  await salvarLancamentos(await lancamentosDaVenda(encontrado.itens, agora));
+  // A entrega por mensagem não pode desfazer o pagamento: se falhar, só fica registrado. O
+  // comprador continua com o link da página do pedido e com Minhas compras.
+  await enviarEntrega(encontrado.pedido).catch((erro) =>
+    console.error(`Falha ao enviar a entrega do pedido ${pedidoId}`, erro),
+  );
+  await avisarVenda(pedidoId).catch((erro) =>
+    console.error(`Falha ao avisar a venda do pedido ${pedidoId}`, erro),
+  );
+  return true;
+}
+
+/**
+ * Lançamentos de uma venda confirmada em `agora`: a parte do autor de cada item e, se o autor é
+ * colaborador, a do dono do evento.
+ */
+export async function lancamentosDaVenda(
+  itens: ItemPedido[],
+  agora: number,
+): Promise<Lancamento[]> {
   const disponivelEm = new Date(agora + PRAZO_SAQUE_MS).toISOString();
   const antecipavelEm = new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
-  const regras = await buscarRegrasDeDivisao(encontrado.itens.map((i) => i.fotoId));
-
-  const novos: Lancamento[] = encontrado.itens.flatMap((item) => {
+  const regras = await buscarRegrasDeDivisao(itens.map((i) => i.fotoId));
+  return itens.flatMap((item) => {
     const regra = regras.find((r) => r.fotoId === item.fotoId);
     const lancamentos: Lancamento[] = [
       {
@@ -237,14 +256,4 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
     }
     return lancamentos;
   });
-  await salvarLancamentos(novos);
-  // A entrega por mensagem não pode desfazer o pagamento: se falhar, só fica registrado. O
-  // comprador continua com o link da página do pedido e com Minhas compras.
-  await enviarEntrega(encontrado.pedido).catch((erro) =>
-    console.error(`Falha ao enviar a entrega do pedido ${pedidoId}`, erro),
-  );
-  await avisarVenda(pedidoId).catch((erro) =>
-    console.error(`Falha ao avisar a venda do pedido ${pedidoId}`, erro),
-  );
-  return true;
 }

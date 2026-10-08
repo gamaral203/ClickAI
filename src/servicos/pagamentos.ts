@@ -10,6 +10,7 @@ import {
   type OrderMercadoPago,
 } from "@/lib/mercadopago";
 
+import { aplicarEstornoDaOrder } from "./estornos";
 import { buscarPedidoComAcesso, confirmarPagamento, type Credencial } from "./pedidos";
 
 // Cobrança no Mercado Pago (docs/arquitetura.md, "Compra e pagamento"). O pedido só vira
@@ -31,7 +32,16 @@ async function aplicarOrder(order: OrderMercadoPago): Promise<"pago" | "pendente
   const { pedido } = encontrado;
   if (pedido.gatewayId !== order.id) return "ignorado";
 
+  // Reembolso ou chargeback: o status vem da order lida na API, nunca do corpo do webhook.
+  if (await aplicarEstornoDaOrder(pedido, order)) return "ignorado";
+
   if (order.paga) {
+    if (pedido.status === "contestado") {
+      // Pode ser a contestação ganha ou um aviso antigo lido antes do chargeback: não restaura
+      // sozinho. O gestor confere e restaura em /admin/vendas.
+      console.warn("Order paga de pedido em contestação: revisar no /admin", { pedido: pedido.id });
+      return "ignorado";
+    }
     if (order.totalCentavos !== pedido.totalCentavos) {
       console.error("Order paga com valor diferente do pedido", {
         pedido: pedido.id,

@@ -128,6 +128,11 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Canal de remoção de fotos (LGPD) em `/remover-foto`: quem aparece na foto cola o link da foto ou do evento e o pedido entra na fila de denúncias com o motivo `privacidade`, com limite por IP no banco; o encarregado aparece pelo `NEXT_PUBLIC_EMAIL_PRIVACIDADE` quando existir. Correção: a política de privacidade apontava para `/denunciar` sem evento (página 404)
 - [x] Termos de uso (`/termos`) e política de conteúdo (`/politica-de-conteudo`), rascunhos com as regras reais (Pix de 1 hora, comissão de 10%, antecipação com 1% a mais, saque só para o próprio CPF/CNPJ) e aviso de revisão jurídica no topo; linkados no rodapé e no cadastro
 - [x] Central de ajuda (`/ajuda`) com artigos curtos para quem compra (achar fotos, selfie, pagar, baixar, reembolso, remoção, excluir conta) e para quem vende (começar, enviar, preços, divulgar, taxas com exemplo, saque, colaboradores, denúncias, excluir conta), no rodapé e no menu do celular
+- [x] Fluxo de estorno e chargeback (Fase 13 e 14): reembolso total pelo gestor em `/admin/vendas` (confirmação digitando o valor, chave de idempotência fixa por pedido, downloads parados na hora, gateway simulado sem credenciais); webhook trata order reembolsada e chargeback lendo a order na API; `contestado` na disputa e `estornado` no fim; lançamento negativo por venda (`estorno_de` único), abatido do próximo saque sem tocar saque pago ou em processamento; contestação ganha restaurada pelo gestor só com a order paga na API; casos listados no admin `[Média]`
+- [x] Rate limit persistente (tabela `tentativas`, sem migração nova) na busca facial, na senha do evento, na denúncia, no reenvio do e-mail de confirmação, na criação de pedidos e na geração de URLs assinadas de envio e de download; antes, a busca, a senha e a denúncia contavam só na memória de cada servidor
+- [x] CSP completa de scripts com nonce em todas as páginas (`src/proxy.ts`, `src/lib/csp.ts`): Brick do Mercado Pago, Sentry e GA/GTM das lojas liberados; páginas renderizadas por requisição, sem a casca estática do Cache Components (o nonce não funciona com ela). Conferido com Playwright no `next start`: páginas públicas, loja (caminho e subdomínio), compra completa até o pedido pago, painel e gestão sem violação
+- [x] Checklist da `vibe-code-security` rodado: corrigidos redirecionamento aberto no `?proximo=` (TAB), pagamento e saque simulados possíveis na produção sem credenciais, resposta do Mercado Pago (CPF/chave Pix) nos logs e id de evento sem validar; o resto virou tarefa na Fase 14
+- [x] Revisão dos 10 riscos de prioridade alta, com o que falta em cada um ([riscos.md](riscos.md#revisão-dos-riscos-de-prioridade-alta-fase-14))
 
 ## Em andamento
 
@@ -245,7 +250,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
 - [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
-- [ ] Estorno e chargeback: lançamento negativo descontado do próximo saque
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
 - [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)
@@ -254,17 +258,18 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 14 — Antes do lançamento
 
-- [ ] Revisar os 10 riscos de prioridade alta
 - [ ] Remover SAQUE_SEM_PRAZO_EMAILS da produção depois do teste de saque
-- [ ] CSP completa de scripts (com nonce), depois de definir os scripts do gateway, do Sentry e do Google Analytics/Tag Manager das lojas
-- [ ] Rodar o checklist da `vibe-code-security` ([skills.md](skills.md))
 - [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
-- [ ] Rate limit na busca facial (hoje só na memória de cada servidor), no envio de e-mail e na geração de URLs assinadas
+- [ ] Troca de CPF/CNPJ do fotógrafo pedindo a senha (ou o Google) de novo, com aviso por e-mail e saques segurados por 48–72 h depois da troca `[R-alta]` (ver revisão em [riscos.md](riscos.md))
+- [ ] Sair invalida a sessão no servidor (mudar a versão da sessão no logout) e "sair de todos os dispositivos"
+- [ ] Webhook do Mercado Pago recusa assinatura com `ts` de mais de ~5 minutos
+- [ ] Limite de `/api/metricas` sem o `Map` na memória de cada servidor (hoje cresce sem limpeza)
+- [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
+- [ ] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` (hoje só o pagamento e o saque simulados estão bloqueados)
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra
 - [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
 - [ ] Backup do banco com recuperação para um ponto no tempo
-- [ ] Fluxo de estorno e chargeback
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra

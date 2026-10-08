@@ -1,6 +1,6 @@
 {
-  "id": "7cc20ed3-d470-4f4c-822e-7c31ec4c3f78",
-  "prevId": "5dd9a1e7-54c4-4716-ab9b-369516bdc9b1",
+  "id": "b938998a-e915-4845-9633-fd1e486749be",
+  "prevId": "7cc20ed3-d470-4f4c-822e-7c31ec4c3f78",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2869,6 +2869,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "excluido_em": {
+          "name": "excluido_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

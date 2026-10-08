@@ -106,6 +106,9 @@ export function paraPedido(r: typeof t.pedidos.$inferSelect): PedidoInterno {
     expiraEm: iso(p.expiraEm),
     pagoEm: iso(p.pagoEm),
     lembreteEnviadoEm: iso(p.lembreteEnviadoEm),
+    reembolsoSolicitadoEm: iso(p.reembolsoSolicitadoEm),
+    contestadoEm: iso(p.contestadoEm),
+    estornadoEm: iso(p.estornadoEm),
     criadoEm: iso(p.criadoEm),
     pix:
       pixCopiaECola && pixQrCodeBase64

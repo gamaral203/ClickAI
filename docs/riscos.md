@@ -43,3 +43,20 @@ Arquitetura completa: [Arquitetura — Plataforma de Venda de Fotos](arquitetura
 | Custos | Conta alta por usar `next/image` da Vercel em milhares de fotos | Servir as prévias já otimizadas pela CDN da Cloudflare | Baixa |
 | Segurança | Marca d'água removida com ferramentas de IA | A proteção real é a prévia em baixa resolução | Baixa |
 | Moderação | Denúncia falsa usada para derrubar o evento de um concorrente | Só a equipe muda o status para `revisao`, depois de analisar; avisar o fotógrafo e ouvir o outro lado | Baixa |
+
+## Revisão dos riscos de prioridade alta (Fase 14)
+
+Conferido contra o código em 8 out. 2026. "Resolvido" quer dizer que o código faz o que a coluna "Como evitar" pede; o que depende de configuração, contrato ou teste em produção está em "Falta".
+
+| Risco | Situação | Onde | Falta |
+|---|---|---|---|
+| Conexões demais no Postgres | Resolvido | `src/db/conexao.ts`: node-postgres, até 5 conexões por instância, sem prepared statements com nome; produção exige `DATABASE_URL` (pooler, porta 6543) | — |
+| Webhook duplicado, falsificado ou perdido | Resolvido | `src/app/api/webhooks/mercadopago/route.ts` e `src/lib/mercadopago.ts`: `x-signature` em tempo constante, order relida na API com referência e valor conferidos, `pendente → pago` idempotente por `gateway_id` único; a página do pedido e o job (a cada 10 min, pelo GitHub Actions) conferem os pendentes | Recusar assinatura com `ts` antigo (baixa: a order é relida na API de qualquer jeito) |
+| Baixar foto não comprada trocando o ID | Resolvido | `src/servicos/downloads.ts`: só item de pedido `pago` do próprio cliente (sessão) ou de quem tem o token do link, comparado em tempo constante; mesma resposta 404 para todo motivo; URL assinada de ~15 min; limite de downloads por IP no banco. Na produção, o pagamento simulado fica desligado mesmo sem as credenciais do gateway | — |
+| Preço alterado no navegador | Resolvido | `src/servicos/pedidos.ts` (`criarPedido`): total, descontos, pacote e cupom recalculados do banco; o cartão é cobrado pelo total do pedido | Somar o uso do cupom na mesma transação do `pago` (já na Fase 13) |
+| Funções fora de `gru1` | Resolvido | `vercel.json`: `"regions": ["gru1"]` | — |
+| Upload passando pelo servidor | Resolvido | `src/servicos/envios.ts` e `src/lib/r2.ts`: PUT direto ao R2 por URL assinada, com tipo e tamanho na assinatura; o servidor só lê o arquivo depois, para gerar as prévias; limite de lotes de URLs por fotógrafo no banco | Vídeo (multipart) ainda não existe |
+| Selfie gravada ou logada | Resolvido no código | `src/app/api/busca-facial/route.ts`: selfie só na memória, zerada no fim, nunca logada; consentimento obrigatório; limite por IP no banco, sem olhar o conteúdo; o Sentry descarta corpo, cookies e tokens (`src/lib/sentry.ts`) | Contrato com o provedor (AWS Rekognition) como operador, sem retenção, e a região dos dados; revisão jurídica da política |
+| Script na loja própria | Resolvido | GA/GTM só pelo ID validado (`src/lib/loja.ts`, `src/components/loja/pagina-loja.tsx`); cookies sem `Domain`; CSP com nonce e `'strict-dynamic'` em todas as páginas (`src/proxy.ts`, `src/lib/csp.ts`), que também bloqueia tag "HTML personalizado" do GTM | — |
+| Saque para a chave Pix de outra pessoa | Parcial | `src/servicos/saques.ts`: a chave é sempre o CPF/CNPJ do cadastro e volta a exigir confirmação se ele mudar | Quem invade a conta troca o CPF/CNPJ e confirma a chave em dois cliques: pedir a senha de novo (ou o Google) para trocar o documento, avisar por e-mail e segurar saques por 48–72 h depois da troca |
+| Mesmo saldo sacado duas vezes | Resolvido no código | `src/servicos/saques.ts`: lançamentos reservados ao saque numa transação, um saque por vez, idempotência pelo id no Payouts, timeout fica em `processando`, saldo só volta com recusa clara; na produção não há saque simulado | Primeiro saque real de R$ 1,00 em produção para validar (Fase 13) |
