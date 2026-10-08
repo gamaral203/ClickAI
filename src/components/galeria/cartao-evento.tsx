@@ -5,7 +5,14 @@ import { Calendar, Camera, Images, Lock, MapPin } from "lucide-react";
 import type { EventoResumo } from "@/dados";
 import { formatarData, formatarPreco } from "@/lib/formatar";
 
-export function CartaoEvento({ evento }: { evento: EventoResumo }) {
+export function CartaoEvento({
+  evento,
+  semFotografo = false,
+}: {
+  evento: EventoResumo;
+  /** Na página do próprio fotógrafo, o nome dele em cada cartão só repete o topo. */
+  semFotografo?: boolean;
+}) {
   return (
     <article className="group relative flex w-full flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md">
       <div className="relative aspect-[3/2] bg-muted">
@@ -63,13 +70,15 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
               {evento.cidade}, {evento.estado}
             </dd>
           </div>
-          <div className="flex items-center gap-2">
-            <dt>
-              <Camera aria-hidden="true" className="size-4" />
-              <span className="sr-only">Fotógrafo</span>
-            </dt>
-            <dd>{evento.fotografo.nomePublico}</dd>
-          </div>
+          {!semFotografo && (
+            <div className="flex items-center gap-2">
+              <dt>
+                <Camera aria-hidden="true" className="size-4" />
+                <span className="sr-only">Fotógrafo</span>
+              </dt>
+              <dd>{evento.fotografo.nomePublico}</dd>
+            </div>
+          )}
         </dl>
         <div className="mt-auto flex items-center justify-between border-t pt-3 text-sm">
           <span className="flex items-center gap-1.5 text-muted-foreground">
