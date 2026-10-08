@@ -344,6 +344,8 @@ O original é o ativo que se vende, então a regra central é: nenhum original f
 - **Autorização:** fotógrafo só vê e edita os próprios eventos e os eventos em que é colaborador (colaborador não mexe em preço nem em configurações); cliente só baixa o que comprou.
 - **Selfie (dado biométrico):** tratada como dado pessoal sensível pela LGPD. Consentimento explícito antes da captura, envio ao provedor só para a busca, nada gravado em banco, arquivo ou log, e contrato com o provedor como operador de dados. Rate limit na rota de busca.
 - **Loja própria:** sem HTML ou script do fotógrafo; cookies de sessão presos ao domínio principal.
+- **Limites de tentativas:** contados no banco (tabela `tentativas`, chave HMAC de regra + IP ou id do usuário, sem guardar IP, e-mail nem conteúdo), para valer entre todos os servidores: login, cadastro, reenvio do e-mail de confirmação, busca facial, senha do evento, denúncia, criação de pedido e geração de URLs assinadas de envio e de download. As regras ficam em `src/servicos/limites.ts`.
+- **CSP:** o `proxy.ts` gera um nonce por requisição e manda a política de `src/lib/csp.ts` (`script-src` com nonce e `'strict-dynamic'`, sem `'unsafe-inline'` nem `eval` na produção). Por isso o layout raiz espera a requisição (`connection()` com `instant = false`): com nonce, a casca estática do Cache Components não serve, porque os scripts prerenderizados no build não teriam o nonce. Os dados continuam em `"use cache"`. Script de terceiro novo precisa entrar na política (hoje: Brick do Mercado Pago, Sentry, GA/GTM das lojas).
 - **LGPD:** banco na região São Paulo, política de privacidade publicada com o encarregado (DPO), opção de excluir conta, coleta mínima de dados (CPF/CNPJ só do fotógrafo, telefone só com consentimento para o WhatsApp). Fotos com pessoas são dado pessoal: o canal de denúncia também recebe pedidos de remoção.
 - **Backups:** backup diário automático do Postgres com recuperação para um ponto no tempo (incluso nos planos pagos do Supabase e do Neon); originais no R2 com uma cópia em outro provedor (ex.: Backblaze B2) quando o volume justificar.
 - **Cartão:** os dados do cartão nunca passam pelo nosso servidor; o Card Payment Brick do Mercado Pago coleta e devolve só um token de uso único.
@@ -356,7 +358,7 @@ Um único projeto Next.js, com as regras de negócio separadas das páginas para
 
 ```
 src/
-  proxy.ts                  # resolve o host das lojas próprias
+  proxy.ts                  # resolve o host das lojas próprias e manda a CSP com nonce
   app/
     (publico)/              # home, categorias, eventos, página do item, busca
     (cliente)/              # carrinho, checkout, minhas compras

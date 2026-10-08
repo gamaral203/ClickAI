@@ -25,7 +25,10 @@ const JANELA_LEMBRETE_MS = 7 * 24 * 60 * 60 * 1000;
  * certa, o job precisa rodar a cada poucos minutos (docs/deploy.md, item 6).
  */
 const ESPERA_LEMBRETE_PIX_MS = 20 * 60 * 1000;
-/** Tentativas de login e cadastro guardadas por um dia, só para o limite. */
+/**
+ * Tentativas (login, cadastro, busca facial, URLs assinadas...) guardadas por um dia, só para o
+ * limite; precisa ser maior que a maior janela de src/servicos/limites.ts (1 hora).
+ */
 const VALIDADE_TENTATIVAS_MS = 24 * 60 * 60 * 1000;
 
 export type ResultadoJobPedidos = {

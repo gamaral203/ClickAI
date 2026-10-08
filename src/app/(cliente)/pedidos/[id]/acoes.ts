@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { emProducao } from "@/db/conexao";
 import { mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { iniciarCobrancaPix, pagarComCartao, type ResultadoCartao } from "@/servicos/pagamentos";
 import { buscarPedidoComAcesso, confirmarPagamento } from "@/servicos/pedidos";
@@ -19,7 +20,9 @@ async function credencial(token: string | null) {
  * confirmação que o webhook usa.
  */
 export async function simularPagamento(pedidoId: string, token: string | null): Promise<boolean> {
-  if (mercadoPagoConfigurado()) return false;
+  // Na produção, nunca: sem MP_ACCESS_TOKEN, qualquer comprador marcaria o próprio pedido como
+  // pago e baixaria os originais sem pagar.
+  if (emProducao() || mercadoPagoConfigurado()) return false;
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success) return false;
   const encontrado = await buscarPedidoComAcesso(

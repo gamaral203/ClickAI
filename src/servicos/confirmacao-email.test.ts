@@ -29,9 +29,7 @@ describe("link de confirmação quando o e-mail não sai", () => {
   it("fora da produção (exemplo e preview), mostra o link para testar sem o Resend", () => {
     for (const ambiente of ["", "preview", "development"]) {
       vi.stubEnv("VERCEL_ENV", ambiente);
-      expect(destinoSemEnvio(TOKEN, "/")).toBe(
-        `/conta/confirmar-email?token=${TOKEN}&proximo=%2F`,
-      );
+      expect(destinoSemEnvio(TOKEN, "/")).toBe(`/conta/confirmar-email?token=${TOKEN}&proximo=%2F`);
       expect(tokenDeExemplo(TOKEN)).toBe(TOKEN);
     }
   });

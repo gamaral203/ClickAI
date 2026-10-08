@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { COOKIE_GOOGLE, concluirLoginGoogle } from "@/lib/google";
-import { destinoDoCadastro } from "@/lib/redirecionamento";
+import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { entrarComGoogle, inicioDoPapel } from "@/servicos/sessao";
 
 const desafio = z.object({
@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
     // Conta nova vai para a tela principal (ou volta ao fotógrafo); login segue para a sua área.
     const destino = resultado.novo
       ? destinoDoCadastro(salvo.proximo, resultado.usuario.papel)
-      : (salvo.proximo ?? inicioDoPapel(resultado.usuario.papel));
+      : // Confere de novo: o cookie não é assinado, então o valor não é de confiança.
+        caminhoSeguro(salvo.proximo, inicioDoPapel(resultado.usuario.papel));
     return Response.redirect(new URL(destino, request.url), 303);
   } catch (falha) {
     console.error("Falha no login com Google", falha);

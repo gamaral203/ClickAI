@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { dispositionDeAnexo } from "@/lib/r2";
 import { autorizarDownload } from "@/servicos/downloads";
+import { limiteAtingido } from "@/servicos/limites";
 import { usuarioAtual } from "@/servicos/sessao";
 
 // Token do link (convidado) ou sessão (cliente logado); um dos dois é conferido no serviço.
@@ -29,6 +30,13 @@ export async function GET(
 
   // Primeiro IP da cadeia de proxies (a Vercel preenche x-forwarded-for).
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  // Limite de URLs assinadas por IP, contado no banco: segura quem tenta varrer ids ou tokens.
+  if (await limiteAtingido("url_download_ip", ip ?? "local")) {
+    return new Response("Muitos downloads seguidos. Espere alguns minutos e tente de novo.", {
+      status: 429,
+      headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
   const usuario = await usuarioAtual();
   const original = await autorizarDownload(
     dados.data.itemId,

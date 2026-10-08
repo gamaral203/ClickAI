@@ -6,7 +6,12 @@ import { z } from "zod";
 import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { destinoSemEnvio } from "@/servicos/confirmacao-email";
-import { cadastroBloqueado, loginBloqueado, loginDeuCerto } from "@/servicos/limites";
+import {
+  cadastroBloqueado,
+  limiteAtingido,
+  loginBloqueado,
+  loginDeuCerto,
+} from "@/servicos/limites";
 import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
 import {
   cadastrar,
@@ -117,7 +122,13 @@ export async function reenviarConfirmacaoAcao() {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar");
   if (usuario.emailConfirmado) redirect("/minhas-compras");
-  if (await cadastroBloqueado()) redirect("/conta/confirmar-email?limite=1");
+  // Cada reenvio manda um e-mail pelo Resend: limite por IP e por conta, contados no banco.
+  if (
+    (await cadastroBloqueado()) ||
+    (await limiteAtingido("email_confirmacao_usuario", usuario.id))
+  ) {
+    redirect("/conta/confirmar-email?limite=1");
+  }
   const token = await gerarConfirmacaoEmail(usuario.id);
   await confirmarPorEmail(usuario.email, usuario.nome, token, "/conta/confirmar-email?enviado=1");
 }

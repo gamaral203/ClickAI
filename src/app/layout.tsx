@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { connection } from "next/server";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -20,7 +21,15 @@ export const metadata: Metadata = {
   description: "Encontre e compre as fotos do seu evento: corridas, festas, formaturas e esportes.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// CSP com nonce (src/proxy.ts e src/lib/csp.ts): o nonce é novo a cada requisição, então o HTML
+// não pode vir de um prerender feito no build (os scripts dele não teriam o nonce e o navegador
+// os bloquearia). Esperar a requisição aqui faz todas as páginas renderizarem por requisição, e
+// `instant = false` libera o layout de gerar a casca estática. Os dados continuam em cache
+// ("use cache") e as partes lentas continuam em <Suspense>.
+export const instant = false;
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  await connection();
   return (
     <html lang="pt-BR" className={`${jakarta.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">{children}</body>
