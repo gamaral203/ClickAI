@@ -11,6 +11,8 @@ import { exigirFotografo } from "@/servicos/sessao";
 export type CampoPerfil = "nomePublico" | "slug" | "bio" | "instagram" | "site" | "cpfCnpj";
 export type EstadoPerfil = {
   ok?: boolean;
+  /** CPF/CNPJ salvo, mas a chave Pix ainda não foi confirmada (sem ela não dá para publicar). */
+  chavePendente?: boolean;
   erros?: Partial<Record<CampoPerfil, string>>;
 };
 
@@ -69,16 +71,17 @@ export async function salvarPerfilAcao(
 
   const { instagram, site, cpfCnpj, ...resto } = dados.data;
   const novoDocumento = cpfCnpj ?? "";
+  const documentoMudou = somenteDigitos(conta.cpfCnpj) !== novoDocumento;
   await atualizarContaDoFotografo(usuario.id, {
     ...resto,
     redesSociais: { ...(instagram && { instagram }), ...(site && { site }) },
     cpfCnpj: novoDocumento,
     // CPF/CNPJ mudou: a chave Pix confirmada era o documento antigo e precisa ser confirmada
     // de novo, para o saque nunca ir para uma chave que não é mais do fotógrafo.
-    ...(somenteDigitos(conta.cpfCnpj) !== novoDocumento && { chavePix: null }),
+    ...(documentoMudou && { chavePix: null }),
   });
   revalidatePath("/painel", "layout");
-  return { ok: true };
+  return { ok: true, chavePendente: Boolean(novoDocumento) && (documentoMudou || !conta.chavePix) };
 }
 
 /**

@@ -13,7 +13,7 @@ import {
   type Lancamento,
   type Saque,
 } from "@/dados";
-import { somenteDigitos } from "@/lib/documentos";
+import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import {
   buscarPayout,
   enviarPayoutPix,
@@ -135,6 +135,22 @@ export function chavePixValida(conta: Pick<FotografoConta, "chavePix" | "cpfCnpj
   const documento = somenteDigitos(conta.cpfCnpj);
   return Boolean(conta.chavePix) && conta.chavePix === documento && documento.length >= 11;
 }
+
+/**
+ * O que falta para o fotógrafo poder receber (e, por isso, publicar evento), ou `null` se nada.
+ * Salvar o CPF/CNPJ não confirma a chave: é preciso clicar em "Usar meu CPF/CNPJ como chave Pix".
+ */
+export function pendenciaDeRecebimento(conta: Pick<FotografoConta, "chavePix" | "cpfCnpj">) {
+  if (chavePixValida(conta)) return null;
+  return cpfOuCnpjValido(conta.cpfCnpj) ? ("chave_pendente" as const) : ("sem_documento" as const);
+}
+
+export const MENSAGEM_PENDENCIA_RECEBIMENTO = {
+  sem_documento:
+    "Falta o CPF ou CNPJ: em Perfil e recebimento, informe e salve o seu CPF ou CNPJ e depois clique em “Usar meu CPF/CNPJ como chave Pix”.",
+  chave_pendente:
+    "Falta confirmar a chave Pix: em Perfil e recebimento, clique em “Usar meu CPF/CNPJ como chave Pix”. Só salvar o CPF/CNPJ não confirma a chave.",
+};
 
 export type ResultadoSaque =
   | { ok: true; saque: Saque }

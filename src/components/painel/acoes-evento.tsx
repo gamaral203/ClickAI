@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Archive, Loader2, Rocket, Unlock } from "lucide-react";
@@ -20,14 +21,24 @@ type Props = {
 export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props) {
   const router = useRouter();
   const [erro, setErro] = useState<string | null>(null);
+  const [irParaPerfil, setIrParaPerfil] = useState(false);
   const [pendente, startTransition] = useTransition();
 
-  function executar(acao: (id: string) => Promise<{ erro?: string }>, aoConcluir?: () => void) {
+  function executar(
+    acao: (id: string) => Promise<{ erro?: string; irParaPerfil?: boolean }>,
+    aoConcluir?: () => void,
+  ) {
     setErro(null);
+    setIrParaPerfil(false);
     startTransition(async () => {
-      const resultado = await acao(eventoId).catch(() => ({ erro: "Não foi possível concluir." }));
-      if (resultado.erro) setErro(resultado.erro);
-      else if (aoConcluir) return aoConcluir();
+      const resultado = await acao(eventoId).catch(() => ({
+        erro: "Não foi possível concluir.",
+        irParaPerfil: false,
+      }));
+      if (resultado.erro) {
+        setErro(resultado.erro);
+        setIrParaPerfil(Boolean(resultado.irParaPerfil));
+      } else if (aoConcluir) return aoConcluir();
       router.refresh();
     });
   }
@@ -81,7 +92,12 @@ export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props
       </div>
       {erro && (
         <p role="alert" className="text-sm text-destructive">
-          {erro}
+          {erro}{" "}
+          {irParaPerfil && (
+            <Link href="/painel/perfil" className="font-medium underline underline-offset-4">
+              Abrir Perfil e recebimento
+            </Link>
+          )}
         </p>
       )}
     </div>
