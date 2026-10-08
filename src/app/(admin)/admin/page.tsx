@@ -49,7 +49,7 @@ async function Conteudo() {
           icone={<ArrowDownToLine aria-hidden="true" className="size-4" />}
           titulo="Entrou (vendas pagas)"
           valor={formatarPreco(resumo.entradaCentavos)}
-          texto={`${resumo.pedidosPagos} pedidos pagos · ${resumo.pedidosPendentes} aguardando`}
+          texto={`${resumo.pedidosPagos} pedidos pagos · ${resumo.pedidosPendentes} aguardando · ${resumo.pedidosEstornados} estornados · ${resumo.pedidosContestados} em contestação`}
         />
         <CartaoNumero
           icone={<ArrowUpFromLine aria-hidden="true" className="size-4" />}

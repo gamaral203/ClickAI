@@ -18,6 +18,9 @@ export type ResumoGeral = {
   entradaCentavos: number;
   pedidosPagos: number;
   pedidosPendentes: number;
+  /** Pedidos com chargeback em disputa: precisam de acompanhamento em /admin/vendas. */
+  pedidosContestados: number;
+  pedidosEstornados: number;
   /** Soma dos saques pagos: o que saiu para os fotógrafos. */
   saidaCentavos: number;
   /** Taxas (comissão e antecipação) dos saques pagos: o que ficou com a plataforma. */
@@ -40,6 +43,8 @@ export async function resumoGeral(): Promise<ResumoGeral> {
         entrada: sql<number>`coalesce(sum(${t.pedidos.totalCentavos}) filter (where ${t.pedidos.status} = 'pago'), 0)::int`,
         pagos: sql<number>`count(*) filter (where ${t.pedidos.status} = 'pago')::int`,
         pendentes: sql<number>`count(*) filter (where ${t.pedidos.status} = 'pendente')::int`,
+        contestados: sql<number>`count(*) filter (where ${t.pedidos.status} = 'contestado')::int`,
+        estornados: sql<number>`count(*) filter (where ${t.pedidos.status} = 'estornado')::int`,
       })
       .from(t.pedidos),
     banco
@@ -64,6 +69,8 @@ export async function resumoGeral(): Promise<ResumoGeral> {
     entradaCentavos: pedidos.entrada,
     pedidosPagos: pedidos.pagos,
     pedidosPendentes: pedidos.pendentes,
+    pedidosContestados: pedidos.contestados,
+    pedidosEstornados: pedidos.estornados,
     saidaCentavos: saques.saida,
     taxasCentavos: saques.taxas,
     aPagarCentavos: aPagar.total,
@@ -145,6 +152,8 @@ export type PedidoDoAdmin = {
   itens: number;
   fotografos: string[];
   gatewayId: string | null;
+  /** O gestor pediu o reembolso e o Mercado Pago ainda não confirmou (downloads já parados). */
+  reembolsoSolicitadoEm: string | null;
 };
 
 /** Todos os pedidos, do mais recente para o mais antigo. */
@@ -172,6 +181,7 @@ export async function listarPedidosDoAdmin(): Promise<PedidoDoAdmin[]> {
       itens: meus.length,
       fotografos: [...new Set(meus.map((i) => i.nome))],
       gatewayId: p.gatewayId,
+      reembolsoSolicitadoEm: iso(p.reembolsoSolicitadoEm),
     };
   });
 }

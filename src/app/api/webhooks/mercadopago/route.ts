@@ -4,8 +4,11 @@ import { z } from "zod";
 import { assinaturaDoWebhookConfere, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { processarNotificacaoDeOrder } from "@/servicos/pagamentos";
 
-// Webhook do Mercado Pago (evento "Order (Mercado Pago)"). Configurar no painel do Mercado Pago
-// em Suas integrações > Webhooks com a URL https://<domínio>/api/webhooks/mercadopago.
+// Webhook do Mercado Pago. Configurar no painel do Mercado Pago em Suas integrações > Webhooks
+// com a URL https://<domínio>/api/webhooks/mercadopago e os eventos "Order (Mercado Pago)" e
+// "Chargebacks". Pagamento, reembolso (`order.refunded`) e chargeback (`order.charged_back`)
+// chegam todos com `type: "order"` e o id da order; o que fazer vem da order lida na API
+// (src/servicos/pagamentos.ts e src/servicos/estornos.ts).
 //
 // Regras (docs/riscos.md, prioridade alta): assinatura conferida antes de qualquer coisa; o
 // corpo só diz qual order mudou, e o status vem da API do Mercado Pago; confirmar duas vezes

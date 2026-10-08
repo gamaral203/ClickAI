@@ -811,7 +811,10 @@ export async function buscarRegrasDeDivisao(fotoIds: string[]): Promise<RegraDeD
 }
 
 function linhaDoPedido(p: PedidoInterno): typeof t.pedidos.$inferInsert {
-  const { pix, ...resto } = p;
+  // Reembolso, contestação e estorno nunca nascem com o pedido: só as funções de estorno gravam.
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  const { pix, reembolsoSolicitadoEm, contestadoEm, estornadoEm, motivoEstorno, ...resto } = p;
+  /* eslint-enable @typescript-eslint/no-unused-vars */
   return {
     ...resto,
     acessoExpiraEm: deIso(p.acessoExpiraEm),
@@ -1328,3 +1331,4 @@ export * from "./crescimento";
 export * from "./rostos";
 export * from "./notificacoes";
 export * from "./relatorio";
+export * from "./estornos";

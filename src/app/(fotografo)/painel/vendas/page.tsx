@@ -172,7 +172,10 @@ async function Conteudo() {
             ]}
           >
             {lancamentos.map((l) => {
-              const taxa = Math.max(0, Math.floor((l.valorCentavos * conta.comissaoPct) / 100));
+              // No estorno, a taxa volta junto (sinal oposto), como no cálculo do saque.
+              const taxaAbs = Math.floor((Math.abs(l.valorCentavos) * conta.comissaoPct) / 100);
+              const taxa = l.valorCentavos < 0 ? -taxaAbs : taxaAbs;
+              const estorno = l.valorCentavos < 0;
               return (
                 <tr key={l.id}>
                   <Celula>
@@ -181,6 +184,8 @@ async function Conteudo() {
                       <span className="text-xs text-muted-foreground">
                         {l.pagoEm ? formatarDataEHora(l.pagoEm) : "—"}
                         {l.papel === "dono" && " · sua parte como dono (foto de colaborador)"}
+                        {estorno && " · estorno: pedido reembolsado ou contestado"}
+                        {!estorno && l.estornoDe && " · estorno desfeito: contestação ganha"}
                       </span>
                     </span>
                   </Celula>
@@ -190,7 +195,9 @@ async function Conteudo() {
                       {formatarPreco(l.valorCentavos)}
                     </span>
                   </Celula>
-                  <Celula direita>− {formatarPreco(taxa)}</Celula>
+                  <Celula direita>
+                    {taxa < 0 ? `+ ${formatarPreco(-taxa)}` : `− ${formatarPreco(taxa)}`}
+                  </Celula>
                   <Celula direita forte>
                     {formatarPreco(l.valorCentavos - taxa)}
                   </Celula>
@@ -212,10 +219,11 @@ async function Conteudo() {
 }
 
 function situacao(
-  l: { saqueId: string | null; disponivelEm: string; antecipavelEm: string },
+  l: { saqueId: string | null; disponivelEm: string; antecipavelEm: string; valorCentavos: number },
   agora: number,
 ) {
-  if (l.saqueId) return "Sacado";
+  if (l.saqueId) return l.valorCentavos < 0 ? "Abatido num saque" : "Sacado";
+  if (l.valorCentavos < 0) return "Abatido do próximo saque";
   if (new Date(l.disponivelEm).getTime() <= agora) return "Disponível";
   if (new Date(l.antecipavelEm).getTime() <= agora) {
     return `Antecipável · livre em ${formatarData(l.disponivelEm)}`;

@@ -91,7 +91,7 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 
 ## 6. Depois do deploy
 
-- **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
+- **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` nos eventos "Order (Mercado Pago)" e "Chargebacks" (reembolso e chargeback de order chegam como `type: "order"`).
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
 - **Busca por selfie:** as fotos enviadas antes de configurar a AWS (ou em que a indexação falhou) não aparecem na busca. Em cada evento do painel, o quadro "Busca por selfie" mostra quantas fotos têm rosto cadastrado e tem o botão "Cadastrar rostos que faltam".
 - **Job de pedidos:** `GET /api/jobs/pedidos` (expira o Pix vencido, manda o lembrete do Pix 20 minutos depois do pedido e o de carrinho) roda a cada 10 minutos pelo GitHub Actions ([`.github/workflows/jobs.yml`](../.github/workflows/jobs.yml)). Cadastre no repositório, em **Settings → Secrets and variables → Actions**, os segredos `APP_URL` e `CRON_SECRET` (o mesmo da Vercel). O cron da Vercel em `vercel.json` roda uma vez por dia, só como reserva (no plano Hobby não dá para rodar mais vezes). Para testar na hora: **Actions → Job de pedidos → Run workflow**.
