@@ -162,15 +162,14 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Em andamento
 
-- [ ] **Comprar o domínio próprio** (ex.: .com.br no registro.br). A equipe ainda não tem domínio e o Resend não verifica `clickai-hazel.vercel.app` (o DNS do vercel.app não é nosso). Dele dependem:
-  - verificar o domínio no Resend (região São Paulo) e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel; sem isso não há envio de e-mail em produção (o app funciona sem e-mail, a conta é usável sem confirmar);
-  - a caixa do encarregado de dados e o `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14);
-  - o domínio do site com o curinga `*.` para as lojas dos fotógrafos.
+- [ ] **E-mail do domínio `clicouai.com`** (o domínio já foi comprado; ver **Concluído**). Falta:
+  - verificar `clicouai.com` no Resend (região São Paulo, registros DNS na Vercel) e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel; sem isso não há envio de e-mail em produção (o app funciona sem e-mail, a conta é usável sem confirmar);
+  - a caixa do encarregado de dados e o `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14).
   - Teste local sem domínio: `EMAIL_REMETENTE=ClicouAí <onboarding@resend.dev>` só entrega ao e-mail da conta do Resend; não usar em produção.
 - [ ] **Colocar a produção em uso real** (`clickai-hazel.vercel.app`). O banco e o deploy já estão no ar; falta conferir e configurar:
   1. Conferir no site o login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
   2. Cadastrar e confirmar o webhook do Mercado Pago ([deploy.md](deploy.md), item 6; o prazo de liberação do cartão fica na Fase 13).
-  3. Resend e e-mail do encarregado: dependem do domínio próprio (primeiro item desta seção).
+  3. Resend e e-mail do encarregado: dependem de verificar o domínio no Resend (primeiro item desta seção).
   4. Google OAuth: cadastrar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
   5. Sentry: cadastrar `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN`.
   6. Testar a busca por selfie com fotos reais.
@@ -281,7 +280,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
-- [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel: depende de comprar o domínio (ver **Em andamento**)
+- [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel: o domínio `clicouai.com` já existe; falta só verificá-lo no Resend (ver **Em andamento**)
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)
 - [ ] Convite de colaborador por e-mail para quem ainda não tem conta
 - [ ] Liberação agendada e aviso aos colaboradores por e-mail
@@ -294,7 +293,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra
-- [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel (depende do domínio próprio; ver **Em andamento**)
+- [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel (o domínio `clicouai.com` já existe; ver **Em andamento**)
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
 - [ ] Cadastrar `DATABASE_CA_CERT` (certificado raiz do Supabase, em base64) em Production e conferir que o deploy sobe ([deploy.md](deploy.md), item 3)
 - [ ] Menor privilégio no banco: criar o papel `clicouai_app` no Supabase e trocar a `DATABASE_URL` da Vercel para ele, deixando o `postgres` só na `DATABASE_URL_DIRETA` (passo a passo em [seguranca.md](seguranca.md), item 18)
