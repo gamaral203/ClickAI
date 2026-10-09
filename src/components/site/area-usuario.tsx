@@ -74,6 +74,7 @@ export async function AreaUsuario() {
           { href: "/eventos", rotulo: "Eventos" },
           ...areas,
           { href: "/minhas-compras", rotulo: "Minhas compras" },
+          { href: "/conta/seguranca", rotulo: "Senha e segurança" },
           { href: "/ajuda", rotulo: "Ajuda" },
         ]}
       />

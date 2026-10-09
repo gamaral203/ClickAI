@@ -154,6 +154,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] `npm run db:migrar` dá ao papel `clicouai_app` (se existir) só SELECT/INSERT/UPDATE/DELETE e a política do RLS em todas as tabelas, inclusive as novas (`src/db/papel-app.ts`)
 - [x] Auditoria do checklist de segurança de 19 itens ([seguranca.md](seguranca.md)), com `npm audit fix` sem mudança de versão maior
 - [x] Envio sem limite de quantidade (eram 500 por envio) e mais rápido: 6 arquivos subindo ao mesmo tempo com nova tentativa por arquivo, URLs em lotes de 50 pedidas à frente, processamento fora do caminho do envio pela rota `/api/envios/processar` (4 ao mesmo tempo), Sharp com uma decodificação só e a marca d'água em memória (de ~520 para ~220 ms de CPU por foto de 24 MP), tela com progresso somado e só os erros, grade que se atualiza sozinha e job de revisão com 30 fotos por execução
+- [x] Troca de senha em Senha e segurança (`/conta/seguranca`), para cliente, fotógrafo e gestor, com link em Minhas compras, Perfil e recebimento e no menu, e o "Sair de todos os dispositivos" movido para lá: senha atual com o limite de tentativas do login, código do MFA se ligado, senha nova com a regra do cadastro e diferente da atual, mostrar/ocultar e `autocomplete` certo; derruba as outras sessões e reemite o cookie desta; aviso por e-mail sem a senha. Conta só com o Google cria uma senha com login pelo Google de menos de 10 minutos; gestores de `GESTORES` veem um aviso e não trocam (a senha vem da variável)
 
 ## Em andamento
 
@@ -293,5 +294,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Monitor de disponibilidade (UptimeRobot ou Better Stack) na página inicial, com aviso por e-mail
 - [ ] Atualizar vitest (5) e drizzle-kit, que trazem as vulnerabilidades restantes do `npm audit` (só desenvolvimento e testes), e acompanhar o `braces` do CLI do shadcn
 - [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
+- [ ] Recuperação de senha por e-mail ("esqueci a senha"), com token de uso único guardado só como hash, limite de envio e as outras sessões derrubadas ao redefinir
 - [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra

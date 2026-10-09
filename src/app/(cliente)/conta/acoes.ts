@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
+import { senhaNovaSchema } from "@/lib/regras-senha";
 import { destinoSemEnvio } from "@/servicos/confirmacao-email";
 import { excluirConta } from "@/servicos/exclusao-conta";
 import {
@@ -91,10 +92,7 @@ const cadastro = z.object({
     .min(2, "Informe seu nome.")
     .max(100, "Nome muito longo."),
   email: z.email("Informe um e-mail válido.").max(254),
-  senha: z
-    .string("A senha precisa ter pelo menos 8 caracteres.")
-    .min(8, "A senha precisa ter pelo menos 8 caracteres.")
-    .max(200, "Senha muito longa."),
+  senha: senhaNovaSchema,
   papel: z.enum(["cliente", "fotografo"], "Escolha o tipo de conta."),
 });
 

@@ -21,18 +21,18 @@ function idDoEmail(email: string) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-export function lerGestores(valor: string | undefined): UsuarioInterno[] {
+export function lerGestores(valor: string | undefined, silencioso = false): UsuarioInterno[] {
   if (!valor?.trim()) return [];
   let lista: unknown;
   try {
     lista = JSON.parse(valor);
   } catch {
-    console.error("GESTORES não é um JSON válido; nenhum gestor criado.");
+    if (!silencioso) console.error("GESTORES não é um JSON válido; nenhum gestor criado.");
     return [];
   }
   const dados = z.array(gestor).max(20).safeParse(lista);
   if (!dados.success) {
-    console.error("GESTORES fora do formato esperado; nenhum gestor criado.");
+    if (!silencioso) console.error("GESTORES fora do formato esperado; nenhum gestor criado.");
     return [];
   }
   return dados.data.map((g) => ({
@@ -46,4 +46,14 @@ export function lerGestores(valor: string | undefined): UsuarioInterno[] {
     emailConfirmadoEm: "2026-01-01T00:00:00.000Z",
     criadoEm: "2026-01-01T00:00:00.000Z",
   }));
+}
+
+/**
+ * O e-mail é de um gestor de GESTORES? A senha dessas contas vem da variável e é regravada a cada
+ * início do servidor (src/db/semente.ts, sincronizarGestores): trocada pela tela, voltaria a
+ * antiga no próximo deploy. Por isso a troca de senha recusa essas contas.
+ */
+export function emailEhGestorDeAmbiente(email: string, valor = process.env.GESTORES) {
+  const alvo = email.trim().toLowerCase();
+  return lerGestores(valor, true).some((g) => g.email === alvo);
 }

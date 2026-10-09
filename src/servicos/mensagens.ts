@@ -197,3 +197,35 @@ export async function avisarTrocaDeDocumento(
   });
   await enviarEmail({ para, assunto, paragrafos, botao });
 }
+
+/**
+ * Aviso de segurança: a senha da conta foi trocada (ou criada, na conta que só entrava com o
+ * Google). Vai para o e-mail da conta e fica na caixa de saída; nunca leva a senha.
+ */
+export async function avisarTrocaDeSenha(
+  para: string,
+  nome: string,
+  trocadaEm: string,
+  criada: boolean,
+) {
+  const assunto = criada
+    ? "Uma senha foi criada para a sua conta no ClicouAí"
+    : "A senha da sua conta no ClicouAí foi trocada";
+  const paragrafos = [
+    `Olá, ${nome.split(" ")[0]}! ${
+      criada ? "Uma senha foi criada para a sua conta" : "A senha da sua conta foi trocada"
+    } no ClicouAí em ${formatarDataEHora(trocadaEm)}. As outras sessões da conta foram encerradas.`,
+    "Se foi você, não precisa fazer nada.",
+    "Se não foi você, responda este e-mail agora para bloquearmos a conta. Se ela também entra com o Google, entre com ele, troque a senha em Senha e segurança e saia de todos os dispositivos.",
+  ];
+  const botao = { texto: "Senha e segurança", url: urlDoSite("/conta/seguranca") };
+  await registrarMensagem({
+    pedidoId: null,
+    canal: "email",
+    tipo: "seguranca",
+    para,
+    assunto,
+    texto: [...paragrafos, `${botao.texto}: ${botao.url}`].join(" "),
+  });
+  await enviarEmail({ para, assunto, paragrafos, botao });
+}
