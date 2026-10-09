@@ -86,11 +86,6 @@ export default function Home() {
         </div>
       </CarrosselInicio>
 
-      {/* Lê as vendas da semana na requisição; sem vendas, a faixa não aparece. */}
-      <Suspense fallback={null}>
-        <EmAlta />
-      </Suspense>
-
       <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
         <div className="mx-auto max-w-6xl px-4 py-16">
           <h2 id="como-funciona" className="text-2xl font-bold tracking-tight">
@@ -112,6 +107,11 @@ export default function Home() {
           </ol>
         </div>
       </section>
+      {/* Lê as vendas da semana na requisição; sem vendas, a faixa não aparece. */}
+      <Suspense fallback={null}>
+        <EmAlta />
+      </Suspense>
+
       <section id="eventos" aria-labelledby="titulo-eventos" className="scroll-mt-20">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -143,14 +143,14 @@ export default function Home() {
   );
 }
 
-/** Top 10 eventos da semana: só eventos listados (públicos), na ordem de fotos vendidas. */
+/** Os 3 eventos que mais venderam na semana: só eventos listados (públicos). */
 async function EmAlta() {
   const [vendas, eventos] = await Promise.all([
     vendasDaSemanaPorEvento(),
     listarEventosPublicados(),
   ]);
   const porId = new Map(eventos.map((e) => [e.id, e]));
-  const top = vendas.flatMap(([id]) => porId.get(id) ?? []).slice(0, 10);
+  const top = vendas.flatMap(([id]) => porId.get(id) ?? []).slice(0, 3);
   return <TopDaSemana eventos={top} />;
 }
 

@@ -13,7 +13,7 @@ export function TopDaSemana({ eventos }: { eventos: EventoResumo[] }) {
   if (eventos.length === 0) return null;
   return (
     <section aria-labelledby="top-semana" className="bg-background">
-      <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-12">
         <div className="flex flex-col gap-2">
           <p className="flex w-fit items-center gap-1.5 rounded-full bg-highlight px-3 py-1 text-xs font-bold tracking-wide text-highlight-foreground uppercase">
             <Flame aria-hidden="true" className="size-3.5" />
@@ -23,7 +23,7 @@ export function TopDaSemana({ eventos }: { eventos: EventoResumo[] }) {
             id="top-semana"
             className="text-3xl font-extrabold tracking-tight text-balance sm:text-4xl"
           >
-            {eventos.length >= 10 ? "Top 10 da semana" : "Mais vendidos da semana"}
+            Mais vendidos da semana
           </h2>
           <p className="text-muted-foreground">
             Os eventos com mais fotos vendidas nos últimos 7 dias.
