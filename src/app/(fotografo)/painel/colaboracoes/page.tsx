@@ -4,8 +4,10 @@ import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
 
 import { EnvioFotos } from "@/components/painel/envio-fotos";
+import { ResponderConvite } from "@/components/painel/responder-convite";
+import { TopCliques } from "@/components/painel/top-cliques";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
-import { listarColaboracoes } from "@/dados";
+import { listarColaboracoes, topCliquesDoEvento } from "@/dados";
 import { formatarData } from "@/lib/formatar";
 import { modoEnvio } from "@/lib/r2";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -39,12 +41,20 @@ export default function PaginaColaboracoes() {
 async function Conteudo() {
   const { conta } = await exigirFotografo("/painel/colaboracoes");
   const colaboracoes = await listarColaboracoes(conta.id);
+  // Top Cliques só dos eventos em que já aceitou o convite.
+  const rankings = new Map(
+    await Promise.all(
+      colaboracoes
+        .filter((c) => c.aceitoEm)
+        .map(async (c) => [c.evento.id, await topCliquesDoEvento(c.evento.id)] as const),
+    ),
+  );
   const modo = modoEnvio();
 
   if (colaboracoes.length === 0) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-        Nenhum fotógrafo adicionou você como colaborador ainda. Para isso, ele usa o e-mail da sua
+        Nenhum fotógrafo convidou você para colaborar ainda. Para isso, ele usa o e-mail da sua
         conta, na página do evento dele.
       </p>
     );
@@ -73,7 +83,35 @@ async function Conteudo() {
               </Link>
             )}
           </div>
-          <EnvioFotos eventoId={c.evento.id} modo={modo} />
+          {c.aceitoEm ? (
+            <>
+              <TopCliques posicoes={rankings.get(c.evento.id) ?? []} destaque={conta.id} />
+              <EnvioFotos eventoId={c.evento.id} modo={modo} />
+            </>
+          ) : (
+            <div className="flex flex-col gap-3 rounded-lg border border-highlight-foreground/20 bg-highlight/20 p-4">
+              <p className="font-semibold">Convite de {c.donoNome}</p>
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                <li>Cada foto fica no seu nome, e você recebe pelas fotos que enviar.</li>
+                <li>
+                  {c.comissaoDonoPct === 0 ? (
+                    <>
+                      Sem comissão: o dinheiro das suas fotos vai inteiro para você (menos a taxa da
+                      plataforma).
+                    </>
+                  ) : (
+                    <>
+                      {c.donoNome} fica com <strong>{c.comissaoDonoPct}%</strong> do que sobrar de
+                      cada venda das suas fotos, depois da taxa da plataforma. Depois que você
+                      aceitar, esse percentual não muda.
+                    </>
+                  )}
+                </li>
+                <li>Você só envia fotos depois de aceitar.</li>
+              </ul>
+              <ResponderConvite colaboradorId={c.colaboradorId} />
+            </div>
+          )}
         </li>
       ))}
     </ul>

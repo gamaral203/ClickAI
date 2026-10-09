@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, ChevronDown, ExternalLink, FileText } from "lu
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
+import { AlternarDescontoProgressivo } from "@/components/painel/alternar-desconto-progressivo";
 import { EditorFaixas } from "@/components/painel/editor-faixas";
 import { FormularioPacote } from "@/components/painel/formulario-pacote";
 import { Pastas } from "@/components/painel/pastas";
@@ -14,6 +15,7 @@ import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
 import { ReaproveitarEvento } from "@/components/painel/reaproveitar-evento";
 import { RostosDoEvento } from "@/components/painel/rostos-do-evento";
+import { TopCliques } from "@/components/painel/top-cliques";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import {
@@ -25,6 +27,7 @@ import {
   listarItensDoPainel,
   listarPastasDoPainel,
   situacaoDosRostos,
+  topCliquesDoEvento,
 } from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
@@ -71,7 +74,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   const { criado, publicado, copiado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
-  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas, rostos] =
+  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas, rostos, top] =
     await Promise.all([
       listarItensDoPainel(evento.id, conta.id),
       listarFaixas(conta.id, evento.id),
@@ -80,6 +83,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
       listarColaboradores(evento.id, conta.id),
       listarPastasDoPainel(evento.id, conta.id),
       situacaoDosRostos(evento.id),
+      topCliquesDoEvento(evento.id),
     ]);
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
@@ -165,6 +169,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         configurado={provedorFacial() === "rekognition"}
       />
 
+      <TopCliques posicoes={top} destaque={conta.id} />
+
       {qrCode && (
         <CompartilharEvento
           url={urlPublica}
@@ -199,6 +205,10 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           </div>
           <div className="flex flex-col gap-3">
             <h3 className="font-semibold">Desconto progressivo</h3>
+            <AlternarDescontoProgressivo
+              eventoId={evento.id}
+              ligado={evento.descontoProgressivo !== false}
+            />
             <EditorFaixas
               eventoId={evento.id}
               inicial={(faixasDoEvento ?? []).map((f) => ({
@@ -257,6 +267,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
               comissaoDonoPct: c.comissaoDonoPct,
               nota: c.nota,
               totalItens: c.totalItens,
+              aceito: c.aceitoEm !== null,
             }))}
           />
         </div>

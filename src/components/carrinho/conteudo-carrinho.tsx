@@ -154,8 +154,9 @@ export function ConteudoCarrinho() {
                         className="object-cover"
                       />
                     </Link>
-                    <span className="flex-1 text-sm text-muted-foreground">
+                    <span className="flex flex-1 flex-col text-sm text-muted-foreground">
                       {item.tipo === "video" ? "Vídeo" : "Foto"} em alta resolução
+                      {item.autor && <span className="text-xs">Foto por {item.autor}</span>}
                     </span>
                     <span className="flex flex-col items-end tabular-nums">
                       {item.descontoCentavos > 0 && (

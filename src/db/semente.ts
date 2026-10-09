@@ -83,7 +83,9 @@ export async function semear(banco: Banco) {
     })),
   );
   await banco.insert(t.pastas).values(exemplo.pastas);
-  await banco.insert(t.colaboradores).values(exemplo.colaboradores);
+  await banco
+    .insert(t.colaboradores)
+    .values(exemplo.colaboradores.map((c) => ({ ...c, aceitoEm: data(c.aceitoEm) })));
   await emLotes(exemplo.fotos, (lote) =>
     banco.insert(t.fotos).values(
       lote.map((f) => ({

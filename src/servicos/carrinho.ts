@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  autoresPorId,
   buscarCupomPorCodigo,
   buscarItensParaCompra,
   buscarRegrasDeDesconto,
@@ -31,12 +32,16 @@ export type ItemCarrinho = {
   precoCentavos: number;
   descontoCentavos: number;
   viaPacote: boolean;
+  /** Quem fez a foto (crédito ao autor). */
+  autor: string;
 };
 
 export type GrupoCarrinho = {
   eventoId: string;
   eventoTitulo: string;
   eventoSlug: string;
+  /** Autores das fotos do grupo, sem repetir (crédito no checkout). */
+  autores: string[];
   itens: ItemCarrinho[];
   subtotalCentavos: number;
 };
@@ -99,6 +104,7 @@ export async function calcularCompra(
     escolhidos: lerPacotesEscolhidos(opcoes.pacotes ?? []),
     cupom,
     agora: Date.now(),
+    semProgressivo: regras.semProgressivo,
   });
   // Código que não existe: recusado com a mesma mensagem de "não vale para estes itens", para
   // não servir de teste de quais códigos existem.
@@ -133,6 +139,7 @@ export async function calcularCarrinho(
   const { itens, descontos, indisponiveis } = await calcularCompra(ids, opcoes);
   const porFoto = new Map(descontos.itens.map((i) => [i.fotoId, i]));
   const titulos = new Map(itens.map((i) => [i.evento.id, i.evento.titulo]));
+  const autores = await autoresPorId(itens.map((i) => i.foto.enviadaPor));
 
   const grupos = new Map<string, GrupoCarrinho>();
   for (const item of itens) {
@@ -141,6 +148,7 @@ export async function calcularCarrinho(
       eventoId: item.evento.id,
       eventoTitulo: item.evento.titulo,
       eventoSlug: item.evento.slug,
+      autores: [],
       itens: [],
       subtotalCentavos: 0,
     };
@@ -153,7 +161,10 @@ export async function calcularCarrinho(
       precoCentavos: item.precoCentavos,
       descontoCentavos: calculado?.descontoCentavos ?? 0,
       viaPacote: calculado?.viaPacote ?? false,
+      autor: autores.get(item.foto.enviadaPor)?.nome ?? "",
     });
+    const autor = autores.get(item.foto.enviadaPor)?.nome;
+    if (autor && !grupo.autores.includes(autor)) grupo.autores.push(autor);
     grupo.subtotalCentavos += item.precoCentavos;
     grupos.set(item.evento.id, grupo);
   }

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { LogOut, UserRound } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
+import { SeloMeta } from "@/components/metas/selo-meta";
+import { buscarContaDoFotografo, totalVendidoComoAutor } from "@/dados";
+import { situacaoDasMetas } from "@/lib/metas";
 import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 
 import { LinkConta } from "./link-conta";
@@ -42,6 +45,9 @@ export async function AreaUsuario() {
   }
 
   const primeiroNome = usuario.nome.split(" ")[0];
+  // Meta de vendas perto do perfil, só para quem vende (no celular, fica na aba Metas).
+  const conta = podeUsarPainel(usuario) ? await buscarContaDoFotografo(usuario.id) : null;
+  const metas = conta ? situacaoDasMetas(await totalVendidoComoAutor(conta.id)) : null;
   // O gestor também usa o painel de fotógrafo com a própria conta (podeUsarPainel).
   const areas = [
     ...(podeUsarPainel(usuario) ? [{ href: "/painel", rotulo: "Painel" }] : []),
@@ -50,6 +56,11 @@ export async function AreaUsuario() {
 
   return (
     <div className="flex items-center gap-1">
+      {metas && (
+        <span className="mr-1 hidden lg:block">
+          <SeloMeta metas={metas} compacto />
+        </span>
+      )}
       <div className="hidden items-center gap-1 sm:flex">
         {areas.map((area) => (
           <Link key={area.href} href={area.href} className={estiloLink}>

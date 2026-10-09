@@ -84,7 +84,7 @@ export function paraPasta(r: typeof t.pastas.$inferSelect): Pasta {
 }
 
 export function paraColaborador(r: typeof t.colaboradores.$inferSelect): Colaborador {
-  return { ...r };
+  return { ...r, aceitoEm: iso(r.aceitoEm) };
 }
 
 export function paraCupom(r: typeof t.cupons.$inferSelect, eventoIds: string[]): Cupom {

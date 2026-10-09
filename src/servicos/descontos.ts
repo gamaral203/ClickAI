@@ -35,6 +35,8 @@ export type EntradaDescontos = {
   /** Cupom encontrado pelo código digitado; `null` se não digitou ou não existe. */
   cupom: Cupom | null;
   agora: number;
+  /** Eventos com o desconto progressivo desligado pelo fotógrafo. */
+  semProgressivo?: string[];
 };
 
 export type ItemComDesconto = {
@@ -162,6 +164,7 @@ export function calcularDescontos(entrada: EntradaDescontos): ResultadoDescontos
   // 2. Desconto progressivo, por evento, sobre as fotos fora do pacote.
   const eventos = [...new Set(itens.map((i) => i.eventoId))];
   for (const eventoId of eventos) {
+    if (entrada.semProgressivo?.includes(eventoId)) continue;
     const fotos = itens.filter(
       (i) => i.eventoId === eventoId && i.tipo === "foto" && !viaPacote.has(i.fotoId),
     );

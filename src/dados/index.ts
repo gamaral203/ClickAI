@@ -707,15 +707,18 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
  */
 export async function buscarRegrasDeDesconto(
   eventoIds: string[],
-): Promise<{ faixas: FaixaDesconto[]; pacotes: Pacote[] }> {
-  if (eventoIds.length === 0) return { faixas: [], pacotes: [] };
+): Promise<{ faixas: FaixaDesconto[]; pacotes: Pacote[]; semProgressivo: string[] }> {
+  if (eventoIds.length === 0) return { faixas: [], pacotes: [], semProgressivo: [] };
   const banco = await obterBanco();
-  const donos = (
-    await banco
-      .select({ id: t.eventos.fotografoId })
-      .from(t.eventos)
-      .where(inArray(t.eventos.id, eventoIds))
-  ).map((l) => l.id);
+  const eventos = await banco
+    .select({
+      id: t.eventos.id,
+      dono: t.eventos.fotografoId,
+      progressivo: t.eventos.descontoProgressivo,
+    })
+    .from(t.eventos)
+    .where(inArray(t.eventos.id, eventoIds));
+  const donos = eventos.map((e) => e.dono);
   const [faixas, pacotes] = await Promise.all([
     banco
       .select()
@@ -728,7 +731,12 @@ export async function buscarRegrasDeDesconto(
       ),
     banco.select().from(t.pacotes).where(inArray(t.pacotes.eventoId, eventoIds)),
   ]);
-  return { faixas: faixas.map(paraFaixa), pacotes: pacotes.map(paraPacote) };
+  return {
+    faixas: faixas.map(paraFaixa),
+    pacotes: pacotes.map(paraPacote),
+    // Eventos em que o fotógrafo desligou o desconto progressivo.
+    semProgressivo: eventos.filter((e) => !e.progressivo).map((e) => e.id),
+  };
 }
 
 /** Cupom pelo código, sem diferenciar maiúsculas; `null` se não existe. */
@@ -1459,3 +1467,5 @@ export * from "./relatorio";
 export * from "./estornos";
 export * from "./exclusao";
 export * from "./mfa";
+export * from "./autores";
+export * from "./rankings";

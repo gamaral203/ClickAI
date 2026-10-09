@@ -3,13 +3,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Flag, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Flag,
+  ShieldCheck,
+} from "lucide-react";
 
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { buscarFotoPublica } from "@/dados";
+import { autoresPorId, buscarFotoPublica } from "@/dados";
 import { formatarData, formatarPreco } from "@/lib/formatar";
 import { ehIdValido } from "@/lib/validacao";
 
@@ -47,6 +55,8 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   const dados = await carregar(id);
   if (!dados) notFound();
   const { foto, evento, precoCentavos, posicao, anteriorId, proximaId } = dados;
+  // Crédito ao autor: quem fez a foto, que pode não ser o dono do evento (evento colaborativo).
+  const autor = (await autoresPorId([foto.enviadaPor])).get(foto.enviadaPor);
   const descricao = posicao ? `Foto ${posicao} de ${evento.titulo}` : `Foto de ${evento.titulo}`;
 
   return (
@@ -74,6 +84,11 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
               sizes="(min-width: 1024px) 800px, 100vw"
               className="object-contain"
             />
+            {/* Quem fez a foto, no canto inferior esquerdo (eventos com vários fotógrafos). */}
+            <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1.5 truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <Camera aria-hidden="true" className="size-3.5 shrink-0" />
+              {autor?.nome ?? evento.fotografo.nomePublico}
+            </span>
           </div>
           <figcaption className="text-sm text-muted-foreground">
             Prévia com marca d&apos;água. O original sai sem marca e em alta resolução.
@@ -91,7 +106,18 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             <p className="text-muted-foreground">
               {formatarData(evento.inicioEm)} · {evento.cidade}, {evento.estado}
             </p>
-            <p className="text-muted-foreground">Por {evento.fotografo.nomePublico}</p>
+            <p className="text-muted-foreground">
+              Foto por{" "}
+              <Link
+                href={`/fotografo/${autor?.slug ?? evento.fotografo.slug}`}
+                className="font-medium text-foreground hover:underline"
+              >
+                {autor?.nome ?? evento.fotografo.nomePublico}
+              </Link>
+              {autor && autor.slug !== evento.fotografo.slug && (
+                <> · evento de {evento.fotografo.nomePublico}</>
+              )}
+            </p>
           </div>
 
           <div className="flex flex-col gap-4 rounded-xl border bg-card p-5">

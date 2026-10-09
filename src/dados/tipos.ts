@@ -111,6 +111,8 @@ export type Evento = {
   filtroHorario: boolean;
   listarNaoIdentificadas: boolean;
   ordenacao: Ordenacao;
+  /** `false`: as faixas de desconto progressivo não valem neste evento (sem o campo, valem). */
+  descontoProgressivo?: boolean;
 };
 
 export type Pasta = {
@@ -194,6 +196,8 @@ export type Colaborador = {
   /** Parte do dono do evento sobre o que sobra depois da comissão da plataforma. */
   comissaoDonoPct: number;
   nota: string | null;
+  /** Quando aceitou o convite; `null` enquanto o convite está pendente. */
+  aceitoEm: string | null;
 };
 
 // ---------------------------------------------------------------- Busca

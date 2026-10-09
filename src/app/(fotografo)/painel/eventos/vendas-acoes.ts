@@ -14,6 +14,8 @@ import {
 } from "@/dados";
 import { campoParaIso } from "@/lib/datas";
 import { reaisParaCentavos } from "@/lib/dinheiro";
+import { enviarEmail } from "@/lib/email";
+import { urlDoSite } from "@/lib/endereco";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // Recursos de venda de um evento no painel: pacote, preço individual e colaboradores. Server
@@ -171,6 +173,16 @@ export async function convidarColaboradorAcao(
     ja_colabora: `${fotografo.nomePublico} já colabora neste evento.`,
   } as const;
   if (resultado !== "ok") return { erros: { email: mensagens[resultado] } };
+  // Aviso por e-mail; sem o Resend configurado, o convite aparece só no painel dele.
+  await enviarEmail({
+    para: d.email.trim().toLowerCase(),
+    assunto: `${conta.nomePublico} convidou você para um evento no ClicouAí`,
+    paragrafos: [
+      `${conta.nomePublico} quer que você envie fotos para um evento no ClicouAí. Cada foto fica no seu nome, e você recebe pelas fotos que vender.`,
+      `A comissão de ${conta.nomePublico} é de ${d.comissaoDonoPct}% sobre o que sobrar de cada venda das suas fotos, depois da taxa da plataforma. Você só envia fotos depois de aceitar.`,
+    ],
+    botao: { texto: "Ver o convite", url: urlDoSite("/painel/colaboracoes") },
+  }).catch(() => false);
   revalidatePath(`/painel/eventos/${d.eventoId}`);
   return { ok: true };
 }
@@ -183,9 +195,13 @@ export async function atualizarColaboradorAcao(
   const validacao = z.object({ comissaoDonoPct: comissao, nota }).safeParse(dados);
   if (!id.safeParse(colaboradorId).success) return { erro: "Colaborador não encontrado." };
   if (!validacao.success) return { erro: validacao.error.issues[0]?.message };
-  if (!(await atualizarColaborador(colaboradorId, conta.id, validacao.data))) {
-    return { erro: "Colaborador não encontrado." };
+  const resultado = await atualizarColaborador(colaboradorId, conta.id, validacao.data);
+  if (resultado === "comissao_aceita") {
+    return {
+      erro: "Ele já aceitou esta comissão, que vale para as fotos dele neste evento. Só a nota pode mudar.",
+    };
   }
+  if (resultado !== "ok") return { erro: "Colaborador não encontrado." };
   revalidatePath("/painel/eventos", "layout");
   return {};
 }

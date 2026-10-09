@@ -14,6 +14,7 @@ import {
   Menu,
   Store,
   Tags,
+  Trophy,
   UserRound,
   Users,
   Wallet,
@@ -24,6 +25,7 @@ import {
 // um componente do navegador, então passa só o nome.
 const ICONES = {
   inicio: Home,
+  metas: Trophy,
   eventos: Images,
   descontos: Tags,
   colaboracoes: Handshake,
