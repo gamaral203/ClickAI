@@ -138,6 +138,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Checklist da `vibe-code-security` rodado: corrigidos redirecionamento aberto no `?proximo=` (TAB), pagamento e saque simulados possíveis na produção sem credenciais, resposta do Mercado Pago (CPF/chave Pix) nos logs e id de evento sem validar; o resto virou tarefa na Fase 14
 - [x] Revisão dos 10 riscos de prioridade alta, com o que falta em cada um ([riscos.md](riscos.md#revisão-dos-riscos-de-prioridade-alta-fase-14))
 - [x] Webhook do Mercado Pago recusa assinatura com `ts` a mais de 5 minutos do relógio do servidor (passado ou futuro), contra repetição de notificação capturada
+- [x] Uso do cupom somado na mesma transação que marca o pedido como `pago`, com `usos < usos_max` no UPDATE e idempotente (repetir o webhook não soma de novo); limite estourado entre a criação e o pagamento mantém o pedido pago, sem estorno automático, com alerta no log
 
 ## Em andamento
 
@@ -253,7 +254,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Mercado Pago registrar a chave pública do Payouts (`docs/mercadopago/payouts-chave-publica.pem`) e liberar o Payouts Pix em produção; depois ligar `MP_PAYOUTS_HABILITADO=1` `[R-alta]`
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
-- [ ] Somar o uso do cupom na mesma transação que marca o pedido como pago
 - [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
 - [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel

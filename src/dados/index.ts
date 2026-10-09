@@ -742,26 +742,6 @@ export async function buscarCupomPorCodigo(codigo: string): Promise<Cupom | null
   return paraCupom(linha, (await eventosDosCupons([linha.id])).get(linha.id) ?? []);
 }
 
-/**
- * Soma um uso ao cupom, só se ainda houver uso disponível
- * (`… WHERE id = … AND (usos_max IS NULL OR usos < usos_max)`). Roda junto com a confirmação
- * do pagamento (docs/riscos.md: cupom usado além do limite).
- */
-export async function registrarUsoDoCupom(cupomId: string): Promise<boolean> {
-  const banco = await obterBanco();
-  const atualizados = await banco
-    .update(t.cupons)
-    .set({ usos: sql`${t.cupons.usos} + 1` })
-    .where(
-      and(
-        eq(t.cupons.id, cupomId),
-        or(isNull(t.cupons.usosMax), lt(t.cupons.usos, t.cupons.usosMax)),
-      ),
-    )
-    .returning({ id: t.cupons.id });
-  return atualizados.length > 0;
-}
-
 // ---------------------------------------------------------------- Pedidos
 
 /**
@@ -868,6 +848,49 @@ export async function mudarStatusPedido(
     .where(and(eq(t.pedidos.id, id), eq(t.pedidos.status, de)))
     .returning({ id: t.pedidos.id });
   return atualizados.length > 0;
+}
+
+export type ResultadoPedidoPago =
+  | { mudou: false }
+  | {
+      mudou: true;
+      /** O pedido tinha cupom e ele já estava sem uso disponível (limite estourou). */
+      cupomEsgotado: boolean;
+    };
+
+/**
+ * Marca o pedido como `pago` e soma o uso do cupom na MESMA transação. O `pendente → pago` é
+ * a trava: só a primeira confirmação passa por ele e soma o uso, então repetir o webhook não
+ * soma de novo. O uso só é somado com `usos < usos_max` na condição do UPDATE; no Postgres, o
+ * UPDATE de um cupom disputado espera o outro e confere a condição de novo, então dois pedidos
+ * ao mesmo tempo nunca passam do limite.
+ *
+ * Se o limite estourou entre a criação do pedido e o pagamento, o pedido continua pago (o
+ * cliente já pagou com o desconto) e a chamada devolve `cupomEsgotado` para registrar o caso;
+ * não há estorno automático (docs/arquitetura.md, "Descontos").
+ */
+export async function marcarPedidoPago(id: string, pagoEm: string): Promise<ResultadoPedidoPago> {
+  const banco = await obterBanco();
+  return banco.transaction(async (tx) => {
+    const [pedido] = await tx
+      .update(t.pedidos)
+      .set({ status: "pago", pagoEm: new Date(pagoEm) })
+      .where(and(eq(t.pedidos.id, id), eq(t.pedidos.status, "pendente")))
+      .returning({ cupomId: t.pedidos.cupomId });
+    if (!pedido) return { mudou: false };
+    if (!pedido.cupomId) return { mudou: true, cupomEsgotado: false };
+    const usados = await tx
+      .update(t.cupons)
+      .set({ usos: sql`${t.cupons.usos} + 1` })
+      .where(
+        and(
+          eq(t.cupons.id, pedido.cupomId),
+          or(isNull(t.cupons.usosMax), lt(t.cupons.usos, t.cupons.usosMax)),
+        ),
+      )
+      .returning({ id: t.cupons.id });
+    return { mudou: true, cupomEsgotado: usados.length === 0 };
+  });
 }
 
 /**

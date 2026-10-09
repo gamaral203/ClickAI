@@ -7,8 +7,8 @@ import { connection } from "next/server";
 import {
   buscarPedido,
   buscarRegrasDeDivisao,
+  marcarPedidoPago,
   mudarStatusPedido,
-  registrarUsoDoCupom,
   salvarLancamentos,
   salvarPedido,
   type ItemPedido,
@@ -194,18 +194,19 @@ export async function buscarPedidoComAcesso(pedidoId: string, credencial: Creden
  */
 export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
   const agora = Date.now();
-  const mudou = await mudarStatusPedido(pedidoId, "pendente", "pago", {
-    pagoEm: new Date(agora).toISOString(),
-  });
-  if (!mudou) return false;
+  // `pago` e uso do cupom numa transação só (marcarPedidoPago): repetir o aviso não soma o uso
+  // de novo. Se outro pedido esgotou o cupom nesse meio-tempo, o pagamento já foi feito com o
+  // desconto e vale; o caso fica registrado como alerta, sem estorno automático.
+  const pago = await marcarPedidoPago(pedidoId, new Date(agora).toISOString());
+  if (!pago.mudou) return false;
 
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado) return false;
-  // O uso do cupom conta só no pagamento confirmado, junto com o "pago" (no banco, na mesma
-  // transação), e só se ainda houver uso disponível. Se outro pedido esgotou o cupom nesse
-  // meio-tempo, o pagamento já foi feito com o desconto e vale: fica só registrado.
-  if (encontrado.pedido.cupomId && !(await registrarUsoDoCupom(encontrado.pedido.cupomId))) {
-    console.warn(`Cupom ${encontrado.pedido.cupomId} sem uso disponível no pedido ${pedidoId}`);
+  if (pago.cupomEsgotado) {
+    console.error("ALERTA cupom usado além do limite: pedido pago mantido, sem estorno", {
+      pedido: pedidoId,
+      cupom: encontrado.pedido.cupomId,
+    });
   }
   await salvarLancamentos(await lancamentosDaVenda(encontrado.itens, agora));
   // A entrega por mensagem não pode desfazer o pagamento: se falhar, só fica registrado. O
