@@ -152,6 +152,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Validação de entrada com Zod em todas as Server Actions e rotas: varredura das 55 ações e 10 rotas; as últimas conferências manuais (domínio e imagens da loja, preço individual) passaram para schemas Zod
 - [x] Limite de tentativas de pagamento com cartão (10 por IP por hora, contra teste de cartão roubado) e de QR Code Pix gerado de novo na página do pedido (30 por IP por hora)
 - [x] `npm run db:migrar` dá ao papel `clicouai_app` (se existir) só SELECT/INSERT/UPDATE/DELETE e a política do RLS em todas as tabelas, inclusive as novas (`src/db/papel-app.ts`)
+- [x] Auditoria do checklist de segurança de 19 itens ([seguranca.md](seguranca.md)), com `npm audit fix` sem mudança de versão maior
 
 ## Em andamento
 
@@ -259,6 +260,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Indexar rostos e números no job (fotos e quadros de vídeo)
 - [ ] Rota de busca facial real: selfie só em memória, sem log, rate limit `[R-alta]`
 - [ ] Domínio de imagens na CDN da Cloudflare
+- [ ] Conferir que o token do R2 tem só **Object Read & Write** nos buckets `fotos-originais` e `fotos-publicas` ([seguranca.md](seguranca.md), item 18)
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
@@ -283,7 +285,9 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
 - [ ] Cadastrar `DATABASE_CA_CERT` (certificado raiz do Supabase, em base64) em Production e conferir que o deploy sobe ([deploy.md](deploy.md), item 3)
 - [ ] Menor privilégio no banco: criar o papel `clicouai_app` no Supabase e trocar a `DATABASE_URL` da Vercel para ele, deixando o `postgres` só na `DATABASE_URL_DIRETA` (passo a passo em [seguranca.md](seguranca.md), item 18)
-- [ ] Backup do banco com recuperação para um ponto no tempo
+- [ ] Backup do banco com recuperação para um ponto no tempo; testar uma restauração num projeto separado ([seguranca.md](seguranca.md), item 15)
+- [ ] Monitor de disponibilidade (UptimeRobot ou Better Stack) na página inicial, com aviso por e-mail
+- [ ] Atualizar vitest (5) e drizzle-kit, que trazem as vulnerabilidades restantes do `npm audit` (só desenvolvimento e testes), e acompanhar o `braces` do CLI do shadcn
 - [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
 - [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra
