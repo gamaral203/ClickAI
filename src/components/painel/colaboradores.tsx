@@ -29,8 +29,8 @@ export type ColaboradorNaTela = {
 const inicial: EstadoColaborador = {};
 
 /**
- * Fotógrafos que enviam fotos a este evento. Cada um recebe pelas fotos que enviou, menos a
- * comissão do dono do evento.
+ * Fotógrafos que enviam fotos a este evento. Todas as fotos ficam no mesmo álbum; cada um recebe
+ * pelas fotos que fez, menos a comissão do dono do evento, se ele cobrar alguma (opcional).
  */
 export function Colaboradores({
   eventoId,
@@ -93,13 +93,13 @@ export function Colaboradores({
             rotulo="Sua comissão (%)"
             id="colab-comissao"
             erro={erros.comissaoDonoPct}
-            ajuda="Sobre cada venda das fotos dele. Ele vê antes de aceitar; depois, não muda."
+            ajuda="Opcional. Com 0%, o dinheiro de cada foto vai inteiro para quem a fez. Ele vê antes de aceitar; depois, não muda."
           >
             <Input
               {...propsDeErro("colab-comissao", erros.comissaoDonoPct)}
               name="comissaoDonoPct"
               inputMode="numeric"
-              defaultValue="30"
+              defaultValue="0"
               className="h-11"
             />
           </Campo>

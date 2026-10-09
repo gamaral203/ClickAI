@@ -3,7 +3,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Flag, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Flag,
+  ShieldCheck,
+} from "lucide-react";
 
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { RegistrarVisita } from "@/components/metricas/registrar";
@@ -76,6 +84,11 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
               sizes="(min-width: 1024px) 800px, 100vw"
               className="object-contain"
             />
+            {/* Quem fez a foto, no canto inferior esquerdo (eventos com vários fotógrafos). */}
+            <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1.5 truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <Camera aria-hidden="true" className="size-3.5 shrink-0" />
+              {autor?.nome ?? evento.fotografo.nomePublico}
+            </span>
           </div>
           <figcaption className="text-sm text-muted-foreground">
             Prévia com marca d&apos;água. O original sai sem marca e em alta resolução.

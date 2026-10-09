@@ -23,12 +23,18 @@ export async function autoresPorId(fotografoIds: string[]): Promise<Map<string, 
 
 // ---------------------------------------------------------------- Top Cliques
 
-export type PosicaoTopCliques = { fotografoId: string; nome: string; vendidas: number };
+export type PosicaoTopCliques = {
+  fotografoId: string;
+  nome: string;
+  vendidas: number;
+  /** O que os clientes pagaram pelas fotos dele neste evento (preço menos desconto). */
+  faturadoCentavos: number;
+};
 
 /**
  * Classificação da equipe do evento (dono e colaboradores que aceitaram) pela quantidade de
- * fotos vendidas. Só vendas válidas: pedido `pago` (estornado e contestado não contam). Mostra só
- * a quantidade, nunca valores: quanto cada um recebe fica no Financeiro de cada um.
+ * fotos vendidas e pelo valor vendido. Só vendas válidas: pedido `pago` (estornado e contestado
+ * não contam). Só a equipe do evento vê (painel do dono e Colaborações).
  */
 export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCliques[]> {
   const banco = await obterBanco();
@@ -46,6 +52,7 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
       .select({
         fotografoId: t.itensPedido.fotografoId,
         vendidas: sql<number>`count(*)::int`,
+        faturado: sql<number>`coalesce(sum(${t.itensPedido.precoCentavos} - ${t.itensPedido.descontoCentavos}), 0)::int`,
       })
       .from(t.itensPedido)
       .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
@@ -60,6 +67,26 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
       fotografoId: id,
       nome: nomes.get(id)?.nome ?? "Fotógrafo",
       vendidas: vendas.find((v) => v.fotografoId === id)?.vendidas ?? 0,
+      faturadoCentavos: vendas.find((v) => v.fotografoId === id)?.faturado ?? 0,
     }))
     .sort((a, b) => b.vendidas - a.vendidas || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+// ---------------------------------------------------------------- Metas
+
+/**
+ * Total vendido das fotos que o fotógrafo fez (como autor), em todos os eventos: o que os
+ * clientes pagaram por elas, com desconto. Só pedidos pagos: estorno e chargeback saem da conta.
+ * É a base das metas (src/lib/metas.ts).
+ */
+export async function totalVendidoComoAutor(fotografoId: string): Promise<number> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({
+      total: sql<number>`coalesce(sum(${t.itensPedido.precoCentavos} - ${t.itensPedido.descontoCentavos}), 0)::int`,
+    })
+    .from(t.itensPedido)
+    .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+    .where(and(eq(t.itensPedido.fotografoId, fotografoId), eq(t.pedidos.status, "pago")));
+  return linha?.total ?? 0;
 }

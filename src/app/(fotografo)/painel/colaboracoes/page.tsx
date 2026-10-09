@@ -94,9 +94,18 @@ async function Conteudo() {
               <ul className="list-disc space-y-1 pl-5 text-sm">
                 <li>Cada foto fica no seu nome, e você recebe pelas fotos que enviar.</li>
                 <li>
-                  {c.donoNome} fica com <strong>{c.comissaoDonoPct}%</strong> do que sobrar de cada
-                  venda das suas fotos, depois da taxa da plataforma. Depois que você aceitar, esse
-                  percentual não muda.
+                  {c.comissaoDonoPct === 0 ? (
+                    <>
+                      Sem comissão: o dinheiro das suas fotos vai inteiro para você (menos a taxa da
+                      plataforma).
+                    </>
+                  ) : (
+                    <>
+                      {c.donoNome} fica com <strong>{c.comissaoDonoPct}%</strong> do que sobrar de
+                      cada venda das suas fotos, depois da taxa da plataforma. Depois que você
+                      aceitar, esse percentual não muda.
+                    </>
+                  )}
                 </li>
                 <li>Você só envia fotos depois de aceitar.</li>
               </ul>

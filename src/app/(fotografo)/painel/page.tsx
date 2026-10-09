@@ -17,10 +17,17 @@ import { CartaoNumero } from "@/components/admin/tabela";
 import { GraficoVendas } from "@/components/graficos/grafico-vendas";
 import { LinkDoFotografo } from "@/components/painel/link-do-fotografo";
 import { Recepcao } from "@/components/painel/recepcao";
+import { SeloMeta } from "@/components/metas/selo-meta";
 import { buttonVariants } from "@/components/ui/button";
-import { dashboardDoFotografo, listarEventosDoFotografo, vendasPorDiaDoFotografo } from "@/dados";
+import {
+  dashboardDoFotografo,
+  listarEventosDoFotografo,
+  totalVendidoComoAutor,
+  vendasPorDiaDoFotografo,
+} from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
+import { situacaoDasMetas } from "@/lib/metas";
 import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
 import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -85,6 +92,11 @@ async function Conteudo() {
           <Plus aria-hidden="true" data-icon="inline-start" />
           Novo evento
         </Link>
+      </div>
+
+      {/* No computador, o selo da meta fica no cabeçalho, perto do perfil. */}
+      <div className="lg:hidden">
+        <SeloMeta metas={situacaoDasMetas(await totalVendidoComoAutor(conta.id))} />
       </div>
 
       <Recepcao humor={humor} detalhe={detalheRecepcao} />

@@ -2,6 +2,7 @@ import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
 
 const itens: ItemMenu[] = [
   { href: "/painel", rotulo: "Início", icone: "inicio" },
+  { href: "/painel/metas", rotulo: "Metas", icone: "metas" },
   { href: "/painel/eventos", rotulo: "Meus eventos", icone: "eventos" },
   { href: "/painel/vendas", rotulo: "Financeiro", icone: "financeiro" },
   { href: "/painel/desempenho", rotulo: "Desempenho", icone: "desempenho" },
