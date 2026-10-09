@@ -46,6 +46,17 @@ const REGRAS = {
    * a foto, mas não quem tenta varrer ids ou tokens.
    */
   url_download_ip: { limite: 600, janelaMs: 10 * MINUTO },
+  /**
+   * Códigos da verificação em duas etapas, por usuário (login, saque, troca de CPF/CNPJ). O
+   * código tem 6 dígitos: 6 tentativas a cada 15 minutos deixam a chance de acertar no chute
+   * perto de zero. Código certo zera a contagem.
+   */
+  mfa_usuario: { limite: 6, janelaMs: 15 * MINUTO },
+  /**
+   * Métricas (visitas e carrinhos) por IP. Cada uma grava no banco; o limite segura um script
+   * inflando o painel de um fotógrafo.
+   */
+  metricas_ip: { limite: 300, janelaMs: 10 * MINUTO },
 } as const;
 
 export type Regra = keyof typeof REGRAS;
@@ -98,4 +109,9 @@ export async function loginDeuCerto(email: string) {
 
 export async function cadastroBloqueado(): Promise<boolean> {
   return limiteDoIpAtingido("cadastro_ip");
+}
+
+/** Zera a contagem de uma regra para o valor (ex.: código certo da verificação em duas etapas). */
+export async function zerarTentativas(regra: Regra, valor: string) {
+  await limparTentativas(chave(regra, valor));
 }

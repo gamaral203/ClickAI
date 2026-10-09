@@ -103,8 +103,34 @@ export const usuarios = pgTable(
      * cookies de sessão do usuário ("sair de todos os dispositivos", troca de CPF/CNPJ).
      */
     versaoSessao: integer().notNull().default(0),
+    /**
+     * Verificação em duas etapas (TOTP, src/servicos/mfa.ts): segredo cifrado com AES-256-GCM
+     * (chave derivada do APP_SECRET, src/lib/mfa.ts). Com `mfaAtivadoEm` nulo, é um cadastro
+     * ainda não confirmado com o primeiro código.
+     */
+    mfaSegredo: text(),
+    mfaAtivadoEm: data(),
+    /** Último passo de 30 s aceito: o mesmo código não vale duas vezes. */
+    mfaUltimoPasso: integer(),
   },
   (t) => [uniqueIndex().on(t.email), uniqueIndex().on(t.googleId)],
+).enableRLS();
+
+/**
+ * Códigos de recuperação da verificação em duas etapas: só o HMAC (chave derivada do
+ * APP_SECRET), cada um usado uma vez. Gerar códigos novos apaga os antigos.
+ */
+export const codigosRecuperacao = pgTable(
+  "codigos_recuperacao",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    codigoHash: text().notNull(),
+    usadoEm: data(),
+  },
+  (t) => [uniqueIndex().on(t.codigoHash), index().on(t.usuarioId)],
 ).enableRLS();
 
 /**

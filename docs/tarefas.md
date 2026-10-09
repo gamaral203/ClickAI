@@ -144,6 +144,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Job de revisão (`/api/jobs/revisao`, a cada 10 minutos pelo mesmo workflow do GitHub, com `CRON_SECRET`): confere no Mercado Pago os saques em `processando` com `conferirSaques` (ambíguos continuam em revisão manual, saldo nunca volta sem certeza) e revisa até 5 fotos presas em `processando` há mais de 30 minutos, conferindo o arquivo no R2 e reprocessando ou marcando `erro` com a mensagem mostrada no painel (migração 0007); sem Mercado Pago ou R2 configurados, não faz nada
 - [x] "Sair" encerra a sessão no servidor (id da sessão do cookie em `sessoes_revogadas` até a hora em que venceria) e "Sair de todos os dispositivos" em Minhas compras e em Perfil e recebimento (`usuarios.versao_sessao`, migração 0008); a versão da sessão passa a incluir o hash da senha, então trocar a senha (inclusive a de gestor em `GESTORES`) derruba as outras sessões. A leitura da sessão continua uma consulta só por requisição
 - [x] Troca de CPF/CNPJ do fotógrafo pede a senha atual de novo (ou, na conta só com o Google, login com o Google de menos de 10 minutos), volta a exigir a confirmação da chave Pix, avisa por e-mail, derruba as outras sessões e bloqueia saques por 72 horas, com a hora da liberação na tela de vendas (`fotografos.documento_trocado_em`, migração 0009) `[R-alta]`
+- [x] Verificação em duas etapas (TOTP, app autenticador), opcional para fotógrafo e gestor em Perfil e recebimento: QR Code, 10 códigos de recuperação (só o HMAC no banco), segredo cifrado com AES-256-GCM (chave derivada do `APP_SECRET`); pedida no login com senha e com o Google, na troca de CPF/CNPJ e em cada saque; cada código vale uma vez e há limite de 6 tentativas em 15 minutos (migração 0010) `[R-alta]`
 
 ## Em andamento
 
@@ -275,4 +276,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
 - [ ] Backup do banco com recuperação para um ponto no tempo
+- [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
+- [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra

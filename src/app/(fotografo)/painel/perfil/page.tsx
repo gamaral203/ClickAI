@@ -5,7 +5,9 @@ import { CheckCircle2, Landmark } from "lucide-react";
 
 import { SairDeTodos } from "@/components/conta/sair-de-todos";
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
+import { VerificacaoDuasEtapas } from "@/components/painel/verificacao-duas-etapas";
 import { Button } from "@/components/ui/button";
+import { estadoMfa } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { contaTemSenha } from "@/servicos/exclusao-conta";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -30,7 +32,7 @@ export default function PaginaPerfil() {
 
 async function Conteudo() {
   const { usuario, conta } = await exigirFotografo("/painel/perfil");
-  const temSenha = await contaTemSenha(usuario);
+  const [temSenha, mfa] = await Promise.all([contaTemSenha(usuario), estadoMfa(usuario.id)]);
 
   return (
     <>
@@ -44,6 +46,7 @@ async function Conteudo() {
           cpfCnpj: conta.cpfCnpj ? formatarCpfCnpj(conta.cpfCnpj) : "",
         }}
         temSenha={temSenha}
+        pedeCodigo={mfa.ativo}
       />
 
       <section className="flex flex-col gap-3 rounded-xl border p-5">
@@ -75,6 +78,13 @@ async function Conteudo() {
           <p className="text-sm font-medium">Informe e salve o CPF ou CNPJ acima primeiro.</p>
         )}
       </section>
+
+      <VerificacaoDuasEtapas
+        ativa={mfa.ativo}
+        ativadaEm={mfa.ativadoEm}
+        codigosRestantes={mfa.codigosRestantes}
+        temSenha={temSenha}
+      />
 
       <SairDeTodos />
 

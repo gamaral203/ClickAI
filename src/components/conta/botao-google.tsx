@@ -51,4 +51,5 @@ export const ERROS_GOOGLE: Record<string, string> = {
   google: "Não foi possível entrar com o Google. Tente de novo.",
   google_outra_conta:
     "Este e-mail já está ligado a outra conta Google. Entre com a conta Google usada antes.",
+  codigo_expirado: "O tempo para digitar o código acabou. Entre de novo.",
 };

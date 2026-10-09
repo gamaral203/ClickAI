@@ -49,7 +49,7 @@ Gere `APP_SECRET` e `CRON_SECRET` com:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e WhatsApp.
+Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e WhatsApp e torna ilegíveis os segredos da verificação em duas etapas (cifrados com uma chave derivada dele): antes de trocar, avise quem usa a verificação e, depois, desligue-a para todos no banco (`update usuarios set mfa_segredo = null, mfa_ativado_em = null, mfa_ultimo_passo = null; delete from codigos_recuperacao;`), para que liguem de novo.
 
 ### Liberação temporária do prazo de saque (só para teste)
 

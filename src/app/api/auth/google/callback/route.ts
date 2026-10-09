@@ -46,8 +46,10 @@ export async function GET(request: NextRequest) {
   try {
     const perfil = await concluirLoginGoogle(codigo, salvo.verificador);
     if (!perfil) return erro("google");
-    const resultado = await entrarComGoogle(perfil, salvo.vender);
+    const resultado = await entrarComGoogle(perfil, salvo.vender, salvo.proximo);
     if (!resultado.ok) return erro("google_outra_conta");
+    // Verificação em duas etapas ligada: o Google não basta, a sessão abre depois do código.
+    if (resultado.pedeCodigo) return Response.redirect(new URL("/entrar/codigo", request.url), 303);
     // Conta nova vai para a tela principal (ou volta ao fotógrafo); login segue para a sua área.
     const destino = resultado.novo
       ? destinoDoCadastro(salvo.proximo, resultado.usuario.papel)
@@ -55,7 +57,11 @@ export async function GET(request: NextRequest) {
         caminhoSeguro(salvo.proximo, inicioDoPapel(resultado.usuario.papel));
     return Response.redirect(new URL(destino, request.url), 303);
   } catch (falha) {
-    console.error("Falha no login com Google", falha);
+    // Só o nome do erro: a resposta do Google pode trazer o código ou o token.
+    console.error(
+      "Falha no login com Google",
+      falha instanceof Error ? falha.name : "desconhecido",
+    );
     return erro("google");
   }
 }

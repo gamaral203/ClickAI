@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { formatarPreco } from "@/lib/formatar";
+import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "@/servicos/mfa";
 import { mensagemDeBloqueio, solicitarSaque } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -17,7 +18,10 @@ const MOTIVOS = {
   falhou: "Não foi possível fazer o saque agora. Tente de novo em alguns minutos.",
 };
 
-const entrada = z.object({ tipo: z.enum(["normal", "antecipado"]) });
+const entrada = z.object({
+  tipo: z.enum(["normal", "antecipado"]),
+  codigo: z.string().max(40).optional(),
+});
 
 /**
  * Saque de todo o saldo sacável. O valor nunca vem do navegador: o servidor calcula a partir
@@ -30,6 +34,9 @@ export async function solicitarSaqueAcao(
   const { usuario, conta } = await exigirFotografo("/painel/vendas");
   const dados = entrada.safeParse(Object.fromEntries(formulario));
   if (!dados.success) return { erro: MOTIVOS.falhou };
+  // Com a verificação em duas etapas ligada, cada saque pede o código do app.
+  const codigo = await exigirCodigoSeLigado(usuario, dados.data.codigo);
+  if (codigo !== "ok") return { erro: MENSAGENS_CODIGO[codigo] };
 
   const resultado = await solicitarSaque(conta, usuario, dados.data.tipo === "antecipado");
   revalidatePath("/painel/vendas");

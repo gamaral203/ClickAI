@@ -218,6 +218,7 @@ export async function anonimizarConta(usuarioId: string): Promise<RostoRemovido[
 
     // ------------------------------------------------ Usuário
     await tx.delete(t.confirmacoesEmail).where(eq(t.confirmacoesEmail.usuarioId, usuarioId));
+    await tx.delete(t.codigosRecuperacao).where(eq(t.codigosRecuperacao.usuarioId, usuarioId));
     await tx
       .update(t.usuarios)
       .set({
@@ -227,6 +228,9 @@ export async function anonimizarConta(usuarioId: string): Promise<RostoRemovido[
         senhaHash: null,
         googleId: null,
         emailConfirmadoEm: null,
+        mfaSegredo: null,
+        mfaAtivadoEm: null,
+        mfaUltimoPasso: null,
         excluidoEm: agora,
       })
       .where(eq(t.usuarios.id, usuarioId));

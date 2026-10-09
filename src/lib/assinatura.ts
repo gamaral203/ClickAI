@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 
 // Assinatura de dados que o servidor entrega ao navegador e depois recebe de volta, para
 // conferir que não foram alterados (ex.: as fotos que a busca encontrou, que dão direito ao
@@ -17,6 +17,14 @@ function segredo(): Buffer {
   }
   global.__clicouaiSegredo ??= randomBytes(32);
   return global.__clicouaiSegredo;
+}
+
+/**
+ * Chave de 32 bytes derivada do APP_SECRET (HKDF-SHA256) para um uso só (ex.: cifrar o segredo
+ * da verificação em duas etapas). O `proposito` separa as chaves: uma não serve para a outra.
+ */
+export function derivarChave(proposito: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", segredo(), "clicouai", proposito, 32));
 }
 
 function hmac(proposito: string, corpo: string) {
