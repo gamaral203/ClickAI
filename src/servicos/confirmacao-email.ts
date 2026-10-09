@@ -4,6 +4,7 @@
 // confirmaria pela tela e herdaria as compras de convidado dela.
 
 import { emProducao } from "@/db/conexao";
+import { emailConfigurado } from "@/lib/email";
 
 const TOKEN = /^[\w-]{20,100}$/;
 
@@ -24,4 +25,13 @@ export function destinoSemEnvio(token: string, destino: string): string {
 export function tokenDeExemplo(token: unknown): string | null {
   if (emProducao()) return null;
   return typeof token === "string" && TOKEN.test(token) ? token : null;
+}
+
+/**
+ * Dá para mandar (ou, fora da produção, mostrar) um link de confirmação? Na produção sem o
+ * Resend configurado, não: a tela mostra o aviso em vez do botão "Confirmar e-mail", que só
+ * levaria de novo ao aviso de envio indisponível.
+ */
+export function podeEnviarConfirmacao(): boolean {
+  return emailConfigurado() || !emProducao();
 }

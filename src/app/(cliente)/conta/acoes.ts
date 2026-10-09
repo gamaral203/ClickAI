@@ -3,14 +3,16 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { papelEscolhido, type PapelCadastro } from "@/lib/cadastro";
 import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { senhaNovaSchema } from "@/lib/regras-senha";
-import { destinoSemEnvio } from "@/servicos/confirmacao-email";
+import { destinoSemEnvio, podeEnviarConfirmacao } from "@/servicos/confirmacao-email";
 import { excluirConta } from "@/servicos/exclusao-conta";
 import {
   cadastroBloqueado,
   limiteAtingido,
+  limiteDoIpAtingido,
   loginBloqueado,
   loginDeuCerto,
 } from "@/servicos/limites";
@@ -18,6 +20,7 @@ import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
 import { MENSAGENS_CODIGO } from "@/servicos/mfa";
 import {
   cadastrar,
+  comecarAVender,
   concluirLoginComCodigo,
   entrar,
   gerarConfirmacaoEmail,
@@ -31,7 +34,7 @@ export type EstadoFormulario = {
   erro?: string;
   erros?: Partial<Record<"nome" | "email" | "senha" | "papel", string>>;
   /** Valores para devolver ao formulário (nunca a senha). */
-  valores?: { nome?: string; email?: string };
+  valores?: { nome?: string; email?: string; papel?: PapelCadastro };
 };
 
 const login = z.object({
@@ -100,14 +103,18 @@ export async function cadastrarAcao(
   _anterior: EstadoFormulario,
   formulario: FormData,
 ): Promise<EstadoFormulario> {
+  const papel = formulario.get("papel");
+  // O papel volta junto: depois do erro, o formulário continua com o tipo de conta escolhido.
   const valores = {
     nome: String(formulario.get("nome") ?? ""),
     email: String(formulario.get("email") ?? ""),
+    papel: papelEscolhido(papel, "cliente"),
   };
   const dados = cadastro.safeParse({
-    ...valores,
+    nome: valores.nome,
+    email: valores.email,
     senha: formulario.get("senha"),
-    papel: formulario.get("papel"),
+    papel,
   });
   if (!dados.success) {
     const erros: EstadoFormulario["erros"] = {};
@@ -137,6 +144,17 @@ export async function cadastrarAcao(
   );
 }
 
+/**
+ * "Quero vender" de quem já tem conta de comprador (/cadastro?tipo=fotografo, logado): passa a
+ * conta para fotógrafo e abre o painel. Só mexe na conta do próprio usuário logado.
+ */
+export async function comecarAVenderAcao() {
+  const usuario = await usuarioAtual();
+  if (!usuario) redirect("/entrar?proximo=%2Fcadastro%3Ftipo%3Dfotografo");
+  if (!(await comecarAVender(usuario))) redirect("/minhas-compras");
+  redirect("/painel");
+}
+
 export async function sairAcao() {
   await sair();
   redirect("/");
@@ -154,15 +172,30 @@ export async function reenviarConfirmacaoAcao() {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar");
   if (usuario.emailConfirmado) redirect("/minhas-compras");
-  // Cada reenvio manda um e-mail pelo Resend: limite por IP e por conta, contados no banco.
+  // Sem envio de e-mail na produção, não adianta gerar link nem gastar o limite: só avisa.
+  if (!podeEnviarConfirmacao()) {
+    redirect(
+      `/conta/confirmar-email?indisponivel=1&proximo=${encodeURIComponent("/minhas-compras")}`,
+    );
+  }
+  // Cada reenvio manda um e-mail pelo Resend: limite por IP e por conta, contados no banco. O
+  // limite por IP é próprio do reenvio: antes era o do cadastro, e quem apertava "Confirmar
+  // e-mail" algumas vezes travava o cadastro de todo mundo na mesma rede.
   if (
-    (await cadastroBloqueado()) ||
+    (await limiteDoIpAtingido("email_confirmacao_ip")) ||
     (await limiteAtingido("email_confirmacao_usuario", usuario.id))
   ) {
     redirect("/conta/confirmar-email?limite=1");
   }
   const token = await gerarConfirmacaoEmail(usuario.id);
-  await confirmarPorEmail(usuario.email, usuario.nome, token, "/conta/confirmar-email?enviado=1");
+  await confirmarPorEmail(
+    usuario.email,
+    usuario.nome,
+    token,
+    "/conta/confirmar-email?enviado=1",
+    // Se não sair, "Continuar" leva às compras, e não de volta para esta mesma tela.
+    "/minhas-compras",
+  );
 }
 
 /**
@@ -175,10 +208,11 @@ async function confirmarPorEmail(
   nome: string,
   token: string,
   destino: string,
+  destinoSeNaoSair = destino,
 ): Promise<never> {
   const enviado = emailConfigurado() && (await enviarConfirmacaoDeEmail(email, nome, token));
   if (enviado) redirect(destino);
-  redirect(destinoSemEnvio(token, destino));
+  redirect(destinoSemEnvio(token, destinoSeNaoSair));
 }
 
 export type EstadoExclusao = {
