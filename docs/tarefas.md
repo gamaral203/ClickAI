@@ -142,6 +142,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`: o build falha no `db:migrar` com o nome do que falta e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`); conferido antes que as duas existem na Vercel
 - [x] `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` cadastradas na Vercel (produção) e usadas pelo deploy atual
 - [x] Job de revisão (`/api/jobs/revisao`, a cada 10 minutos pelo mesmo workflow do GitHub, com `CRON_SECRET`): confere no Mercado Pago os saques em `processando` com `conferirSaques` (ambíguos continuam em revisão manual, saldo nunca volta sem certeza) e revisa até 5 fotos presas em `processando` há mais de 30 minutos, conferindo o arquivo no R2 e reprocessando ou marcando `erro` com a mensagem mostrada no painel (migração 0007); sem Mercado Pago ou R2 configurados, não faz nada
+- [x] "Sair" encerra a sessão no servidor (id da sessão do cookie em `sessoes_revogadas` até a hora em que venceria) e "Sair de todos os dispositivos" em Minhas compras e em Perfil e recebimento (`usuarios.versao_sessao`, migração 0008); a versão da sessão passa a incluir o hash da senha, então trocar a senha (inclusive a de gestor em `GESTORES`) derruba as outras sessões. A leitura da sessão continua uma consulta só por requisição
 
 ## Em andamento
 
@@ -266,7 +267,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Remover SAQUE_SEM_PRAZO_EMAILS da produção depois do teste de saque
 - [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
 - [ ] Troca de CPF/CNPJ do fotógrafo pedindo a senha (ou o Google) de novo, com aviso por e-mail e saques segurados por 48–72 h depois da troca `[R-alta]` (ver revisão em [riscos.md](riscos.md))
-- [ ] Sair invalida a sessão no servidor (mudar a versão da sessão no logout) e "sair de todos os dispositivos"
 - [ ] Limite de `/api/metricas` sem o `Map` na memória de cada servidor (hoje cresce sem limpeza)
 - [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -15,12 +15,15 @@ import {
   criarContaDeFotografo,
   criarContaDeFotografoSeNaoExistir,
   criarUsuario,
+  encerrarTodasAsSessoes,
   emailEmUso,
   ligarContaGoogle,
   marcarEmailConfirmado,
   mudarPapelDoUsuario,
+  revogarSessao,
   salvarConfirmacaoEmail,
   slugDeFotografoEmUso,
+  usuarioDaSessao,
   versaoDaSessao,
   vincularPedidosDeConvidado,
   type FotografoConta,
@@ -48,32 +51,74 @@ function novoToken() {
   return randomBytes(32).toString("base64url");
 }
 
-// A sessão é um cookie assinado (APP_SECRET) com o id do usuário, a versão da conta e a
-// validade. Qualquer servidor confere sem depender de memória: na Vercel, cada requisição pode
-// cair numa instância diferente, e a sessão guardada só na memória de uma se perdia na outra.
-// Sair apaga o cookie; perder a senha ou mudar a conta Google muda a versão e derruba os
-// cookies antigos.
-// Na Fase 11, o Better Auth assume, com sessões no banco.
+// A sessão é um cookie assinado (APP_SECRET) com o id do usuário, a versão da conta, um id
+// próprio da sessão (`j`), a hora e o jeito do login. Qualquer servidor confere sem depender de
+// memória: na Vercel, cada requisição pode cair numa instância diferente.
+//
+// Encerrar no servidor (docs/arquitetura.md, "Sessão"):
+//   - "Sair" grava o id desta sessão em `sessoes_revogadas` (até a hora em que o cookie venceria):
+//     o cookie deixa de valer mesmo que alguém tenha copiado. Só o logout escreve; a leitura da
+//     sessão continua uma consulta só (usuário e lista juntos, pela chave primária);
+//   - "Sair de todos os dispositivos", troca de CPF/CNPJ, troca ou perda da senha e mudança da
+//     conta Google mudam a versão da conta e derrubam todos os cookies de uma vez.
+// Na Fase 11, o Better Auth pode assumir, com sessões no banco.
 const PROPOSITO_SESSAO = "sessao";
 
-/** Usuário da sessão atual, ou `null`. Lê o cookie: chamar dentro de <Suspense>. */
-export async function usuarioAtual(): Promise<Usuario | null> {
-  const token = (await cookies()).get(COOKIE)?.value;
+export type MetodoLogin = "senha" | "google";
+
+type DadosSessao = { u: string; v: string; j: string; t: number; m: MetodoLogin };
+
+function lerDadosSessao(token: string | undefined): DadosSessao | null {
   if (!token || token.length > 1000) return null;
+  const d = conferirAssinatura(PROPOSITO_SESSAO, token) as Partial<DadosSessao> | null;
+  if (
+    typeof d?.u !== "string" ||
+    typeof d.v !== "string" ||
+    typeof d.j !== "string" ||
+    typeof d.t !== "number" ||
+    (d.m !== "senha" && d.m !== "google")
+  ) {
+    return null;
+  }
+  return d as DadosSessao;
+}
+
+export type SessaoAtual = {
+  usuario: Usuario;
+  /** Como a pessoa entrou nesta sessão. */
+  metodo: MetodoLogin;
+  /** Quando entrou (ms). Trocar a sessão por outra, no mesmo aparelho, mantém a hora. */
+  entrouEm: number;
+};
+
+/** Sessão atual, ou `null`. Lê o cookie: chamar dentro de <Suspense>. */
+export async function sessaoAtual(): Promise<SessaoAtual | null> {
+  const token = (await cookies()).get(COOKIE)?.value;
+  if (!token) return null;
   // Com Cache Components, o relógio só pode ser lido depois de esperar a requisição; sem isto o
   // Next acusa erro ao pré-renderizar o cabeçalho (por exemplo, na página "não encontrado").
   await connection();
-  const dados = conferirAssinatura(PROPOSITO_SESSAO, token) as { u?: unknown; v?: unknown } | null;
-  if (typeof dados?.u !== "string" || typeof dados.v !== "string") return null;
-  if ((await versaoDaSessao(dados.u)) !== dados.v) return null;
-  return buscarUsuario(dados.u);
+  const dados = lerDadosSessao(token);
+  if (!dados) return null;
+  const usuario = await usuarioDaSessao(dados.u, dados.v, dados.j);
+  return usuario ? { usuario, metodo: dados.m, entrouEm: dados.t } : null;
 }
 
-async function iniciarSessao(usuarioId: string) {
+/** Usuário da sessão atual, ou `null`. Lê o cookie: chamar dentro de <Suspense>. */
+export async function usuarioAtual(): Promise<Usuario | null> {
+  return (await sessaoAtual())?.usuario ?? null;
+}
+
+async function iniciarSessao(
+  usuarioId: string,
+  metodo: MetodoLogin,
+  entrouEm: number = Date.now(),
+) {
   const versao = await versaoDaSessao(usuarioId);
   if (!versao) return;
   const expiraEm = Date.now() + DURACAO_SESSAO_MS;
-  const token = assinar(PROPOSITO_SESSAO, { u: usuarioId, v: versao }, DURACAO_SESSAO_MS);
+  const dados: DadosSessao = { u: usuarioId, v: versao, j: randomUUID(), t: entrouEm, m: metodo };
+  const token = assinar(PROPOSITO_SESSAO, dados, DURACAO_SESSAO_MS);
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -91,12 +136,37 @@ export async function entrar(email: string, senha: string): Promise<Usuario | nu
   const usuario = await buscarUsuarioParaLogin(email);
   const confere = senhaConfere(senha, usuario?.senhaHash ?? HASH_FALSO);
   if (!usuario || !confere) return null;
-  await iniciarSessao(usuario.id);
+  await iniciarSessao(usuario.id, "senha");
   return buscarUsuario(usuario.id);
 }
 
+/**
+ * Sai deste aparelho: encerra a sessão no servidor (o id do cookie vai para
+ * `sessoes_revogadas`) e apaga o cookie.
+ */
 export async function sair() {
+  const jarra = await cookies();
+  const dados = lerDadosSessao(jarra.get(COOKIE)?.value);
+  if (dados) await revogarSessao(dados.j, Date.now() + DURACAO_SESSAO_MS);
+  jarra.delete(COOKIE);
+}
+
+/** Sai de todos os aparelhos, inclusive deste: todos os cookies do usuário deixam de valer. */
+export async function sairDeTodosOsDispositivos(usuarioId: string) {
+  await encerrarTodasAsSessoes(usuarioId);
   (await cookies()).delete(COOKIE);
+}
+
+/**
+ * Derruba as sessões dos outros aparelhos e mantém esta, com um cookie novo (troca de CPF/CNPJ,
+ * troca de senha). A hora e o jeito do login desta sessão continuam os mesmos.
+ */
+export async function encerrarOutrasSessoes(usuarioId: string) {
+  const atual = await sessaoAtual();
+  await encerrarTodasAsSessoes(usuarioId);
+  if (atual?.usuario.id === usuarioId) {
+    await iniciarSessao(usuarioId, atual.metodo, atual.entrouEm);
+  }
 }
 
 export type ResultadoCadastro =
@@ -125,7 +195,7 @@ export async function cadastrar(dados: {
     });
   }
   const tokenConfirmacao = await gerarConfirmacaoEmail(usuario.id);
-  await iniciarSessao(usuario.id);
+  await iniciarSessao(usuario.id, "senha");
   return { ok: true, usuario, tokenConfirmacao };
 }
 
@@ -196,7 +266,7 @@ export async function entrarComGoogle(
   }
 
   await vincularPedidosDeConvidado(usuario.id);
-  await iniciarSessao(usuario.id);
+  await iniciarSessao(usuario.id, "google");
   const atualizado = await buscarUsuario(usuario.id);
   return atualizado
     ? { ok: true, usuario: atualizado, novo }

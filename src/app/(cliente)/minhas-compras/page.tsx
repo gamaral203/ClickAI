@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { CheckCircle2, Download, MailWarning, ShoppingBag } from "lucide-react";
 
 import { reenviarConfirmacaoAcao } from "@/app/(cliente)/conta/acoes";
+import { SairDeTodos } from "@/components/conta/sair-de-todos";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   contarDownloads,
@@ -179,6 +180,8 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
         </Link>
         .
       </p>
+
+      <SairDeTodos />
     </>
   );
 }

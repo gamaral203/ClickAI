@@ -96,8 +96,27 @@ export const usuarios = pgTable(
      * marcadores, porque pedidos, lançamentos e saques apontam para ela (src/dados/exclusao.ts).
      */
     excluidoEm: data(),
+    /**
+     * Entra na versão da sessão (src/dados/index.ts, versaoDaSessao): somar 1 derruba todos os
+     * cookies de sessão do usuário ("sair de todos os dispositivos", troca de CPF/CNPJ).
+     */
+    versaoSessao: integer().notNull().default(0),
   },
   (t) => [uniqueIndex().on(t.email), uniqueIndex().on(t.googleId)],
+).enableRLS();
+
+/**
+ * Sessões encerradas por "Sair" antes de vencer: o id (`jti`) do cookie assinado. A leitura da
+ * sessão recusa o cookie cujo id está aqui. A linha só precisa durar até o cookie vencer; o job
+ * de pedidos apaga as vencidas.
+ */
+export const sessoesRevogadas = pgTable(
+  "sessoes_revogadas",
+  {
+    jti: text().primaryKey(),
+    expiraEm: data().notNull(),
+  },
+  (t) => [index().on(t.expiraEm)],
 ).enableRLS();
 
 /** Token de confirmação de e-mail, guardado só como hash e usado uma vez. */

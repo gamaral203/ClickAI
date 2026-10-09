@@ -25,13 +25,18 @@ export default function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
 }
 
 async function Formulario({ searchParams }: Pick<PageProps<"/entrar">, "searchParams">) {
-  const { proximo, erro } = await searchParams;
+  const { proximo, erro, saiu } = await searchParams;
   const valor = Array.isArray(proximo) ? proximo[0] : proximo;
   const destino = valor ? caminhoSeguro(valor) : undefined;
   const mensagem = typeof erro === "string" ? ERROS_GOOGLE[erro] : undefined;
 
   return (
     <div className="flex flex-col gap-6">
+      {saiu === "todos" && (
+        <p role="status" className="rounded-lg border p-3 text-sm">
+          Você saiu de todos os aparelhos. Entre de novo para continuar.
+        </p>
+      )}
       {mensagem && (
         <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-destructive">
           {mensagem}

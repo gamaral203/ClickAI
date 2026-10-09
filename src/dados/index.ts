@@ -1192,19 +1192,74 @@ export async function mudarPapelDoUsuario(usuarioId: string, papel: Papel): Prom
 }
 
 /**
- * Versão da sessão do usuário: muda quando a senha cai ou a conta Google muda (ver
- * ligarContaGoogle). O cookie de sessão leva esta versão, e um cookie com versão antiga deixa de
- * valer. Quando houver troca de senha, ela também precisa mudar a versão. `null` se o usuário
- * não existe.
+ * Versão da sessão de um usuário. Muda quando a senha muda ou cai, quando a conta Google muda
+ * (ver ligarContaGoogle) e quando `versao_sessao` sobe ("sair de todos os dispositivos", troca de
+ * CPF/CNPJ). O cookie de sessão leva esta versão, e um cookie com versão antiga deixa de valer.
+ * É um resumo (SHA-256 truncado) e não revela o hash da senha.
  */
+function calcularVersaoDaSessao(u: UsuarioInterno) {
+  return createHash("sha256")
+    .update(`${u.senhaHash ?? "sem-senha"}|${u.googleId ?? ""}|${u.versaoSessao ?? 0}`)
+    .digest("base64url")
+    .slice(0, 22);
+}
+
+/** Versão atual da sessão do usuário, ou `null` se ele não existe ou excluiu a conta. */
 export async function versaoDaSessao(usuarioId: string): Promise<string | null> {
   const u = await usuarioPorId(usuarioId);
   // Conta excluída: nenhum cookie vale mais, nem um assinado antes da exclusão.
   if (!u || u.excluidoEm) return null;
-  return createHash("sha256")
-    .update(`${u.senhaHash ? "com-senha" : "sem-senha"}|${u.googleId ?? ""}`)
-    .digest("base64url")
-    .slice(0, 16);
+  return calcularVersaoDaSessao(u);
+}
+
+/**
+ * Usuário de um cookie de sessão já com a assinatura conferida, ou `null` se a versão mudou, a
+ * conta foi excluída ou a sessão foi encerrada ("Sair"). Uma consulta só por requisição: o
+ * usuário e a lista de sessões encerradas vêm juntos (busca pela chave primária nas duas).
+ */
+export async function usuarioDaSessao(
+  usuarioId: string,
+  versao: string,
+  jti: string,
+): Promise<Usuario | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.usuarios)
+    .where(
+      and(
+        eq(t.usuarios.id, usuarioId),
+        isNull(t.usuarios.excluidoEm),
+        sql`not exists (select 1 from ${t.sessoesRevogadas} where ${t.sessoesRevogadas.jti} = ${jti})`,
+      ),
+    );
+  if (!linha) return null;
+  const u = paraUsuario(linha);
+  return calcularVersaoDaSessao(u) === versao ? usuarioPublico(u) : null;
+}
+
+/** Encerra uma sessão ("Sair"): o cookie com este id deixa de valer, mesmo copiado. */
+export async function revogarSessao(jti: string, expiraEm: number) {
+  const banco = await obterBanco();
+  await banco
+    .insert(t.sessoesRevogadas)
+    .values({ jti, expiraEm: new Date(expiraEm) })
+    .onConflictDoNothing();
+}
+
+/** Derruba todas as sessões do usuário, em todos os aparelhos (sobe `versao_sessao`). */
+export async function encerrarTodasAsSessoes(usuarioId: string) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.usuarios)
+    .set({ versaoSessao: sql`${t.usuarios.versaoSessao} + 1` })
+    .where(eq(t.usuarios.id, usuarioId));
+}
+
+/** Apaga as sessões encerradas que já venceriam de qualquer jeito (job de pedidos). */
+export async function apagarSessoesRevogadasVencidas(agora: number) {
+  const banco = await obterBanco();
+  await banco.delete(t.sessoesRevogadas).where(lt(t.sessoesRevogadas.expiraEm, new Date(agora)));
 }
 
 export async function salvarConfirmacaoEmail(

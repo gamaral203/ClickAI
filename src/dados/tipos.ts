@@ -31,6 +31,8 @@ export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
   emailConfirmadoEm: string | null;
   /** Conta excluída pelo próprio usuário (dados anonimizados). */
   excluidoEm?: string | null;
+  /** Contador que derruba todas as sessões quando muda (src/dados/index.ts, versaoDaSessao). */
+  versaoSessao?: number;
 };
 
 export type RedesSociais = {

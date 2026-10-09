@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { CheckCircle2, Landmark } from "lucide-react";
 
+import { SairDeTodos } from "@/components/conta/sair-de-todos";
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
 import { Button } from "@/components/ui/button";
 import { formatarCpfCnpj } from "@/lib/documentos";
@@ -71,6 +72,8 @@ async function Conteudo() {
           <p className="text-sm font-medium">Informe e salve o CPF ou CNPJ acima primeiro.</p>
         )}
       </section>
+
+      <SairDeTodos />
 
       <section className="flex flex-col gap-2 rounded-xl border p-5">
         <h2 className="text-lg font-semibold">Excluir conta</h2>

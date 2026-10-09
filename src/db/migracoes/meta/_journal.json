@@ -57,6 +57,13 @@
       "when": 1791507614174,
       "tag": "0007_revisa_fotos_presas",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791507970486,
+      "tag": "0008_sessao_revogavel",
+      "breakpoints": true
     }
   ]
 }

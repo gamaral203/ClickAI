@@ -20,6 +20,7 @@ import {
   gerarConfirmacaoEmail,
   inicioDoPapel,
   sair,
+  sairDeTodosOsDispositivos,
   usuarioAtual,
 } from "@/servicos/sessao";
 
@@ -116,6 +117,13 @@ export async function cadastrarAcao(
 export async function sairAcao() {
   await sair();
   redirect("/");
+}
+
+/** "Sair de todos os dispositivos": derruba todas as sessões da conta, inclusive esta. */
+export async function sairDeTodosAcao() {
+  const usuario = await usuarioAtual();
+  if (usuario) await sairDeTodosOsDispositivos(usuario.id);
+  redirect("/entrar?saiu=todos");
 }
 
 /** Gera e envia um novo link de confirmação para o usuário logado. */

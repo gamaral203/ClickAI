@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  apagarSessoesRevogadasVencidas,
   apagarTentativasAntigas,
   buscarPedido,
   listarExpiradosSemLembrete,
@@ -75,6 +76,8 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
   }
 
   await apagarTentativasAntigas(agora - VALIDADE_TENTATIVAS_MS);
+  // Sessão encerrada cujo cookie já venceu não precisa mais estar na lista.
+  await apagarSessoesRevogadasVencidas(agora);
   return resultado;
 }
 
