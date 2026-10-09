@@ -147,6 +147,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Verificação em duas etapas (TOTP, app autenticador), opcional para fotógrafo e gestor em Perfil e recebimento: QR Code, 10 códigos de recuperação (só o HMAC no banco), segredo cifrado com AES-256-GCM (chave derivada do `APP_SECRET`); pedida no login com senha e com o Google, na troca de CPF/CNPJ e em cada saque; cada código vale uma vez e há limite de 6 tentativas em 15 minutos (migração 0010) `[R-alta]`
 - [x] Limite de `/api/metricas` no banco (regra `metricas_ip`, 300 em 10 minutos por IP), sem o `Map` na memória de cada servidor que crescia sem limpeza
 - [x] Login com Google loga só o nome do erro (a resposta do Google pode trazer o código ou o token)
+- [x] Sessão de gestor com expiração absoluta de 12 horas desde o login (os outros papéis continuam com 30 dias)
 
 ## Em andamento
 

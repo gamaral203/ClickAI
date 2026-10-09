@@ -27,6 +27,7 @@ import { apagarSessoesRevogadasVencidas, criarUsuario } from "@/dados";
 import { gerarHashSenha } from "@/lib/senha";
 
 import {
+  DURACAO_SESSAO_GESTOR_MS,
   encerrarOutrasSessoes,
   entrar,
   sair,
@@ -129,5 +130,32 @@ describe("sair encerra a sessão no servidor", () => {
     await apagarSessoesRevogadasVencidas(Date.now());
     em("copia");
     expect(await usuarioAtual()).toBeNull();
+  });
+});
+
+describe("expiração da sessão de gestor", () => {
+  it("vale 12 horas para o gestor e 30 dias para os outros papéis", async () => {
+    const { email: emailCliente } = await novaConta();
+    const gestor = await criarUsuario({
+      nome: "Gestora Teste",
+      email: `${crypto.randomUUID()}@teste.com`,
+      senhaHash: gerarHashSenha(SENHA),
+      papel: "admin",
+    });
+    em("cliente");
+    await entrar(emailCliente, SENHA);
+    em("gestor");
+    await entrar(gestor.email, SENHA);
+    expect((await usuarioAtual())?.papel).toBe("admin");
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(Date.now() + DURACAO_SESSAO_GESTOR_MS + 60_000);
+      expect(await usuarioAtual()).toBeNull();
+      em("cliente");
+      expect(await usuarioAtual()).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

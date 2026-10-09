@@ -43,6 +43,11 @@ import { conferirCodigoMfa } from "./mfa";
 
 const COOKIE = "clicouai_sessao";
 const DURACAO_SESSAO_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * Sessão de gestor vale no máximo 12 horas desde o login (expiração absoluta): a conta mexe em
+ * reembolsos, papéis e denúncias, e um cookie esquecido num computador vale menos tempo.
+ */
+export const DURACAO_SESSAO_GESTOR_MS = 12 * 60 * 60 * 1000;
 const DURACAO_CONFIRMACAO_MS = 24 * 60 * 60 * 1000;
 
 function hash(token: string) {
@@ -103,7 +108,9 @@ export async function sessaoAtual(): Promise<SessaoAtual | null> {
   const dados = lerDadosSessao(token);
   if (!dados) return null;
   const usuario = await usuarioDaSessao(dados.u, dados.v, dados.j);
-  return usuario ? { usuario, metodo: dados.m, entrouEm: dados.t } : null;
+  if (!usuario) return null;
+  if (usuario.papel === "admin" && Date.now() - dados.t > DURACAO_SESSAO_GESTOR_MS) return null;
+  return { usuario, metodo: dados.m, entrouEm: dados.t };
 }
 
 /** Usuário da sessão atual, ou `null`. Lê o cookie: chamar dentro de <Suspense>. */
