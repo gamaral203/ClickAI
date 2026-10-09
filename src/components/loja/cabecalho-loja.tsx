@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Camera, Globe } from "lucide-react";
 
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
+import { DOURADO, SeloDeConquista } from "@/components/metas/selo-de-conquista";
 import type { RedesSociais } from "@/dados";
 import { corDoTexto } from "@/lib/loja";
 
@@ -22,6 +23,7 @@ export function CabecalhoLoja({
   redes,
   numeros,
   urlParaCompartilhar,
+  conquista = null,
 }: {
   nome: string;
   descricao: string | null;
@@ -32,6 +34,8 @@ export function CabecalhoLoja({
   redes: RedesSociais;
   numeros?: NumerosDoFotografo;
   urlParaCompartilhar?: string;
+  /** Última meta de vendas batida ("10K"…): a foto ganha a moldura dourada com o selo. */
+  conquista?: string | null;
 }) {
   return (
     <header className="relative">
@@ -59,7 +63,7 @@ export function CabecalhoLoja({
       <div className="mx-auto max-w-6xl px-4">
         <div className="relative -mt-14 flex flex-col gap-5 rounded-2xl border bg-card p-5 shadow-sm sm:-mt-20 sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
-            <Logo nome={nome} logo={logo} corSecundaria={corSecundaria} />
+            <Logo nome={nome} logo={logo} corSecundaria={corSecundaria} conquista={conquista} />
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{nome}</h1>
               {descricao && (
@@ -89,27 +93,52 @@ function Logo({
   nome,
   logo,
   corSecundaria,
+  conquista,
 }: {
   nome: string;
   logo: string | null;
   corSecundaria: string;
+  conquista: string | null;
 }) {
-  const classe =
-    "relative -mt-16 size-24 shrink-0 overflow-hidden rounded-full border-4 border-card bg-card shadow-md sm:-mt-24 sm:size-32";
-  if (logo) {
-    return (
-      <span className={classe}>
-        <Image src={logo} alt={`Logo de ${nome}`} fill sizes="128px" className="object-cover" />
-      </span>
-    );
-  }
-  return (
+  const foto = logo ? (
+    <Image src={logo} alt={`Logo de ${nome}`} fill sizes="128px" className="object-cover" />
+  ) : (
     <span
       aria-hidden="true"
-      className={`${classe} flex items-center justify-center text-4xl font-bold sm:text-5xl`}
+      className="flex size-full items-center justify-center text-4xl font-bold sm:text-5xl"
       style={{ backgroundColor: corSecundaria, color: corDoTexto(corSecundaria) }}
     >
       {nome.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+
+  if (!conquista) {
+    return (
+      <span className="relative -mt-16 size-24 shrink-0 overflow-hidden rounded-full border-4 border-card bg-card shadow-md sm:-mt-24 sm:size-32">
+        {foto}
+      </span>
+    );
+  }
+
+  // Meta batida: anel dourado e o selo embaixo, sobrepondo a borda da foto.
+  return (
+    <span className="relative -mt-16 mb-7 w-fit shrink-0 self-start sm:-mt-24 sm:mb-8">
+      <span
+        className="block size-24 rounded-full p-1.5 shadow-lg sm:size-32"
+        style={{ background: DOURADO }}
+      >
+        <span className="relative block size-full overflow-hidden rounded-full border-2 border-card bg-card">
+          {foto}
+        </span>
+      </span>
+      <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 sm:-bottom-10">
+        <span className="sm:hidden">
+          <SeloDeConquista rotulo={conquista} escala={0.85} />
+        </span>
+        <span className="hidden sm:block">
+          <SeloDeConquista rotulo={conquista} escala={1.15} />
+        </span>
+      </span>
     </span>
   );
 }

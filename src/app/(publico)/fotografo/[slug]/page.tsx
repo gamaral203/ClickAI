@@ -4,9 +4,15 @@ import { Suspense } from "react";
 
 import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
 import { numerosDoFotografo, VitrineDoFotografo } from "@/components/loja/vitrine-do-fotografo";
-import { buscarFotografoPublico, buscarLojaDoFotografo, listarEventosPublicados } from "@/dados";
+import {
+  buscarFotografoPublico,
+  buscarLojaDoFotografo,
+  listarEventosPublicados,
+  totalVendidoComoAutor,
+} from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto } from "@/lib/loja";
+import { situacaoDasMetas } from "@/lib/metas";
 import { FORMATO_SLUG } from "@/lib/slug";
 
 // Link do fotógrafo: /fotografo/<endereço>. Todo fotógrafo tem o seu, sem configurar nada, para
@@ -42,11 +48,14 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
   if (!fotografo) notFound();
   const { busca } = await searchParams;
   const termo = typeof busca === "string" ? busca.trim().slice(0, 100) : "";
-  const [todos, encontrados, salva] = await Promise.all([
+  const [todos, encontrados, salva, vendido] = await Promise.all([
     listarEventosPublicados({ fotografoId: fotografo.id }),
     termo ? listarEventosPublicados({ fotografoId: fotografo.id, busca: termo }) : null,
     buscarLojaDoFotografo(fotografo.id),
+    totalVendidoComoAutor(fotografo.id),
   ]);
+  // Última meta de vendas batida: a foto de perfil ganha a moldura dourada com o selo.
+  const conquista = situacaoDasMetas(vendido).conquistadas.at(-1)?.rotulo ?? null;
   // O que o fotógrafo configurou em Minha loja (nome, descrição e cores) vale aqui também.
   const loja = salva?.ativa ? salva : null;
   const corPrimaria = loja?.corPrimaria ?? "#2362FE";
@@ -75,6 +84,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
         redes={fotografo.redesSociais}
         numeros={numerosDoFotografo(todos)}
         urlParaCompartilhar={urlDoSite(`/fotografo/${fotografo.slug}`)}
+        conquista={conquista}
       />
       <VitrineDoFotografo
         eventos={encontrados ?? todos}
