@@ -5,67 +5,67 @@ import { Camera, Flame } from "lucide-react";
 import type { EventoResumo } from "@/dados";
 
 /**
- * "Em alta agora": os eventos que mais venderam fotos nos últimos 7 dias, numa faixa que rola de
- * lado (no celular, com o dedo). O número grande é a posição.
+ * "Mais vendidos da semana": os eventos que mais venderam fotos nos últimos 7 dias. Fundo
+ * claro, título grande para chamar atenção e cartões pequenos numa faixa que rola de lado (no
+ * celular, com o dedo). O número no canto é a posição.
  */
 export function TopDaSemana({ eventos }: { eventos: EventoResumo[] }) {
   if (eventos.length === 0) return null;
   return (
-    <section aria-labelledby="top-semana" className="bg-[#111216] text-white">
+    <section aria-labelledby="top-semana" className="bg-background">
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-10">
-        <div className="flex flex-col gap-1">
-          <p className="flex items-center gap-2 text-sm font-bold tracking-wide text-highlight uppercase">
-            <Flame aria-hidden="true" className="size-4" />
+        <div className="flex flex-col gap-2">
+          <p className="flex w-fit items-center gap-1.5 rounded-full bg-highlight px-3 py-1 text-xs font-bold tracking-wide text-highlight-foreground uppercase">
+            <Flame aria-hidden="true" className="size-3.5" />
             Em alta agora
           </p>
-          <h2 id="top-semana" className="text-2xl font-bold tracking-tight">
-            {eventos.length >= 10 ? "Top 10 eventos da semana" : "Mais vendidos da semana"}
+          <h2
+            id="top-semana"
+            className="text-3xl font-extrabold tracking-tight text-balance sm:text-4xl"
+          >
+            {eventos.length >= 10 ? "Top 10 da semana" : "Mais vendidos da semana"}
           </h2>
-          <p className="text-sm text-white/70">
+          <p className="text-muted-foreground">
             Os eventos com mais fotos vendidas nos últimos 7 dias.
           </p>
         </div>
         <ol className="-mx-4 flex snap-x snap-mandatory [scrollbar-width:thin] gap-4 overflow-x-auto px-4 pb-2">
           {eventos.map((evento, i) => (
-            <li key={evento.id} className="w-56 shrink-0 snap-start sm:w-60">
+            <li key={evento.id} className="w-40 shrink-0 snap-start sm:w-44">
               <Link
                 href={`/eventos/${evento.slug}`}
-                className="group flex flex-col gap-3 rounded-xl focus-visible:ring-3 focus-visible:ring-highlight/60 focus-visible:outline-none"
+                className="group flex flex-col gap-2 rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
-                <span className="relative block aspect-[4/5] overflow-hidden rounded-xl bg-white/10">
+                <span className="relative block aspect-square overflow-hidden rounded-xl bg-muted">
                   {evento.capaMiniatura ? (
                     <Image
                       src={evento.capaMiniatura.urlMiniatura}
                       alt=""
                       fill
-                      sizes="240px"
+                      sizes="176px"
                       className="object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <span className="absolute inset-0 flex items-center justify-center text-white/50">
-                      <Camera aria-hidden="true" className="size-10" />
+                    <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                      <Camera aria-hidden="true" className="size-8" />
                     </span>
                   )}
                   <span
-                    aria-hidden="true"
-                    className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/20"
-                  />
-                  <span className="absolute top-3 left-4 flex flex-col gap-1">
-                    <span className="text-6xl leading-none font-extrabold tabular-nums">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className={`h-1 w-16 rounded-full ${i === 0 ? "bg-highlight" : "bg-white/70"}`}
-                    />
+                    className={`absolute top-2 left-2 flex size-9 items-center justify-center rounded-full text-sm font-extrabold tabular-nums shadow ${
+                      i === 0
+                        ? "bg-highlight text-highlight-foreground"
+                        : "bg-background text-foreground"
+                    }`}
+                  >
+                    {i + 1}º
                   </span>
                 </span>
-                <span className="flex flex-col gap-0.5">
-                  <span className="line-clamp-2 font-semibold">{evento.titulo}</span>
-                  <span
-                    className={`text-xs font-bold uppercase ${i === 0 ? "text-highlight" : "text-white/60"}`}
-                  >
-                    {i + 1}º lugar · {evento.cidade}, {evento.estado}
+                <span className="flex flex-col">
+                  <span className="line-clamp-2 text-sm font-semibold group-hover:underline">
+                    {evento.titulo}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {evento.cidade}, {evento.estado}
                   </span>
                 </span>
               </Link>
