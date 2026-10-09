@@ -14,6 +14,10 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch:
 
+# O job só chama o site com curl: o GITHUB_TOKEN não precisa de permissão nenhuma no repositório
+# (menor privilégio; o repositório é público).
+permissions: {}
+
 jobs:
   pedidos:
     runs-on: ubuntu-latest
