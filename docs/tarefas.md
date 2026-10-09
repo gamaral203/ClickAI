@@ -137,6 +137,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] CSP completa de scripts com nonce em todas as páginas (`src/proxy.ts`, `src/lib/csp.ts`): Brick do Mercado Pago, Sentry e GA/GTM das lojas liberados; páginas renderizadas por requisição, sem a casca estática do Cache Components (o nonce não funciona com ela). Conferido com Playwright no `next start`: páginas públicas, loja (caminho e subdomínio), compra completa até o pedido pago, painel e gestão sem violação
 - [x] Checklist da `vibe-code-security` rodado: corrigidos redirecionamento aberto no `?proximo=` (TAB), pagamento e saque simulados possíveis na produção sem credenciais, resposta do Mercado Pago (CPF/chave Pix) nos logs e id de evento sem validar; o resto virou tarefa na Fase 14
 - [x] Revisão dos 10 riscos de prioridade alta, com o que falta em cada um ([riscos.md](riscos.md#revisão-dos-riscos-de-prioridade-alta-fase-14))
+- [x] Webhook do Mercado Pago recusa assinatura com `ts` a mais de 5 minutos do relógio do servidor (passado ou futuro), contra repetição de notificação capturada
 
 ## Em andamento
 
@@ -266,7 +267,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
 - [ ] Troca de CPF/CNPJ do fotógrafo pedindo a senha (ou o Google) de novo, com aviso por e-mail e saques segurados por 48–72 h depois da troca `[R-alta]` (ver revisão em [riscos.md](riscos.md))
 - [ ] Sair invalida a sessão no servidor (mudar a versão da sessão no logout) e "sair de todos os dispositivos"
-- [ ] Webhook do Mercado Pago recusa assinatura com `ts` de mais de ~5 minutos
 - [ ] Limite de `/api/metricas` sem o `Map` na memória de cada servidor (hoje cresce sem limpeza)
 - [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
 - [ ] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` (hoje só o pagamento e o saque simulados estão bloqueados)

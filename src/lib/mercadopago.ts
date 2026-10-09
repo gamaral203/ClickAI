@@ -312,15 +312,26 @@ export function reembolsoJaPedido(erro: ErroMercadoPago) {
 // ---------------------------------------------------------------- Webhook
 
 /**
+ * Diferença máxima entre o `ts` assinado e o relógio do servidor, para o passado ou o futuro.
+ * Uma notificação capturada não pode ser reenviada depois disso (ataque de repetição).
+ */
+export const TOLERANCIA_TS_WEBHOOK_MS = 5 * 60 * 1000;
+
+/**
  * Confere o `x-signature` da notificação. O manifesto é
  * `id:{data.id em minúsculas};request-id:{x-request-id};ts:{ts};`, assinado com HMAC-SHA256
- * pela chave secreta do webhook. Partes ausentes saem do manifesto.
+ * pela chave secreta do webhook. Partes ausentes saem do manifesto. O `ts` precisa estar a no
+ * máximo 5 minutos do relógio do servidor (TOLERANCIA_TS_WEBHOOK_MS); o Mercado Pago manda em
+ * milissegundos, mas um valor com até 10 dígitos é lido como segundos.
  */
-export function assinaturaDoWebhookConfere(entrada: {
-  dataId: string | null;
-  requestId: string | null;
-  assinatura: string | null;
-}): boolean {
+export function assinaturaDoWebhookConfere(
+  entrada: {
+    dataId: string | null;
+    requestId: string | null;
+    assinatura: string | null;
+  },
+  agora = Date.now(),
+): boolean {
   const { webhookSecret } = exigirConfig();
   if (!webhookSecret || !entrada.assinatura) return false;
 
@@ -332,7 +343,9 @@ export function assinaturaDoWebhookConfere(entrada: {
   );
   const ts = partes.ts;
   const v1 = partes.v1;
-  if (!ts || !v1 || !/^[0-9a-f]{64}$/i.test(v1)) return false;
+  if (!ts || !v1 || !/^[0-9a-f]{64}$/i.test(v1) || !/^\d{1,16}$/.test(ts)) return false;
+  const tsMs = ts.length <= 10 ? Number(ts) * 1000 : Number(ts);
+  if (Math.abs(agora - tsMs) > TOLERANCIA_TS_WEBHOOK_MS) return false;
 
   const manifesto =
     (entrada.dataId ? `id:${entrada.dataId.toLowerCase()};` : "") +
