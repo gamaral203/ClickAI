@@ -70,8 +70,8 @@ const paraQuemCompra: Artigo[] = [
             <strong>1 hora</strong>; o pagamento é reconhecido em segundos.
           </li>
           <li>
-            <strong>Cartão de crédito:</strong> à vista, numa tela do Mercado Pago dentro do site.
-            Os dados do cartão não passam pelo ClicouAí.
+            <strong>Cartão de crédito:</strong> à vista, na página segura do processador de
+            pagamento. Os dados do cartão não passam pelo ClicouAí.
           </li>
         </ul>
         <p>

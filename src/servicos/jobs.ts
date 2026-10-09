@@ -12,7 +12,7 @@ import {
   marcarLembretePix,
   mudarStatusPedido,
 } from "@/dados";
-import { mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { gatewayConfigurado } from "@/lib/gateway";
 
 import { revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { enviarLembrete, enviarLembretePix } from "./mensagens";
@@ -53,11 +53,11 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     resultado.lembretesPix++;
   }
 
-  // 1. Expira os pendentes vencidos. Com cobrança no Mercado Pago, confere lá antes: o
+  // 1. Expira os pendentes vencidos. Com cobrança no gateway, confere lá antes: o
   // pagamento pode ter chegado sem o webhook (docs/riscos.md, prioridade alta).
   for (const pedido of await listarPendentesVencidos(agora)) {
     if (pedido.gatewayId) {
-      if (!mercadoPagoConfigurado()) continue;
+      if (!gatewayConfigurado()) continue;
       await sincronizarPedido(pedido);
       const status = (await buscarPedido(pedido.id))?.pedido.status;
       if (status === "pago") resultado.pagos++;
@@ -108,7 +108,7 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
     fotos: { revisadas: 0, prontas: 0, comErro: 0 },
   };
 
-  if (mercadoPagoConfigurado()) {
+  if (gatewayConfigurado()) {
     try {
       for (const fotografoId of await listarFotografosComSaqueProcessando(
         FOTOGRAFOS_COM_SAQUE_POR_VEZ,

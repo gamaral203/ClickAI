@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { assinaturaDoWebhookConfere, mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { provedorDePagamento } from "@/lib/gateway";
+import { assinaturaDoWebhookConfere } from "@/lib/mercadopago";
 import { processarNotificacaoDeOrder } from "@/servicos/pagamentos";
 
 // Webhook do Mercado Pago. Configurar no painel do Mercado Pago em Suas integrações > Webhooks
@@ -24,7 +25,8 @@ function resposta(status: number) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!mercadoPagoConfigurado()) return resposta(404);
+  // Com o Asaas em uso, este webhook não vale (o do Asaas é /api/webhooks/asaas).
+  if (provedorDePagamento() !== "mercadopago") return resposta(404);
 
   // O id assinado é o da query string (?data.id=…), não o do corpo.
   const dataId = request.nextUrl.searchParams.get("data.id");

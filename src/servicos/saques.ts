@@ -18,14 +18,14 @@ import { emProducao } from "@/db/conexao";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import { formatarDataEHora } from "@/lib/formatar";
 import {
-  buscarPayout,
-  enviarPayoutPix,
-  ErroMercadoPago,
-  mercadoPagoConfigurado,
-  recusaDoPayout,
+  buscarSaque,
+  enviarSaquePix,
+  ErroGateway,
+  gatewayConfigurado,
+  recusaDoSaque,
   SaqueNaoHabilitado,
   type ResultadoPayout,
-} from "@/lib/mercadopago";
+} from "@/lib/gateway";
 
 // Saque do fotógrafo (docs/arquitetura.md, "Saque do fotógrafo"). O cliente paga na conta da
 // plataforma; o fotógrafo saca pelo painel e o dinheiro sai por Pix para o CPF/CNPJ dele, já
@@ -35,7 +35,7 @@ import {
 
 /** Taxa extra do saque antecipado, em pontos percentuais. */
 export const TAXA_ANTECIPACAO_PCT = 1;
-/** O Mercado Pago não envia Pix abaixo de R$ 1,00. */
+/** Os gateways não enviam Pix abaixo de R$ 1,00. */
 export const SAQUE_MINIMO_CENTAVOS = 100;
 /**
  * Saques bloqueados por 72 horas depois de trocar o CPF/CNPJ (a chave Pix): quem invadir a conta
@@ -234,7 +234,7 @@ function alertarRevisao(motivo: string, dados: Record<string, unknown>) {
   console.error(`ALERTA saque para revisão manual: ${motivo}`, dados);
 }
 
-/** Aplica ao saque a situação que o Mercado Pago informou. */
+/** Aplica ao saque a situação que o gateway informou. */
 async function aplicarSituacao(saqueId: string, payout: ResultadoPayout) {
   const gatewayId = payout.id;
   if (payout.situacao === "pago") {
@@ -248,7 +248,7 @@ async function aplicarSituacao(saqueId: string, payout: ResultadoPayout) {
     }
   } else {
     if (payout.situacao === "revisao") {
-      alertarRevisao("o Mercado Pago informou o Pix como devolvido", {
+      alertarRevisao("o gateway informou o Pix como devolvido", {
         saque: saqueId,
         payout: payout.id,
         transacao: payout.transacaoId,
@@ -272,18 +272,17 @@ async function aplicarSituacao(saqueId: string, payout: ResultadoPayout) {
  */
 async function enviar(saque: Saque, primeiroEnvio: boolean) {
   try {
-    const payout = await enviarPayoutPix({
+    const payout = await enviarSaquePix({
       saqueId: saque.id,
       liquidoCentavos: saque.liquidoCentavos,
       chavePix: saque.chavePix,
     });
     await aplicarSituacao(saque.id, payout);
   } catch (erro) {
-    const quatroXX = erro instanceof ErroMercadoPago && erro.status >= 400 && erro.status < 500;
+    const quatroXX = erro instanceof ErroGateway && erro.status >= 400 && erro.status < 500;
     const naoEnviado = erro instanceof SaqueNaoHabilitado;
     if (quatroXX || naoEnviado) {
-      const clara =
-        naoEnviado || (erro instanceof ErroMercadoPago && recusaDoPayout(erro) === "clara");
+      const clara = naoEnviado || (erro instanceof ErroGateway && recusaDoSaque(erro) === "clara");
       if (primeiroEnvio && clara) {
         console.error("Saque recusado; saldo devolvido", { saque: saque.id, erro });
         if (await mudarStatusSaque(saque.id, "processando", "falhou")) {
@@ -291,7 +290,7 @@ async function enviar(saque: Saque, primeiroEnvio: boolean) {
         }
       } else {
         alertarRevisao(
-          primeiroEnvio ? "recusa ambígua do Mercado Pago" : "recusa do Mercado Pago num reenvio",
+          primeiroEnvio ? "recusa ambígua do gateway" : "recusa do gateway num reenvio",
           { saque: saque.id, erro },
         );
       }
@@ -311,10 +310,10 @@ export async function solicitarSaque(
   // CPF/CNPJ trocado há menos de 72 horas: nenhum saque, nem com a liberação de teste.
   const bloqueadoAte = saqueBloqueadoAte(conta, Date.now());
   if (bloqueadoAte) return { ok: false, motivo: "documento_trocado", bloqueadoAte };
-  // Na produção, saque simulado nunca: sem as credenciais do Mercado Pago, o saque sairia
-  // "pago" sem Pix nenhum. Recusa antes de reservar o saldo.
-  if (emProducao() && !mercadoPagoConfigurado()) {
-    console.error("Saque recusado: Mercado Pago sem credenciais na produção");
+  // Na produção, saque simulado nunca: sem as credenciais do gateway, o saque sairia "pago"
+  // sem Pix nenhum. Recusa antes de reservar o saldo.
+  if (emProducao() && !gatewayConfigurado()) {
+    console.error("Saque recusado: gateway sem credenciais na produção");
     return { ok: false, motivo: "falhou" };
   }
   // Um saque por vez: evita somar saldo enquanto outro ainda não terminou.
@@ -362,7 +361,7 @@ export async function solicitarSaque(
     });
   }
 
-  if (!mercadoPagoConfigurado()) {
+  if (!gatewayConfigurado()) {
     // Sem credenciais (Parte A): o saque é simulado e sai pago na hora.
     await mudarStatusSaque(saque.id, "processando", "pago", { pagoEm: new Date().toISOString() });
   } else {
@@ -371,19 +370,20 @@ export async function solicitarSaque(
   return { ok: true, saque };
 }
 
-/** Confere no Mercado Pago os saques ainda em processamento do fotógrafo. */
+/** Confere no gateway os saques ainda em processamento do fotógrafo. */
 export async function conferirSaques(fotografoId: string) {
-  if (!mercadoPagoConfigurado()) return;
+  if (!gatewayConfigurado()) return;
   for (const saque of await listarSaquesProcessando(fotografoId)) {
     if (!saque.gatewayId) {
-      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência.
+      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência (no
+      // Asaas, o webhook de validação aprova uma transferência só por saque).
       await enviar(saque, false);
       continue;
     }
     try {
-      await aplicarSituacao(saque.id, await buscarPayout(saque.gatewayId, saque.id));
+      await aplicarSituacao(saque.id, await buscarSaque(saque.gatewayId, saque.id));
     } catch (erro) {
-      console.error("Falha ao consultar o saque no Mercado Pago", { saque: saque.id, erro });
+      console.error("Falha ao consultar o saque no gateway", { saque: saque.id, erro });
     }
   }
 }

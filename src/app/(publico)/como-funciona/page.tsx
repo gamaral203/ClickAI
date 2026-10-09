@@ -120,8 +120,8 @@ export default function PaginaComoFunciona() {
         <div className="flex gap-3 rounded-xl bg-accent p-5 text-accent-foreground">
           <ShieldCheck aria-hidden="true" className="size-6 shrink-0" />
           <p>
-            <strong>Pagamento seguro.</strong> Os dados do cartão vão direto para o Mercado Pago e
-            nunca passam pelo ClicouAí.
+            <strong>Pagamento seguro.</strong> Os dados do cartão vão direto para o processador de
+            pagamento e nunca passam pelo ClicouAí.
           </p>
         </div>
         <div className="flex gap-3 rounded-xl bg-accent p-5 text-accent-foreground">

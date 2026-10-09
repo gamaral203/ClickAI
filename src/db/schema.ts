@@ -425,6 +425,8 @@ export const pedidos = pgTable(
     clienteId: uuid().references(() => usuarios.id),
     emailComprador: text().notNull(),
     nomeComprador: text().notNull(),
+    /** CPF/CNPJ do comprador, só dígitos: o Asaas exige para cobrar. Nulo com o Mercado Pago. */
+    cpfComprador: text(),
     whatsapp: text(),
     aceitaWhatsapp: boolean().notNull().default(false),
     tokenAcessoHash: text(),
@@ -436,7 +438,10 @@ export const pedidos = pgTable(
     metodo: metodoPagamento().notNull(),
     status: statusPedido().notNull().default("pendente"),
     expiraEm: data().notNull(),
-    /** Order no Mercado Pago. Única: o webhook busca por ela e não confirma duas vezes. */
+    /**
+     * Cobrança no gateway (order do Mercado Pago ou cobrança do Asaas). Única: o webhook busca
+     * por ela e não confirma duas vezes.
+     */
     gatewayId: text(),
     pixCopiaECola: text(),
     pixQrCodeBase64: text(),

@@ -116,7 +116,7 @@ function situacaoDoEstorno(e: EstornoDoAdmin) {
     return e.motivoEstorno === "chargeback" ? "Chargeback perdido" : "Reembolsado";
   }
   if (e.status === "contestado") return "Chargeback em disputa";
-  if (e.reembolsoSolicitadoEm) return "Reembolso aguardando o Mercado Pago";
+  if (e.reembolsoSolicitadoEm) return "Reembolso aguardando o gateway";
   return "Contestação encerrada a favor";
 }
 

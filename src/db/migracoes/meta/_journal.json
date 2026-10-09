@@ -78,6 +78,13 @@
       "when": 1791508952208,
       "tag": "0010_verificacao_em_duas_etapas",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791511299157,
+      "tag": "0011_cpf_do_comprador",
+      "breakpoints": true
     }
   ]
 }
