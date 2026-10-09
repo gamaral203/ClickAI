@@ -140,6 +140,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Webhook do Mercado Pago recusa assinatura com `ts` a mais de 5 minutos do relógio do servidor (passado ou futuro), contra repetição de notificação capturada
 - [x] Uso do cupom somado na mesma transação que marca o pedido como `pago`, com `usos < usos_max` no UPDATE e idempotente (repetir o webhook não soma de novo); limite estourado entre a criação e o pagamento mantém o pedido pago, sem estorno automático, com alerta no log
 - [x] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`: o build falha no `db:migrar` com o nome do que falta e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`); conferido antes que as duas existem na Vercel
+- [x] `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` cadastradas na Vercel (produção) e usadas pelo deploy atual
 
 ## Em andamento
 
@@ -239,7 +240,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Levar o processamento da foto (hoje síncrono na Server Action `confirmarEnvioAcao`) para um job no Inngest, com nova tentativa automática
 - [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
 - [x] Indexar os rostos de cada foto no Rekognition ao concluir o envio e gravar em `rostos` (com a posição do rosto, para a prévia ampliada); botão no evento para cadastrar os que faltam
-- [ ] Cadastrar `REKOGNITION_REGIAO` (`sa-east-1`), `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` na Vercel; as chaves cadastradas antes como `AWS_*` não servem, porque a Vercel preenche esses nomes com valores próprios
 - [ ] Testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
 - [x] Banner e logo da página do fotógrafo em Minha loja (valem no link /fotografo/<endereço> e na loja)
 - [ ] Anexos da denúncia no bucket privado, por URL assinada
