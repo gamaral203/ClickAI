@@ -15,6 +15,7 @@ import {
   criarContaDeFotografo,
   criarContaDeFotografoSeNaoExistir,
   criarUsuario,
+  criarUsuarioSeEmailLivre,
   encerrarTodasAsSessoes,
   emailEmUso,
   ligarContaGoogle,
@@ -274,20 +275,16 @@ export async function cadastrar(dados: {
   papel: "cliente" | "fotografo";
 }): Promise<ResultadoCadastro> {
   if (await emailEmUso(dados.email)) return { ok: false, motivo: "email_em_uso" };
-  const usuario = await criarUsuario({
+  const usuario = await criarUsuarioSeEmailLivre({
     nome: dados.nome,
     email: dados.email,
     senhaHash: gerarHashSenha(dados.senha),
     papel: dados.papel,
   });
-  if (dados.papel === "fotografo") {
-    // O perfil nasce com o nome da pessoa; ela completa em /painel/perfil.
-    await criarContaDeFotografo({
-      usuarioId: usuario.id,
-      nomePublico: dados.nome,
-      slug: await slugDisponivel(dados.nome),
-    });
-  }
+  // Outro envio do mesmo formulário criou a conta entre a conferência e a gravação.
+  if (!usuario) return { ok: false, motivo: "email_em_uso" };
+  // O perfil nasce com o nome da pessoa; ela completa em /painel/perfil.
+  if (dados.papel === "fotografo") await garantirContaDeFotografo(usuario);
   const tokenConfirmacao = await gerarConfirmacaoEmail(usuario.id);
   await iniciarSessao(usuario.id, "senha");
   return { ok: true, usuario, tokenConfirmacao };
@@ -407,18 +404,40 @@ export async function contaDoPainel(usuario: Usuario): Promise<FotografoConta | 
   if (!podeUsarPainel(usuario)) return null;
   const conta = await buscarContaDoFotografo(usuario.id);
   if (conta || usuario.papel !== "admin") return conta;
+  return garantirContaDeFotografo(usuario);
+}
+
+/**
+ * Conta de fotógrafo do usuário, criada com o nome dele se ainda não existir. Requisições ao
+ * mesmo tempo não criam duas (fotografos.usuario_id é único), e dois fotógrafos com o mesmo nome
+ * ganham slugs diferentes: quem perde a corrida pelo slug tenta o próximo.
+ */
+async function garantirContaDeFotografo(
+  usuario: Pick<Usuario, "id" | "nome">,
+): Promise<FotografoConta> {
   for (let tentativa = 0; tentativa < 5; tentativa++) {
+    const existente = await buscarContaDoFotografo(usuario.id);
+    if (existente) return existente;
     const criada = await criarContaDeFotografoSeNaoExistir({
       usuarioId: usuario.id,
       nomePublico: usuario.nome,
       slug: await slugDisponivel(usuario.nome),
     });
     if (criada) return criada;
-    // Outra requisição criou a conta (ou tomou o slug): confere e, se preciso, tenta de novo.
-    const existente = await buscarContaDoFotografo(usuario.id);
-    if (existente) return existente;
   }
-  throw new Error("Não foi possível criar a conta de fotógrafo do gestor.");
+  throw new Error("Não foi possível criar a conta de fotógrafo.");
+}
+
+/**
+ * "Quero vender": o cliente logado passa a fotógrafo e ganha o perfil de vendedor, como no login
+ * com o Google pelo botão de vender. Serve para quem criou a conta como comprador e depois quer
+ * vender (ou marcou o tipo errado no cadastro), sem precisar de outro e-mail. Gestor e fotógrafo
+ * ficam como estão. Devolve se o usuário pode usar o painel depois disso.
+ */
+export async function comecarAVender(usuario: Usuario): Promise<boolean> {
+  if (usuario.papel !== "cliente") return podeUsarPainel(usuario);
+  await garantirContaDeFotografo(usuario);
+  return mudarPapelDoUsuario(usuario.id, "fotografo");
 }
 
 /**
@@ -432,7 +451,8 @@ export async function exigirFotografo(proximo = "/painel"): Promise<{
   const usuario = await usuarioAtual();
   if (!usuario) redirect(`/entrar?proximo=${encodeURIComponent(proximo)}`);
   const conta = await contaDoPainel(usuario);
-  if (!conta) redirect("/minhas-compras");
+  // Cliente no painel: a página de cadastro oferece passar a conta para fotógrafo.
+  if (!conta) redirect("/cadastro?tipo=fotografo");
   return { usuario, conta };
 }
 

@@ -20,9 +20,16 @@ const REGRAS = {
   login_email: { limite: 8, janelaMs: 15 * MINUTO },
   /** Por IP: quem testa muitas contas do mesmo lugar. */
   login_ip: { limite: 30, janelaMs: 15 * MINUTO },
-  cadastro_ip: { limite: 5, janelaMs: 60 * MINUTO },
+  /**
+   * Cadastros por IP. Não pode ser baixo: na operadora de celular (CGNAT) e no Wi-Fi de um
+   * evento, muita gente sai pelo mesmo IP, e com 5 por hora o sexto corredor a criar conta via
+   * "Muitos cadastros seguidos daqui". 20 por hora ainda segura a criação de contas em massa.
+   */
+  cadastro_ip: { limite: 20, janelaMs: 60 * MINUTO },
   /** Reenvio do e-mail de confirmação, por usuário (cada reenvio manda um e-mail pelo Resend). */
   email_confirmacao_usuario: { limite: 3, janelaMs: 60 * MINUTO },
+  /** Reenvio do e-mail de confirmação, por IP: contagem própria, separada da do cadastro. */
+  email_confirmacao_ip: { limite: 10, janelaMs: 60 * MINUTO },
   /** Busca por selfie, por IP: cada busca custa uma chamada ao provedor de reconhecimento. */
   busca_facial_ip: { limite: 10, janelaMs: 10 * MINUTO },
   /** Senha de evento protegido, por IP e evento (força bruta). */

@@ -15,6 +15,7 @@ import {
   type StatusPedido,
 } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { podeEnviarConfirmacao } from "@/servicos/confirmacao-email";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -78,15 +79,26 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
       {!usuario.emailConfirmado && (
         <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center">
           <MailWarning aria-hidden="true" className="size-6 shrink-0 text-primary" />
-          <p className="flex-1 text-sm">
-            Confirme o e-mail <strong>{usuario.email}</strong> para ver aqui também as compras que
-            você fez sem conta.
-          </p>
-          <form action={reenviarConfirmacaoAcao}>
-            <Button type="submit" variant="outline" size="touch">
-              Confirmar e-mail
-            </Button>
-          </form>
+          {podeEnviarConfirmacao() ? (
+            <>
+              <p className="flex-1 text-sm">
+                Confirme o e-mail <strong>{usuario.email}</strong> para ver aqui também as compras
+                que você fez sem conta.
+              </p>
+              <form action={reenviarConfirmacaoAcao}>
+                <Button type="submit" variant="outline" size="touch">
+                  Confirmar e-mail
+                </Button>
+              </form>
+            </>
+          ) : (
+            // Sem envio de e-mail, o botão só levaria a um aviso de envio indisponível.
+            <p className="flex-1 text-sm">
+              Sua conta já funciona normalmente. A confirmação do e-mail{" "}
+              <strong>{usuario.email}</strong>, que liga aqui as compras feitas sem conta, vai ficar
+              disponível em breve.
+            </p>
+          )}
         </div>
       )}
 

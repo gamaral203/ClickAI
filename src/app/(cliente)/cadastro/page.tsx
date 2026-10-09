@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { comecarAVenderAcao } from "@/app/(cliente)/conta/acoes";
 import { BotaoGoogle } from "@/components/conta/botao-google";
 import { FormularioCadastro } from "@/components/conta/formularios";
+import { Button } from "@/components/ui/button";
 import { googleConfigurado } from "@/lib/google";
 import { caminhoSeguro } from "@/lib/redirecionamento";
+import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Criar conta" };
 
@@ -26,6 +29,7 @@ async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "search
   // Veio do link de um fotógrafo: depois do cadastro, volta para a biblioteca dele.
   const valor = Array.isArray(proximo) ? proximo[0] : proximo;
   const destino = valor ? caminhoSeguro(valor, "/") : undefined;
+  const usuario = await usuarioAtual();
   return (
     <div className="flex flex-col gap-6">
       {googleConfigurado() && (
@@ -41,7 +45,27 @@ async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "search
           </div>
         </>
       )}
-      <FormularioCadastro papelInicial={vender ? "fotografo" : "cliente"} proximo={destino} />
+      {vender && usuario?.papel === "cliente" && (
+        <section className="flex flex-col gap-3 rounded-xl border border-primary/40 bg-accent/40 p-5">
+          <h2 className="text-lg font-semibold">Quer vender com a conta que você já tem?</h2>
+          <p className="text-sm text-muted-foreground">
+            Você entrou como <strong>{usuario.email}</strong>, uma conta de comprador. Ative a venda
+            para abrir o painel do fotógrafo com esta mesma conta; suas compras continuam nela.
+          </p>
+          <form action={comecarAVenderAcao}>
+            <Button type="submit" size="touch">
+              Ativar minha conta de fotógrafo
+            </Button>
+          </form>
+        </section>
+      )}
+      {/* key: ao trocar entre /cadastro e /cadastro?tipo=fotografo pelo menu, o formulário
+          recomeça com o tipo de conta do link (o padrão de um campo só vale ao montar). */}
+      <FormularioCadastro
+        key={vender ? "fotografo" : "cliente"}
+        papelInicial={vender ? "fotografo" : "cliente"}
+        proximo={destino}
+      />
       <p className="text-center text-sm text-muted-foreground">
         Ao criar a conta, você concorda com os{" "}
         <Link href="/termos" className="font-medium text-primary hover:underline">

@@ -8,6 +8,7 @@ import { cadastrarAcao, entrarAcao, type EstadoFormulario } from "@/app/(cliente
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { papelEscolhido } from "@/lib/cadastro";
 
 const inicial: EstadoFormulario = {};
 
@@ -73,6 +74,9 @@ export function FormularioCadastro({
 }) {
   const [estado, acao, enviando] = useActionState(cadastrarAcao, inicial);
   const erros = estado.erros ?? {};
+  // Depois de um erro, o React volta o formulário ao padrão: o padrão passa a ser o que a pessoa
+  // escolheu, senão "Sou fotógrafo" voltava para "Quero comprar fotos" sem ela perceber.
+  const papel = papelEscolhido(estado.valores?.papel, papelInicial);
   return (
     <form action={acao} noValidate className="flex flex-col gap-4">
       {proximo && <input type="hidden" name="proximo" value={proximo} />}
@@ -97,7 +101,7 @@ export function FormularioCadastro({
               type="radio"
               name="papel"
               value={valor}
-              defaultChecked={valor === papelInicial}
+              defaultChecked={valor === papel}
               className="mt-1 size-4 accent-primary"
             />
             <span className="flex flex-col">

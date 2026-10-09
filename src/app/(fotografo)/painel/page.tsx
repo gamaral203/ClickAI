@@ -29,6 +29,7 @@ import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
 import { situacaoDasMetas } from "@/lib/metas";
 import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
+import { podeEnviarConfirmacao } from "@/servicos/confirmacao-email";
 import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -74,7 +75,11 @@ async function Conteudo() {
 
   const passos = [
     { feito: true, texto: "Criar a conta de fotógrafo" },
-    { feito: usuario.emailConfirmado, texto: "Confirmar o e-mail", href: "/minhas-compras" },
+    // Sem envio de e-mail (produção sem o Resend), o passo não teria como ser feito e deixaria
+    // a lista sempre pendente; a publicação depende só do CPF/CNPJ e da chave Pix.
+    ...(podeEnviarConfirmacao()
+      ? [{ feito: usuario.emailConfirmado, texto: "Confirmar o e-mail", href: "/minhas-compras" }]
+      : []),
     { feito: Boolean(conta.cpfCnpj), texto: "Informar CPF ou CNPJ", href: "/painel/perfil" },
     {
       feito: Boolean(conta.chavePix),

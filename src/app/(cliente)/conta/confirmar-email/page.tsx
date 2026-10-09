@@ -48,8 +48,9 @@ async function Conteudo({
       ) : semEnvio ? (
         <p role="alert" className="text-muted-foreground">
           O envio de e-mail não está disponível no momento, então não conseguimos mandar o link de
-          confirmação para <strong>{usuario.email}</strong>. Sua conta foi criada e você já pode
-          usá-la; tente pedir o link de novo mais tarde.
+          confirmação para <strong>{usuario.email}</strong>. Sua conta já funciona normalmente: você
+          pode comprar, baixar e (se for fotógrafo) publicar eventos. A confirmação só liga à conta
+          as compras feitas sem conta com este e-mail; peça o link de novo mais tarde.
         </p>
       ) : (
         <p className="text-muted-foreground">

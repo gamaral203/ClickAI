@@ -1160,6 +1160,31 @@ export async function criarUsuario(dados: {
   return usuarioPublico(paraUsuario(linha));
 }
 
+/**
+ * Cria o usuário do cadastro com senha, ou devolve `null` se o e-mail já tem conta. A conferência
+ * é o índice único do e-mail: dois envios do mesmo formulário ao mesmo tempo (clique duplo,
+ * conexão lenta do celular) não viram erro 500, o segundo só ouve que o e-mail está em uso.
+ */
+export async function criarUsuarioSeEmailLivre(dados: {
+  nome: string;
+  email: string;
+  senhaHash: string;
+  papel: Papel;
+}): Promise<Usuario | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .insert(t.usuarios)
+    .values({
+      nome: dados.nome,
+      email: normalizarEmail(dados.email),
+      papel: dados.papel,
+      senhaHash: dados.senhaHash,
+    })
+    .onConflictDoNothing({ target: t.usuarios.email })
+    .returning();
+  return linha ? usuarioPublico(paraUsuario(linha)) : null;
+}
+
 /** Usuário ligado a esta conta Google, ou `null`. */
 export async function buscarUsuarioPorGoogle(googleId: string): Promise<Usuario | null> {
   const banco = await obterBanco();
