@@ -96,6 +96,16 @@ describe("sem regras", () => {
 });
 
 describe("desconto progressivo", () => {
+  it("não vale no evento em que o fotógrafo desligou", () => {
+    const itens = [foto(1), foto(2), foto(3, 1000, "ev2"), foto(4, 1000, "ev2")];
+    const r = calcular({ itens, faixas: [faixa(2, 10)], semProgressivo: ["ev1"] });
+    expect(descontoDe(r, "f1")).toBe(0);
+    expect(descontoDe(r, "f3")).toBe(100);
+    expect(r.linhas).toEqual([
+      { tipo: "progressivo", eventoId: "ev2", pct: 10, valorCentavos: 200 },
+    ]);
+  });
+
   it("usa a maior faixa atingida e só vale para fotos", () => {
     const r = calcular({
       itens: [foto(1), foto(2), foto(3), video(1)],

@@ -11,7 +11,7 @@ import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
 import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
 import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/pagamento/pix";
 import { buttonVariants } from "@/components/ui/button";
-import { contarDownloads, detalharItensDoPedido } from "@/dados";
+import { autoresPorId, contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { buscarPedidoAtualizado } from "@/servicos/pagamentos";
@@ -55,6 +55,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   if (!encontrado) notFound();
   const { pedido, itens } = encontrado;
   const detalhes = await detalharItensDoPedido(itens);
+  const autores = await autoresPorId(itens.map((i) => i.fotografoId));
   const baixados = await contarDownloads(itens.map((i) => i.id));
   const gateway = mercadoPagoConfigurado();
   const chavePublica = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
@@ -183,6 +184,11 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
               <span className="flex flex-1 flex-col text-sm">
                 <span className="font-medium">{tipo === "video" ? "Vídeo" : "Foto"}</span>
                 <span className="text-muted-foreground">{eventoTitulo}</span>
+                {autores.get(item.fotografoId) && (
+                  <span className="text-xs text-muted-foreground">
+                    Foto por {autores.get(item.fotografoId)?.nome}
+                  </span>
+                )}
               </span>
               {liberado ? (
                 <span className="flex flex-col items-end gap-1">

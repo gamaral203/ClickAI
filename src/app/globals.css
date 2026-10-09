@@ -145,3 +145,28 @@
     @apply font-sans;
   }
 }
+
+/* Recepção do painel (src/components/painel/recepcao.tsx). Só com "motion-safe". */
+@keyframes recepcao-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes recepcao-pula {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  30% {
+    transform: translateY(-6px) rotate(-6deg);
+  }
+  60% {
+    transform: translateY(0) rotate(4deg);
+  }
+}

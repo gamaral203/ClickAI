@@ -226,8 +226,13 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
           <dl className="flex flex-col gap-2 text-sm">
             {resumo.grupos.map((g) => (
               <div key={g.eventoId} className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">
-                  {g.eventoTitulo} ({g.itens.length})
+                <dt className="flex flex-col text-muted-foreground">
+                  <span>
+                    {g.eventoTitulo} ({g.itens.length})
+                  </span>
+                  {g.autores.length > 0 && (
+                    <span className="text-xs">Fotos por {g.autores.join(", ")}</span>
+                  )}
                 </dt>
                 <dd className="tabular-nums">{formatarPreco(g.subtotalCentavos)}</dd>
               </div>

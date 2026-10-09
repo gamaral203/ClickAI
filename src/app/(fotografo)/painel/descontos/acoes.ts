@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import {
   codigoDeCupomEmUso,
+  definirDescontoProgressivo,
   filtrarEventosDoFotografo,
   listarCuponsDoFotografo,
   salvarCupom,
@@ -65,6 +66,22 @@ export async function salvarFaixasAcao(
   const salvou = await salvarFaixas(conta.id, eventoId, dados.data);
   if (!salvou) return { erro: "Evento não encontrado." };
   revalidatePath(eventoId ? `/painel/eventos/${eventoId}` : "/painel/descontos");
+  return {};
+}
+
+/** Liga ou desliga o desconto progressivo só neste evento (as faixas ficam guardadas). */
+export async function definirDescontoProgressivoAcao(
+  eventoId: string,
+  ligado: boolean,
+): Promise<{ erro?: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  if (!z.uuid().safeParse(eventoId).success || typeof ligado !== "boolean") {
+    return { erro: "Evento não encontrado." };
+  }
+  if (!(await definirDescontoProgressivo(eventoId, conta.id, ligado))) {
+    return { erro: "Evento não encontrado." };
+  }
+  revalidatePath(`/painel/eventos/${eventoId}`);
   return {};
 }
 

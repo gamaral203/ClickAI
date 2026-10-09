@@ -4,9 +4,10 @@ import { ArrowRight, CreditCard, Images, Search } from "lucide-react";
 
 import { CartaoEvento } from "@/components/galeria/cartao-evento";
 import { CarrosselInicio, type Slide } from "@/components/site/carrossel-inicio";
+import { TopDaSemana } from "@/components/site/top-da-semana";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listarEventosPublicados } from "@/dados";
+import { listarEventosPublicados, vendasDaSemanaPorEvento } from "@/dados";
 
 /** Quantos eventos aparecem na página inicial; o resto fica em /eventos. */
 const EVENTOS_NA_INICIAL = 9;
@@ -85,6 +86,11 @@ export default function Home() {
         </div>
       </CarrosselInicio>
 
+      {/* Lê as vendas da semana na requisição; sem vendas, a faixa não aparece. */}
+      <Suspense fallback={null}>
+        <EmAlta />
+      </Suspense>
+
       <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
         <div className="mx-auto max-w-6xl px-4 py-16">
           <h2 id="como-funciona" className="text-2xl font-bold tracking-tight">
@@ -135,6 +141,17 @@ export default function Home() {
       </section>
     </>
   );
+}
+
+/** Top 10 eventos da semana: só eventos listados (públicos), na ordem de fotos vendidas. */
+async function EmAlta() {
+  const [vendas, eventos] = await Promise.all([
+    vendasDaSemanaPorEvento(),
+    listarEventosPublicados(),
+  ]);
+  const porId = new Map(eventos.map((e) => [e.id, e]));
+  const top = vendas.flatMap(([id]) => porId.get(id) ?? []).slice(0, 10);
+  return <TopDaSemana eventos={top} />;
 }
 
 async function EventosRecentes() {

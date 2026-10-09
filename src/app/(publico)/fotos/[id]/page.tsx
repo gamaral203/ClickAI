@@ -9,7 +9,7 @@ import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { buscarFotoPublica } from "@/dados";
+import { autoresPorId, buscarFotoPublica } from "@/dados";
 import { formatarData, formatarPreco } from "@/lib/formatar";
 import { ehIdValido } from "@/lib/validacao";
 
@@ -47,6 +47,8 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   const dados = await carregar(id);
   if (!dados) notFound();
   const { foto, evento, precoCentavos, posicao, anteriorId, proximaId } = dados;
+  // Crédito ao autor: quem fez a foto, que pode não ser o dono do evento (evento colaborativo).
+  const autor = (await autoresPorId([foto.enviadaPor])).get(foto.enviadaPor);
   const descricao = posicao ? `Foto ${posicao} de ${evento.titulo}` : `Foto de ${evento.titulo}`;
 
   return (
@@ -91,7 +93,18 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             <p className="text-muted-foreground">
               {formatarData(evento.inicioEm)} · {evento.cidade}, {evento.estado}
             </p>
-            <p className="text-muted-foreground">Por {evento.fotografo.nomePublico}</p>
+            <p className="text-muted-foreground">
+              Foto por{" "}
+              <Link
+                href={`/fotografo/${autor?.slug ?? evento.fotografo.slug}`}
+                className="font-medium text-foreground hover:underline"
+              >
+                {autor?.nome ?? evento.fotografo.nomePublico}
+              </Link>
+              {autor && autor.slug !== evento.fotografo.slug && (
+                <> · evento de {evento.fotografo.nomePublico}</>
+              )}
+            </p>
           </div>
 
           <div className="flex flex-col gap-4 rounded-xl border bg-card p-5">

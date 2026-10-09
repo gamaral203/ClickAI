@@ -4,7 +4,7 @@
 
 import "server-only";
 
-import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -68,6 +68,21 @@ export async function salvarFaixas(
     }
   });
   return true;
+}
+
+/** Liga ou desliga o desconto progressivo num evento do fotógrafo. Devolve se o evento é dele. */
+export async function definirDescontoProgressivo(
+  eventoId: string,
+  fotografoId: string,
+  ligado: boolean,
+): Promise<boolean> {
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.eventos)
+    .set({ descontoProgressivo: ligado })
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)))
+    .returning({ id: t.eventos.id });
+  return atualizados.length > 0;
 }
 
 // ---------------------------------------------------------------- Pacote
@@ -291,15 +306,52 @@ async function colaboradorDoDono(colaboradorId: string, donoId: string) {
   return linha?.colaborador ?? null;
 }
 
-/** Muda comissão e nota. A nova comissão vale para as próximas vendas. */
+/**
+ * Muda comissão e nota. A comissão só muda enquanto o convite está pendente: depois do aceite,
+ * ela é a condição combinada e vale para todas as fotos dele no evento (sem mudança que o
+ * colaborador não aceitou). A nota, só o dono vê, muda sempre.
+ */
 export async function atualizarColaborador(
   colaboradorId: string,
   donoId: string,
   dados: { comissaoDonoPct: number; nota: string | null },
-): Promise<boolean> {
-  if (!(await colaboradorDoDono(colaboradorId, donoId))) return false;
+): Promise<"ok" | "nao_encontrado" | "comissao_aceita"> {
+  const atual = await colaboradorDoDono(colaboradorId, donoId);
+  if (!atual) return "nao_encontrado";
+  if (atual.aceitoEm && atual.comissaoDonoPct !== dados.comissaoDonoPct) {
+    return "comissao_aceita";
+  }
   const banco = await obterBanco();
   await banco.update(t.colaboradores).set(dados).where(eq(t.colaboradores.id, colaboradorId));
+  return "ok";
+}
+
+/**
+ * O convidado aceita (ou recusa) o convite. Aceitar grava a hora; recusar apaga o convite, só
+ * enquanto ele está pendente e sem fotos. Só o próprio convidado responde.
+ */
+export async function responderConvite(
+  colaboradorId: string,
+  fotografoId: string,
+  aceitar: boolean,
+): Promise<boolean> {
+  const banco = await obterBanco();
+  const doConvidado = and(
+    eq(t.colaboradores.id, colaboradorId),
+    eq(t.colaboradores.fotografoId, fotografoId),
+  );
+  if (aceitar) {
+    const atualizados = await banco
+      .update(t.colaboradores)
+      .set({ aceitoEm: new Date() })
+      .where(and(doConvidado, isNull(t.colaboradores.aceitoEm)))
+      .returning({ id: t.colaboradores.id });
+    return atualizados.length > 0;
+  }
+  const [convite] = await banco.select().from(t.colaboradores).where(doConvidado);
+  if (!convite || convite.aceitoEm) return false;
+  if ((await itensDoColaborador(convite.eventoId, fotografoId)) > 0) return false;
+  await banco.delete(t.colaboradores).where(doConvidado);
   return true;
 }
 
@@ -323,6 +375,8 @@ export async function removerColaborador(
 
 export type ColaboracaoDoPainel = {
   colaboradorId: string;
+  /** `null`: convite ainda não aceito (ou comissão mudou e precisa de novo aceite). */
+  aceitoEm: string | null;
   evento: Pick<Evento, "id" | "titulo" | "slug" | "inicioEm" | "status">;
   donoNome: string;
   comissaoDonoPct: number;
@@ -346,6 +400,7 @@ export async function listarColaboracoes(fotografoId: string): Promise<Colaborac
   const resultado = await Promise.all(
     linhas.map(async (l) => ({
       colaboradorId: l.colaborador.id,
+      aceitoEm: iso(l.colaborador.aceitoEm),
       evento: {
         id: l.evento.id,
         titulo: l.evento.titulo,
@@ -370,7 +425,12 @@ export async function podeEnviarAoEvento(eventoId: string, fotografoId: string) 
     .select({ id: t.colaboradores.id })
     .from(t.colaboradores)
     .where(
-      and(eq(t.colaboradores.eventoId, eventoId), eq(t.colaboradores.fotografoId, fotografoId)),
+      and(
+        eq(t.colaboradores.eventoId, eventoId),
+        eq(t.colaboradores.fotografoId, fotografoId),
+        // Só depois de aceitar o convite (e as condições).
+        isNotNull(t.colaboradores.aceitoEm),
+      ),
     );
   return linha !== undefined;
 }

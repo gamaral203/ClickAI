@@ -22,6 +22,8 @@ export type ColaboradorNaTela = {
   comissaoDonoPct: number;
   nota: string | null;
   totalItens: number;
+  /** Já aceitou o convite (e a comissão). */
+  aceito: boolean;
 };
 
 const inicial: EstadoColaborador = {};
@@ -63,11 +65,12 @@ export function Colaboradores({
       >
         <h3 className="flex items-center gap-2 font-semibold">
           <UserPlus aria-hidden="true" className="size-5" />
-          Adicionar colaborador
+          Convidar colaborador
         </h3>
         {estado.ok && (
           <AvisoSalvo>
-            Colaborador adicionado. O evento aparece para ele em Colaborações, no painel.
+            Convite enviado. Ele vê o evento e a sua comissão em Colaborações, no painel, e só envia
+            fotos depois de aceitar.
           </AvisoSalvo>
         )}
         <input type="hidden" name="eventoId" value={eventoId} />
@@ -90,7 +93,7 @@ export function Colaboradores({
             rotulo="Sua comissão (%)"
             id="colab-comissao"
             erro={erros.comissaoDonoPct}
-            ajuda="Sobre cada venda das fotos dele."
+            ajuda="Sobre cada venda das fotos dele. Ele vê antes de aceitar; depois, não muda."
           >
             <Input
               {...propsDeErro("colab-comissao", erros.comissaoDonoPct)}
@@ -115,7 +118,7 @@ export function Colaboradores({
             {enviando && (
               <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
             )}
-            Adicionar
+            Convidar
           </Button>
           {estado.ok && (
             <Button
@@ -157,7 +160,18 @@ function LinhaColaborador({ colaborador }: { colaborador: ColaboradorNaTela }) {
   return (
     <li className="flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold">{colaborador.nomePublico}</p>
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
+          {colaborador.nomePublico}
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              colaborador.aceito
+                ? "bg-accent text-accent-foreground"
+                : "bg-highlight/40 text-highlight-foreground"
+            }`}
+          >
+            {colaborador.aceito ? "Aceitou" : "Convite pendente"}
+          </span>
+        </p>
         <p className="text-sm text-muted-foreground">
           {colaborador.totalItens}{" "}
           {colaborador.totalItens === 1 ? "foto enviada" : "fotos enviadas"}
@@ -173,6 +187,8 @@ function LinhaColaborador({ colaborador }: { colaborador: ColaboradorNaTela }) {
             inputMode="numeric"
             value={comissao}
             onChange={(e) => setComissao(e.target.value)}
+            disabled={colaborador.aceito}
+            title={colaborador.aceito ? "Comissão aceita: não muda mais" : undefined}
             className="h-11 w-24"
           />
         </div>
@@ -211,9 +227,7 @@ function LinhaColaborador({ colaborador }: { colaborador: ColaboradorNaTela }) {
           <Trash2 aria-hidden="true" />
         </Button>
       </div>
-      {salvo && (
-        <p className="text-sm text-muted-foreground">Salvo. Vale para as próximas vendas.</p>
-      )}
+      {salvo && <p className="text-sm text-muted-foreground">Salvo.</p>}
       {erro && (
         <p role="alert" className="text-sm text-destructive">
           {erro}

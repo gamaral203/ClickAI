@@ -16,10 +16,12 @@ import {
 import { CartaoNumero } from "@/components/admin/tabela";
 import { GraficoVendas } from "@/components/graficos/grafico-vendas";
 import { LinkDoFotografo } from "@/components/painel/link-do-fotografo";
+import { Recepcao } from "@/components/painel/recepcao";
 import { buttonVariants } from "@/components/ui/button";
-import { dashboardDoFotografo, vendasPorDiaDoFotografo } from "@/dados";
+import { dashboardDoFotografo, listarEventosDoFotografo, vendasPorDiaDoFotografo } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
+import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
 import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -50,6 +52,18 @@ async function Conteudo() {
     vendasPorDiaDoFotografo(conta.id),
   ]);
   const { saldo } = financeiro;
+  // Recepção: só métricas reais do próprio fotógrafo (eventos publicados e pedidos por semana).
+  const publicados = (await listarEventosDoFotografo(conta.id)).filter(
+    (e) => e.status === "publicado",
+  ).length;
+  const semanas = pedidosPorSemana(porDia);
+  const humor = humorDoPainel({ publicados, ...semanas });
+  const detalheRecepcao =
+    humor === "alta"
+      ? `${plural(semanas.pedidosSemana, "pedido", "pedidos")} nos últimos 7 dias.`
+      : humor === "baixo" && semanas.pedidosSemanaAnterior > 0
+        ? `${plural(semanas.pedidosSemanaAnterior, "pedido", "pedidos")} na semana anterior: dá para voltar.`
+        : null;
 
   const passos = [
     { feito: true, texto: "Criar a conta de fotógrafo" },
@@ -72,6 +86,8 @@ async function Conteudo() {
           Novo evento
         </Link>
       </div>
+
+      <Recepcao humor={humor} detalhe={detalheRecepcao} />
 
       <LinkDoFotografo url={urlDoSite(`/fotografo/${conta.slug}`)} nome={conta.nomePublico} />
 

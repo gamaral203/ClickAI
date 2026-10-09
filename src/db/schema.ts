@@ -222,6 +222,8 @@ export const eventos = pgTable(
     filtroHorario: boolean().notNull().default(false),
     listarNaoIdentificadas: boolean().notNull().default(false),
     ordenacao: ordenacao().notNull().default("captura"),
+    /** Desligado, as faixas de desconto progressivo não valem neste evento. */
+    descontoProgressivo: boolean().notNull().default(true),
   },
   (t) => [uniqueIndex().on(t.slug), index().on(t.fotografoId), index().on(t.status, t.inicioEm)],
 ).enableRLS();
@@ -311,6 +313,11 @@ export const colaboradores = pgTable(
       .references(() => fotografos.id),
     comissaoDonoPct: integer().notNull(),
     nota: text(),
+    /**
+     * Quando o convidado aceitou o convite (e as condições). Sem aceite, ele não envia fotos.
+     * Colaboradores de antes do convite com aceite entraram como já aceitos (migração 0011).
+     */
+    aceitoEm: data(),
   },
   (t) => [uniqueIndex().on(t.eventoId, t.fotografoId), index().on(t.fotografoId)],
 ).enableRLS();

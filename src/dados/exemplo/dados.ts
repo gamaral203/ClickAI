@@ -317,6 +317,7 @@ export const colaboradores: Colaborador[] = [
     fotografoId: pedro.id,
     comissaoDonoPct: 30,
     nota: "Cobre o km 5 e a chegada",
+    aceitoEm: "2026-08-20T12:00:00.000Z",
   },
 ];
 

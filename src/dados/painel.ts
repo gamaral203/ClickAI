@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
@@ -244,7 +244,12 @@ async function podeEnviarAoEvento(eventoId: string, fotografoId: string) {
     .select({ id: t.colaboradores.id })
     .from(t.colaboradores)
     .where(
-      and(eq(t.colaboradores.eventoId, eventoId), eq(t.colaboradores.fotografoId, fotografoId)),
+      and(
+        eq(t.colaboradores.eventoId, eventoId),
+        eq(t.colaboradores.fotografoId, fotografoId),
+        // Só depois de aceitar o convite (e as condições).
+        isNotNull(t.colaboradores.aceitoEm),
+      ),
     );
   return colaborador !== undefined;
 }
