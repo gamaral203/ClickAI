@@ -32,6 +32,7 @@ const CONTAINER = "cartao-mercadopago";
 const MENSAGENS = {
   recusado: "O pagamento foi recusado. Confira os dados ou tente outro cartão.",
   indisponivel: "Este pedido não pode mais ser pago. Atualize a página.",
+  limite: "Muitas tentativas de pagamento seguidas. Espere um pouco ou pague com Pix.",
   em_analise: "Pagamento em análise. A página atualiza sozinha quando for confirmado.",
 };
 

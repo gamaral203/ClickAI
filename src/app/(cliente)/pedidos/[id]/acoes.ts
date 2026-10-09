@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { emProducao } from "@/db/conexao";
 import { mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import { iniciarCobrancaPix, pagarComCartao, type ResultadoCartao } from "@/servicos/pagamentos";
 import { buscarPedidoComAcesso, confirmarPagamento } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -37,6 +38,7 @@ export async function simularPagamento(pedidoId: string, token: string | null): 
 export async function gerarPix(pedidoId: string, token: string | null): Promise<boolean> {
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success || !mercadoPagoConfigurado()) return false;
+  if (await limiteDoIpAtingido("pix_ip")) return false;
   const encontrado = await buscarPedidoComAcesso(
     dados.data.pedidoId,
     await credencial(dados.data.token),
@@ -78,6 +80,7 @@ export async function pagarComCartaoAcao(
   if (!dados.success || !formulario.success || !mercadoPagoConfigurado()) {
     return { ok: false, motivo: "indisponivel" };
   }
+  if (await limiteDoIpAtingido("cartao_ip")) return { ok: false, motivo: "limite" };
   const documento = formulario.data.payer?.identification;
   try {
     return await pagarComCartao(dados.data.pedidoId, await credencial(dados.data.token), {

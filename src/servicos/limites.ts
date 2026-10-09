@@ -32,6 +32,14 @@ const REGRAS = {
    * Pix, carrinho abandonado) para o endereço digitado: sem limite, viraria canal de spam.
    */
   checkout_ip: { limite: 20, janelaMs: 60 * MINUTO },
+  /**
+   * Tentativas de pagamento com cartão por IP. Segura o "teste de cartão" (quem tem cartões
+   * roubados e usa o checkout para descobrir quais passam), que gera chargeback e pode fazer o
+   * Mercado Pago bloquear a conta.
+   */
+  cartao_ip: { limite: 10, janelaMs: 60 * MINUTO },
+  /** QR Codes Pix gerados de novo na página do pedido, por IP (cada um chama o Mercado Pago). */
+  pix_ip: { limite: 30, janelaMs: 60 * MINUTO },
   /** Denúncias por IP (cada uma confirma o recebimento por e-mail ao denunciante). */
   denuncia_ip: { limite: 5, janelaMs: 60 * MINUTO },
   /** Pedidos de remoção de foto (LGPD) por IP; cada um também confirma por e-mail. */

@@ -150,6 +150,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Sessão de gestor com expiração absoluta de 12 horas desde o login (os outros papéis continuam com 30 dias)
 - [x] Conexão com o banco confere o certificado do servidor quando `DATABASE_CA_CERT` existe (`src/db/conexao.ts`); sem ela, segue cifrada sem conferir
 - [x] Validação de entrada com Zod em todas as Server Actions e rotas: varredura das 55 ações e 10 rotas; as últimas conferências manuais (domínio e imagens da loja, preço individual) passaram para schemas Zod
+- [x] Limite de tentativas de pagamento com cartão (10 por IP por hora, contra teste de cartão roubado) e de QR Code Pix gerado de novo na página do pedido (30 por IP por hora)
 
 ## Em andamento
 
