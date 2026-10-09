@@ -87,21 +87,33 @@ export default function Home() {
       </CarrosselInicio>
 
       <section aria-labelledby="como-funciona" className="border-t bg-muted/50">
-        <div className="mx-auto max-w-6xl px-4 py-16">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:py-16">
           <h2 id="como-funciona" className="text-2xl font-bold tracking-tight">
             Como funciona
           </h2>
-          <ol className="mt-8 grid gap-6 sm:grid-cols-3">
+          {/* No celular, cada passo é uma linha compacta (ícone ao lado do texto); do tablet em
+              diante, três cartões lado a lado. */}
+          <ol className="mt-5 grid gap-2.5 sm:mt-8 sm:grid-cols-3 sm:gap-6">
             {passos.map(({ icone: Icone, titulo, texto }, i) => (
-              <li key={titulo} className="flex flex-col gap-3 rounded-xl border bg-card p-6">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                    <Icone aria-hidden="true" className="size-5" />
+              <li
+                key={titulo}
+                className="flex items-start gap-3 rounded-xl border bg-card p-3.5 sm:flex-col sm:gap-3 sm:p-6"
+              >
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-accent-foreground sm:size-10">
+                    <Icone aria-hidden="true" className="size-4 sm:size-5" />
                   </span>
-                  <span className="text-sm font-medium text-muted-foreground">Passo {i + 1}</span>
+                  <span className="hidden text-sm font-medium text-muted-foreground sm:inline">
+                    Passo {i + 1}
+                  </span>
                 </div>
-                <h3 className="text-lg font-semibold">{titulo}</h3>
-                <p className="text-muted-foreground">{texto}</p>
+                <div className="flex flex-col gap-0.5 sm:gap-3">
+                  <h3 className="text-sm font-semibold sm:text-lg">
+                    <span className="text-muted-foreground sm:hidden">{i + 1}. </span>
+                    {titulo}
+                  </h3>
+                  <p className="text-xs text-muted-foreground sm:text-base">{texto}</p>
+                </div>
               </li>
             ))}
           </ol>
