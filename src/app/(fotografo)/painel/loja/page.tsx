@@ -34,7 +34,7 @@ async function Conteudo() {
   const { conta } = await exigirFotografo("/painel/loja");
   const loja = await buscarLojaDoFotografo(conta.id);
   const base = new URL(enderecoDoSite());
-  // Subdomínio (nome.clicouai.com.br) só existe no domínio próprio do site: em *.vercel.app e no
+  // Subdomínio (nome.clicouai.com) só existe no domínio próprio do site: em *.vercel.app e no
   // localhost sem DNS curinga, o endereço não abre.
   const temSubdominio = !/(^localhost$|\.vercel\.app$)/.test(base.hostname);
 

@@ -14,7 +14,7 @@ export function urlDoSite(caminho: string) {
 }
 
 /**
- * Endereço público da loja: um subdomínio do site (`https://liaramos.clicouai.com.br`). Em
+ * Endereço público da loja: um subdomínio do site (`https://liaramos.clicouai.com`). Em
  * desenvolvimento, `http://liaramos.localhost:3000` (o navegador resolve *.localhost sozinho).
  */
 export function enderecoDaLoja(subdominio: string) {
