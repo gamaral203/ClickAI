@@ -8,6 +8,11 @@ import { caminhoSeguro } from "@/lib/redirecionamento";
 
 export const metadata: Metadata = { title: "Entrar", robots: { index: false } };
 
+const ERROS: Record<string, string> = {
+  conta_existente:
+    "Este e-mail já tem uma conta (por exemplo, criada com o Google). Entre com ela ou use outro e-mail.",
+};
+
 export default function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 px-4 py-12">
@@ -28,7 +33,7 @@ async function Formulario({ searchParams }: Pick<PageProps<"/entrar">, "searchPa
   const { proximo, erro, saiu } = await searchParams;
   const valor = Array.isArray(proximo) ? proximo[0] : proximo;
   const destino = valor ? caminhoSeguro(valor) : undefined;
-  const mensagem = typeof erro === "string" ? ERROS_GOOGLE[erro] : undefined;
+  const mensagem = typeof erro === "string" ? (ERROS_GOOGLE[erro] ?? ERROS[erro]) : undefined;
 
   return (
     <div className="flex flex-col gap-6">

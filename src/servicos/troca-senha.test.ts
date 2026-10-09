@@ -51,6 +51,7 @@ async function usuarioLogado(papel: "cliente" | "fotografo" = "cliente") {
     email,
     senhaHash: gerarHashSenha(SENHA),
     papel,
+    emailConfirmado: true,
   });
   em("b");
   await entrar(email, SENHA);
@@ -135,7 +136,7 @@ describe("troca de senha", () => {
     // A senha antiga não entra mais; a nova entra.
     em("c");
     expect(await entrar(email, SENHA)).toBeNull();
-    expect((await entrar(email, NOVA))?.usuario.id).toBe(usuario.id);
+    expect((await entrar(email, NOVA))?.usuario?.id).toBe(usuario.id);
 
     const aviso = (await listarMensagens(1000)).find(
       (m) => m.para === email && m.tipo === "seguranca",
@@ -226,7 +227,7 @@ describe("troca de senha", () => {
     });
     expect(await situacaoDaSenha(usuario)).toBe("com_senha");
     em("c");
-    expect((await entrar(email, NOVA))?.usuario.id).toBe(usuario.id);
+    expect((await entrar(email, NOVA))?.usuario?.id).toBe(usuario.id);
   });
 
   it("não troca a senha de gestor definido em GESTORES", async () => {

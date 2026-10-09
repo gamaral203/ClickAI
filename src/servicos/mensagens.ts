@@ -1,8 +1,9 @@
 import "server-only";
 
 import { registrarMensagem, vendasDoPedidoPorFotografo, type PedidoInterno } from "@/dados";
+import { emProducao } from "@/db/conexao";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
-import { enviarEmail } from "@/lib/email";
+import { emailConfigurado, enviarEmail, type Email } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 
@@ -150,23 +151,39 @@ export async function avisarVenda(pedidoId: string) {
 }
 
 /**
- * Link de confirmação do cadastro. Não vai para a caixa de saída: o link dá acesso à conta.
- * Devolve se o e-mail saiu (se não sair, só fora da produção a tela mostra o link; ver
- * destinoSemEnvio).
+ * Envia um e-mail que leva um segredo (código de confirmação, link de redefinição de senha). Não
+ * vai para a caixa de saída: quem lê a caixa não pode entrar na conta de ninguém. Sem o Resend,
+ * fora da produção (desenvolvimento local e testes), o segredo aparece só no log do servidor, para
+ * dar para testar; na produção, nunca: o envio falha e o log registra só o assunto.
  */
-export async function enviarConfirmacaoDeEmail(para: string, nome: string, token: string) {
-  return enviarEmail({
-    para,
-    assunto: "Confirme seu e-mail no ClicouAí",
-    paragrafos: [
-      `Olá, ${nome.split(" ")[0]}! Confirme seu e-mail para ligar à sua conta as compras feitas com ele.`,
-      "O link vale por 24 horas. Se você não criou uma conta no ClicouAí, ignore este e-mail.",
-    ],
-    botao: {
-      texto: "Confirmar e-mail",
-      url: urlDoSite(`/conta/confirmar?token=${encodeURIComponent(token)}`),
+async function enviarComSegredo(email: Email, segredo: string): Promise<boolean> {
+  if (emailConfigurado()) return enviarEmail(email);
+  if (emProducao()) {
+    console.error(`[email] não enviado, envio de e-mail indisponível: ${email.assunto}`);
+    return false;
+  }
+  console.info(`[desenvolvimento] ${email.assunto} (${email.para}): ${segredo}`);
+  return true;
+}
+
+/** Código de 6 dígitos que confirma o e-mail do cadastro. Devolve se o e-mail saiu. */
+export async function enviarCodigoDeConfirmacao(para: string, nome: string, codigo: string) {
+  return enviarComSegredo(
+    {
+      para,
+      assunto: "Seu código de confirmação do ClicouAí",
+      paragrafos: [
+        `Olá, ${primeiroNome(nome)}! Para confirmar seu e-mail e liberar sua conta, digite este código na tela do ClicouAí. Ele vale por 15 minutos.`,
+        "Não passe o código para ninguém: a equipe do ClicouAí nunca pede. Se você não tentou criar ou acessar uma conta, ignore este e-mail.",
+      ],
+      destaque: codigo,
     },
-  });
+    `código ${codigo}`,
+  );
+}
+
+function primeiroNome(nome: string) {
+  return nome.split(" ")[0];
 }
 
 /**

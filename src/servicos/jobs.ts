@@ -1,6 +1,8 @@
 import "server-only";
 
 import {
+  apagarCodigosEmailAntigos,
+  apagarRedefinicoesVencidas,
   apagarSessoesRevogadasVencidas,
   apagarTentativasAntigas,
   buscarPedido,
@@ -14,6 +16,7 @@ import {
 } from "@/dados";
 import { gatewayConfigurado } from "@/lib/gateway";
 
+import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
 import { revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { enviarLembrete, enviarLembretePix } from "./mensagens";
 import { sincronizarPedido } from "./pagamentos";
@@ -78,6 +81,9 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
   await apagarTentativasAntigas(agora - VALIDADE_TENTATIVAS_MS);
   // Sessão encerrada cujo cookie já venceu não precisa mais estar na lista.
   await apagarSessoesRevogadasVencidas(agora);
+  // Cadastros abandonados sem o código e links de "Esqueci a senha" vencidos.
+  await apagarCodigosEmailAntigos(agora - VALIDADE_CADASTRO_PENDENTE_MS);
+  await apagarRedefinicoesVencidas(agora);
   return resultado;
 }
 

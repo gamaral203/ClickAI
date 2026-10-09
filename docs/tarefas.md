@@ -163,11 +163,12 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Teste real de envio em produção (09/10/2026): uma foto (JPEG, R$ 1,00) subiu direto ao R2 e foi processada, com prévia e miniatura publicadas na galeria do evento
 - [x] Teste real da busca por selfie em produção (09/10/2026): com o rosto recortado da prévia de uma foto real do evento, `/api/busca-facial` respondeu 200 e a tela mostrou "2 fotos encontradas" (a foto de origem e outra da mesma pessoa), com o recorte do rosto de cada uma e sem erro no console; mantido o `REKOGNITION_SEMELHANCA` atual
 - [x] Teste em produção da página do pedido Pix (09/10/2026): QR Code e copia e cola gerados pelo Mercado Pago; a página continuou com 200 e o QR visível depois de 23 segundos e após recarregar (o 404 em ~10 s não voltou). O Pix não foi pago
+- [x] Confirmação do e-mail obrigatória no cadastro com senha (cliente e fotógrafo), por código de 6 dígitos digitado em `/cadastro/codigo`: a conta só nasce com o código certo (cadastro pendente em `codigos_email`, que vence em 24 horas e pode ser refeito, sem prender o e-mail); código só como HMAC, 15 minutos, uso único, 5 tentativas, reenvio com espera de 60 s e limites por e-mail e IP; ao confirmar, liga as compras de convidado e abre a sessão. Login com o Google segue sem código. Contas criadas antes, sem confirmação, recebem o código ao entrar com a senha certa (e os cookies antigos delas deixam de valer); gestores de `GESTORES` ficam confirmados. Sai a confirmação por link (`/conta/confirmar`, `/conta/confirmar-email`, botão de Minhas compras e passo do painel). Sem o Resend, o código aparece só no log local; na produção sem o Resend, o cadastro falha com aviso (migração 0013) `[R-alta]`
 
 ## Em andamento
 
 - [ ] **E-mail do domínio `clicouai.com`** (o domínio já foi comprado; ver **Concluído**). Falta:
-  - verificar `clicouai.com` no Resend (região São Paulo, registros DNS na Vercel) e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel; sem isso não há envio de e-mail em produção (o app funciona sem e-mail, a conta é usável sem confirmar);
+  - verificar `clicouai.com` no Resend (região São Paulo, registros DNS na Vercel) e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel; sem isso não há envio de e-mail em produção (e o cadastro com senha não funciona: a conta só nasce com o código enviado por e-mail);
   - a caixa do encarregado de dados e o `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14).
   - Teste local sem domínio: `EMAIL_REMETENTE=ClicouAí <onboarding@resend.dev>` só entrega ao e-mail da conta do Resend; não usar em produção.
 - [ ] **Colocar a produção em uso real** (`clickai-hazel.vercel.app`). O banco e o deploy já estão no ar; falta conferir e configurar:

@@ -45,6 +45,7 @@ async function novaConta() {
     email,
     senhaHash: gerarHashSenha(SENHA),
     papel: "cliente",
+    emailConfirmado: true,
   });
   return { usuario, email };
 }
@@ -141,6 +142,7 @@ describe("expiração da sessão de gestor", () => {
       email: `${crypto.randomUUID()}@teste.com`,
       senhaHash: gerarHashSenha(SENHA),
       papel: "admin",
+      emailConfirmado: true,
     });
     em("cliente");
     await entrar(emailCliente, SENHA);
