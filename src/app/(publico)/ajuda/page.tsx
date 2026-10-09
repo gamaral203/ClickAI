@@ -7,8 +7,8 @@ import { classeLink } from "@/components/site/pagina-legal";
 
 // Central de ajuda: artigos curtos para quem compra e para quem vende. Conteúdo estático; os
 // números (Pix de 1 hora, comissão de 10%, antecipação com 1% a mais, saque mínimo de R$ 1,00,
-// fotos JPEG até 30 MB e 500 por envio) são os do código (src/servicos/pedidos.ts,
-// src/servicos/saques.ts, src/servicos/envios.ts). Se uma regra mudar, o texto muda junto.
+// fotos JPEG até 30 MB, sem limite de quantidade) são os do código (src/servicos/pedidos.ts,
+// src/servicos/saques.ts, src/lib/limites-envio.ts). Se uma regra mudar, o texto muda junto.
 
 export const metadata: Metadata = {
   title: "Central de ajuda",
@@ -181,10 +181,10 @@ const paraQuemVende: Artigo[] = [
     corpo: (
       <p>
         Na página do evento no painel, arraste as fotos ou escolha os arquivos. Aceitamos{" "}
-        <strong>JPEG de até 30 MB</strong>, até <strong>500 fotos por envio</strong>. O envio vai em
-        partes, com barra de progresso; se a conexão cair ou um arquivo falhar, use “Tentar de
-        novo”, e fotos repetidas são puladas sozinhas. A marca d&apos;água das prévias é colocada
-        automaticamente: você envia o original.
+        <strong>JPEG de até 30 MB</strong>, quantas fotos quiser de uma vez. O envio vai em partes,
+        várias fotos ao mesmo tempo, com barra de progresso e tempo restante; se a conexão cair ou
+        um arquivo falhar, use “Tentar de novo”, e fotos repetidas são puladas sozinhas. A marca
+        d&apos;água das prévias é colocada automaticamente: você envia o original.
       </p>
     ),
   },

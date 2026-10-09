@@ -347,6 +347,9 @@ export async function registrarFotosEmEnvio(
   let ordem = await ultimaOrdem(eventoId);
   const agora = Date.now();
   const ids: string[] = [];
+  // As fotos novas entram num INSERT só: com o banco do outro lado da rede, uma ida por foto
+  // pesava em cada lote do envio.
+  const novas: (typeof t.fotos.$inferInsert)[] = [];
   for (const [i, arquivo] of arquivos.entries()) {
     const existente = reaproveitar.get(arquivo.hash);
     reaproveitar.delete(arquivo.hash);
@@ -366,7 +369,7 @@ export async function registrarFotosEmEnvio(
     if (existente) {
       await banco.update(t.fotos).set(dados).where(eq(t.fotos.id, existente));
     } else {
-      await banco.insert(t.fotos).values({
+      novas.push({
         ...dados,
         id,
         eventoId,
@@ -381,6 +384,7 @@ export async function registrarFotosEmEnvio(
     }
     ids.push(id);
   }
+  if (novas.length > 0) await banco.insert(t.fotos).values(novas);
   return ids;
 }
 

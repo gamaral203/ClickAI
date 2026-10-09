@@ -49,9 +49,12 @@ const nextConfig: NextConfig = {
     ],
   },
   // A marca d'água das prévias usa public/logo.png, lida do disco por src/servicos/imagens.ts
-  // nas Server Actions de envio do painel; sem isto, o arquivo não vai para a função da Vercel.
+  // onde as fotos são processadas (rota de processamento do envio, job de revisão e ações do
+  // painel); sem isto, o arquivo não vai para a função da Vercel.
   outputFileTracingIncludes: {
     "/painel/**": ["./public/logo.png"],
+    "/api/envios/**": ["./public/logo.png"],
+    "/api/jobs/**": ["./public/logo.png"],
   },
   turbopack: {
     rules: {

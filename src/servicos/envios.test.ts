@@ -8,7 +8,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import sharp from "sharp";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,9 +22,12 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const sessao = vi.hoisted(() => ({ fotografoId: "" }));
 vi.mock("@/servicos/sessao", () => ({
   exigirFotografo: async () => ({ conta: { id: sessao.fotografoId } }),
+  usuarioAtual: async () => (sessao.fotografoId ? { id: "usuario", papel: "fotografo" } : null),
+  contaDoPainel: async () => ({ id: sessao.fotografoId }),
 }));
 
 import { enviarFotosAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import { POST as processarRota } from "@/app/api/envios/processar/route";
 import { adicionarItensSimulados, listarItensDoPainel } from "@/dados";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
@@ -35,6 +38,7 @@ import { autorizarDownload } from "@/servicos/downloads";
 import {
   chavesDaFoto,
   confirmarEnvio,
+  FOTOS_POR_LOTE,
   FOTOS_PRESAS_POR_VEZ,
   iniciarEnvio,
   revisarFotosPresas,
@@ -178,13 +182,17 @@ describe("envio de fotos ao R2", () => {
     expect(linha.chaveOriginal).toBe(`envios/${lia.id}/${evento.id}/${fotoId}.jpg`);
   });
 
-  it("recusa lote inválido (não JPEG, maior que 30 MB, sem hash, mais de 25)", async () => {
+  it("recusa lote inválido (não JPEG, maior que 30 MB, sem hash, maior que o lote)", async () => {
     const hash = "a".repeat(64);
     const casos = [
       [{ nome: "foto.png", tamanhoBytes: 10, hash }],
       [{ nome: "foto.jpg", tamanhoBytes: 30 * 1024 * 1024 + 1, hash }],
       [{ nome: "foto.jpg", tamanhoBytes: 10 }],
-      Array.from({ length: 26 }, (_, i) => ({ nome: `f${i}.jpg`, tamanhoBytes: 10, hash })),
+      Array.from({ length: FOTOS_POR_LOTE + 1 }, (_, i) => ({
+        nome: `f${i}.jpg`,
+        tamanhoBytes: 10,
+        hash,
+      })),
     ];
     for (const lista of casos) {
       expect(await iniciarEnvio(lia.id, evento.id, lista)).toHaveProperty("erro");
@@ -342,6 +350,150 @@ describe("envio de fotos ao R2", () => {
     expect(url.searchParams.get("response-content-disposition")).toMatch(/^attachment; filename=/);
     // Sem o token do pedido, nada.
     expect(await autorizarDownload(item.id, { token: "x".repeat(40) }, null)).toBeNull();
+  });
+});
+
+describe("sem limite de quantidade de fotos", () => {
+  it("aceita 600 fotos num evento, em lotes automáticos de FOTOS_POR_LOTE", async () => {
+    expect(FOTOS_POR_LOTE).toBe(50);
+    const hashes = Array.from({ length: 600 }, (_, i) =>
+      createHash("sha256").update(`sem-limite-${i}`).digest("hex"),
+    );
+    const ids: string[] = [];
+    for (let i = 0; i < hashes.length; i += FOTOS_POR_LOTE) {
+      const r = await iniciarEnvio(
+        lia.id,
+        evento.id,
+        hashes
+          .slice(i, i + FOTOS_POR_LOTE)
+          .map((hash, j) => ({ nome: `LOTE_${i + j}.jpg`, tamanhoBytes: 1000, hash })),
+      );
+      if ("erro" in r) throw new Error(r.erro);
+      for (const item of r.itens) if ("fotoId" in item) ids.push(item.fotoId);
+    }
+    // Todas registradas, cada uma com o próprio id, sem recusa por quantidade (eram 500).
+    expect(new Set(ids).size).toBe(600);
+    const banco = await obterBanco();
+    const linhas = await banco
+      .select({ id: t.fotos.id })
+      .from(t.fotos)
+      .where(and(eq(t.fotos.eventoId, evento.id), eq(t.fotos.status, "processando")));
+    expect(linhas.length).toBeGreaterThanOrEqual(600);
+    // Limpa: as 600 não ficam presas para os testes do job.
+    await banco.update(t.fotos).set({ status: "erro" }).where(inArray(t.fotos.id, ids));
+  });
+
+  it("envio simulado também não limita a quantidade, só o tamanho do lote", async () => {
+    for (const chave of Object.keys(R2)) vi.stubEnv(chave, "");
+    sessao.fotografoId = lia.id;
+    const lote = (de: number, n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        nome: `SIM_${de + i}.jpg`,
+        tamanhoBytes: 1000,
+        hash: createHash("sha256")
+          .update(`simulado-${de + i}`)
+          .digest("hex"),
+      }));
+    expect(await enviarFotosAcao(evento.id, lote(0, FOTOS_POR_LOTE))).toEqual({
+      enviados: FOTOS_POR_LOTE,
+      repetidas: 0,
+    });
+    expect(await enviarFotosAcao(evento.id, lote(100, FOTOS_POR_LOTE + 1))).toHaveProperty("erro");
+  });
+});
+
+describe("rota de processamento (/api/envios/processar)", () => {
+  function pedido(corpo: unknown, cabecalhos: Record<string, string> = {}) {
+    return new Request("https://clicouai.test/api/envios/processar", {
+      method: "POST",
+      headers: {
+        host: "clicouai.test",
+        origin: "https://clicouai.test",
+        "content-type": "application/json",
+        ...cabecalhos,
+      },
+      body: typeof corpo === "string" ? corpo : JSON.stringify(corpo),
+    }) as never;
+  }
+
+  it("processa a foto do fotógrafo logado e responde 200", async () => {
+    sessao.fotografoId = lia.id;
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+
+    const resposta = await processarRota(pedido({ fotoId }));
+    expect(resposta.status).toBe(200);
+    expect(resposta.headers.get("cache-control")).toBe("no-store");
+    expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
+    // De novo: já processada, não processa outra vez.
+    expect((await processarRota(pedido({ fotoId }))).status).toBe(422);
+  });
+
+  it("recusa outra origem, sem sessão, corpo inválido e foto de outro fotógrafo", async () => {
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+
+    sessao.fotografoId = lia.id;
+    const deFora = pedido({ fotoId }, { origin: "https://outro.site" });
+    expect((await processarRota(deFora)).status).toBe(403);
+    expect((await processarRota(pedido("nada"))).status).toBe(400);
+    expect((await processarRota(pedido({ fotoId: "123" }))).status).toBe(400);
+
+    sessao.fotografoId = "";
+    expect((await processarRota(pedido({ fotoId }))).status).toBe(401);
+
+    sessao.fotografoId = pedro.id;
+    expect((await processarRota(pedido({ fotoId }))).status).toBe(422);
+    // Nada mudou na foto da Lia.
+    expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+    sessao.fotografoId = lia.id;
+    expect((await processarRota(pedido({ fotoId }))).status).toBe(200);
+  });
+});
+
+describe("prévias geradas no servidor", () => {
+  it("giram pelo EXIF, saem em sRGB e sem metadados", async () => {
+    // Foto deitada no arquivo (900x600) com Orientation 6: aparece em pé (600x900).
+    const corpo = await sharp({
+      create: { width: 900, height: 600, channels: 3, background: { r: 200, g: 40, b: 40 } },
+    })
+      .jpeg()
+      .withIccProfile("p3")
+      .withExif({ IFD0: { Make: "Camera Teste" } })
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ eventoId: evento.id });
+
+    const linha = await linhaDaFoto(fotoId);
+    expect([linha.largura, linha.altura]).toEqual([600, 900]);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+    for (const chave of [chaves.previa, chaves.miniatura]) {
+      const info = await sharp(objetos.get(nome(R2.R2_BUCKET_PUBLICO, chave))!.corpo).metadata();
+      expect(info.height).toBeGreaterThan(info.width);
+      expect(info.exif).toBeUndefined();
+      expect(info.icc).toBeUndefined();
+      expect(info.space).toBe("srgb");
+    }
+  });
+
+  it("a marca d'água está nos pixels da prévia", async () => {
+    // Foto lisa: sem marca, todos os pixels seriam iguais.
+    const corpo = await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: { r: 30, g: 30, b: 30 } },
+    })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    await confirmarEnvio(lia.id, fotoId);
+    const chave = chavesDaFoto(lia.id, evento.id, fotoId).previa;
+    const previa = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chave))!;
+    const { channels } = await sharp(previa.corpo).stats();
+    expect(channels[0].max - channels[0].min).toBeGreaterThan(40);
   });
 });
 

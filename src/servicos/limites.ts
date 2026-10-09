@@ -45,8 +45,9 @@ const REGRAS = {
   /** Pedidos de remoção de foto (LGPD) por IP; cada um também confirma por e-mail. */
   remocao_ip: { limite: 5, janelaMs: 60 * MINUTO },
   /**
-   * Lotes de URLs assinadas de envio (até 25 fotos cada) por fotógrafo. 300 lotes em 10 minutos
-   * são 7.500 fotos: folga para um evento grande, mas segura um script descontrolado.
+   * Lotes de URLs assinadas de envio (até 50 fotos cada, FOTOS_POR_LOTE) por fotógrafo. Não
+   * limita quantas fotos o evento tem: 300 lotes em 10 minutos são 15.000 fotos, mais do que
+   * qualquer conexão sobe nesse tempo, mas segura um script descontrolado.
    */
   url_envio_usuario: { limite: 300, janelaMs: 10 * MINUTO },
   /**
