@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { criarCliente, limparUrl, urlDoBanco, urlParaMigracoes } from "./conexao";
+import { criarCliente, limparUrl, opcoesTls, urlDoBanco, urlParaMigracoes } from "./conexao";
 
 describe("URL do banco", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -29,6 +29,30 @@ describe("URL do banco", () => {
     expect(urlParaMigracoes()).toBe("postgres://direta");
     vi.stubEnv("DATABASE_URL", "postgres://minha");
     expect(urlDoBanco()).toBe("postgres://minha");
+  });
+});
+
+describe("TLS do banco", () => {
+  const PEM = ["-----BEGIN CERTIFICATE-----", "MIIB", "-----END CERTIFICATE-----"].join("\n");
+
+  it("sem TLS só no Postgres local", () => {
+    expect(opcoesTls("postgres://u:s@localhost:5432/db", PEM)).toBe(false);
+  });
+
+  it("na nuvem cifra sempre e só confere o certificado com DATABASE_CA_CERT", () => {
+    const nuvem = "postgres://u:s@aws-0-sa-east-1.pooler.supabase.com:6543/postgres";
+    expect(opcoesTls(nuvem, undefined)).toEqual({ rejectUnauthorized: false });
+    expect(opcoesTls(nuvem, PEM)).toEqual({ rejectUnauthorized: true, ca: PEM });
+    // Em base64 (uma linha, como fica mais fácil de colar na Vercel).
+    expect(opcoesTls(nuvem, Buffer.from(PEM).toString("base64"))).toEqual({
+      rejectUnauthorized: true,
+      ca: PEM,
+    });
+    // Com as quebras de linha escapadas.
+    expect(opcoesTls(nuvem, PEM.split("\n").join("\\n"))).toEqual({
+      rejectUnauthorized: true,
+      ca: PEM,
+    });
   });
 });
 

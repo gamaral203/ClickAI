@@ -148,6 +148,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Limite de `/api/metricas` no banco (regra `metricas_ip`, 300 em 10 minutos por IP), sem o `Map` na memória de cada servidor que crescia sem limpeza
 - [x] Login com Google loga só o nome do erro (a resposta do Google pode trazer o código ou o token)
 - [x] Sessão de gestor com expiração absoluta de 12 horas desde o login (os outros papéis continuam com 30 dias)
+- [x] Conexão com o banco confere o certificado do servidor quando `DATABASE_CA_CERT` existe (`src/db/conexao.ts`); sem ela, segue cifrada sem conferir
 
 ## Em andamento
 
@@ -277,6 +278,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra
 - [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
+- [ ] Cadastrar `DATABASE_CA_CERT` (certificado raiz do Supabase, em base64) em Production e conferir que o deploy sobe ([deploy.md](deploy.md), item 3)
 - [ ] Backup do banco com recuperação para um ponto no tempo
 - [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
 - [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco

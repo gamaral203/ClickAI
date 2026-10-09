@@ -54,16 +54,29 @@ export function urlParaMigracoes(): string | null {
  * prepared statements com nome, que esse pooler não guarda entre transações. Poucas conexões por
  * instância: na Vercel são muitas instâncias, e quem segura o total é o pooler.
  */
+/**
+ * TLS da conexão. Banco na nuvem: sempre cifrado. Com `DATABASE_CA_CERT` (o certificado raiz do
+ * Supabase, em PEM ou em base64 do PEM), também confere o certificado do servidor e recusa um
+ * intermediário se passando pelo banco; sem ela, cifra sem conferir (como o sslmode=require).
+ * Local (Postgres na própria máquina): sem TLS.
+ */
+export function opcoesTls(url: string, ca = process.env.DATABASE_CA_CERT) {
+  if (/@(localhost|127\.0\.0\.1)[:/]/.test(url)) return false;
+  const pem = ca?.trim();
+  if (!pem) return { rejectUnauthorized: false };
+  const texto = pem.includes("BEGIN CERTIFICATE")
+    ? pem.replace(/\\n/g, "\n")
+    : Buffer.from(pem, "base64").toString("utf8");
+  return { rejectUnauthorized: true, ca: texto };
+}
+
 export function criarCliente(url: string, { maximo = 5 }: { maximo?: number } = {}) {
-  const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
   const pool = new Pool({
     connectionString: limparUrl(url),
     max: maximo,
     idleTimeoutMillis: 20_000,
     connectionTimeoutMillis: 15_000,
-    // Banco na nuvem: sempre com TLS (como o sslmode=require). Local (Postgres na própria
-    // máquina): sem.
-    ssl: local ? false : { rejectUnauthorized: false },
+    ssl: opcoesTls(url),
   });
   // Conexão parada que o pooler ou o banco fecham: sem este ouvinte, o erro derrubaria o
   // processo. O pool descarta a conexão e abre outra na próxima consulta.
