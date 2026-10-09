@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { CheckCircle2, Landmark } from "lucide-react";
 
-import { SairDeTodos } from "@/components/conta/sair-de-todos";
+import { CartaoSeguranca } from "@/components/conta/cartao-seguranca";
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
 import { VerificacaoDuasEtapas } from "@/components/painel/verificacao-duas-etapas";
 import { Button } from "@/components/ui/button";
@@ -86,7 +86,7 @@ async function Conteudo() {
         temSenha={temSenha}
       />
 
-      <SairDeTodos />
+      <CartaoSeguranca />
 
       <section className="flex flex-col gap-2 rounded-xl border p-5">
         <h2 className="text-lg font-semibold">Excluir conta</h2>

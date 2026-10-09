@@ -19,7 +19,7 @@ import { SQL_ACESSO_DO_APP } from "../src/db/papel-app";
 import * as schema from "../src/db/schema";
 import {
   erroMercadoPagoEmProducao,
-  mercadoPagoFaltandoEmProducao,
+  pagamentoFaltandoEmProducao,
 } from "../src/lib/ambiente-producao";
 
 const VARIAVEIS = [
@@ -88,8 +88,9 @@ function semUrl(texto: string, url: string | null) {
 }
 
 async function main() {
-  // Produção sem as credenciais do Mercado Pago não sobe (src/lib/ambiente-producao.ts).
-  const faltandoMp = mercadoPagoFaltandoEmProducao();
+  // Produção sem as credenciais do gateway (Asaas ou Mercado Pago) não sobe
+  // (src/lib/ambiente-producao.ts).
+  const faltandoMp = pagamentoFaltandoEmProducao();
   if (faltandoMp.length > 0) {
     console.error(`[db:migrar] ${erroMercadoPagoEmProducao(faltandoMp)}`);
     process.exitCode = 1;

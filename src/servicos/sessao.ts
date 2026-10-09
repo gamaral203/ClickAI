@@ -251,10 +251,12 @@ export async function sairDeTodosOsDispositivos(usuarioId: string) {
 
 /**
  * Derruba as sessões dos outros aparelhos e mantém esta, com um cookie novo (troca de CPF/CNPJ,
- * troca de senha). A hora e o jeito do login desta sessão continuam os mesmos.
+ * troca de senha). A hora e o jeito do login desta sessão continuam os mesmos. Quem já mudou a
+ * versão da sessão (a troca de senha grava o hash novo antes) passa a sessão lida antes da
+ * mudança: depois dela, o cookie atual já não vale.
  */
-export async function encerrarOutrasSessoes(usuarioId: string) {
-  const atual = await sessaoAtual();
+export async function encerrarOutrasSessoes(usuarioId: string, sessaoAntes?: SessaoAtual | null) {
+  const atual = sessaoAntes === undefined ? await sessaoAtual() : sessaoAntes;
   await encerrarTodasAsSessoes(usuarioId);
   if (atual?.usuario.id === usuarioId) {
     await iniciarSessao(usuarioId, atual.metodo, atual.entrouEm);

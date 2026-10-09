@@ -7,13 +7,14 @@ import { CheckCircle2, Clock, Copy, Download, XCircle } from "lucide-react";
 import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
+import { CartaoAsaas } from "@/components/pagamento/cartao-asaas";
 import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
 import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
 import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/pagamento/pix";
 import { buttonVariants } from "@/components/ui/button";
 import { autoresPorId, contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { mercadoPagoConfigurado } from "@/lib/mercadopago";
+import { provedorDePagamento } from "@/lib/gateway";
 import { buscarPedidoAtualizado } from "@/servicos/pagamentos";
 import { usuarioAtual } from "@/servicos/sessao";
 
@@ -57,9 +58,9 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   const detalhes = await detalharItensDoPedido(itens);
   const autores = await autoresPorId(itens.map((i) => i.fotografoId));
   const baixados = await contarDownloads(itens.map((i) => i.id));
-  const gateway = mercadoPagoConfigurado();
+  const gateway = provedorDePagamento();
   const chavePublica = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
-  // Reembolso pedido pelo gestor: os downloads param antes de o Mercado Pago concluir a devolução.
+  // Reembolso pedido pelo gestor: os downloads param antes de o gateway concluir a devolução.
   const liberado = pedido.status === "pago" && !pedido.reembolsoSolicitadoEm;
 
   return (
@@ -73,7 +74,9 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
           <p className="text-muted-foreground">
             {pedido.metodo === "pix"
               ? `Pague com o Pix abaixo até ${formatarDataEHora(pedido.expiraEm)}. As fotos são liberadas assim que o pagamento for confirmado.`
-              : "Preencha os dados do cartão abaixo. O pagamento é à vista, e as fotos são liberadas assim que ele for confirmado."}
+              : gateway === "asaas"
+                ? "O pagamento é à vista, na página segura do Asaas. As fotos são liberadas assim que ele for confirmado."
+                : "Preencha os dados do cartão abaixo. O pagamento é à vista, e as fotos são liberadas assim que ele for confirmado."}
           </p>
           {gateway ? (
             <>
@@ -87,7 +90,10 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                 ) : (
                   <BotaoGerarPix pedidoId={pedido.id} token={dados.data.token} />
                 ))}
-              {pedido.metodo === "cartao" && (
+              {pedido.metodo === "cartao" && gateway === "asaas" && (
+                <CartaoAsaas pedidoId={pedido.id} token={dados.data.token} />
+              )}
+              {pedido.metodo === "cartao" && gateway === "mercadopago" && (
                 <CartaoMercadoPago
                   pedidoId={pedido.id}
                   token={dados.data.token}
@@ -111,8 +117,8 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
               )}
               <div className="rounded-lg border border-dashed border-highlight-foreground/30 bg-highlight/20 p-4">
                 <p className="mb-3 text-sm">
-                  <strong>Ambiente de exemplo:</strong> sem credenciais do Mercado Pago. Use o botão
-                  para simular a confirmação, como o webhook fará.
+                  <strong>Ambiente de exemplo:</strong> sem credenciais do gateway. Use o botão para
+                  simular a confirmação, como o webhook fará.
                 </p>
                 <BotaoSimularPagamento pedidoId={pedido.id} token={dados.data.token} />
               </div>

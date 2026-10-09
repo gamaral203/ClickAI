@@ -371,8 +371,13 @@ export async function copiarDescontosDoEvento(
 
 // ---------------------------------------------------------------- Fotos repetidas
 
-/** Assinaturas (SHA-256) das fotos já enviadas ao evento e ainda não excluídas. */
-export async function hashesDoEvento(eventoId: string): Promise<Set<string>> {
+/**
+ * Assinaturas (SHA-256) das fotos já enviadas ao evento e ainda não excluídas. Com `entre`, só
+ * as que estão nessa lista (um lote de envio): num evento com milhares de fotos, cada lote não
+ * precisa trazer todas.
+ */
+export async function hashesDoEvento(eventoId: string, entre?: string[]): Promise<Set<string>> {
+  if (entre && entre.length === 0) return new Set();
   const banco = await obterBanco();
   const linhas = await banco
     .select({ hash: t.fotos.hashConteudo })
@@ -384,6 +389,7 @@ export async function hashesDoEvento(eventoId: string): Promise<Set<string>> {
         eq(t.fotos.status, "pronta"),
         isNull(t.fotos.excluidaEm),
         isNotNull(t.fotos.hashConteudo),
+        entre ? inArray(t.fotos.hashConteudo, entre) : undefined,
       ),
     );
   return new Set(linhas.flatMap((l) => (l.hash ? [l.hash] : [])));

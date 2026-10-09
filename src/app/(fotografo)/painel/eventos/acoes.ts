@@ -24,11 +24,12 @@ import {
 } from "@/dados";
 import { campoParaIso } from "@/lib/datas";
 import { reaisParaCentavos } from "@/lib/dinheiro";
+import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { UFS } from "@/lib/ufs";
-import { confirmarEnvio, iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
+import { iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
 import { limiteAtingido } from "@/servicos/limites";
 import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -233,9 +234,6 @@ export async function liberarAgoraAcao(eventoId: string): Promise<{ erro?: strin
   return {};
 }
 
-const LIMITE_FOTO_BYTES = 30 * 1024 * 1024;
-const MAXIMO_POR_ENVIO = 500;
-
 const arquivos = z
   .array(
     z.object({
@@ -254,12 +252,13 @@ const arquivos = z
     }),
   )
   .min(1)
-  .max(MAXIMO_POR_ENVIO);
+  // Tamanho do lote, não do envio: o navegador divide a seleção em lotes sozinho.
+  .max(FOTOS_POR_LOTE);
 
 /**
  * Envio simulado (só fora da produção e sem o R2 configurado): recebe só nome e tamanho dos
  * arquivos já conferidos no navegador e cria os itens com imagens de exemplo. Com o R2, o
- * painel usa iniciarEnvioAcao e confirmarEnvioAcao (docs/arquitetura.md, "Upload").
+ * painel usa iniciarEnvioAcao e a rota /api/envios/processar (docs/arquitetura.md, "Upload").
  */
 export async function enviarFotosAcao(
   eventoId: string,
@@ -272,7 +271,7 @@ export async function enviarFotosAcao(
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   const dados = arquivos.safeParse(lista);
   if (!dados.success) {
-    return { erro: `Envie de 1 a ${MAXIMO_POR_ENVIO} fotos JPEG de até 30 MB cada.` };
+    return { erro: "Envie fotos JPEG de até 30 MB cada." };
   }
 
   // Foto repetida (mesmo arquivo já no evento, ou duas vezes no mesmo envio) não entra de novo.
@@ -302,8 +301,10 @@ export async function enviarFotosAcao(
 }
 
 /**
- * Envio real, passo 1: registra um lote de até 25 fotos em `processando` e devolve as URLs
- * assinadas para o navegador mandar cada JPEG direto ao R2 (o arquivo não passa por aqui).
+ * Envio real, passo 1: registra um lote de fotos (até FOTOS_POR_LOTE; o navegador divide a
+ * seleção, sem limite de quantidade) em `processando` e devolve as URLs assinadas para o
+ * navegador mandar cada JPEG direto ao R2 (o arquivo não passa por aqui). O passo 2, conferir e
+ * processar cada foto, é a rota /api/envios/processar, chamada várias vezes ao mesmo tempo.
  */
 export async function iniciarEnvioAcao(
   eventoId: string,
@@ -314,17 +315,6 @@ export async function iniciarEnvioAcao(
     return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
   }
   return iniciarEnvio(conta.id, eventoId, lista);
-}
-
-/**
- * Envio real, passo 2: depois que o navegador terminou o PUT de uma foto, confere o arquivo,
- * gera prévia e miniatura e marca a foto `pronta` (ou `erro`). Uma foto por chamada, para
- * caber no tempo da função (maxDuration nas páginas que enviam).
- */
-export async function confirmarEnvioAcao(fotoId: string): Promise<{ erro?: string }> {
-  const { conta } = await exigirFotografo("/painel/eventos");
-  const resultado = await confirmarEnvio(conta.id, fotoId);
-  return "erro" in resultado ? { erro: resultado.erro } : {};
 }
 
 // ---------------------------------------------------------------- Reaproveitar configuração

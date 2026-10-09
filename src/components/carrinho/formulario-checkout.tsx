@@ -15,11 +15,19 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatarPreco } from "@/lib/formatar";
+import { enviarSemLimpar } from "@/lib/formulario";
 import type { ResumoCarrinho } from "@/servicos/carrinho";
 
 import { esvaziarCarrinho, useCarrinho, usePacotes } from "./carrinho";
 
-export function FormularioCheckout({ inicial }: { inicial?: { nome: string; email: string } }) {
+export function FormularioCheckout({
+  inicial,
+  pedirCpf = false,
+}: {
+  inicial?: { nome: string; email: string };
+  /** O gateway (Asaas) exige o CPF/CNPJ de quem paga. */
+  pedirCpf?: boolean;
+}) {
   const router = useRouter();
   const ids = useCarrinho();
   const pacotes = usePacotes();
@@ -76,6 +84,7 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
           ids: [...ids],
           nome: String(formulario.get("nome") ?? ""),
           email: String(formulario.get("email") ?? ""),
+          cpf: String(formulario.get("cpf") ?? ""),
           whatsapp: String(formulario.get("whatsapp") ?? ""),
           aceitaWhatsapp: formulario.get("aceitaWhatsapp") === "on",
           metodo: formulario.get("metodo"),
@@ -100,7 +109,7 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <form action={enviar} noValidate className="flex flex-col gap-6">
+      <form onSubmit={enviarSemLimpar(enviar)} noValidate className="flex flex-col gap-6">
         {mensagem && (
           <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-destructive">
             {mensagem}{" "}
@@ -145,6 +154,27 @@ export function FormularioCheckout({ inicial }: { inicial?: { nome: string; emai
               className="h-11"
             />
           </Campo>
+          {pedirCpf && (
+            <Campo
+              id="cpf"
+              rotulo="CPF"
+              ajuda="Exigido pelo processador de pagamento. Não aparece para o fotógrafo."
+              erro={erros.cpf}
+            >
+              <Input
+                id="cpf"
+                name="cpf"
+                inputMode="numeric"
+                autoComplete="off"
+                required
+                maxLength={18}
+                placeholder="000.000.000-00"
+                aria-invalid={Boolean(erros.cpf)}
+                aria-describedby={erros.cpf ? "cpf-erro" : "cpf-ajuda"}
+                className="h-11"
+              />
+            </Campo>
+          )}
           <Campo
             id="whatsapp"
             rotulo="WhatsApp (opcional)"

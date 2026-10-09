@@ -1265,6 +1265,33 @@ export async function encerrarTodasAsSessoes(usuarioId: string) {
     .where(eq(t.usuarios.id, usuarioId));
 }
 
+/**
+ * Grava a senha nova (só o hash) se a atual ainda for `hashAnterior` (`null`: conta sem senha,
+ * só com o Google). Duas trocas ao mesmo tempo não se sobrepõem: a segunda não acha mais o hash
+ * antigo e devolve `false`. A versão da sessão muda junto com o hash (calcularVersaoDaSessao).
+ */
+export async function definirSenhaDoUsuario(
+  usuarioId: string,
+  senhaHash: string,
+  hashAnterior: string | null,
+): Promise<boolean> {
+  const banco = await obterBanco();
+  const atualizados = await banco
+    .update(t.usuarios)
+    .set({ senhaHash })
+    .where(
+      and(
+        eq(t.usuarios.id, usuarioId),
+        isNull(t.usuarios.excluidoEm),
+        hashAnterior === null
+          ? isNull(t.usuarios.senhaHash)
+          : eq(t.usuarios.senhaHash, hashAnterior),
+      ),
+    )
+    .returning({ id: t.usuarios.id });
+  return atualizados.length > 0;
+}
+
 /** Apaga as sessões encerradas que já venceriam de qualquer jeito (job de pedidos). */
 export async function apagarSessoesRevogadasVencidas(agora: number) {
   const banco = await obterBanco();

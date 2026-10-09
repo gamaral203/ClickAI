@@ -46,7 +46,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Cadastro de fotógrafo: perfil público (nome, endereço, bio, Instagram, site), CPF/CNPJ validado e chave Pix de saque (o próprio CPF/CNPJ, confirmado), no painel com checklist do que falta para vender
 - [x] Gestão de eventos no painel: criar (rascunho), editar todas as configurações (datas em horário de Brasília, preços, visibilidade com senha guardada só como hash, liberação, ordenação), publicar, arquivar e liberar agora; `revisao` só a equipe muda
 - [x] Só publicar evento com chave Pix confirmada `[Média]`
-- [x] Envio de fotos em lote no painel (simulado até a Fase 12): arrastar e soltar, JPEG conferido pelo conteúdo, até 30 MB e 500 por envio, conferido também no servidor
+- [x] Envio de fotos em lote no painel (simulado até a Fase 12): arrastar e soltar, JPEG conferido pelo conteúdo, até 30 MB, conferido também no servidor
 - [x] Gestão das fotos do evento com exclusão lógica (`excluida_em`): sai da galeria, mas quem comprou continua baixando `[Média]`
 - [x] Vendas no painel: saldo disponível, antecipável e a liberar, e extrato por venda, incluindo a parte do dono quando um colaborador vende
 - [x] Decisão: Mercado Pago, com pagamento dentro do site e sem split; comissão de 10% descontada no saque; saque antecipado com 1% a mais
@@ -98,7 +98,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   - Desempenho em `/painel/desempenho`: visitas, carrinhos, pedidos, itens, conversão e faturamento por evento, e as fotos que mais vendem
   - Financeiro transparente: no extrato, quanto o cliente pagou, a sua parte, a taxa, o líquido e a previsão de repasse de cada venda
   - Duplicar evento (com descontos e pacote) e modelos de configuração, usados em Novo evento
-  - Envio de fotos em lotes de 25 com barra de progresso, "Continuar envio" se a conexão cair, e fotos repetidas puladas pelo SHA-256 do arquivo
+  - Envio de fotos em lotes automáticos com barra de progresso, "Continuar envio" se a conexão cair, e fotos repetidas puladas pelo SHA-256 do arquivo
   - Divulgação: mensagem pronta editável para o WhatsApp e imagens automáticas de story (1080×1920) e feed (1080×1350) com o QR Code
   - Já existiam: reconhecimento facial e por número, pacotes, desconto progressivo, cupons, carrinho abandonado, QR Code, link e equipe com divisão automática
 - [x] Decisão: banco Supabase (Postgres), região São Paulo, no lugar do Neon
@@ -153,6 +153,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Limite de tentativas de pagamento com cartão (10 por IP por hora, contra teste de cartão roubado) e de QR Code Pix gerado de novo na página do pedido (30 por IP por hora)
 - [x] `npm run db:migrar` dá ao papel `clicouai_app` (se existir) só SELECT/INSERT/UPDATE/DELETE e a política do RLS em todas as tabelas, inclusive as novas (`src/db/papel-app.ts`)
 - [x] Auditoria do checklist de segurança de 19 itens ([seguranca.md](seguranca.md)), com `npm audit fix` sem mudança de versão maior
+- [x] Envio sem limite de quantidade (eram 500 por envio) e mais rápido: 6 arquivos subindo ao mesmo tempo com nova tentativa por arquivo, URLs em lotes de 50 pedidas à frente, processamento fora do caminho do envio pela rota `/api/envios/processar` (4 ao mesmo tempo), Sharp com uma decodificação só e a marca d'água em memória (de ~520 para ~220 ms de CPU por foto de 24 MP), tela com progresso somado e só os erros, grade que se atualiza sozinha e job de revisão com 30 fotos por execução
+- [x] Troca de senha em Senha e segurança (`/conta/seguranca`), para cliente, fotógrafo e gestor, com link em Minhas compras, Perfil e recebimento e no menu, e o "Sair de todos os dispositivos" movido para lá: senha atual com o limite de tentativas do login, código do MFA se ligado, senha nova com a regra do cadastro e diferente da atual, mostrar/ocultar e `autocomplete` certo; derruba as outras sessões e reemite o cookie desta; aviso por e-mail sem a senha. Conta só com o Google cria uma senha com login pelo Google de menos de 10 minutos; gestores de `GESTORES` veem um aviso e não trocam (a senha vem da variável)
 
 ## Em andamento
 
@@ -249,7 +251,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 - [x] Variáveis `R2_*` (6) cadastradas na Vercel
 - [ ] Conferir nos buckets da Cloudflare o CORS, o acesso público e o ciclo de vida de `envios/` ([deploy.md](deploy.md), item 7); depois, enviar uma foto de teste e comprar para conferir o download
-- [ ] Levar o processamento da foto (hoje síncrono na Server Action `confirmarEnvioAcao`) para um job no Inngest, com nova tentativa automática
+- [ ] Levar o processamento da foto (hoje na rota `/api/envios/processar`, chamada pelo navegador, com o job de revisão como rede de segurança) para um job no Inngest, com nova tentativa automática
+- [ ] Medir em produção um envio grande (ex.: 1.000 fotos): tempo por foto na rota de processamento, erros 429 do Rekognition e custo de R2 e Rekognition
 - [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
 - [x] Indexar os rostos de cada foto no Rekognition ao concluir o envio e gravar em `rostos` (com a posição do rosto, para a prévia ampliada); botão no evento para cadastrar os que faltam
 - [ ] Testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
@@ -264,6 +267,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
+- [x] Gateway Asaas (Pix, cartão na página do Asaas, reembolso, saque por transferência Pix com validação de saque por webhook), escolhido por `ASAAS_API_KEY`; o Mercado Pago fica como alternativa
+- [ ] Criar a conta Asaas, cadastrar `ASAAS_*` na Vercel, configurar os webhooks e a validação de saque e testar Pix, cartão e saque de R$ 1,00 ([deploy.md](deploy.md), "Asaas")
 - [ ] Mercado Pago registrar a chave pública do Payouts (`docs/mercadopago/payouts-chave-publica.pem`) e liberar o Payouts Pix em produção; depois ligar `MP_PAYOUTS_HABILITADO=1` `[R-alta]`
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
@@ -289,5 +294,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Monitor de disponibilidade (UptimeRobot ou Better Stack) na página inicial, com aviso por e-mail
 - [ ] Atualizar vitest (5) e drizzle-kit, que trazem as vulnerabilidades restantes do `npm audit` (só desenvolvimento e testes), e acompanhar o `braces` do CLI do shadcn
 - [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
+- [ ] Recuperação de senha por e-mail ("esqueci a senha"), com token de uso único guardado só como hash, limite de envio e as outras sessões derrubadas ao redefinir
 - [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra

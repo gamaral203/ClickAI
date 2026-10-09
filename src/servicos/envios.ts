@@ -2,8 +2,11 @@
 // ao bucket privado por URL assinada e nunca passa pelo Next.js; o servidor só registra a foto
 // (iniciarEnvio) e, depois que o arquivo chegou, confere e processa (confirmarEnvio).
 //
-// Por enquanto o processamento é síncrono, uma foto por chamada da Server Action de
-// confirmação; ele vai para um job do Inngest depois (docs/tarefas.md, Fase 12).
+// Sem limite de quantidade: o navegador manda quantas fotos o fotógrafo escolher, em lotes
+// automáticos de FOTOS_POR_LOTE (o tamanho do lote só existe para cada chamada caber no tempo e
+// no corpo de uma requisição). O processamento (confirmarEnvio) fica fora do caminho do envio:
+// o navegador chama a rota /api/envios/processar, várias fotos ao mesmo tempo, enquanto continua
+// subindo as próximas; o job de revisão é a rede de segurança se a página fechar no meio.
 
 import "server-only";
 
@@ -22,6 +25,8 @@ import {
   salvarRostos,
   type ChavesDaFoto,
 } from "@/dados";
+import { emParalelo } from "@/lib/concorrencia";
+import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
 import { dataDeCaptura } from "@/lib/exif";
 import {
   ERRO_SEM_ARMAZENAMENTO,
@@ -40,11 +45,9 @@ import {
   provedorFacial,
 } from "@/lib/reconhecimento";
 
-import { gerarMiniatura, gerarPrevia } from "./imagens";
+import { gerarVersoes, LARGURA_ROSTOS } from "./imagens";
 
-export const LIMITE_FOTO_BYTES = 30 * 1024 * 1024;
-/** Fotos por chamada de iniciarEnvio (o navegador manda em lotes). */
-export const FOTOS_POR_LOTE = 25;
+export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
 const lote = z
   .array(
@@ -92,10 +95,13 @@ export async function iniciarEnvio(
   if (!z.uuid().safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   const dados = lote.safeParse(lista);
   if (!dados.success) {
-    return { erro: `Envie de 1 a ${FOTOS_POR_LOTE} fotos JPEG de até 30 MB cada por vez.` };
+    return { erro: `Envie as fotos em lotes de até ${FOTOS_POR_LOTE}, em JPEG de até 30 MB cada.` };
   }
 
-  const jaNoEvento = await hashesDoEvento(eventoId);
+  const jaNoEvento = await hashesDoEvento(
+    eventoId,
+    dados.data.map((a) => a.hash),
+  );
   const vistos = new Set<string>();
   const repetida = dados.data.map((a) => {
     const sim = jaNoEvento.has(a.hash) || vistos.has(a.hash);
@@ -178,10 +184,8 @@ export async function confirmarEnvio(
       throw new ArquivoRecusado("O arquivo não é um JPEG. Exporte a foto em JPEG e envie de novo.");
     }
 
-    const [previa, miniatura] = await Promise.all([
-      gerarPrevia(original),
-      gerarMiniatura(original),
-    ]);
+    // Prévias geradas aqui, no servidor, sempre com marca d'água: nunca vindas do navegador.
+    const { previa, miniatura, paraRostos } = await gerarVersoes(original);
     await Promise.all([
       gravarPublico(chaves.previa, previa.buffer, "image/webp"),
       gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
@@ -196,7 +200,7 @@ export async function confirmarEnvio(
       capturadaEm: dataDeCaptura(info.exif),
     });
     if (!concluiu) return { erro: "Esta foto já foi processada." };
-    await indexarRostosDaFoto(foto.eventoId, foto.id, original);
+    await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
     return { eventoId: foto.eventoId };
   } catch (erro) {
     if (erro instanceof ArquivoRecusado) {
@@ -220,10 +224,12 @@ const ERRO_PROCESSAMENTO = "Não foi possível processar a foto. Envie de novo."
  */
 export const ESPERA_FOTO_PRESA_MS = 30 * 60 * 1000;
 /**
- * Fotos revisadas por execução do job: cada uma pode levar alguns segundos (baixar até 30 MB,
- * gerar prévia e miniatura, cadastrar rostos), e a função tem tempo limitado.
+ * Fotos revisadas por execução do job: cada uma leva de 1 a 3 segundos (baixar até 30 MB, gerar
+ * prévia e miniatura, cadastrar rostos), PRESAS_AO_MESMO_TEMPO por vez, e a função tem tempo
+ * limitado (maxDuration de /api/jobs/revisao).
  */
-export const FOTOS_PRESAS_POR_VEZ = 5;
+export const FOTOS_PRESAS_POR_VEZ = 30;
+const PRESAS_AO_MESMO_TEMPO = 3;
 
 export type ResultadoFotosPresas = {
   revisadas: number;
@@ -245,7 +251,7 @@ export async function revisarFotosPresas(agora = Date.now()): Promise<ResultadoF
     new Date(agora - ESPERA_FOTO_PRESA_MS),
     FOTOS_PRESAS_POR_VEZ,
   );
-  for (const foto of presas) {
+  await emParalelo(presas, PRESAS_AO_MESMO_TEMPO, async (foto) => {
     resultado.revisadas++;
     try {
       const r = await confirmarEnvio(foto.enviadaPor, foto.id);
@@ -263,7 +269,7 @@ export async function revisarFotosPresas(agora = Date.now()): Promise<ResultadoF
       console.error(`[envios] falha ao revisar a foto presa ${foto.id}`, erro);
       resultado.comErro++;
     }
-  }
+  });
   return resultado;
 }
 
@@ -284,15 +290,24 @@ export type IndexacaoDeRostos = "indexada" | "desligado" | "falha_credencial" | 
 export async function indexarRostosDaFoto(
   eventoId: string,
   fotoId: string,
-  original: Buffer,
+  original: Buffer | (() => Promise<Buffer>),
 ): Promise<IndexacaoDeRostos> {
   if (provedorFacial() !== "rekognition") return "desligado";
   try {
-    const imagem = await sharp(original)
-      .rotate()
-      .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toBuffer();
+    // No envio, a cópia reduzida já vem da decodificação das prévias (gerarVersoes).
+    const imagem =
+      typeof original === "function"
+        ? await original()
+        : await sharp(original)
+            .rotate()
+            .resize({
+              width: LARGURA_ROSTOS,
+              height: LARGURA_ROSTOS,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .jpeg({ quality: 85 })
+            .toBuffer();
     await salvarRostos(fotoId, await indexarRostos(eventoId, fotoId, imagem));
     return "indexada";
   } catch (erro) {

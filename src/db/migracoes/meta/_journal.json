@@ -82,8 +82,15 @@
     {
       "idx": 11,
       "version": "7",
-      "when": 1791511725262,
-      "tag": "0011_convite_e_desconto_por_evento",
+      "when": 1791511299157,
+      "tag": "0011_cpf_do_comprador",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791513085119,
+      "tag": "0012_convite_e_desconto_por_evento",
       "breakpoints": true
     }
   ]

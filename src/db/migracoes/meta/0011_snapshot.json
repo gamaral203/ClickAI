@@ -1,5 +1,5 @@
 {
-  "id": "1b40ed2b-a243-4ec2-95ea-4680d8d96ffa",
+  "id": "b1eda33c-68e5-4e52-b147-a36a1b6233d4",
   "prevId": "436ebc42-f8bc-4fe7-ba29-6ff56abea86c",
   "version": "7",
   "dialect": "postgresql",
@@ -264,12 +264,6 @@
         "nota": {
           "name": "nota",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "aceito_em": {
-          "name": "aceito_em",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -991,13 +985,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'captura'"
-        },
-        "desconto_progressivo": {
-          "name": "desconto_progressivo",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         }
       },
       "indexes": {
@@ -2589,6 +2576,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "cpf_comprador": {
+          "name": "cpf_comprador",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "whatsapp": {
           "name": "whatsapp",

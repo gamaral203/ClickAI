@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { FormularioCheckout } from "@/components/carrinho/formulario-checkout";
+import { exigeCpfDoComprador } from "@/lib/gateway";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ async function Formulario() {
   return (
     <FormularioCheckout
       inicial={usuario ? { nome: usuario.nome, email: usuario.email } : undefined}
+      pedirCpf={exigeCpfDoComprador()}
     />
   );
 }
