@@ -60,6 +60,8 @@ export type FotografoConta = Fotografo & {
    * CPF/CNPJ mudar, para o saque nunca ir para uma chave antiga.
    */
   chavePix: string | null;
+  /** Última troca do CPF/CNPJ (ISO): saques bloqueados por 72 horas depois dela. */
+  documentoTrocadoEm?: string | null;
   /** Comissão da plataforma, descontada no saque. */
   comissaoPct: number;
 };
@@ -336,7 +338,7 @@ export type Mensagem = {
   /** Pedido da mensagem; `null` nas mensagens de denúncia. */
   pedidoId: string | null;
   canal: "email" | "whatsapp";
-  tipo: "entrega" | "lembrete" | "denuncia" | "lembrete_pix" | "venda";
+  tipo: "entrega" | "lembrete" | "denuncia" | "lembrete_pix" | "venda" | "seguranca";
   /** E-mail ou número de WhatsApp. */
   para: string;
   assunto: string;

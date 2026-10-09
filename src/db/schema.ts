@@ -73,6 +73,8 @@ export const tipoMensagem = pgEnum("tipo_mensagem", [
   "lembrete_pix",
   /** Aviso ao fotógrafo de que vendeu. */
   "venda",
+  /** Aviso de segurança da conta (ex.: CPF/CNPJ de recebimento trocado). */
+  "seguranca",
 ]);
 export const tipoMetrica = pgEnum("tipo_metrica", ["visita_evento", "visita_foto", "carrinho"]);
 
@@ -144,6 +146,11 @@ export const fotografos = pgTable(
     cpfCnpj: text().notNull().default(""),
     /** O próprio CPF/CNPJ, só dígitos, depois de confirmado. */
     chavePix: text(),
+    /**
+     * Última troca do CPF/CNPJ (que define a chave Pix). Saques ficam bloqueados por 72 horas
+     * depois dela (src/servicos/saques.ts), contra quem invade a conta e troca o documento.
+     */
+    documentoTrocadoEm: data(),
     comissaoPct: integer().notNull().default(10),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],

@@ -63,7 +63,14 @@ export async function semear(banco: Banco) {
       excluidoEm: data(u.excluidoEm ?? null),
     })),
   );
-  await banco.insert(t.fotografos).values(exemplo.fotografos);
+  await banco
+    .insert(t.fotografos)
+    .values(
+      exemplo.fotografos.map((f) => ({
+        ...f,
+        documentoTrocadoEm: data(f.documentoTrocadoEm ?? null),
+      })),
+    );
   await banco.insert(t.categorias).values(exemplo.categorias);
   await banco.insert(t.eventos).values(
     exemplo.eventos.map((e) => ({

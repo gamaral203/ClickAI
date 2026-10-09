@@ -8,15 +8,23 @@ import {
   type CampoPerfil,
   type EstadoPerfil,
 } from "@/app/(fotografo)/painel/perfil/acoes";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatarDataEHora } from "@/lib/formatar";
 
 type Valores = Record<CampoPerfil, string>;
 
 const inicialEstado: EstadoPerfil = {};
 
-export function FormularioPerfil({ inicial }: { inicial: Valores }) {
+export function FormularioPerfil({
+  inicial,
+  temSenha,
+}: {
+  inicial: Valores;
+  /** A conta tem senha (pede a senha para trocar o CPF/CNPJ); sem senha, pede o Google. */
+  temSenha: boolean;
+}) {
   const [estado, acao, enviando] = useActionState(salvarPerfilAcao, inicialEstado);
   const erros = estado.erros ?? {};
 
@@ -31,7 +39,23 @@ export function FormularioPerfil({ inicial }: { inicial: Valores }) {
           {estado.chavePendente
             ? "Perfil salvo. Agora confirme a chave Pix logo abaixo, em “Usar meu CPF/CNPJ como chave Pix”: sem isso, não dá para publicar eventos."
             : "Perfil salvo."}
+          {estado.saquesLiberadosEm &&
+            ` Como o CPF/CNPJ mudou, os saques ficam bloqueados até ${formatarDataEHora(estado.saquesLiberadosEm)}, mandamos um aviso para o seu e-mail e as outras sessões da conta foram encerradas.`}
         </p>
+      )}
+      {estado.reentrarComGoogle && (
+        <div role="alert" className="flex flex-col gap-3 rounded-lg border p-4 text-sm">
+          <p>
+            Por segurança, para trocar o CPF/CNPJ, entre de novo com o Google. Depois, volte aqui e
+            salve em até 10 minutos.
+          </p>
+          <a
+            href="/api/auth/google?proximo=%2Fpainel%2Fperfil"
+            className={buttonVariants({ variant: "outline", size: "touch", className: "w-fit" })}
+          >
+            Entrar de novo com o Google
+          </a>
+        </div>
       )}
       <Campo
         id="nomePublico"
@@ -82,8 +106,31 @@ export function FormularioPerfil({ inicial }: { inicial: Valores }) {
         valor={inicial.cpfCnpj}
         erro={erros.cpfCnpj}
         modoTeclado="numeric"
-        ajuda="Usado só para o repasse das vendas. Não aparece no perfil público."
+        ajuda="Usado só para o repasse das vendas. Não aparece no perfil público. Trocar o CPF/CNPJ bloqueia os saques por 72 horas."
       />
+      {temSenha && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="senhaAtual">Senha atual (só para trocar o CPF/CNPJ)</Label>
+          <Input
+            id="senhaAtual"
+            name="senhaAtual"
+            type="password"
+            autoComplete="current-password"
+            maxLength={200}
+            aria-invalid={Boolean(erros.senhaAtual)}
+            aria-describedby={erros.senhaAtual ? "senhaAtual-erro" : undefined}
+            className="h-11"
+          />
+          {erros.senhaAtual && (
+            <p id="senhaAtual-erro" className="text-sm text-destructive">
+              {erros.senhaAtual}
+            </p>
+          )}
+        </div>
+      )}
+      {!temSenha && erros.senhaAtual && (
+        <p className="text-sm text-destructive">{erros.senhaAtual}</p>
+      )}
       <Button type="submit" size="touch" disabled={enviando} className="w-fit">
         {enviando && (
           <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />

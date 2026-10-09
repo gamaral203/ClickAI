@@ -6,14 +6,24 @@ import { z } from "zod";
 import { atualizarContaDoFotografo, slugDeFotografoEmUso } from "@/dados";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import { FORMATO_SLUG } from "@/lib/slug";
-import { exigirFotografo } from "@/servicos/sessao";
+import { BLOQUEIO_SAQUE_APOS_TROCA_MS } from "@/servicos/saques";
+import { exigirFotografo, sessaoAtual } from "@/servicos/sessao";
+import { confirmarIdentidade, trocarDocumento } from "@/servicos/troca-documento";
+
+const ERRO_SENHA = "Senha incorreta. Para trocar o CPF/CNPJ, digite a senha atual da sua conta.";
 
 export type CampoPerfil = "nomePublico" | "slug" | "bio" | "instagram" | "site" | "cpfCnpj";
+/** Campos do formulário com erro possível: os do perfil e a senha da troca do CPF/CNPJ. */
+export type CampoComErro = CampoPerfil | "senhaAtual";
 export type EstadoPerfil = {
   ok?: boolean;
   /** CPF/CNPJ salvo, mas a chave Pix ainda não foi confirmada (sem ela não dá para publicar). */
   chavePendente?: boolean;
-  erros?: Partial<Record<CampoPerfil, string>>;
+  /** O CPF/CNPJ foi trocado agora: saques bloqueados por 72 horas (ISO). */
+  saquesLiberadosEm?: string;
+  /** Conta só com o Google: precisa entrar de novo com ele para trocar o CPF/CNPJ. */
+  reentrarComGoogle?: boolean;
+  erros?: Partial<Record<CampoComErro, string>>;
 };
 
 const vazioParaNulo = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
@@ -56,7 +66,8 @@ export async function salvarPerfilAcao(
   formulario: FormData,
 ): Promise<EstadoPerfil> {
   const { usuario, conta } = await exigirFotografo("/painel/perfil");
-  const dados = perfil.safeParse(Object.fromEntries(formulario));
+  const { senhaAtual, ...campos } = Object.fromEntries(formulario);
+  const dados = perfil.safeParse(campos);
   if (!dados.success) {
     const erros: EstadoPerfil["erros"] = {};
     for (const problema of dados.error.issues) {
@@ -72,16 +83,43 @@ export async function salvarPerfilAcao(
   const { instagram, site, cpfCnpj, ...resto } = dados.data;
   const novoDocumento = cpfCnpj ?? "";
   const documentoMudou = somenteDigitos(conta.cpfCnpj) !== novoDocumento;
+
+  // Trocar o CPF/CNPJ muda para onde vai o saque: confere de novo quem está pedindo, antes de
+  // gravar qualquer coisa (src/servicos/troca-documento.ts).
+  const sessao = documentoMudou ? await sessaoAtual() : null;
+  if (documentoMudou) {
+    if (!sessao || sessao.usuario.id !== usuario.id) return { erros: { senhaAtual: ERRO_SENHA } };
+    const senha = typeof senhaAtual === "string" ? senhaAtual.slice(0, 200) : null;
+    switch (await confirmarIdentidade(sessao, senha)) {
+      case "senha":
+        return { erros: { senhaAtual: ERRO_SENHA } };
+      case "bloqueado":
+        return {
+          erros: { senhaAtual: "Muitas tentativas seguidas. Espere 15 minutos e tente de novo." },
+        };
+      case "google_antigo":
+        return { reentrarComGoogle: true };
+    }
+  }
+
   await atualizarContaDoFotografo(usuario.id, {
     ...resto,
     redesSociais: { ...(instagram && { instagram }), ...(site && { site }) },
-    cpfCnpj: novoDocumento,
-    // CPF/CNPJ mudou: a chave Pix confirmada era o documento antigo e precisa ser confirmada
-    // de novo, para o saque nunca ir para uma chave que não é mais do fotógrafo.
-    ...(documentoMudou && { chavePix: null }),
   });
+  let saquesLiberadosEm: string | undefined;
+  if (documentoMudou && sessao) {
+    // A chave Pix confirmada era o documento antigo e volta a exigir confirmação; os saques
+    // ficam bloqueados por 72 horas, sai o aviso por e-mail e as outras sessões caem.
+    const agora = Date.now();
+    await trocarDocumento(sessao, novoDocumento, agora);
+    saquesLiberadosEm = new Date(agora + BLOQUEIO_SAQUE_APOS_TROCA_MS).toISOString();
+  }
   revalidatePath("/painel", "layout");
-  return { ok: true, chavePendente: Boolean(novoDocumento) && (documentoMudou || !conta.chavePix) };
+  return {
+    ok: true,
+    chavePendente: Boolean(novoDocumento) && (documentoMudou || !conta.chavePix),
+    saquesLiberadosEm,
+  };
 }
 
 /**

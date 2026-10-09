@@ -53,7 +53,7 @@ export function paraUsuario(r: typeof t.usuarios.$inferSelect): UsuarioInterno {
 }
 
 export function paraFotografo(r: typeof t.fotografos.$inferSelect): FotografoConta {
-  return { ...r };
+  return { ...r, documentoTrocadoEm: iso(r.documentoTrocadoEm) };
 }
 
 export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {

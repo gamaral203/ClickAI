@@ -54,6 +54,7 @@ async function Conteudo() {
                   denuncia: "Denúncia",
                   lembrete_pix: "Lembrete do Pix",
                   venda: "Aviso de venda",
+                  seguranca: "Segurança da conta",
                 }[m.tipo]
               }
             </span>

@@ -4,7 +4,7 @@ import { registrarMensagem, vendasDoPedidoPorFotografo, type PedidoInterno } fro
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { enviarEmail } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarPreco } from "@/lib/formatar";
+import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 
 // Mensagens ao comprador (docs/arquitetura.md, "Compra e pagamento" e "Carrinho abandonado").
 // O e-mail é sempre o canal principal; o WhatsApp só vai com o consentimento dado no checkout
@@ -167,4 +167,33 @@ export async function enviarConfirmacaoDeEmail(para: string, nome: string, token
       url: urlDoSite(`/conta/confirmar?token=${encodeURIComponent(token)}`),
     },
   });
+}
+
+/**
+ * Aviso de segurança: o CPF/CNPJ de recebimento (a chave Pix do saque) mudou. Vai para o e-mail
+ * da conta e fica na caixa de saída; não leva o documento novo, só o que a pessoa precisa para
+ * reagir se não foi ela.
+ */
+export async function avisarTrocaDeDocumento(
+  para: string,
+  nome: string,
+  trocadoEm: string,
+  saquesLiberadosEm: string,
+) {
+  const assunto = "O CPF/CNPJ de recebimento da sua conta foi alterado";
+  const paragrafos = [
+    `Olá, ${nome.split(" ")[0]}! O CPF/CNPJ que recebe os saques da sua conta no ClicouAí foi alterado em ${formatarDataEHora(trocadoEm)}.`,
+    `Por segurança, os saques ficam bloqueados até ${formatarDataEHora(saquesLiberadosEm)}, e a chave Pix precisa ser confirmada de novo. As outras sessões da conta foram encerradas.`,
+    "Se não foi você, responda este e-mail agora para bloquearmos a conta antes de qualquer saque, e troque a sua senha.",
+  ];
+  const botao = { texto: "Conferir meu perfil", url: urlDoSite("/painel/perfil") };
+  await registrarMensagem({
+    pedidoId: null,
+    canal: "email",
+    tipo: "seguranca",
+    para,
+    assunto,
+    texto: [...paragrafos, `${botao.texto}: ${botao.url}`].join(" "),
+  });
+  await enviarEmail({ para, assunto, paragrafos, botao });
 }

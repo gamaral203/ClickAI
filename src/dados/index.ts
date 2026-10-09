@@ -1391,6 +1391,24 @@ export type AlteracoesPerfil = Partial<
   Pick<FotografoConta, "nomePublico" | "slug" | "bio" | "redesSociais" | "cpfCnpj" | "chavePix">
 >;
 
+/**
+ * Troca o CPF/CNPJ da conta deste usuário: a chave Pix confirmada era o documento antigo e volta
+ * a exigir confirmação, e a hora da troca fica gravada para segurar os saques por 72 horas.
+ */
+export async function trocarDocumentoDoFotografo(
+  usuarioId: string,
+  documento: string,
+  agora: number,
+) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .update(t.fotografos)
+    .set({ cpfCnpj: documento, chavePix: null, documentoTrocadoEm: new Date(agora) })
+    .where(eq(t.fotografos.usuarioId, usuarioId))
+    .returning();
+  return linha ? paraFotografo(linha) : null;
+}
+
 /** Atualiza só a conta ligada a este usuário: nunca por um id vindo do navegador. */
 export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: AlteracoesPerfil) {
   const banco = await obterBanco();

@@ -8,7 +8,12 @@ import { BotoesSaque } from "@/components/painel/botoes-saque";
 import type { Saque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { chavePixValida, SAQUE_MINIMO_CENTAVOS, situacaoFinanceira } from "@/servicos/saques";
+import {
+  chavePixValida,
+  mensagemDeBloqueio,
+  SAQUE_MINIMO_CENTAVOS,
+  situacaoFinanceira,
+} from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Vendas", robots: { index: false, follow: false } };
@@ -55,10 +60,8 @@ function CartaoSaldo({
 
 async function Conteudo() {
   const { usuario, conta } = await exigirFotografo("/painel/vendas");
-  const { agora, lancamentos, saques, saldo, liberacaoTeste } = await situacaoFinanceira(
-    conta,
-    usuario,
-  );
+  const { agora, lancamentos, saques, saldo, liberacaoTeste, bloqueadoAte } =
+    await situacaoFinanceira(conta, usuario);
   const temChave = chavePixValida(conta);
   const emAndamento = saques.some((s) => s.status === "processando");
 
@@ -110,6 +113,15 @@ async function Conteudo() {
             .
           </p>
         )}
+        {bloqueadoAte && (
+          <p
+            role="alert"
+            className="rounded-lg border-2 border-amber-500 bg-amber-50 p-4 text-sm font-medium text-amber-950 dark:bg-amber-950 dark:text-amber-50"
+          >
+            {mensagemDeBloqueio(bloqueadoAte)} Se não foi você quem trocou, responda o e-mail de
+            aviso ou fale com a gente pela central de ajuda.
+          </p>
+        )}
         {emAndamento && (
           <p role="status" className="text-sm font-medium">
             Há um saque em processamento. Um novo saque fica liberado quando ele terminar.
@@ -118,7 +130,7 @@ async function Conteudo() {
         <BotoesSaque
           normal={saldo.normal}
           antecipado={saldo.antecipado}
-          podeSacar={temChave && !emAndamento}
+          podeSacar={temChave && !emAndamento && !bloqueadoAte}
           minimoCentavos={SAQUE_MINIMO_CENTAVOS}
         />
       </section>

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { formatarPreco } from "@/lib/formatar";
-import { solicitarSaque } from "@/servicos/saques";
+import { mensagemDeBloqueio, solicitarSaque } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export type EstadoSaque = { ok?: string; erro?: string };
@@ -33,7 +33,12 @@ export async function solicitarSaqueAcao(
 
   const resultado = await solicitarSaque(conta, usuario, dados.data.tipo === "antecipado");
   revalidatePath("/painel/vendas");
-  if (!resultado.ok) return { erro: MOTIVOS[resultado.motivo] };
+  if (!resultado.ok) {
+    if (resultado.motivo === "documento_trocado") {
+      return { erro: mensagemDeBloqueio(resultado.bloqueadoAte) };
+    }
+    return { erro: MOTIVOS[resultado.motivo] };
+  }
   return {
     ok: `Saque de ${formatarPreco(resultado.saque.liquidoCentavos)} pedido. O Pix vai para a sua chave cadastrada.`,
   };

@@ -64,6 +64,13 @@
       "when": 1791507970486,
       "tag": "0008_sessao_revogavel",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791508193540,
+      "tag": "0009_troca_de_documento",
+      "breakpoints": true
     }
   ]
 }

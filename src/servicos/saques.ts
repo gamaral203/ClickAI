@@ -16,6 +16,7 @@ import {
 } from "@/dados";
 import { emProducao } from "@/db/conexao";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
+import { formatarDataEHora } from "@/lib/formatar";
 import {
   buscarPayout,
   enviarPayoutPix,
@@ -36,6 +37,24 @@ import {
 export const TAXA_ANTECIPACAO_PCT = 1;
 /** O Mercado Pago não envia Pix abaixo de R$ 1,00. */
 export const SAQUE_MINIMO_CENTAVOS = 100;
+/**
+ * Saques bloqueados por 72 horas depois de trocar o CPF/CNPJ (a chave Pix): quem invadir a conta
+ * e trocar o documento não saca antes de a dona ver o aviso por e-mail (docs/riscos.md).
+ */
+export const BLOQUEIO_SAQUE_APOS_TROCA_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Até quando os saques estão bloqueados pela troca do CPF/CNPJ (ISO), ou `null` se liberados.
+ * Calculado no servidor, pela hora gravada na troca.
+ */
+export function saqueBloqueadoAte(
+  conta: Pick<FotografoConta, "documentoTrocadoEm">,
+  agora: number,
+): string | null {
+  if (!conta.documentoTrocadoEm) return null;
+  const ate = new Date(conta.documentoTrocadoEm).getTime() + BLOQUEIO_SAQUE_APOS_TROCA_MS;
+  return ate > agora ? new Date(ate).toISOString() : null;
+}
 
 export type CalculoSaque = {
   lancamentoIds: string[];
@@ -167,6 +186,7 @@ export async function situacaoFinanceira(conta: FotografoConta, usuario: Usuario
     lancamentos,
     saques,
     liberacaoTeste,
+    bloqueadoAte: saqueBloqueadoAte(conta, agora),
     saldo: calcularSaldo(lancamentos, agora, conta.comissaoPct),
   };
 }
@@ -193,8 +213,14 @@ export const MENSAGEM_PENDENCIA_RECEBIMENTO = {
     "Falta confirmar a chave Pix para receber as vendas. Clique em “Usar meu CPF/CNPJ como chave Pix”: só salvar o CPF/CNPJ não basta.",
 };
 
+/** Texto da tela de saques enquanto o bloqueio da troca de CPF/CNPJ vale. */
+export function mensagemDeBloqueio(bloqueadoAte: string) {
+  return `Por segurança, os saques ficam bloqueados por 72 horas depois da troca do CPF/CNPJ. Você poderá sacar a partir de ${formatarDataEHora(bloqueadoAte)}.`;
+}
+
 export type ResultadoSaque =
   | { ok: true; saque: Saque }
+  | { ok: false; motivo: "documento_trocado"; bloqueadoAte: string }
   | {
       ok: false;
       motivo: "sem_chave" | "saque_em_andamento" | "abaixo_do_minimo" | "conflito" | "falhou";
@@ -282,6 +308,9 @@ export async function solicitarSaque(
   antecipado: boolean,
 ): Promise<ResultadoSaque> {
   if (!chavePixValida(conta) || !conta.chavePix) return { ok: false, motivo: "sem_chave" };
+  // CPF/CNPJ trocado há menos de 72 horas: nenhum saque, nem com a liberação de teste.
+  const bloqueadoAte = saqueBloqueadoAte(conta, Date.now());
+  if (bloqueadoAte) return { ok: false, motivo: "documento_trocado", bloqueadoAte };
   // Na produção, saque simulado nunca: sem as credenciais do Mercado Pago, o saque sairia
   // "pago" sem Pix nenhum. Recusa antes de reservar o saldo.
   if (emProducao() && !mercadoPagoConfigurado()) {

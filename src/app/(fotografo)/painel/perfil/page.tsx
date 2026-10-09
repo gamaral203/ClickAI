@@ -7,6 +7,7 @@ import { SairDeTodos } from "@/components/conta/sair-de-todos";
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
 import { Button } from "@/components/ui/button";
 import { formatarCpfCnpj } from "@/lib/documentos";
+import { contaTemSenha } from "@/servicos/exclusao-conta";
 import { exigirFotografo } from "@/servicos/sessao";
 
 import { confirmarChavePixAcao } from "./acoes";
@@ -28,7 +29,8 @@ export default function PaginaPerfil() {
 }
 
 async function Conteudo() {
-  const { conta } = await exigirFotografo("/painel/perfil");
+  const { usuario, conta } = await exigirFotografo("/painel/perfil");
+  const temSenha = await contaTemSenha(usuario);
 
   return (
     <>
@@ -41,6 +43,7 @@ async function Conteudo() {
           site: conta.redesSociais.site ?? "",
           cpfCnpj: conta.cpfCnpj ? formatarCpfCnpj(conta.cpfCnpj) : "",
         }}
+        temSenha={temSenha}
       />
 
       <section className="flex flex-col gap-3 rounded-xl border p-5">
