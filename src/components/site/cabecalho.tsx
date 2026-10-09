@@ -6,7 +6,10 @@ import { LinkCarrinho } from "@/components/carrinho/link-carrinho";
 
 import { AreaUsuario } from "./area-usuario";
 
-const links = [{ href: "/eventos", rotulo: "Eventos" }];
+const links = [
+  { href: "/", rotulo: "Início" },
+  { href: "/eventos", rotulo: "Eventos" },
+];
 
 export function Cabecalho() {
   return (
