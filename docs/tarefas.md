@@ -145,6 +145,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] "Sair" encerra a sessão no servidor (id da sessão do cookie em `sessoes_revogadas` até a hora em que venceria) e "Sair de todos os dispositivos" em Minhas compras e em Perfil e recebimento (`usuarios.versao_sessao`, migração 0008); a versão da sessão passa a incluir o hash da senha, então trocar a senha (inclusive a de gestor em `GESTORES`) derruba as outras sessões. A leitura da sessão continua uma consulta só por requisição
 - [x] Troca de CPF/CNPJ do fotógrafo pede a senha atual de novo (ou, na conta só com o Google, login com o Google de menos de 10 minutos), volta a exigir a confirmação da chave Pix, avisa por e-mail, derruba as outras sessões e bloqueia saques por 72 horas, com a hora da liberação na tela de vendas (`fotografos.documento_trocado_em`, migração 0009) `[R-alta]`
 - [x] Verificação em duas etapas (TOTP, app autenticador), opcional para fotógrafo e gestor em Perfil e recebimento: QR Code, 10 códigos de recuperação (só o HMAC no banco), segredo cifrado com AES-256-GCM (chave derivada do `APP_SECRET`); pedida no login com senha e com o Google, na troca de CPF/CNPJ e em cada saque; cada código vale uma vez e há limite de 6 tentativas em 15 minutos (migração 0010) `[R-alta]`
+- [x] Limite de `/api/metricas` no banco (regra `metricas_ip`, 300 em 10 minutos por IP), sem o `Map` na memória de cada servidor que crescia sem limpeza
+- [x] Login com Google loga só o nome do erro (a resposta do Google pode trazer o código ou o token)
 
 ## Em andamento
 
@@ -268,7 +270,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 - [ ] Remover SAQUE_SEM_PRAZO_EMAILS da produção depois do teste de saque
 - [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
-- [ ] Limite de `/api/metricas` sem o `Map` na memória de cada servidor (hoje cresce sem limpeza)
 - [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
