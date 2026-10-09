@@ -16,6 +16,10 @@ import {
   urlParaMigracoes,
 } from "../src/db/conexao";
 import * as schema from "../src/db/schema";
+import {
+  erroMercadoPagoEmProducao,
+  mercadoPagoFaltandoEmProducao,
+} from "../src/lib/ambiente-producao";
 
 const VARIAVEIS = [
   "DATABASE_URL",
@@ -83,6 +87,13 @@ function semUrl(texto: string, url: string | null) {
 }
 
 async function main() {
+  // Produção sem as credenciais do Mercado Pago não sobe (src/lib/ambiente-producao.ts).
+  const faltandoMp = mercadoPagoFaltandoEmProducao();
+  if (faltandoMp.length > 0) {
+    console.error(`[db:migrar] ${erroMercadoPagoEmProducao(faltandoMp)}`);
+    process.exitCode = 1;
+    return;
+  }
   const url = urlParaMigracoes();
   diagnostico(url);
   if (!url) {

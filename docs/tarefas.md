@@ -139,6 +139,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Revisão dos 10 riscos de prioridade alta, com o que falta em cada um ([riscos.md](riscos.md#revisão-dos-riscos-de-prioridade-alta-fase-14))
 - [x] Webhook do Mercado Pago recusa assinatura com `ts` a mais de 5 minutos do relógio do servidor (passado ou futuro), contra repetição de notificação capturada
 - [x] Uso do cupom somado na mesma transação que marca o pedido como `pago`, com `usos < usos_max` no UPDATE e idempotente (repetir o webhook não soma de novo); limite estourado entre a criação e o pagamento mantém o pedido pago, sem estorno automático, com alerta no log
+- [x] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`: o build falha no `db:migrar` com o nome do que falta e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`); conferido antes que as duas existem na Vercel
 
 ## Em andamento
 
@@ -269,7 +270,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Sair invalida a sessão no servidor (mudar a versão da sessão no logout) e "sair de todos os dispositivos"
 - [ ] Limite de `/api/metricas` sem o `Map` na memória de cada servidor (hoje cresce sem limpeza)
 - [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
-- [ ] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` (hoje só o pagamento e o saque simulados estão bloqueados)
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra

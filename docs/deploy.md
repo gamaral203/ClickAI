@@ -29,7 +29,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `APP_URL` | Endereço do site, ex. `https://clicouai.com.br`. Usado nos links, no QR Code, no login com Google e nas lojas |
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` |
-| `MP_ACCESS_TOKEN`, `NEXT_PUBLIC_MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`, `MP_AMBIENTE` | Mercado Pago |
+| `MP_ACCESS_TOKEN`, `NEXT_PUBLIC_MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`, `MP_AMBIENTE` | Mercado Pago. Sem `MP_ACCESS_TOKEN` ou `MP_WEBHOOK_SECRET`, o build de produção falha de propósito (`scripts/migrar.ts`, com o nome do que falta) e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`) |
 | `MP_PAYOUTS_PRIVATE_KEY`, `MP_PAYOUTS_HABILITADO` | Saque real pelo Payouts (ver "Saque em produção" abaixo). Sem as duas, o saque em produção é recusado sem chamar a API |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_EMAILS` | Login com Google e quem entra como gestor |
 | `GESTORES` | Contas de gestor da equipe com e-mail e senha (só o hash, gerado por `npm run senha:hash`). Em produção, a conta de exemplo de gestor não existe |

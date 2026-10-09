@@ -11,6 +11,8 @@ import { createHmac, createPrivateKey, sign, timingSafeEqual, type KeyObject } f
 
 import { z } from "zod";
 
+import { erroMercadoPagoEmProducao, mercadoPagoFaltandoEmProducao } from "./ambiente-producao";
+
 const API = "https://api.mercadopago.com";
 
 type Config = {
@@ -21,6 +23,9 @@ type Config = {
 
 /** Configuração lida do ambiente, ou `null` sem credenciais (aí o app usa o pagamento simulado). */
 export function configMercadoPago(): Config | null {
+  // Na produção, sem as duas variáveis, nada de cair no simulado: recusa (src/lib/ambiente-producao.ts).
+  const faltando = mercadoPagoFaltandoEmProducao();
+  if (faltando.length > 0) throw new Error(erroMercadoPagoEmProducao(faltando));
   const accessToken = process.env.MP_ACCESS_TOKEN;
   if (!accessToken) return null;
   return {
