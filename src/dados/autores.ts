@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -89,4 +89,34 @@ export async function totalVendidoComoAutor(fotografoId: string): Promise<number
     .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
     .where(and(eq(t.itensPedido.fotografoId, fotografoId), eq(t.pedidos.status, "pago")));
   return linha?.total ?? 0;
+}
+
+// ---------------------------------------------------------------- Divulgação
+
+/**
+ * Imagem para o fundo do material de divulgação: a capa do evento, se houver; senão a prévia
+ * (com marca d'água) da primeira foto pronta. Devolve o que está gravado (chave do R2 ou caminho
+ * de exemplo), ou `null` se o evento ainda não tem foto.
+ */
+export async function imagemDeCapaDoEvento(eventoId: string): Promise<string | null> {
+  const banco = await obterBanco();
+  const [evento] = await banco
+    .select({ capa: t.eventos.capa })
+    .from(t.eventos)
+    .where(eq(t.eventos.id, eventoId));
+  if (evento?.capa) return evento.capa;
+  const [foto] = await banco
+    .select({ previa: t.fotos.urlPrevia })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.eventoId, eventoId),
+        eq(t.fotos.status, "pronta"),
+        eq(t.fotos.tipo, "foto"),
+        isNull(t.fotos.excluidaEm),
+      ),
+    )
+    .orderBy(asc(t.fotos.criadoEm))
+    .limit(1);
+  return foto?.previa ?? null;
 }
