@@ -5,7 +5,7 @@
 # pode atrasar alguns minutos em horário de pico; o lembrete sai entre 20 e ~35 minutos.
 #
 # Segredos do repositório (Settings → Secrets and variables → Actions):
-#   APP_URL      endereço do site, ex. https://clickai-hazel.vercel.app
+#   APP_URL      endereço do site, ex. https://www.clicouai.com
 #   CRON_SECRET  o mesmo valor cadastrado na Vercel
 name: Job de pedidos
 

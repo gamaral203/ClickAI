@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { gerarNonce, politicaDeSeguranca } from "@/lib/csp";
 
 // Loja própria (docs/arquitetura.md, "Loja própria"):
-// - no subdomínio: liaramos.clicouai.com.br abre a loja de quem escolheu "liaramos";
+// - no subdomínio: liaramos.clicouai.com abre a loja de quem escolheu "liaramos";
 // - no domínio próprio: fotos.liaramos.com.br abre a loja que conectou esse domínio.
 // O proxy só reescreve o endereço; quem confere se a loja existe, está ativa e (no domínio
 // próprio) verificada é a página, porque o proxy não deve depender dos dados do app.
@@ -51,7 +51,7 @@ function lojaDoHost(request: NextRequest): string | null {
 
   if (host.endsWith(`.${base}`)) {
     const subdominio = host.slice(0, -(base.length + 1));
-    // Só um nível (nada de a.b.clicouai.com.br) e nunca o www.
+    // Só um nível (nada de a.b.clicouai.com) e nunca o www.
     if (subdominio === "www" || !SUBDOMINIO.test(subdominio)) return null;
     return `/loja/${subdominio}`;
   }

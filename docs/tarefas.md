@@ -92,6 +92,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Domínio próprio das lojas: o fotógrafo conecta no painel, o site cadastra pela API da Vercel e verifica o DNS (simulado sem credenciais); o `proxy.ts` abre a loja no domínio verificado
 - [x] Guia de deploy e contas ([deploy.md](deploy.md))
 - [x] Primeiro deploy na Vercel (`clickai-hazel.vercel.app`), com gestores da equipe pela variável `GESTORES` (só hashes de senha) e sem a conta de exemplo de gestor em produção
+- [x] Domínio próprio do site: a produção está em https://www.clicouai.com (comprado na Vercel, nameservers da Vercel); `clicouai.com` redireciona (308) para o www e o curinga `*.clicouai.com` abre as lojas por subdomínio. `APP_URL` de Production e o segredo `APP_URL` do GitHub Actions apontam para o www ([deploy.md](deploy.md), item 4)
 - [x] Prioridades do Daniel (fotógrafo termina o evento, sobe, publica e vende sem perder tempo):
   - Dashboard do fotógrafo em `/painel`: vendas do dia e do mês, saldo disponível, a receber, ticket médio e conversão (30 dias)
   - Métricas sem dado pessoal (visita ao evento, visita à foto, adição ao carrinho), uma vez por aba, com limite por IP em `/api/metricas`
@@ -168,8 +169,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   4. Google OAuth: cadastrar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
   5. Sentry: cadastrar `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN`.
   6. Testar a busca por selfie com fotos reais.
-  7. Conferir o CORS e o ciclo de vida dos buckets do R2.
-  8. Conferir no GitHub os segredos `APP_URL` e `CRON_SECRET` do job de pedidos (Actions → Job de pedidos → Run workflow).
+  7. Conferir o CORS e o ciclo de vida dos buckets do R2; no CORS do `fotos-originais`, incluir `https://www.clicouai.com` e `https://clicouai.com` ([deploy.md](deploy.md), item 7).
+  8. ~~Conferir no GitHub os segredos `APP_URL` e `CRON_SECRET` do job de pedidos~~: feito; o `APP_URL` aponta para https://www.clicouai.com e o Run workflow passou.
   9. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
@@ -240,7 +241,6 @@ Concluída (ver **Concluído**). Ficaram para depois: logo da loja e anexos da d
 O código está pronto (ver **Concluído**); falta a parte de fora do código, seguindo [deploy.md](deploy.md):
 
 - [ ] Criar contas: Vercel, Sentry, banco (região São Paulo), Cloudflare R2, AWS (Rekognition), Google Cloud (OAuth) e WhatsApp
-- [ ] Domínio próprio do site, com o curinga `*.` nos nameservers da Vercel
 - [x] Variáveis de produção do Mercado Pago, do R2 e da AWS já cadastradas na Vercel
 - [ ] Variáveis de produção do Google (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) e do Sentry (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`)
 - [ ] Alertas de erro no Sentry

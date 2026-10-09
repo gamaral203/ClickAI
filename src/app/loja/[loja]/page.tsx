@@ -6,7 +6,7 @@ import { PaginaDaLoja } from "@/components/loja/pagina-loja";
 import { buscarLojaPublica } from "@/dados";
 
 // Loja pelo subdomínio: abre em /loja/<subdomínio> e, pelo proxy.ts, na raiz do subdomínio
-// (liaramos.clicouai.com.br).
+// (liaramos.clicouai.com).
 
 const FORMATO_LOJA = /^[a-z0-9-]{3,32}$/;
 

@@ -28,7 +28,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 |---|---|
 | `DATABASE_URL` e `DATABASE_URL_DIRETA` (ou `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`) | Banco: a produção usa as duas primeiras, cadastradas à mão; as `POSTGRES_*` são as que a integração do Supabase cria. Sem ela, o build de produção falha de propósito: o banco em memória seria um por servidor e os pedidos Pix sumiriam |
 | `DATABASE_CA_CERT` (recomendada) | Certificado raiz do Supabase (**Database Settings → SSL Configuration → Download certificate**), em base64 numa linha: `base64 -w0 prod-ca-2021.crt` no Git Bash. Com ela, a conexão confere o certificado do banco (`rejectUnauthorized: true`); sem ela, cifra sem conferir. Cadastre em *Production* e faça Redeploy: se o deploy falhar no `db:migrar` com erro de certificado, apague a variável e avise |
-| `APP_URL` | Endereço do site, ex. `https://clicouai.com.br`. Usado nos links, no QR Code, no login com Google e nas lojas |
+| `APP_URL` | Endereço do site; em produção, `https://www.clicouai.com` (sem barra no fim). Usado nos links, no QR Code, no login com Google e nas lojas |
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` e `/api/jobs/revisao` |
 | `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`, `ASAAS_AMBIENTE` | Asaas (gateway principal). Com `ASAAS_API_KEY`, as variáveis do Mercado Pago deixam de ser exigidas; sem `ASAAS_WEBHOOK_TOKEN`, o build de produção falha de propósito |
@@ -91,8 +91,18 @@ Em produção, o Mercado Pago exige em cada `POST /v1/payouts` o header `X-signa
 
 ## 4. Domínio do site e lojas
 
-- Em **Settings → Domains**, adicione o domínio do site (ex. `clicouai.com.br`) e o curinga `*.clicouai.com.br`, que abre as lojas por subdomínio (`liaramos.clicouai.com.br`).
+A produção está em **https://www.clicouai.com** (domínio comprado na Vercel, com os nameservers dela). Em **Settings → Domains** do projeto `clickai` estão:
+
+| Domínio | Papel |
+|---|---|
+| `www.clicouai.com` | Site principal; é o `APP_URL` de Production (sem barra no fim) e o segredo `APP_URL` do GitHub Actions |
+| `clicouai.com` | Redireciona (308) para `www.clicouai.com` |
+| `*.clicouai.com` | Curinga que abre as lojas por subdomínio (`liaramos.clicouai.com`) |
+| `clickai-hazel.vercel.app` | Endereço antigo; continua abrindo o site |
+
+- O `proxy.ts` tira o `www.` do `APP_URL` para achar o domínio do site: `www.clicouai.com` e `clicouai.com` são o site; `nome.clicouai.com` é a loja `nome`; qualquer outro host (fora `*.vercel.app` e `localhost`) é tratado como domínio próprio de loja. Por isso, com o `APP_URL` errado, a página inicial do domínio novo mostra "Loja não encontrada".
 - O curinga só funciona com o domínio usando os **nameservers da Vercel**. Se o DNS estiver em outro lugar (Registro.br, Cloudflare), aponte os nameservers para a Vercel.
+- Ao trocar o domínio do site, atualize também, fora do código: a URI de redirecionamento do Google (`{APP_URL}/api/auth/google/callback`), a URL do webhook do gateway de pagamento, o domínio do remetente no Resend, o CORS do bucket de originais (item 7) e o segredo `APP_URL` do GitHub Actions.
 - Domínio próprio de cada loja (ex. `fotos.liaramos.com.br`): o fotógrafo conecta em **Painel → Minha loja**, e o site cadastra o domínio no projeto pela API da Vercel. A loja só abre no domínio depois que o DNS é verificado.
 
 ## 5. Sentry e alertas
@@ -118,13 +128,13 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o servidor só confere, gera prévia e miniatura com marca d'água e move o original (docs/arquitetura.md, "Upload"). São dois buckets: o de originais é **privado** (só se baixa por URL assinada de 15 minutos, depois da compra) e o público guarda só prévias e miniaturas.
 
 1. **Buckets.** No painel da Cloudflare, **R2 Object Storage → Create bucket**: crie `fotos-originais` e `fotos-publicas` (localização automática, classe Standard).
-2. **Acesso público só no bucket público.** Em `fotos-publicas` → **Settings → Public Development URL** → **Enable**. Copie a URL (`https://pub-….r2.dev`) para `R2_URL_PUBLICA`, sem barra no fim. Depois, para cache de CDN, troque por um domínio próprio em **Custom Domains** (ex. `img.clicouai.com.br`) e atualize `R2_URL_PUBLICA`; o banco guarda só as chaves, então nada mais muda. **Nunca** ligue acesso público no `fotos-originais`.
+2. **Acesso público só no bucket público.** Em `fotos-publicas` → **Settings → Public Development URL** → **Enable**. Copie a URL (`https://pub-….r2.dev`) para `R2_URL_PUBLICA`, sem barra no fim. Depois, para cache de CDN, troque por um domínio próprio em **Custom Domains** (ex. `img.clicouai.com`) e atualize `R2_URL_PUBLICA`; o banco guarda só as chaves, então nada mais muda. **Nunca** ligue acesso público no `fotos-originais`.
 3. **CORS no bucket de originais** (o navegador faz o PUT do envio direto nele, e o botão "Compartilhar" do pedido, em `src/components/pagamento/compartilhar-foto.tsx`, faz um `fetch` que segue o 302 até a URL assinada e lê a foto, o que exige `GET`). Em `fotos-originais` → **Settings → CORS Policy → Add CORS policy**, cole:
 
    ```json
    [
      {
-       "AllowedOrigins": ["https://clickai-hazel.vercel.app", "http://localhost:3000"],
+       "AllowedOrigins": ["https://www.clicouai.com", "https://clicouai.com", "https://clickai-hazel.vercel.app", "http://localhost:3000"],
        "AllowedMethods": ["PUT", "GET"],
        "AllowedHeaders": ["Content-Type"],
        "ExposeHeaders": ["ETag"],
@@ -133,7 +143,7 @@ As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o s
    ]
    ```
 
-   Ao trocar para o domínio definitivo, acrescente-o em `AllowedOrigins`. O download pelo link não precisa de CORS (é navegação, não `fetch`); o `GET` na regra é para o compartilhar.
+   Ao trocar de domínio, acrescente o novo em `AllowedOrigins`. O download pelo link não precisa de CORS (é navegação, não `fetch`); o `GET` na regra é para o compartilhar.
 4. **Ciclo de vida da pasta temporária.** Em `fotos-originais` → **Settings → Object lifecycle rules → Add rule**: nome `apagar-envios`, prefixo `envios/`, **Delete objects** depois de **1 dia**. Apaga o que sobrou de envios abandonados ou recusados; o original conferido fica em `originais/`.
 5. **Token de acesso.** Em **R2 Object Storage → Manage API tokens → Create API token**: permissão **Object Read & Write**, aplicada **só aos buckets** `fotos-originais` e `fotos-publicas`, sem prazo (ou com rotação anotada). Copie o **Access Key ID** e o **Secret Access Key** (o segredo aparece uma vez só). O **Account ID** aparece na página inicial do R2.
 6. **Variáveis na Vercel** (*Production*; em *Preview* só se quiser testar com buckets separados):
