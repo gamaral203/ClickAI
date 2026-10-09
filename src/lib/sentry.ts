@@ -7,8 +7,11 @@ import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
 // - cookies, cabeçalho Authorization e corpo das requisições: a selfie da busca facial vai no
 //   corpo e não pode ser gravada em lugar nenhum, nem em log de erro.
 
-/** O parâmetro secreto no começo do texto (query string sem "?") ou depois de ? ou &. */
-const PARAMETROS_SECRETOS = /((?:^|[?&])(?:token|code|state|acesso)=)[^&#\s"']+/gi;
+/**
+ * O parâmetro secreto no começo do texto (query string sem "?") ou depois de ?, & ou # (o link de
+ * "Esqueci a senha" leva o token depois do #: /entrar/nova-senha#token=…).
+ */
+const PARAMETROS_SECRETOS = /((?:^|[?&#])(?:token|code|state|acesso)=)[^&#\s"']+/gi;
 
 export function limparTexto<T>(valor: T): T {
   return (

@@ -112,7 +112,7 @@ export function FormularioSenha({
   );
 }
 
-function CampoSenha({
+export function CampoSenha({
   id,
   rotulo,
   autoComplete,
