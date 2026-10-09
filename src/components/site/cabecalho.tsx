@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { LinkCarrinho } from "@/components/carrinho/link-carrinho";
 
 import { AreaUsuario } from "./area-usuario";
+import { MetaDoCabecalho } from "./meta-do-cabecalho";
 
 const links = [
   { href: "/", rotulo: "Início" },
@@ -49,6 +50,10 @@ export function Cabecalho() {
           </ul>
         </nav>
       </div>
+      {/* Meta de vendas do fotógrafo, logo abaixo do perfil (só no computador). */}
+      <Suspense fallback={null}>
+        <MetaDoCabecalho />
+      </Suspense>
     </header>
   );
 }
