@@ -3,11 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { CheckCircle2, Download, MailWarning, ShoppingBag } from "lucide-react";
+import { CheckCircle2, Download, ShoppingBag } from "lucide-react";
 
-import { reenviarConfirmacaoAcao } from "@/app/(cliente)/conta/acoes";
 import { CartaoSeguranca } from "@/components/conta/cartao-seguranca";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   contarDownloads,
   detalharItensDoPedido,
@@ -15,7 +14,6 @@ import {
   type StatusPedido,
 } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { podeEnviarConfirmacao } from "@/servicos/confirmacao-email";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -47,7 +45,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar?proximo=/minhas-compras");
 
-  const { confirmacao } = await searchParams;
+  const { vinculadas } = await searchParams;
   const pedidos = await listarPedidosDoCliente(usuario.id);
   const comDetalhes = await Promise.all(
     pedidos.map(async ({ pedido, itens }) => ({
@@ -59,47 +57,17 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
 
   return (
     <>
-      {confirmacao === "invalida" && (
-        <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-destructive">
-          O link de confirmação é inválido ou já foi usado. Gere um novo abaixo.
-        </p>
-      )}
-      {typeof confirmacao === "string" && /^\d+$/.test(confirmacao) && (
+      {typeof vinculadas === "string" && /^[1-9]\d{0,4}$/.test(vinculadas) && (
         <p
           role="status"
           className="flex items-start gap-2 rounded-lg bg-accent p-4 text-accent-foreground"
         >
           <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
-          E-mail confirmado.
-          {Number(confirmacao) > 0 &&
-            ` ${confirmacao === "1" ? "1 compra feita" : `${confirmacao} compras feitas`} sem conta com este e-mail ${confirmacao === "1" ? "foi ligada" : "foram ligadas"} à sua conta.`}
+          E-mail confirmado.{" "}
+          {vinculadas === "1"
+            ? "1 compra feita sem conta com este e-mail foi ligada à sua conta."
+            : `${vinculadas} compras feitas sem conta com este e-mail foram ligadas à sua conta.`}
         </p>
-      )}
-
-      {!usuario.emailConfirmado && (
-        <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center">
-          <MailWarning aria-hidden="true" className="size-6 shrink-0 text-primary" />
-          {podeEnviarConfirmacao() ? (
-            <>
-              <p className="flex-1 text-sm">
-                Confirme o e-mail <strong>{usuario.email}</strong> para ver aqui também as compras
-                que você fez sem conta.
-              </p>
-              <form action={reenviarConfirmacaoAcao}>
-                <Button type="submit" variant="outline" size="touch">
-                  Confirmar e-mail
-                </Button>
-              </form>
-            </>
-          ) : (
-            // Sem envio de e-mail, o botão só levaria a um aviso de envio indisponível.
-            <p className="flex-1 text-sm">
-              Sua conta já funciona normalmente. A confirmação do e-mail{" "}
-              <strong>{usuario.email}</strong>, que liga aqui as compras feitas sem conta, vai ficar
-              disponível em breve.
-            </p>
-          )}
-        </div>
       )}
 
       {comDetalhes.length === 0 ? (

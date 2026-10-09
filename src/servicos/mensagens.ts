@@ -1,8 +1,9 @@
 import "server-only";
 
 import { registrarMensagem, vendasDoPedidoPorFotografo, type PedidoInterno } from "@/dados";
+import { emProducao } from "@/db/conexao";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
-import { enviarEmail } from "@/lib/email";
+import { emailConfigurado, enviarEmail, type Email } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 
@@ -150,23 +151,101 @@ export async function avisarVenda(pedidoId: string) {
 }
 
 /**
- * Link de confirmação do cadastro. Não vai para a caixa de saída: o link dá acesso à conta.
- * Devolve se o e-mail saiu (se não sair, só fora da produção a tela mostra o link; ver
- * destinoSemEnvio).
+ * Envia um e-mail que leva um segredo (código de confirmação, link de redefinição de senha). Não
+ * vai para a caixa de saída: quem lê a caixa não pode entrar na conta de ninguém. Sem o Resend,
+ * fora da produção (desenvolvimento local e testes), o segredo aparece só no log do servidor, para
+ * dar para testar; na produção, nunca: o envio falha e o log registra só o assunto.
  */
-export async function enviarConfirmacaoDeEmail(para: string, nome: string, token: string) {
+async function enviarComSegredo(email: Email, segredo: string): Promise<boolean> {
+  if (emailConfigurado()) return enviarEmail(email);
+  if (emProducao()) {
+    console.error(`[email] não enviado, envio de e-mail indisponível: ${email.assunto}`);
+    return false;
+  }
+  console.info(`[desenvolvimento] ${email.assunto} (${email.para}): ${segredo}`);
+  return true;
+}
+
+/** Código de 6 dígitos que confirma o e-mail do cadastro. Devolve se o e-mail saiu. */
+export async function enviarCodigoDeConfirmacao(para: string, nome: string, codigo: string) {
+  return enviarComSegredo(
+    {
+      para,
+      assunto: "Seu código de confirmação do ClicouAí",
+      paragrafos: [
+        `Olá, ${primeiroNome(nome)}! Para confirmar seu e-mail e liberar sua conta, digite este código na tela do ClicouAí. Ele vale por 15 minutos.`,
+        "Não passe o código para ninguém: a equipe do ClicouAí nunca pede. Se você não tentou criar ou acessar uma conta, ignore este e-mail.",
+      ],
+      destaque: codigo,
+    },
+    `código ${codigo}`,
+  );
+}
+
+/** Link de "Esqueci a senha". O token vai depois do #: não chega ao servidor nem aos logs. */
+export async function enviarLinkDeRedefinicao(para: string, nome: string, token: string) {
+  const url = urlDoSite(`/entrar/nova-senha#token=${token}`);
+  return enviarComSegredo(
+    {
+      para,
+      assunto: "Redefina sua senha do ClicouAí",
+      paragrafos: [
+        `Olá, ${primeiroNome(nome)}! Recebemos um pedido para redefinir a senha da sua conta no ClicouAí.`,
+        "O link vale por 30 minutos e funciona uma vez só. Se você não pediu, ignore este e-mail: sua senha continua a mesma.",
+      ],
+      botao: { texto: "Criar uma nova senha", url },
+    },
+    url,
+  );
+}
+
+/** "Esqueci a senha" de quem só entra com o Google: não há senha para redefinir. */
+export async function avisarContaSoComGoogle(para: string, nome: string) {
   return enviarEmail({
     para,
-    assunto: "Confirme seu e-mail no ClicouAí",
+    assunto: "Sua conta do ClicouAí entra com o Google",
     paragrafos: [
-      `Olá, ${nome.split(" ")[0]}! Confirme seu e-mail para ligar à sua conta as compras feitas com ele.`,
-      "O link vale por 24 horas. Se você não criou uma conta no ClicouAí, ignore este e-mail.",
+      `Olá, ${primeiroNome(nome)}! Recebemos um pedido para redefinir a senha da sua conta, mas ela não tem senha: você entra com o botão "Entrar com Google", usando este mesmo e-mail.`,
+      "Se quiser também uma senha, entre com o Google e crie uma em Senha e segurança. Se você não pediu, ignore este e-mail.",
     ],
-    botao: {
-      texto: "Confirmar e-mail",
-      url: urlDoSite(`/conta/confirmar?token=${encodeURIComponent(token)}`),
-    },
+    botao: { texto: "Entrar no ClicouAí", url: urlDoSite("/entrar") },
   });
+}
+
+/** "Esqueci a senha" de um gestor de GESTORES: a senha vem da variável, não da tela. */
+export async function avisarSenhaDeGestor(para: string, nome: string) {
+  return enviarEmail({
+    para,
+    assunto: "A senha da sua conta de gestão do ClicouAí",
+    paragrafos: [
+      `Olá, ${primeiroNome(nome)}! Recebemos um pedido para redefinir a senha da sua conta, mas a senha das contas de gestão é definida pela equipe técnica (variável GESTORES) e não pode ser trocada pelo site.`,
+      "Para trocar, gere outro hash com npm run senha:hash e atualize a variável. Se você não pediu, ignore este e-mail.",
+    ],
+  });
+}
+
+/** Aviso de segurança depois do "Esqueci a senha": a senha foi redefinida pelo link do e-mail. */
+export async function avisarRedefinicaoDeSenha(para: string, nome: string, redefinidaEm: string) {
+  const assunto = "A senha da sua conta no ClicouAí foi redefinida";
+  const paragrafos = [
+    `Olá, ${primeiroNome(nome)}! A senha da sua conta no ClicouAí foi redefinida pelo link de "Esqueci a senha" em ${formatarDataEHora(redefinidaEm)}. Todas as sessões abertas foram encerradas.`,
+    "Se foi você, não precisa fazer nada.",
+    "Se não foi você, responda este e-mail agora para bloquearmos a conta.",
+  ];
+  const botao = { texto: "Entrar no ClicouAí", url: urlDoSite("/entrar") };
+  await registrarMensagem({
+    pedidoId: null,
+    canal: "email",
+    tipo: "seguranca",
+    para,
+    assunto,
+    texto: [...paragrafos, `${botao.texto}: ${botao.url}`].join(" "),
+  });
+  await enviarEmail({ para, assunto, paragrafos, botao });
+}
+
+function primeiroNome(nome: string) {
+  return nome.split(" ")[0];
 }
 
 /**

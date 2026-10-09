@@ -217,7 +217,11 @@ export async function anonimizarConta(usuarioId: string): Promise<RostoRemovido[
     }
 
     // ------------------------------------------------ Usuário
-    await tx.delete(t.confirmacoesEmail).where(eq(t.confirmacoesEmail.usuarioId, usuarioId));
+    // Código de confirmação (pela conta ou pelo e-mail) e links de "Esqueci a senha" pendentes.
+    await tx
+      .delete(t.codigosEmail)
+      .where(or(eq(t.codigosEmail.usuarioId, usuarioId), eq(t.codigosEmail.email, usuario.email)));
+    await tx.delete(t.redefinicoesSenha).where(eq(t.redefinicoesSenha.usuarioId, usuarioId));
     await tx.delete(t.codigosRecuperacao).where(eq(t.codigosRecuperacao.usuarioId, usuarioId));
     await tx
       .update(t.usuarios)

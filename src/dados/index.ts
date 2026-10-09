@@ -1142,7 +1142,7 @@ export async function criarUsuario(dados: {
   senhaHash: string | null;
   papel: Papel;
   googleId?: string;
-  /** O Google já confirmou o e-mail; no cadastro com senha, o link de confirmação confirma. */
+  /** O Google (ou o código de confirmação, no cadastro com senha) já confirmou o e-mail. */
   emailConfirmado?: boolean;
 }): Promise<Usuario> {
   const banco = await obterBanco();
@@ -1161,15 +1161,16 @@ export async function criarUsuario(dados: {
 }
 
 /**
- * Cria o usuário do cadastro com senha, ou devolve `null` se o e-mail já tem conta. A conferência
- * é o índice único do e-mail: dois envios do mesmo formulário ao mesmo tempo (clique duplo,
- * conexão lenta do celular) não viram erro 500, o segundo só ouve que o e-mail está em uso.
+ * Cria o usuário do cadastro com senha (depois do código de confirmação, com o e-mail já
+ * confirmado), ou devolve `null` se o e-mail já tem conta. A conferência é o índice único do
+ * e-mail: dois envios ao mesmo tempo não viram erro 500, o segundo só ouve que o e-mail está em uso.
  */
 export async function criarUsuarioSeEmailLivre(dados: {
   nome: string;
   email: string;
   senhaHash: string;
   papel: Papel;
+  emailConfirmado?: boolean;
 }): Promise<Usuario | null> {
   const banco = await obterBanco();
   const [linha] = await banco
@@ -1179,6 +1180,7 @@ export async function criarUsuarioSeEmailLivre(dados: {
       email: normalizarEmail(dados.email),
       papel: dados.papel,
       senhaHash: dados.senhaHash,
+      emailConfirmadoEm: dados.emailConfirmado ? new Date() : null,
     })
     .onConflictDoNothing({ target: t.usuarios.email })
     .returning();
@@ -1323,36 +1325,6 @@ export async function apagarSessoesRevogadasVencidas(agora: number) {
   await banco.delete(t.sessoesRevogadas).where(lt(t.sessoesRevogadas.expiraEm, new Date(agora)));
 }
 
-export async function salvarConfirmacaoEmail(
-  tokenHash: string,
-  usuarioId: string,
-  expiraEm: number,
-) {
-  const banco = await obterBanco();
-  await banco
-    .insert(t.confirmacoesEmail)
-    .values({ tokenHash, usuarioId, expiraEm: new Date(expiraEm) });
-}
-
-/** Usa o token de confirmação (uma vez só) e devolve o usuário, ou `null` se inválido/vencido. */
-export async function consumirConfirmacaoEmail(tokenHash: string): Promise<string | null> {
-  const banco = await obterBanco();
-  const [apagado] = await banco
-    .delete(t.confirmacoesEmail)
-    .where(eq(t.confirmacoesEmail.tokenHash, tokenHash))
-    .returning();
-  if (!apagado || apagado.expiraEm.getTime() < Date.now()) return null;
-  return apagado.usuarioId;
-}
-
-export async function marcarEmailConfirmado(usuarioId: string) {
-  const banco = await obterBanco();
-  await banco
-    .update(t.usuarios)
-    .set({ emailConfirmadoEm: new Date() })
-    .where(and(eq(t.usuarios.id, usuarioId), isNull(t.usuarios.emailConfirmadoEm)));
-}
-
 /**
  * Liga à conta os pedidos feitos como convidado com o mesmo e-mail. Só chamar depois de o
  * e-mail estar confirmado, senão quem criasse conta com o e-mail de outra pessoa veria as
@@ -1492,5 +1464,6 @@ export * from "./relatorio";
 export * from "./estornos";
 export * from "./exclusao";
 export * from "./mfa";
+export * from "./autenticacao";
 export * from "./autores";
 export * from "./rankings";

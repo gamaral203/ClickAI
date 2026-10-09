@@ -140,7 +140,14 @@ export async function sincronizarGestores(banco: Banco) {
       })
       .onConflictDoUpdate({
         target: t.usuarios.email,
-        set: { nome: g.nome, papel: "admin", senhaHash: g.senhaHash },
+        set: {
+          nome: g.nome,
+          papel: "admin",
+          senhaHash: g.senhaHash,
+          // A conta de GESTORES entra sem o código de confirmação do e-mail, mesmo que tenha sido
+          // criada antes como conta comum não confirmada.
+          emailConfirmadoEm: sql`coalesce(${t.usuarios.emailConfirmadoEm}, now())`,
+        },
       });
   }
 }

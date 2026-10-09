@@ -4,26 +4,24 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { papelEscolhido, type PapelCadastro } from "@/lib/cadastro";
-import { emailConfigurado } from "@/lib/email";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { senhaNovaSchema } from "@/lib/regras-senha";
-import { destinoSemEnvio, podeEnviarConfirmacao } from "@/servicos/confirmacao-email";
+import { reenviarCodigo, type ResultadoEnvioCodigo } from "@/servicos/confirmacao-email";
 import { excluirConta } from "@/servicos/exclusao-conta";
 import {
   cadastroBloqueado,
-  limiteAtingido,
   limiteDoIpAtingido,
   loginBloqueado,
   loginDeuCerto,
 } from "@/servicos/limites";
-import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
 import { MENSAGENS_CODIGO } from "@/servicos/mfa";
 import {
   cadastrar,
   comecarAVender,
   concluirLoginComCodigo,
+  confirmarEmailComCodigo,
+  emailAguardandoConfirmacao,
   entrar,
-  gerarConfirmacaoEmail,
   inicioDoPapel,
   sair,
   sairDeTodosOsDispositivos,
@@ -63,6 +61,8 @@ export async function entrarAcao(
   // Mesma mensagem para e-mail inexistente e senha errada.
   if (!resultado) return { erro: "E-mail ou senha incorretos.", valores: { email } };
   await loginDeuCerto(dados.data.email);
+  // E-mail ainda não confirmado: a sessão só abre depois do código mandado por e-mail.
+  if (resultado.pedeConfirmacao) redirect(telaDoCodigo(resultado.envio));
   // Verificação em duas etapas ligada: a sessão só abre depois do código.
   if (resultado.pedeCodigo) redirect("/entrar/codigo");
   // Sem ?proximo=, cada papel vai para a sua área (gestão, painel ou compras).
@@ -128,20 +128,96 @@ export async function cadastrarAcao(
   if (await cadastroBloqueado()) {
     return { erro: "Muitos cadastros seguidos daqui. Espere um pouco e tente de novo.", valores };
   }
-  const resultado = await cadastrar(dados.data);
+  const proximoBruto = formulario.get("proximo");
+  const proximo = typeof proximoBruto === "string" && proximoBruto ? proximoBruto : null;
+  const resultado = await cadastrar(dados.data, proximo);
   if (!resultado.ok) {
-    return {
-      erros: { email: "Já existe uma conta com este e-mail. Entre ou use outro e-mail." },
-      valores,
-    };
+    if (resultado.motivo === "email_em_uso") {
+      return {
+        erros: { email: "Já existe uma conta com este e-mail. Entre ou use outro e-mail." },
+        valores,
+      };
+    }
+    return { erro: MENSAGENS_ENVIO[resultado.motivo], valores };
   }
-  // Conta nova vai para a tela principal; quem veio pelo link do fotógrafo volta para ele.
-  return confirmarPorEmail(
-    resultado.usuario.email,
-    resultado.usuario.nome,
-    resultado.tokenConfirmacao,
-    destinoDoCadastro(formulario.get("proximo"), dados.data.papel),
+  // A conta só nasce com o código que foi para o e-mail.
+  redirect("/cadastro/codigo");
+}
+
+const MENSAGENS_ENVIO = {
+  limite:
+    "Muitos códigos pedidos seguidos para este e-mail ou desta rede. Espere um pouco e tente de novo.",
+  indisponivel:
+    "Não conseguimos enviar o código de confirmação agora. Tente de novo em alguns minutos.",
+} as const;
+
+/** Tela do código, com o aviso do que houve com o envio (se não saiu). */
+function telaDoCodigo(envio: ResultadoEnvioCodigo) {
+  if (envio.ok || envio.motivo === "espera") return "/cadastro/codigo";
+  return `/cadastro/codigo?envio=${envio.motivo === "limite" ? "limite" : "indisponivel"}`;
+}
+
+export type EstadoCodigoEmail = { erro?: string; aviso?: string; espera?: number };
+
+const codigoEmail = z.object({ codigo: z.string().trim().min(1).max(20) });
+
+/**
+ * Tela /cadastro/codigo: confere o código de confirmação do e-mail. Certo, a conta passa a valer,
+ * as compras de convidado com o mesmo e-mail são ligadas e a sessão abre.
+ */
+export async function confirmarCodigoEmailAcao(
+  _anterior: EstadoCodigoEmail,
+  formulario: FormData,
+): Promise<EstadoCodigoEmail> {
+  const dados = codigoEmail.safeParse({ codigo: formulario.get("codigo") });
+  if (!dados.success) return { erro: "Digite o código de 6 dígitos que enviamos por e-mail." };
+  if (await limiteDoIpAtingido("codigo_email_conferencia_ip")) {
+    return { erro: "Muitas tentativas seguidas daqui. Espere 15 minutos e tente de novo." };
+  }
+  const resultado = await confirmarEmailComCodigo(dados.data.codigo);
+  if (!resultado.ok) {
+    switch (resultado.motivo) {
+      case "invalido":
+        return {
+          erro: `Código incorreto. ${resultado.restantes === 1 ? "Resta 1 tentativa" : `Restam ${resultado.restantes} tentativas`} para este código.`,
+        };
+      case "bloqueado":
+        return { erro: "Muitas tentativas erradas. Peça um código novo abaixo." };
+      case "expirado":
+        return { erro: "Este código venceu. Peça um código novo abaixo." };
+      case "email_em_uso":
+        redirect("/entrar?erro=conta_existente");
+      default:
+        redirect("/cadastro/codigo");
+    }
+  }
+  if (resultado.pedeCodigo) redirect("/entrar/codigo");
+  const { usuario, proximo, vinculados, novo } = resultado;
+  if (vinculados > 0 && !proximo) redirect(`/minhas-compras?vinculadas=${vinculados}`);
+  redirect(
+    novo
+      ? destinoDoCadastro(proximo, usuario.papel)
+      : caminhoSeguro(proximo, inicioDoPapel(usuario.papel)),
   );
+}
+
+/** "Reenviar código" da tela /cadastro/codigo. */
+export async function reenviarCodigoEmailAcao(): Promise<EstadoCodigoEmail> {
+  const email = await emailAguardandoConfirmacao();
+  if (!email) redirect("/cadastro/codigo");
+  const resultado = await reenviarCodigo(email);
+  if (resultado.ok) return { aviso: "Enviamos um código novo. Confira também o spam.", espera: 60 };
+  switch (resultado.motivo) {
+    case "espera":
+      return {
+        erro: `Espere ${resultado.segundos} segundos para pedir outro código.`,
+        espera: resultado.segundos,
+      };
+    case "sem_cadastro":
+      redirect("/cadastro/codigo");
+    default:
+      return { erro: MENSAGENS_ENVIO[resultado.motivo] };
+  }
 }
 
 /**
@@ -165,54 +241,6 @@ export async function sairDeTodosAcao() {
   const usuario = await usuarioAtual();
   if (usuario) await sairDeTodosOsDispositivos(usuario.id);
   redirect("/entrar?saiu=todos");
-}
-
-/** Gera e envia um novo link de confirmação para o usuário logado. */
-export async function reenviarConfirmacaoAcao() {
-  const usuario = await usuarioAtual();
-  if (!usuario) redirect("/entrar");
-  if (usuario.emailConfirmado) redirect("/minhas-compras");
-  // Sem envio de e-mail na produção, não adianta gerar link nem gastar o limite: só avisa.
-  if (!podeEnviarConfirmacao()) {
-    redirect(
-      `/conta/confirmar-email?indisponivel=1&proximo=${encodeURIComponent("/minhas-compras")}`,
-    );
-  }
-  // Cada reenvio manda um e-mail pelo Resend: limite por IP e por conta, contados no banco. O
-  // limite por IP é próprio do reenvio: antes era o do cadastro, e quem apertava "Confirmar
-  // e-mail" algumas vezes travava o cadastro de todo mundo na mesma rede.
-  if (
-    (await limiteDoIpAtingido("email_confirmacao_ip")) ||
-    (await limiteAtingido("email_confirmacao_usuario", usuario.id))
-  ) {
-    redirect("/conta/confirmar-email?limite=1");
-  }
-  const token = await gerarConfirmacaoEmail(usuario.id);
-  await confirmarPorEmail(
-    usuario.email,
-    usuario.nome,
-    token,
-    "/conta/confirmar-email?enviado=1",
-    // Se não sair, "Continuar" leva às compras, e não de volta para esta mesma tela.
-    "/minhas-compras",
-  );
-}
-
-/**
- * Manda o link de confirmação por e-mail e segue para o destino. Se o e-mail não sair, fora da
- * produção mostra o link na tela (ambiente de exemplo); na produção, só avisa que o envio está
- * indisponível, sem o link (ver destinoSemEnvio).
- */
-async function confirmarPorEmail(
-  email: string,
-  nome: string,
-  token: string,
-  destino: string,
-  destinoSeNaoSair = destino,
-): Promise<never> {
-  const enviado = emailConfigurado() && (await enviarConfirmacaoDeEmail(email, nome, token));
-  if (enviado) redirect(destino);
-  redirect(destinoSemEnvio(token, destinoSeNaoSair));
 }
 
 export type EstadoExclusao = {

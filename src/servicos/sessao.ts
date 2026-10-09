@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -11,18 +11,14 @@ import {
   buscarUsuarioParaLogin,
   buscarUsuarioPorGoogle,
   buscarContaDoFotografo,
-  consumirConfirmacaoEmail,
+  apagarCodigoEmail,
   criarContaDeFotografo,
   criarContaDeFotografoSeNaoExistir,
   criarUsuario,
-  criarUsuarioSeEmailLivre,
   encerrarTodasAsSessoes,
-  emailEmUso,
   ligarContaGoogle,
-  marcarEmailConfirmado,
   mudarPapelDoUsuario,
   revogarSessao,
-  salvarConfirmacaoEmail,
   slugDeFotografoEmUso,
   usuarioDaSessao,
   versaoDaSessao,
@@ -33,14 +29,22 @@ import {
 } from "@/dados";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { emailEhGestor, type PerfilGoogle } from "@/lib/google";
-import { gerarHashSenha, HASH_FALSO, senhaConfere } from "@/lib/senha";
+import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 
+import {
+  codigoPendente,
+  conferirCodigo,
+  enviarCodigoParaConta,
+  iniciarCadastro,
+  reenviarCodigo,
+  segundosParaReenviar,
+  type ResultadoEnvioCodigo,
+} from "./confirmacao-email";
 import { conferirCodigoMfa } from "./mfa";
 
-// Sessão simulada da Parte A (docs/tarefas.md, Fase 5). Na Fase 11 o Better Auth assume, com
-// as mesmas garantias: cookie HttpOnly, token aleatório guardado só como hash, e e-mail
-// confirmado antes de vincular compras.
+// Sessão própria (docs/arquitetura.md, "Sessão"): cookie HttpOnly assinado, e conta só usável
+// com o e-mail confirmado (por código no cadastro com senha, ou pelo Google).
 
 const COOKIE = "clicouai_sessao";
 const DURACAO_SESSAO_MS = 30 * 24 * 60 * 60 * 1000;
@@ -49,15 +53,6 @@ const DURACAO_SESSAO_MS = 30 * 24 * 60 * 60 * 1000;
  * reembolsos, papéis e denúncias, e um cookie esquecido num computador vale menos tempo.
  */
 export const DURACAO_SESSAO_GESTOR_MS = 12 * 60 * 60 * 1000;
-const DURACAO_CONFIRMACAO_MS = 24 * 60 * 60 * 1000;
-
-function hash(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-function novoToken() {
-  return randomBytes(32).toString("base64url");
-}
 
 // A sessão é um cookie assinado (APP_SECRET) com o id do usuário, a versão da conta, um id
 // próprio da sessão (`j`), a hora e o jeito do login. Qualquer servidor confere sem depender de
@@ -110,6 +105,9 @@ export async function sessaoAtual(): Promise<SessaoAtual | null> {
   if (!dados) return null;
   const usuario = await usuarioDaSessao(dados.u, dados.v, dados.j);
   if (!usuario) return null;
+  // Conta antiga que nunca confirmou o e-mail: o cookie de antes da confirmação obrigatória não
+  // vale mais; ao entrar de novo, a pessoa recebe o código.
+  if (!usuario.emailConfirmado) return null;
   if (usuario.papel === "admin" && Date.now() - dados.t > DURACAO_SESSAO_GESTOR_MS) return null;
   return { usuario, metodo: dados.m, entrouEm: dados.t };
 }
@@ -204,16 +202,28 @@ export async function concluirLoginComCodigo(codigo: string): Promise<ResultadoC
   return { ok: true, usuario: pendente.usuario, proximo: pendente.proximo };
 }
 
-export type ResultadoEntrar = {
-  usuario: Usuario;
-  /** A verificação em duas etapas está ligada: a sessão só abre em /entrar/codigo. */
-  pedeCodigo: boolean;
-};
+export type ResultadoEntrar =
+  | {
+      usuario: Usuario;
+      /** A verificação em duas etapas está ligada: a sessão só abre em /entrar/codigo. */
+      pedeCodigo: boolean;
+      pedeConfirmacao?: false;
+    }
+  | {
+      usuario?: undefined;
+      pedeCodigo: false;
+      /** O e-mail ainda não foi confirmado: a sessão só abre em /cadastro/codigo. */
+      pedeConfirmacao: true;
+      /** O que houve com o envio do código (a tela mostra se falhou ou se é preciso esperar). */
+      envio: ResultadoEnvioCodigo;
+    };
 
 /**
  * Confere e-mail e senha e abre a sessão (ou, com a verificação em duas etapas ligada, pede o
- * código). E-mail inexistente e senha errada dão o mesmo resultado e levam o mesmo tempo
- * (compara com um hash falso), para não revelar quem tem conta.
+ * código do app). E-mail inexistente e senha errada dão o mesmo resultado e levam o mesmo tempo
+ * (compara com um hash falso), para não revelar quem tem conta. Com a senha certa e o e-mail ainda
+ * não confirmado (cadastro pendente ou conta antiga), manda o código de confirmação e leva à tela
+ * dele: só quem sabe a senha descobre que a conta existe.
  */
 export async function entrar(
   email: string,
@@ -221,10 +231,27 @@ export async function entrar(
   proximo: string | null = null,
 ): Promise<ResultadoEntrar | null> {
   const usuario = await buscarUsuarioParaLogin(email);
-  const confere = senhaConfere(senha, usuario?.senhaHash ?? HASH_FALSO);
-  if (!usuario || !confere || usuario.excluidoEm) return null;
+  const pendente = usuario ? null : await codigoPendente(email);
+  const confere = senhaConfere(
+    senha,
+    usuario?.senhaHash ?? pendente?.cadastro?.senhaHash ?? HASH_FALSO,
+  );
+  if (!confere) return null;
+  if (!usuario) {
+    if (!pendente?.cadastro) return null;
+    // Cadastro que ainda espera o código: volta para a tela do código, com um novo se já pode.
+    const envio = await reenviarCodigo(pendente.email);
+    await pedirConfirmacaoDoEmail(pendente.email, proximo);
+    return { pedeCodigo: false, pedeConfirmacao: true, envio };
+  }
+  if (usuario.excluidoEm) return null;
   const publico = await buscarUsuario(usuario.id);
   if (!publico) return null;
+  if (!publico.emailConfirmado) {
+    const envio = await enviarCodigoParaConta(publico);
+    await pedirConfirmacaoDoEmail(publico.email, proximo);
+    return { pedeCodigo: false, pedeConfirmacao: true, envio };
+  }
   if (publico.mfaAtivo) {
     await pedirCodigoMfa(usuario.id, "senha", proximo);
     return { usuario: publico, pedeCodigo: true };
@@ -264,48 +291,113 @@ export async function encerrarOutrasSessoes(usuarioId: string, sessaoAntes?: Ses
   }
 }
 
-export type ResultadoCadastro =
-  { ok: true; usuario: Usuario; tokenConfirmacao: string } | { ok: false; motivo: "email_em_uso" };
+// ---------------------------------------------------------------- Confirmação do e-mail
+//
+// Depois do cadastro com senha (ou do login de uma conta não confirmada), um cookie assinado de
+// 24 horas guarda o e-mail que espera o código e para onde ir depois. Ele só identifica o e-mail
+// na tela /cadastro/codigo: quem confirma é o código, que foi só para a caixa de entrada.
 
-/** Cria a conta, abre a sessão e gera o token de confirmação do e-mail. */
-export async function cadastrar(dados: {
-  nome: string;
+const COOKIE_CONFIRMACAO = "clicouai_confirmacao";
+const PROPOSITO_CONFIRMACAO = "confirmacao_email";
+const DURACAO_CONFIRMACAO_MS = 24 * 60 * 60 * 1000;
+
+type DadosConfirmacao = { e: string; p: string | null };
+
+async function pedirConfirmacaoDoEmail(email: string, proximo: string | null) {
+  const dados: DadosConfirmacao = { e: email.trim().toLowerCase(), p: proximo };
+  (await cookies()).set(
+    COOKIE_CONFIRMACAO,
+    assinar(PROPOSITO_CONFIRMACAO, dados, DURACAO_CONFIRMACAO_MS),
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: DURACAO_CONFIRMACAO_MS / 1000,
+    },
+  );
+}
+
+async function lerConfirmacao(): Promise<DadosConfirmacao | null> {
+  const token = (await cookies()).get(COOKIE_CONFIRMACAO)?.value;
+  if (!token || token.length > 1000) return null;
+  // A assinatura confere a validade com o relógio: com Cache Components, só depois da requisição.
+  await connection();
+  const d = conferirAssinatura(PROPOSITO_CONFIRMACAO, token) as Partial<DadosConfirmacao> | null;
+  if (typeof d?.e !== "string" || (d.p !== null && typeof d.p !== "string")) return null;
+  return { e: d.e, p: d.p ?? null };
+}
+
+export type ConfirmacaoPendente = {
   email: string;
-  senha: string;
-  papel: "cliente" | "fotografo";
-}): Promise<ResultadoCadastro> {
-  if (await emailEmUso(dados.email)) return { ok: false, motivo: "email_em_uso" };
-  const usuario = await criarUsuarioSeEmailLivre({
-    nome: dados.nome,
-    email: dados.email,
-    senhaHash: gerarHashSenha(dados.senha),
-    papel: dados.papel,
-  });
-  // Outro envio do mesmo formulário criou a conta entre a conferência e a gravação.
-  if (!usuario) return { ok: false, motivo: "email_em_uso" };
-  // O perfil nasce com o nome da pessoa; ela completa em /painel/perfil.
-  if (dados.papel === "fotografo") await garantirContaDeFotografo(usuario);
-  const tokenConfirmacao = await gerarConfirmacaoEmail(usuario.id);
-  await iniciarSessao(usuario.id, "senha");
-  return { ok: true, usuario, tokenConfirmacao };
+  /** Segundos até poder pedir outro código (0: já pode). */
+  esperaReenvio: number;
+};
+
+/** E-mail que espera o código neste aparelho, ou `null` (cookie vencido ou cadastro abandonado). */
+export async function confirmacaoPendente(): Promise<ConfirmacaoPendente | null> {
+  const dados = await lerConfirmacao();
+  if (!dados) return null;
+  const linha = await codigoPendente(dados.e);
+  if (!linha) return null;
+  return { email: linha.email, esperaReenvio: segundosParaReenviar(linha) };
 }
 
-/** Token para o link de confirmação do e-mail (vale 24 horas, uma vez só). */
-export async function gerarConfirmacaoEmail(usuarioId: string) {
-  const token = novoToken();
-  await salvarConfirmacaoEmail(hash(token), usuarioId, Date.now() + DURACAO_CONFIRMACAO_MS);
-  return token;
+/** E-mail do cookie de confirmação (para o reenvio), sem consultar o banco. */
+export async function emailAguardandoConfirmacao(): Promise<string | null> {
+  return (await lerConfirmacao())?.e ?? null;
 }
+
+export type ResultadoCadastro =
+  { ok: true } | { ok: false; motivo: "email_em_uso" | "limite" | "indisponivel" };
 
 /**
- * Confirma o e-mail pelo link e liga à conta as compras feitas como convidado com o mesmo
- * e-mail. Devolve quantos pedidos foram vinculados, ou `null` se o link for inválido.
+ * Cadastro com senha: guarda os dados como pendentes, manda o código por e-mail e leva à tela do
+ * código (cookie de confirmação). A conta só é criada, e a sessão só abre, com o código certo.
  */
-export async function confirmarEmail(token: string): Promise<number | null> {
-  const usuarioId = await consumirConfirmacaoEmail(hash(token));
-  if (!usuarioId) return null;
-  await marcarEmailConfirmado(usuarioId);
-  return vincularPedidosDeConvidado(usuarioId);
+export async function cadastrar(
+  dados: { nome: string; email: string; senha: string; papel: "cliente" | "fotografo" },
+  proximo: string | null = null,
+): Promise<ResultadoCadastro> {
+  const resultado = await iniciarCadastro(dados);
+  if (!resultado.ok) return resultado;
+  await pedirConfirmacaoDoEmail(dados.email, proximo);
+  return { ok: true };
+}
+
+export type ResultadoConfirmacaoEmail =
+  | {
+      ok: true;
+      usuario: Usuario;
+      novo: boolean;
+      vinculados: number;
+      proximo: string | null;
+      /** A verificação em duas etapas está ligada: a sessão só abre em /entrar/codigo. */
+      pedeCodigo: boolean;
+    }
+  | { ok: false; motivo: "invalido"; restantes: number }
+  | { ok: false; motivo: "expirado" | "bloqueado" | "sem_cadastro" | "email_em_uso" };
+
+/**
+ * Confere o código da tela /cadastro/codigo. Certo: a conta passa a existir (ou fica confirmada),
+ * as compras de convidado com o mesmo e-mail são ligadas e a sessão abre (ou, com a verificação
+ * em duas etapas ligada, segue para o código do app).
+ */
+export async function confirmarEmailComCodigo(codigo: string): Promise<ResultadoConfirmacaoEmail> {
+  const dados = await lerConfirmacao();
+  if (!dados) return { ok: false, motivo: "sem_cadastro" };
+  const resultado = await conferirCodigo(dados.e, codigo);
+  if (!resultado.ok) return resultado;
+  const { usuario } = resultado;
+  // O perfil de vendedor nasce com o nome da pessoa; ela completa em /painel/perfil.
+  if (resultado.novo && usuario.papel === "fotografo") await garantirContaDeFotografo(usuario);
+  (await cookies()).delete(COOKIE_CONFIRMACAO);
+  if (usuario.mfaAtivo) {
+    await pedirCodigoMfa(usuario.id, "senha", dados.p);
+    return { ...resultado, proximo: dados.p, pedeCodigo: true };
+  }
+  await iniciarSessao(usuario.id, "senha");
+  return { ...resultado, proximo: dados.p, pedeCodigo: false };
 }
 
 export type ResultadoGoogle =
@@ -358,6 +450,8 @@ export async function entrarComGoogle(
     });
   }
 
+  // O Google confirmou o e-mail: um cadastro com senha que esperava o código perde o sentido.
+  await apagarCodigoEmail(usuario.email);
   await vincularPedidosDeConvidado(usuario.id);
   const atualizado = await buscarUsuario(usuario.id);
   if (!atualizado) return { ok: false, motivo: "conta_google_diferente" };

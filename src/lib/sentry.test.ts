@@ -11,6 +11,10 @@ describe("limpeza dos eventos do Sentry", () => {
     expect(limparTexto("/api/auth/google/callback?code=abc&state=def")).toBe(
       "/api/auth/google/callback?code=[removido]&state=[removido]",
     );
+    // Link de "Esqueci a senha": o token vai depois do #.
+    expect(limparTexto("https://clicouai.com/entrar/nova-senha#token=abcDEF_123-xyz")).toBe(
+      "https://clicouai.com/entrar/nova-senha#token=[removido]",
+    );
     expect(limparTexto("/eventos/corrida?hora=2026-09-27T07")).toBe(
       "/eventos/corrida?hora=2026-09-27T07",
     );

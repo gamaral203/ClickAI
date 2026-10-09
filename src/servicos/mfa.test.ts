@@ -81,7 +81,7 @@ async function fotografoComMfa(googleId?: string) {
     senhaHash: gerarHashSenha(SENHA),
     papel: "fotografo",
     googleId,
-    emailConfirmado: Boolean(googleId),
+    emailConfirmado: true,
   });
   const cadastro = await iniciarCadastroMfa(usuario);
   expect(cadastro?.qrCode.startsWith("data:image/png;base64,")).toBe(true);
@@ -158,6 +158,7 @@ describe("verificação em duas etapas", () => {
       email,
       senhaHash: gerarHashSenha(SENHA),
       papel: "fotografo",
+      emailConfirmado: true,
     });
     await iniciarCadastroMfa(usuario);
     expect(await confirmarCadastroMfa(usuario.id, "000000")).toMatchObject({

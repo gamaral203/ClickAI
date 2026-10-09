@@ -12,15 +12,15 @@ import { limiteAtingido, limiteDoIpAtingido } from "./limites";
 describe("limite de tentativas no banco", () => {
   it("bloqueia depois do limite da regra e não grava o valor em claro", async () => {
     const usuario = crypto.randomUUID();
-    // email_confirmacao_usuario: 3 por hora.
+    // esqueci_senha_email: 3 por hora.
     const resultados = [];
     for (let i = 0; i < 5; i++) {
-      resultados.push(await limiteAtingido("email_confirmacao_usuario", usuario));
+      resultados.push(await limiteAtingido("esqueci_senha_email", usuario));
     }
     expect(resultados).toEqual([false, false, false, true, true]);
 
     // Outra conta tem a própria contagem.
-    expect(await limiteAtingido("email_confirmacao_usuario", crypto.randomUUID())).toBe(false);
+    expect(await limiteAtingido("esqueci_senha_email", crypto.randomUUID())).toBe(false);
 
     const banco = await obterBanco();
     const chaves = (await banco.select().from(schema.tentativas)).map((t) => t.chave);

@@ -147,14 +147,47 @@ export const sessoesRevogadas = pgTable(
   (t) => [index().on(t.expiraEm)],
 ).enableRLS();
 
-/** Token de confirmação de e-mail, guardado só como hash e usado uma vez. */
-export const confirmacoesEmail = pgTable("confirmacoes_email", {
-  tokenHash: text().primaryKey(),
-  usuarioId: uuid()
-    .notNull()
-    .references(() => usuarios.id, { onDelete: "cascade" }),
-  expiraEm: data().notNull(),
-}).enableRLS();
+/**
+ * Código de confirmação do e-mail (6 dígitos, src/servicos/confirmacao-email.ts), um por e-mail.
+ * Serve a dois casos: o cadastro com senha ainda não confirmado (nome, hash da senha e papel ficam
+ * aqui, e a conta só nasce em `usuarios` com o código certo) e a conta antiga, criada antes da
+ * confirmação obrigatória (`usuario_id`). Do código, só o HMAC; vale 15 minutos e aceita 5
+ * tentativas. O cadastro abandonado vence em 24 horas e não prende o e-mail: refazer o cadastro
+ * troca os dados e o código.
+ */
+export const codigosEmail = pgTable(
+  "codigos_email",
+  {
+    email: text().primaryKey(),
+    usuarioId: uuid().references(() => usuarios.id, { onDelete: "cascade" }),
+    nome: text(),
+    senhaHash: text(),
+    papel: papel(),
+    codigoHash: text().notNull(),
+    codigoExpiraEm: data().notNull(),
+    tentativas: integer().notNull().default(0),
+    /** Último envio: o reenvio espera 60 segundos. */
+    enviadoEm: data().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.criadoEm)],
+).enableRLS();
+
+/**
+ * Link de "Esqueci a senha" (src/servicos/redefinicao-senha.ts): só o SHA-256 do token, vale 30
+ * minutos e uma vez só. Redefinir a senha apaga os outros links da conta.
+ */
+export const redefinicoesSenha = pgTable(
+  "redefinicoes_senha",
+  {
+    tokenHash: text().primaryKey(),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    expiraEm: data().notNull(),
+  },
+  (t) => [index().on(t.usuarioId), index().on(t.expiraEm)],
+).enableRLS();
 
 export const fotografos = pgTable(
   "fotografos",

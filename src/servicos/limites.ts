@@ -26,10 +26,25 @@ const REGRAS = {
    * "Muitos cadastros seguidos daqui". 20 por hora ainda segura a criação de contas em massa.
    */
   cadastro_ip: { limite: 20, janelaMs: 60 * MINUTO },
-  /** Reenvio do e-mail de confirmação, por usuário (cada reenvio manda um e-mail pelo Resend). */
-  email_confirmacao_usuario: { limite: 3, janelaMs: 60 * MINUTO },
-  /** Reenvio do e-mail de confirmação, por IP: contagem própria, separada da do cadastro. */
-  email_confirmacao_ip: { limite: 10, janelaMs: 60 * MINUTO },
+  /**
+   * Códigos de confirmação do e-mail enviados por e-mail de destino (cadastro, reenvio e login de
+   * conta não confirmada; cada um manda um e-mail pelo Resend). Além disso, o reenvio espera 60
+   * segundos (src/servicos/confirmacao-email.ts).
+   */
+  codigo_email_envio_email: { limite: 5, janelaMs: 60 * MINUTO },
+  /** Códigos de confirmação enviados por IP: contagem própria, separada da do cadastro. */
+  codigo_email_envio_ip: { limite: 20, janelaMs: 60 * MINUTO },
+  /**
+   * Códigos de confirmação digitados por IP. Cada código já aceita só 5 tentativas; este limite
+   * segura quem tenta adivinhar códigos de muitos e-mails do mesmo lugar.
+   */
+  codigo_email_conferencia_ip: { limite: 30, janelaMs: 15 * MINUTO },
+  /** "Esqueci a senha" por e-mail de destino (cada pedido pode mandar um e-mail). */
+  esqueci_senha_email: { limite: 3, janelaMs: 60 * MINUTO },
+  /** "Esqueci a senha" por IP. */
+  esqueci_senha_ip: { limite: 10, janelaMs: 60 * MINUTO },
+  /** Senhas novas enviadas com um link de redefinição, por IP (força bruta no token). */
+  redefinir_senha_ip: { limite: 20, janelaMs: 15 * MINUTO },
   /** Busca por selfie, por IP: cada busca custa uma chamada ao provedor de reconhecimento. */
   busca_facial_ip: { limite: 10, janelaMs: 10 * MINUTO },
   /** Senha de evento protegido, por IP e evento (força bruta). */

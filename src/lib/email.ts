@@ -11,6 +11,8 @@ export type Email = {
   paragrafos: string[];
   /** Botão principal do e-mail. */
   botao?: { texto: string; url: string };
+  /** Texto em destaque depois dos parágrafos (ex.: o código de confirmação). */
+  destaque?: string;
 };
 
 export function emailConfigurado() {
@@ -27,10 +29,14 @@ function escapar(texto: string) {
 }
 
 /** HTML simples, nas cores da marca, que abre bem em qualquer cliente de e-mail. */
-function html({ assunto, paragrafos, botao }: Email) {
-  const corpo = paragrafos
-    .map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.5">${escapar(p)}</p>`)
-    .join("");
+function html({ assunto, paragrafos, botao, destaque }: Email) {
+  const corpo =
+    paragrafos
+      .map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.5">${escapar(p)}</p>`)
+      .join("") +
+    (destaque
+      ? `<p style="margin:8px 0 24px;font-size:32px;font-weight:800;letter-spacing:8px;color:#0f1729">${escapar(destaque)}</p>`
+      : "");
   const link = botao
     ? `<p style="margin:24px 0"><a href="${escapar(botao.url)}" style="display:inline-block;background:#2362FE;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px">${escapar(botao.texto)}</a></p>
 <p style="margin:0;font-size:13px;color:#5a6478">Se o botão não abrir, copie este endereço: ${escapar(botao.url)}</p>`
@@ -60,7 +66,11 @@ export async function enviarEmail(email: Email): Promise<boolean> {
         to: [email.para],
         subject: email.assunto,
         html: html(email),
-        text: [...email.paragrafos, email.botao ? `${email.botao.texto}: ${email.botao.url}` : ""]
+        text: [
+          ...email.paragrafos,
+          email.destaque ?? "",
+          email.botao ? `${email.botao.texto}: ${email.botao.url}` : "",
+        ]
           .filter(Boolean)
           .join("\n\n"),
       }),

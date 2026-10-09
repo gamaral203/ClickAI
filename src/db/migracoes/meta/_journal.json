@@ -92,6 +92,13 @@
       "when": 1791513085119,
       "tag": "0012_convite_e_desconto_por_evento",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791565477989,
+      "tag": "0013_confirmacao_por_codigo_e_redefinicao_de_senha",
+      "breakpoints": true
     }
   ]
 }

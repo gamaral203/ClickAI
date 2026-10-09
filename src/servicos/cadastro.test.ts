@@ -20,9 +20,8 @@ import { cadastrarAcao } from "@/app/(cliente)/conta/acoes";
 import { buscarContaDoFotografo, buscarUsuario, criarUsuario, type Papel } from "@/dados";
 import { papelEscolhido } from "@/lib/cadastro";
 
-import { podeEnviarConfirmacao } from "./confirmacao-email";
 import { limiteAtingido } from "./limites";
-import { cadastrar, comecarAVender } from "./sessao";
+import { comecarAVender } from "./sessao";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -52,36 +51,6 @@ describe("tipo de conta no formulário de cadastro", () => {
       papel: "fotografo",
     });
     expect(JSON.stringify(estado)).not.toContain('"123"');
-  });
-});
-
-describe("cadastro com senha", () => {
-  it("dois envios do mesmo formulário ao mesmo tempo criam uma conta só, sem erro", async () => {
-    const email = `duplo-${crypto.randomUUID()}@teste.com`;
-    const dados = {
-      nome: "Duplo Clique",
-      email,
-      senha: "senha-segura-1",
-      papel: "fotografo" as const,
-    };
-    const resultados = await Promise.all([cadastrar(dados), cadastrar(dados), cadastrar(dados)]);
-    const criados = resultados.filter((r) => r.ok);
-    expect(criados).toHaveLength(1);
-    expect(resultados.filter((r) => !r.ok).every((r) => !r.ok && r.motivo === "email_em_uso")).toBe(
-      true,
-    );
-    const usuario = criados[0].ok ? criados[0].usuario : null;
-    expect(await buscarContaDoFotografo(usuario!.id)).not.toBeNull();
-  });
-
-  it("e-mail com maiúsculas conta como o mesmo e-mail", async () => {
-    const email = `caixa-${crypto.randomUUID()}@teste.com`;
-    const dados = { nome: "Caixa Alta", senha: "senha-segura-1", papel: "cliente" as const };
-    expect((await cadastrar({ ...dados, email })).ok).toBe(true);
-    expect(await cadastrar({ ...dados, email: email.toUpperCase() })).toEqual({
-      ok: false,
-      motivo: "email_em_uso",
-    });
   });
 });
 
@@ -115,21 +84,6 @@ describe("cliente que quer vender", () => {
   });
 });
 
-describe("confirmação de e-mail sem o Resend", () => {
-  it("na produção sem Resend, não oferece o botão; com Resend ou fora da produção, oferece", () => {
-    vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("RESEND_API_KEY", "");
-    vi.stubEnv("EMAIL_REMETENTE", "");
-    expect(podeEnviarConfirmacao()).toBe(false);
-    vi.stubEnv("RESEND_API_KEY", "re_teste");
-    vi.stubEnv("EMAIL_REMETENTE", "ClicouAí <oi@exemplo.com>");
-    expect(podeEnviarConfirmacao()).toBe(true);
-    vi.stubEnv("RESEND_API_KEY", "");
-    vi.stubEnv("VERCEL_ENV", "preview");
-    expect(podeEnviarConfirmacao()).toBe(true);
-  });
-});
-
 describe("limite de cadastros por IP", () => {
   it("aguenta 20 cadastros por hora do mesmo IP (CGNAT, Wi-Fi do evento) e segura o 21º", async () => {
     const ip = `203.0.113.${Math.floor(Math.random() * 250)}`;
@@ -137,12 +91,12 @@ describe("limite de cadastros por IP", () => {
     expect(await limiteAtingido("cadastro_ip", ip)).toBe(true);
   });
 
-  it("reenvio do e-mail de confirmação tem contagem própria e não gasta a do cadastro", async () => {
+  it("envio do código de confirmação tem contagem própria e não gasta a do cadastro", async () => {
     const ip = `192.0.2.${Math.floor(Math.random() * 250)}`;
-    for (let i = 0; i < 10; i++) {
-      expect(await limiteAtingido("email_confirmacao_ip", ip)).toBe(false);
+    for (let i = 0; i < 20; i++) {
+      expect(await limiteAtingido("codigo_email_envio_ip", ip)).toBe(false);
     }
-    expect(await limiteAtingido("email_confirmacao_ip", ip)).toBe(true);
+    expect(await limiteAtingido("codigo_email_envio_ip", ip)).toBe(true);
     expect(await limiteAtingido("cadastro_ip", ip)).toBe(false);
   });
 });

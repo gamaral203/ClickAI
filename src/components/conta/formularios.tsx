@@ -36,7 +36,15 @@ export function FormularioEntrar({ proximo }: { proximo?: string }) {
         />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="senha">Senha</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="senha">Senha</Label>
+          <Link
+            href="/entrar/esqueci-senha"
+            className="-my-2 py-2 text-sm font-medium text-primary hover:underline"
+          >
+            Esqueci a senha
+          </Link>
+        </div>
         <Input
           id="senha"
           name="senha"

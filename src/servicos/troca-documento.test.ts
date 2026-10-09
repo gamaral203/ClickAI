@@ -62,6 +62,7 @@ async function fotografoLogado() {
     email,
     senhaHash: gerarHashSenha(SENHA),
     papel: "fotografo",
+    emailConfirmado: true,
   });
   await criarContaDeFotografo({
     usuarioId: usuario.id,

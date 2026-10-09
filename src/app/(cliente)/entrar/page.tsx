@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { CheckCircle2 } from "lucide-react";
 
 import { BotaoGoogle, ERROS_GOOGLE } from "@/components/conta/botao-google";
 import { FormularioEntrar } from "@/components/conta/formularios";
@@ -7,6 +8,11 @@ import { googleConfigurado } from "@/lib/google";
 import { caminhoSeguro } from "@/lib/redirecionamento";
 
 export const metadata: Metadata = { title: "Entrar", robots: { index: false } };
+
+const ERROS: Record<string, string> = {
+  conta_existente:
+    "Este e-mail já tem uma conta (por exemplo, criada com o Google). Entre com ela ou use outro e-mail.",
+};
 
 export default function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
   return (
@@ -25,16 +31,25 @@ export default function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
 }
 
 async function Formulario({ searchParams }: Pick<PageProps<"/entrar">, "searchParams">) {
-  const { proximo, erro, saiu } = await searchParams;
+  const { proximo, erro, saiu, senha } = await searchParams;
   const valor = Array.isArray(proximo) ? proximo[0] : proximo;
   const destino = valor ? caminhoSeguro(valor) : undefined;
-  const mensagem = typeof erro === "string" ? ERROS_GOOGLE[erro] : undefined;
+  const mensagem = typeof erro === "string" ? (ERROS_GOOGLE[erro] ?? ERROS[erro]) : undefined;
 
   return (
     <div className="flex flex-col gap-6">
       {saiu === "todos" && (
         <p role="status" className="rounded-lg border p-3 text-sm">
           Você saiu de todos os aparelhos. Entre de novo para continuar.
+        </p>
+      )}
+      {senha === "redefinida" && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground"
+        >
+          <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          Senha redefinida. As outras sessões da conta foram encerradas; entre com a senha nova.
         </p>
       )}
       {mensagem && (
