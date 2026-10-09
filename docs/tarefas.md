@@ -159,6 +159,10 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Correção do cadastro: depois de qualquer erro no formulário (senha curta, e-mail em uso), o React voltava o tipo de conta ao padrão e quem marcou "Sou fotógrafo" criava conta de comprador sem perceber; ir de `/cadastro` para `/cadastro?tipo=fotografo` pelo menu também não trocava o tipo. Cliente logado pode ativar a venda com a mesma conta (`/cadastro?tipo=fotografo`, e o `/painel` leva para lá), como já fazia o "Vender fotos com Google"
 - [x] Correção do cadastro: limite de 5 cadastros por IP por hora travava quem cria conta na mesma rede (CGNAT da operadora, Wi-Fi do evento); agora 20, e o reenvio do e-mail de confirmação tem contagem própria por IP em vez de gastar a do cadastro. Dois envios do mesmo formulário ao mesmo tempo não dão mais erro 500 (índice único do e-mail)
 - [x] Produção sem o Resend: a conta funciona sem confirmar o e-mail (a confirmação só liga as compras de convidado); some o botão "Confirmar e-mail" de Minhas compras e o passo "Confirmar o e-mail" da lista do painel, que não tinham como ser feitos, e a tela de envio indisponível deixa de voltar para ela mesma
+- [x] CORS do bucket `fotos-originais` no R2 com as origens `https://www.clicouai.com`, `https://clicouai.com`, `https://clickai-hazel.vercel.app` e `localhost`
+- [x] Teste real de envio em produção (09/10/2026): uma foto (JPEG, R$ 1,00) subiu direto ao R2 e foi processada, com prévia e miniatura publicadas na galeria do evento
+- [x] Teste real da busca por selfie em produção (09/10/2026): com o rosto recortado da prévia de uma foto real do evento, `/api/busca-facial` respondeu 200 e a tela mostrou "2 fotos encontradas" (a foto de origem e outra da mesma pessoa), com o recorte do rosto de cada uma e sem erro no console; mantido o `REKOGNITION_SEMELHANCA` atual
+- [x] Teste em produção da página do pedido Pix (09/10/2026): QR Code e copia e cola gerados pelo Mercado Pago; a página continuou com 200 e o QR visível depois de 23 segundos e após recarregar (o 404 em ~10 s não voltou). O Pix não foi pago
 
 ## Em andamento
 
@@ -167,13 +171,13 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   - a caixa do encarregado de dados e o `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14).
   - Teste local sem domínio: `EMAIL_REMETENTE=ClicouAí <onboarding@resend.dev>` só entrega ao e-mail da conta do Resend; não usar em produção.
 - [ ] **Colocar a produção em uso real** (`clickai-hazel.vercel.app`). O banco e o deploy já estão no ar; falta conferir e configurar:
-  1. Conferir no site o login de um gestor e uma compra com Pix de teste, abrindo a página do pedido por mais de 10 segundos.
+  1. Conferir no site o login de um gestor e uma compra com Pix paga. A página do pedido Pix já foi conferida por mais de 10 segundos (ver **Concluído**).
   2. Cadastrar e confirmar o webhook do Mercado Pago ([deploy.md](deploy.md), item 6; o prazo de liberação do cartão fica na Fase 13).
   3. Resend e e-mail do encarregado: dependem de verificar o domínio no Resend (primeiro item desta seção).
   4. Google OAuth: cadastrar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
   5. Sentry: cadastrar `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN`.
-  6. Testar a busca por selfie com fotos reais.
-  7. Conferir o CORS e o ciclo de vida dos buckets do R2; no CORS do `fotos-originais`, incluir `https://www.clicouai.com` e `https://clicouai.com` ([deploy.md](deploy.md), item 7).
+  6. ~~Testar a busca por selfie com fotos reais~~: feito em 09/10/2026 (ver **Concluído**).
+  7. Conferir o ciclo de vida dos buckets do R2 ([deploy.md](deploy.md), item 7). O CORS do `fotos-originais` já está feito (ver **Concluído**).
   8. ~~Conferir no GitHub os segredos `APP_URL` e `CRON_SECRET` do job de pedidos~~: feito; o `APP_URL` aponta para https://www.clicouai.com e o Run workflow passou.
   9. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
@@ -257,12 +261,12 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 ## Fase 12 — Upload, processamento e reconhecimento
 
 - [x] Variáveis `R2_*` (6) cadastradas na Vercel
-- [ ] Conferir nos buckets da Cloudflare o CORS, o acesso público e o ciclo de vida de `envios/` ([deploy.md](deploy.md), item 7); depois, enviar uma foto de teste e comprar para conferir o download
+- [ ] Conferir nos buckets da Cloudflare o acesso público e o ciclo de vida de `envios/` ([deploy.md](deploy.md), item 7); o CORS e o envio de uma foto de teste já foram conferidos (ver **Concluído**)
+- [ ] Comprar uma foto em produção e conferir o download do original (link assinado de 15 minutos). Não foi possível em 09/10/2026: o Mercado Pago da produção está com credenciais de produção (chave pública `APP_USR-`), então o cartão de teste não vale e o pagamento seria cobrado de verdade. Fazer uma compra real de R$ 1,00 (e reembolsar em `/admin/vendas`) ou testar num preview com as credenciais de teste
 - [ ] Levar o processamento da foto (hoje na rota `/api/envios/processar`, chamada pelo navegador, com o job de revisão como rede de segurança) para um job no Inngest, com nova tentativa automática
 - [ ] Medir em produção um envio grande (ex.: 1.000 fotos): tempo por foto na rota de processamento, erros 429 do Rekognition e custo de R2 e Rekognition
 - [ ] Conferir o tipo real e limitar o tamanho dos vídeos (MP4/MOV até 500 MB e 5 minutos)
 - [x] Indexar os rostos de cada foto no Rekognition ao concluir o envio e gravar em `rostos` (com a posição do rosto, para a prévia ampliada); botão no evento para cadastrar os que faltam
-- [ ] Testar a busca por selfie com fotos reais; ajustar `REKOGNITION_SEMELHANCA` se aparecer foto de outra pessoa ou faltar foto certa
 - [x] Banner e logo da página do fotógrafo em Minha loja (valem no link /fotografo/<endereço> e na loja)
 - [ ] Anexos da denúncia no bucket privado, por URL assinada
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
@@ -289,7 +293,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 - [ ] Remover SAQUE_SEM_PRAZO_EMAILS da produção depois do teste de saque
 - [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
-- [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
+- [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado. Em 09/10/2026, na produção, o Brick carregou os campos seguros (`secure-fields.mercadopago.com`) sem violação de CSP nem erro no console; faltam o pagamento e o desafio 3DS, que não foram feitos porque a produção usa credenciais de produção
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra
