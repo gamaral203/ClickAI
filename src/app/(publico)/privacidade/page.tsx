@@ -76,9 +76,10 @@ export default function PaginaPrivacidade() {
       <Secao titulo="Quais dados tratamos e para quê">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong>Compra:</strong> nome, e-mail e, se você quiser, WhatsApp, para entregar as
-            fotos e mandar o comprovante. O pagamento é feito no Mercado Pago: os dados do cartão
-            vão direto para ele e nunca passam pelo ClicouAí.
+            <strong>Compra:</strong> nome, e-mail, CPF (exigido pelo processador de pagamento) e, se
+            você quiser, WhatsApp, para cobrar, entregar as fotos e mandar o comprovante. O
+            pagamento é feito no Asaas: os dados do cartão vão direto para ele e nunca passam pelo
+            ClicouAí. O CPF não aparece para o fotógrafo.
           </li>
           <li>
             <strong>Conta:</strong> nome, e-mail e senha (guardada só como código, nunca a senha em
@@ -110,7 +111,8 @@ export default function PaginaPrivacidade() {
           Só com os serviços necessários para o site funcionar, que tratam os dados em nosso nome:
         </p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Mercado Pago: pagamentos com Pix e cartão e saques dos fotógrafos;</li>
+          <li>Asaas: pagamentos com Pix e cartão e saques dos fotógrafos;</li>
+          <li>Mercado Pago: pagamentos feitos antes da troca para o Asaas;</li>
           <li>Supabase: banco de dados, na região de São Paulo;</li>
           <li>Cloudflare R2: armazenamento das fotos;</li>
           <li>Amazon Web Services (Rekognition): busca por rosto;</li>

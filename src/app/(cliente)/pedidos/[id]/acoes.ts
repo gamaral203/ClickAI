@@ -3,8 +3,13 @@
 import { z } from "zod";
 
 import { emProducao } from "@/db/conexao";
-import { mercadoPagoConfigurado } from "@/lib/mercadopago";
-import { iniciarCobrancaPix, pagarComCartao, type ResultadoCartao } from "@/servicos/pagamentos";
+import { gatewayConfigurado, provedorDePagamento } from "@/lib/gateway";
+import {
+  iniciarCobrancaPix,
+  iniciarPagamentoCartaoAsaas,
+  pagarComCartao,
+  type ResultadoCartao,
+} from "@/servicos/pagamentos";
 import { buscarPedidoComAcesso, confirmarPagamento } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
 
@@ -22,7 +27,7 @@ async function credencial(token: string | null) {
 export async function simularPagamento(pedidoId: string, token: string | null): Promise<boolean> {
   // Na produção, nunca: sem MP_ACCESS_TOKEN, qualquer comprador marcaria o próprio pedido como
   // pago e baixaria os originais sem pagar.
-  if (emProducao() || mercadoPagoConfigurado()) return false;
+  if (emProducao() || gatewayConfigurado()) return false;
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success) return false;
   const encontrado = await buscarPedidoComAcesso(
@@ -36,7 +41,7 @@ export async function simularPagamento(pedidoId: string, token: string | null): 
 /** Gera de novo o QR Code Pix quando a primeira tentativa, no checkout, falhou. */
 export async function gerarPix(pedidoId: string, token: string | null): Promise<boolean> {
   const dados = acesso.safeParse({ pedidoId, token });
-  if (!dados.success || !mercadoPagoConfigurado()) return false;
+  if (!dados.success || !gatewayConfigurado()) return false;
   const encontrado = await buscarPedidoComAcesso(
     dados.data.pedidoId,
     await credencial(dados.data.token),
@@ -75,7 +80,7 @@ export async function pagarComCartaoAcao(
 ): Promise<ResultadoCartao> {
   const dados = acesso.safeParse({ pedidoId, token });
   const formulario = cartao.safeParse(dadosCartao);
-  if (!dados.success || !formulario.success || !mercadoPagoConfigurado()) {
+  if (!dados.success || !formulario.success || provedorDePagamento() !== "mercadopago") {
     return { ok: false, motivo: "indisponivel" };
   }
   const documento = formulario.data.payer?.identification;
@@ -89,5 +94,26 @@ export async function pagarComCartaoAcao(
   } catch (erro) {
     console.error("Falha ao cobrar o cartão", erro);
     return { ok: false, motivo: "recusado" };
+  }
+}
+
+/**
+ * Asaas: leva o comprador à página de pagamento da cobrança no cartão, no próprio Asaas. Devolve
+ * o endereço, ou `null` se o pedido não pode mais ser pago.
+ */
+export async function pagarCartaoNoAsaasAcao(
+  pedidoId: string,
+  token: string | null,
+): Promise<string | null> {
+  const dados = acesso.safeParse({ pedidoId, token });
+  if (!dados.success) return null;
+  try {
+    return await iniciarPagamentoCartaoAsaas(
+      dados.data.pedidoId,
+      await credencial(dados.data.token),
+    );
+  } catch (erro) {
+    console.error("Falha ao abrir o pagamento no cartão (Asaas)", erro);
+    return null;
   }
 }

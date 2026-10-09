@@ -254,6 +254,8 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
+- [x] Gateway Asaas (Pix, cartão na página do Asaas, reembolso, saque por transferência Pix com validação de saque por webhook), escolhido por `ASAAS_API_KEY`; o Mercado Pago fica como alternativa
+- [ ] Criar a conta Asaas, cadastrar `ASAAS_*` na Vercel, configurar os webhooks e a validação de saque e testar Pix, cartão e saque de R$ 1,00 ([deploy.md](deploy.md), "Asaas")
 - [ ] Mercado Pago registrar a chave pública do Payouts (`docs/mercadopago/payouts-chave-publica.pem`) e liberar o Payouts Pix em produção; depois ligar `MP_PAYOUTS_HABILITADO=1` `[R-alta]`
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**

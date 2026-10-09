@@ -1,6 +1,6 @@
 {
-  "id": "cf9d3965-dbd2-4748-968d-bb5fa194a67b",
-  "prevId": "52596ae8-e325-4ff8-a8ca-306ae07382fc",
+  "id": "d28b91ed-0400-4a8d-93ea-3ede8ebc8d90",
+  "prevId": "cf9d3965-dbd2-4748-968d-bb5fa194a67b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2350,6 +2350,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "cpf_comprador": {
+          "name": "cpf_comprador",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "whatsapp": {
           "name": "whatsapp",

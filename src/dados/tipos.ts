@@ -292,9 +292,11 @@ export type CobrancaPix = {
 
 /** Dados privados do pedido: acesso do convidado e ligação com o gateway. */
 export type PedidoInterno = Pedido & {
+  /** CPF/CNPJ do comprador, só dígitos (exigido pelo Asaas); nulo com o Mercado Pago. */
+  cpfComprador?: string | null;
   tokenAcessoHash: string | null;
   acessoExpiraEm: string | null;
-  /** Id da order no Mercado Pago (`ORD…`). */
+  /** Id da cobrança no gateway: order do Mercado Pago (`ORD…`) ou cobrança do Asaas (`pay_…`). */
   gatewayId: string | null;
   pix: CobrancaPix | null;
   lembreteEnviadoEm: string | null;

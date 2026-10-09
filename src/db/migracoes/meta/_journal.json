@@ -71,6 +71,13 @@
       "when": 1791508193540,
       "tag": "0009_troca_de_documento",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791509432784,
+      "tag": "0010_cpf_do_comprador",
+      "breakpoints": true
     }
   ]
 }

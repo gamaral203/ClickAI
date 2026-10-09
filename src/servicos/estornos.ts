@@ -11,18 +11,17 @@ import {
 } from "@/dados";
 import { emProducao } from "@/db/conexao";
 import {
-  buscarOrder,
-  ErroMercadoPago,
-  mercadoPagoConfigurado,
-  reembolsarOrder,
-  reembolsoJaPedido,
-  type OrderMercadoPago,
-} from "@/lib/mercadopago";
+  buscarCobranca,
+  gatewayConfigurado,
+  reembolsarCobranca,
+  reembolsoJaFeito,
+  type Cobranca,
+} from "@/lib/gateway";
 
 import { lancamentosDaVenda } from "./pedidos";
 
 // Estorno e chargeback (docs/arquitetura.md, "Estorno e chargeback"). O pedido só muda de status
-// pelo que a order diz na API do Mercado Pago (ou pelo gateway simulado, sem credenciais), nunca
+// pelo que a cobrança diz na API do gateway (ou pelo gateway simulado, sem credenciais), nunca
 // pelo corpo do webhook nem pelo navegador. Efeitos de um estorno:
 //   - o pedido sai de `pago`, e os downloads param (src/servicos/downloads.ts);
 //   - cada lançamento dos fotógrafos ganha um lançamento negativo. Saque pago ou em
@@ -65,14 +64,22 @@ export function contestarPedido(pedidoId: string) {
  */
 export async function aplicarEstornoDaOrder(
   pedido: Pick<PedidoInterno, "id" | "status">,
-  order: Pick<OrderMercadoPago, "id" | "situacao" | "status" | "statusDetalhe">,
+  order: Pick<Cobranca, "id" | "situacao" | "status" | "statusDetalhe">,
 ): Promise<boolean> {
   switch (order.situacao) {
-    case "reembolsada":
-      if (await estornarPedido(pedido.id, "reembolso")) {
-        console.warn("Pedido estornado: order reembolsada", { pedido: pedido.id, order: order.id });
+    case "reembolsada": {
+      // No Asaas, o chargeback perdido aparece como reembolso: o pedido em contestação diz que
+      // foi chargeback.
+      const motivo = pedido.status === "contestado" ? "chargeback" : "reembolso";
+      if (await estornarPedido(pedido.id, motivo)) {
+        console.warn("Pedido estornado: cobrança reembolsada", {
+          pedido: pedido.id,
+          order: order.id,
+          motivo,
+        });
       }
       return true;
+    }
     case "contestacao_perdida":
       if (await estornarPedido(pedido.id, "chargeback")) {
         console.warn("Pedido estornado: chargeback encerrado contra a plataforma", {
@@ -117,34 +124,34 @@ export async function reembolsarPedido(
   if (pedido.status !== "pago") return { ok: false, motivo: "nao_pago" };
   // Na produção, reembolso simulado nunca: sem as credenciais do Mercado Pago, o pedido sairia
   // estornado (e o fotógrafo com o lançamento negativo) sem dinheiro devolvido ao cliente.
-  if (emProducao() && !mercadoPagoConfigurado()) {
-    console.error("Reembolso recusado: Mercado Pago sem credenciais na produção");
+  if (emProducao() && !gatewayConfigurado()) {
+    console.error("Reembolso recusado: gateway sem credenciais na produção");
     return { ok: false, motivo: "falhou" };
   }
 
   await marcarReembolsoSolicitado(pedido.id, gestor.id);
 
-  if (!mercadoPagoConfigurado()) {
-    // Gateway simulado (sem MP_ACCESS_TOKEN): o reembolso é concluído na hora.
+  if (!gatewayConfigurado()) {
+    // Gateway simulado (sem credenciais): o reembolso é concluído na hora.
     await estornarPedido(pedido.id, "reembolso");
     return { ok: true, situacao: "estornado" };
   }
   if (!pedido.gatewayId) return { ok: false, motivo: "sem_cobranca" };
 
   try {
-    await reembolsarOrder(pedido.gatewayId, pedido.id);
+    await reembolsarCobranca(pedido.gatewayId, pedido.id);
   } catch (erro) {
     // "Já reembolsada" ou "reembolso em andamento": segue para a leitura da order. Qualquer
     // outra falha (rede, 5xx, recusa) deixa o pedido com o reembolso pedido e os downloads
     // parados; o gestor tenta de novo com a mesma chave de idempotência.
-    if (!(erro instanceof ErroMercadoPago && reembolsoJaPedido(erro))) {
-      console.error("Falha ao pedir o reembolso ao Mercado Pago", { pedido: pedido.id, erro });
+    if (!reembolsoJaFeito(erro)) {
+      console.error("Falha ao pedir o reembolso ao gateway", { pedido: pedido.id, erro });
       return { ok: false, motivo: "falhou" };
     }
   }
 
   try {
-    const order = await buscarOrder(pedido.gatewayId);
+    const order = await buscarCobranca(pedido.gatewayId);
     if (order.id === pedido.gatewayId && order.referencia === pedido.id) {
       await aplicarEstornoDaOrder(pedido, order);
     }
@@ -171,11 +178,11 @@ export async function restaurarContestacao(pedidoId: string): Promise<ResultadoR
   const encontrado = await buscarPedido(pedidoId);
   if (!encontrado) return { ok: false, motivo: "inexistente" };
   const { pedido, itens } = encontrado;
-  if (pedido.status !== "contestado" || !pedido.gatewayId || !mercadoPagoConfigurado()) {
+  if (pedido.status !== "contestado" || !pedido.gatewayId || !gatewayConfigurado()) {
     return { ok: false, motivo: "nao_contestado" };
   }
   try {
-    const order = await buscarOrder(pedido.gatewayId);
+    const order = await buscarCobranca(pedido.gatewayId);
     if (
       !order.paga ||
       order.referencia !== pedido.id ||
@@ -191,7 +198,7 @@ export async function restaurarContestacao(pedidoId: string): Promise<ResultadoR
   const mudou = await restaurarPedidoNoBanco(
     pedido.id,
     new Date(agora),
-    await lancamentosDaVenda(itens, agora),
+    await lancamentosDaVenda(itens, agora, pedido.metodo),
   );
   return mudou ? { ok: true } : { ok: false, motivo: "nao_contestado" };
 }

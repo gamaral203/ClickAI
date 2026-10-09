@@ -120,7 +120,7 @@ export function BotaoRestaurar({ pedidoId }: { pedidoId: string }) {
         onClick={() => {
           if (
             !window.confirm(
-              "Restaurar o pedido? Só funciona se o Mercado Pago mostrar a order como paga.",
+              "Restaurar o pedido? Só funciona se o gateway mostrar a cobrança como paga.",
             )
           ) {
             return;

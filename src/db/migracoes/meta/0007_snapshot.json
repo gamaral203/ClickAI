@@ -39,12 +39,8 @@
           "name": "acessos_evento_evento_id_eventos_id_fk",
           "tableFrom": "acessos_evento",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -85,12 +81,8 @@
           "name": "anexos_denuncia_denuncia_id_denuncias_id_fk",
           "tableFrom": "anexos_denuncia",
           "tableTo": "denuncias",
-          "columnsFrom": [
-            "denuncia_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["denuncia_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -228,12 +220,8 @@
           "name": "colaboradores_evento_id_eventos_id_fk",
           "tableFrom": "colaboradores",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -241,12 +229,8 @@
           "name": "colaboradores_fotografo_id_fotografos_id_fk",
           "tableFrom": "colaboradores",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -286,12 +270,8 @@
           "name": "confirmacoes_email_usuario_id_usuarios_id_fk",
           "tableFrom": "confirmacoes_email",
           "tableTo": "usuarios",
-          "columnsFrom": [
-            "usuario_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["usuario_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -430,12 +410,8 @@
           "name": "cupons_fotografo_id_fotografos_id_fk",
           "tableFrom": "cupons",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -469,12 +445,8 @@
           "name": "cupons_eventos_cupom_id_cupons_id_fk",
           "tableFrom": "cupons_eventos",
           "tableTo": "cupons",
-          "columnsFrom": [
-            "cupom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cupom_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -482,12 +454,8 @@
           "name": "cupons_eventos_evento_id_eventos_id_fk",
           "tableFrom": "cupons_eventos",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -495,10 +463,7 @@
       "compositePrimaryKeys": {
         "cupons_eventos_cupom_id_evento_id_pk": {
           "name": "cupons_eventos_cupom_id_evento_id_pk",
-          "columns": [
-            "cupom_id",
-            "evento_id"
-          ]
+          "columns": ["cupom_id", "evento_id"]
         }
       },
       "uniqueConstraints": {},
@@ -637,12 +602,8 @@
           "name": "denuncias_evento_id_eventos_id_fk",
           "tableFrom": "denuncias",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -650,12 +611,8 @@
           "name": "denuncias_foto_id_fotos_id_fk",
           "tableFrom": "denuncias",
           "tableTo": "fotos",
-          "columnsFrom": [
-            "foto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foto_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -663,12 +620,8 @@
           "name": "denuncias_decidida_por_usuarios_id_fk",
           "tableFrom": "denuncias",
           "tableTo": "usuarios",
-          "columnsFrom": [
-            "decidida_por"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["decidida_por"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -732,12 +685,8 @@
           "name": "downloads_item_pedido_id_itens_pedido_id_fk",
           "tableFrom": "downloads",
           "tableTo": "itens_pedido",
-          "columnsFrom": [
-            "item_pedido_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["item_pedido_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -962,12 +911,8 @@
           "name": "eventos_fotografo_id_fotografos_id_fk",
           "tableFrom": "eventos",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -975,12 +920,8 @@
           "name": "eventos_categoria_id_categorias_id_fk",
           "tableFrom": "eventos",
           "tableTo": "categorias",
-          "columnsFrom": [
-            "categoria_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["categoria_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1055,12 +996,8 @@
           "name": "faixas_desconto_fotografo_id_fotografos_id_fk",
           "tableFrom": "faixas_desconto",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1068,12 +1005,8 @@
           "name": "faixas_desconto_evento_id_eventos_id_fk",
           "tableFrom": "faixas_desconto",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1196,12 +1129,8 @@
           "name": "fotografos_usuario_id_usuarios_id_fk",
           "tableFrom": "fotografos",
           "tableTo": "usuarios",
-          "columnsFrom": [
-            "usuario_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["usuario_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1431,12 +1360,8 @@
           "name": "fotos_evento_id_eventos_id_fk",
           "tableFrom": "fotos",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1444,12 +1369,8 @@
           "name": "fotos_pasta_id_pastas_id_fk",
           "tableFrom": "fotos",
           "tableTo": "pastas",
-          "columnsFrom": [
-            "pasta_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pasta_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1457,12 +1378,8 @@
           "name": "fotos_enviada_por_fotografos_id_fk",
           "tableFrom": "fotos",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "enviada_por"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["enviada_por"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1571,12 +1488,8 @@
           "name": "itens_pedido_pedido_id_pedidos_id_fk",
           "tableFrom": "itens_pedido",
           "tableTo": "pedidos",
-          "columnsFrom": [
-            "pedido_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pedido_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1584,12 +1497,8 @@
           "name": "itens_pedido_foto_id_fotos_id_fk",
           "tableFrom": "itens_pedido",
           "tableTo": "fotos",
-          "columnsFrom": [
-            "foto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foto_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1597,12 +1506,8 @@
           "name": "itens_pedido_fotografo_id_fotografos_id_fk",
           "tableFrom": "itens_pedido",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1725,12 +1630,8 @@
           "name": "lancamentos_fotografo_id_fotografos_id_fk",
           "tableFrom": "lancamentos",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1738,12 +1639,8 @@
           "name": "lancamentos_item_pedido_id_itens_pedido_id_fk",
           "tableFrom": "lancamentos",
           "tableTo": "itens_pedido",
-          "columnsFrom": [
-            "item_pedido_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["item_pedido_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1751,12 +1648,8 @@
           "name": "lancamentos_saque_id_saques_id_fk",
           "tableFrom": "lancamentos",
           "tableTo": "saques",
-          "columnsFrom": [
-            "saque_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["saque_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1764,12 +1657,8 @@
           "name": "lancamentos_estorno_de_lancamentos_id_fk",
           "tableFrom": "lancamentos",
           "tableTo": "lancamentos",
-          "columnsFrom": [
-            "estorno_de"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["estorno_de"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1918,12 +1807,8 @@
           "name": "lojas_fotografo_id_fotografos_id_fk",
           "tableFrom": "lojas",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2013,12 +1898,8 @@
           "name": "mensagens_pedido_id_pedidos_id_fk",
           "tableFrom": "mensagens",
           "tableTo": "pedidos",
-          "columnsFrom": [
-            "pedido_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pedido_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2116,12 +1997,8 @@
           "name": "metricas_evento_id_eventos_id_fk",
           "tableFrom": "metricas",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2129,12 +2006,8 @@
           "name": "metricas_foto_id_fotos_id_fk",
           "tableFrom": "metricas",
           "tableTo": "fotos",
-          "columnsFrom": [
-            "foto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foto_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2204,12 +2077,8 @@
           "name": "modelos_evento_fotografo_id_fotografos_id_fk",
           "tableFrom": "modelos_evento",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2287,12 +2156,8 @@
           "name": "numeros_foto_id_fotos_id_fk",
           "tableFrom": "numeros",
           "tableTo": "fotos",
-          "columnsFrom": [
-            "foto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foto_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2375,12 +2240,8 @@
           "name": "pacotes_evento_id_eventos_id_fk",
           "tableFrom": "pacotes",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2443,12 +2304,8 @@
           "name": "pastas_evento_id_eventos_id_fk",
           "tableFrom": "pastas",
           "tableTo": "eventos",
-          "columnsFrom": [
-            "evento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2691,12 +2548,8 @@
           "name": "pedidos_cliente_id_usuarios_id_fk",
           "tableFrom": "pedidos",
           "tableTo": "usuarios",
-          "columnsFrom": [
-            "cliente_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cliente_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2704,12 +2557,8 @@
           "name": "pedidos_cupom_id_cupons_id_fk",
           "tableFrom": "pedidos",
           "tableTo": "cupons",
-          "columnsFrom": [
-            "cupom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cupom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2717,12 +2566,8 @@
           "name": "pedidos_reembolso_solicitado_por_usuarios_id_fk",
           "tableFrom": "pedidos",
           "tableTo": "usuarios",
-          "columnsFrom": [
-            "reembolso_solicitado_por"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reembolso_solicitado_por"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2800,12 +2645,8 @@
           "name": "rostos_foto_id_fotos_id_fk",
           "tableFrom": "rostos",
           "tableTo": "fotos",
-          "columnsFrom": [
-            "foto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foto_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2919,12 +2760,8 @@
           "name": "saques_fotografo_id_fotografos_id_fk",
           "tableFrom": "saques",
           "tableTo": "fotografos",
-          "columnsFrom": [
-            "fotografo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fotografo_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3102,175 +2939,97 @@
     "public.alvo_denuncia": {
       "name": "alvo_denuncia",
       "schema": "public",
-      "values": [
-        "evento",
-        "foto"
-      ]
+      "values": ["evento", "foto"]
     },
     "public.canal_mensagem": {
       "name": "canal_mensagem",
       "schema": "public",
-      "values": [
-        "email",
-        "whatsapp"
-      ]
+      "values": ["email", "whatsapp"]
     },
     "public.liberacao": {
       "name": "liberacao",
       "schema": "public",
-      "values": [
-        "automatica",
-        "manual",
-        "agendada"
-      ]
+      "values": ["automatica", "manual", "agendada"]
     },
     "public.metodo_pagamento": {
       "name": "metodo_pagamento",
       "schema": "public",
-      "values": [
-        "pix",
-        "cartao"
-      ]
+      "values": ["pix", "cartao"]
     },
     "public.minimo_cupom": {
       "name": "minimo_cupom",
       "schema": "public",
-      "values": [
-        "nenhum",
-        "valor",
-        "quantidade"
-      ]
+      "values": ["nenhum", "valor", "quantidade"]
     },
     "public.motivo_estorno": {
       "name": "motivo_estorno",
       "schema": "public",
-      "values": [
-        "reembolso",
-        "chargeback"
-      ]
+      "values": ["reembolso", "chargeback"]
     },
     "public.ordenacao": {
       "name": "ordenacao",
       "schema": "public",
-      "values": [
-        "envio",
-        "captura",
-        "nome_arquivo",
-        "aleatoria"
-      ]
+      "values": ["envio", "captura", "nome_arquivo", "aleatoria"]
     },
     "public.papel": {
       "name": "papel",
       "schema": "public",
-      "values": [
-        "cliente",
-        "fotografo",
-        "admin"
-      ]
+      "values": ["cliente", "fotografo", "admin"]
     },
     "public.status_denuncia": {
       "name": "status_denuncia",
       "schema": "public",
-      "values": [
-        "recebida",
-        "em_analise",
-        "procedente",
-        "improcedente"
-      ]
+      "values": ["recebida", "em_analise", "procedente", "improcedente"]
     },
     "public.status_evento": {
       "name": "status_evento",
       "schema": "public",
-      "values": [
-        "rascunho",
-        "publicado",
-        "revisao",
-        "arquivado"
-      ]
+      "values": ["rascunho", "publicado", "revisao", "arquivado"]
     },
     "public.status_foto": {
       "name": "status_foto",
       "schema": "public",
-      "values": [
-        "processando",
-        "pronta",
-        "erro"
-      ]
+      "values": ["processando", "pronta", "erro"]
     },
     "public.status_pedido": {
       "name": "status_pedido",
       "schema": "public",
-      "values": [
-        "pendente",
-        "pago",
-        "expirado",
-        "cancelado",
-        "estornado",
-        "contestado"
-      ]
+      "values": ["pendente", "pago", "expirado", "cancelado", "estornado", "contestado"]
     },
     "public.status_saque": {
       "name": "status_saque",
       "schema": "public",
-      "values": [
-        "processando",
-        "pago",
-        "falhou"
-      ]
+      "values": ["processando", "pago", "falhou"]
     },
     "public.tipo_cupom": {
       "name": "tipo_cupom",
       "schema": "public",
-      "values": [
-        "percentual",
-        "valor",
-        "fotos_gratis"
-      ]
+      "values": ["percentual", "valor", "fotos_gratis"]
     },
     "public.tipo_item": {
       "name": "tipo_item",
       "schema": "public",
-      "values": [
-        "foto",
-        "video"
-      ]
+      "values": ["foto", "video"]
     },
     "public.tipo_mensagem": {
       "name": "tipo_mensagem",
       "schema": "public",
-      "values": [
-        "entrega",
-        "lembrete",
-        "denuncia",
-        "lembrete_pix",
-        "venda"
-      ]
+      "values": ["entrega", "lembrete", "denuncia", "lembrete_pix", "venda"]
     },
     "public.tipo_metrica": {
       "name": "tipo_metrica",
       "schema": "public",
-      "values": [
-        "visita_evento",
-        "visita_foto",
-        "carrinho"
-      ]
+      "values": ["visita_evento", "visita_foto", "carrinho"]
     },
     "public.tipo_preco_pacote": {
       "name": "tipo_preco_pacote",
       "schema": "public",
-      "values": [
-        "fixo",
-        "por_foto"
-      ]
+      "values": ["fixo", "por_foto"]
     },
     "public.visibilidade": {
       "name": "visibilidade",
       "schema": "public",
-      "values": [
-        "publico",
-        "nao_listado",
-        "senha"
-      ]
+      "values": ["publico", "nao_listado", "senha"]
     }
   },
   "schemas": {},

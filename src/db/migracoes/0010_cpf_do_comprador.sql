@@ -1,0 +1,1 @@
+ALTER TABLE "pedidos" ADD COLUMN "cpf_comprador" text;

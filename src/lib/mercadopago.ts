@@ -12,6 +12,17 @@ import { createHmac, createPrivateKey, sign, timingSafeEqual, type KeyObject } f
 import { z } from "zod";
 
 import { erroMercadoPagoEmProducao, mercadoPagoFaltandoEmProducao } from "./ambiente-producao";
+import {
+  ErroGateway,
+  SaqueNaoHabilitado,
+  textosDoErro,
+  type Cobranca,
+  type ResultadoPayout,
+  type SituacaoCobranca,
+  type SituacaoPayout,
+} from "./gateway-tipos";
+
+export { SaqueNaoHabilitado, type ResultadoPayout, type SituacaoPayout };
 
 const API = "https://api.mercadopago.com";
 
@@ -61,20 +72,10 @@ export function valorParaCentavos(valor: string): number | null {
 
 // ---------------------------------------------------------------- Requisições
 
-export class ErroMercadoPago extends Error {
-  /**
-   * Resposta do Mercado Pago, para o código ler os motivos da recusa. Não enumerável: o
-   * console.error(erro) e o Sentry não a imprimem, porque ela pode trazer o CPF/CNPJ do
-   * pagador ou a chave Pix do fotógrafo.
-   */
-  declare readonly corpo: unknown;
-
-  constructor(
-    readonly status: number,
-    corpo: unknown,
-  ) {
-    super(`Mercado Pago respondeu ${status}`);
-    Object.defineProperty(this, "corpo", { value: corpo, enumerable: false });
+/** Resposta de erro do Mercado Pago (o corpo fica fora dos logs: src/lib/gateway-tipos.ts). */
+export class ErroMercadoPago extends ErroGateway {
+  constructor(status: number, corpo: unknown) {
+    super(status, corpo, "Mercado Pago");
   }
 }
 
@@ -150,7 +151,7 @@ const order = z.object({
  *   disputa contra a plataforma (docs/arquitetura.md, "Estorno e chargeback");
  * - `outra`: o resto (criada, em processamento, aguardando pagamento, recusada, expirada…).
  */
-export type SituacaoOrder = "paga" | "reembolsada" | "contestada" | "contestacao_perdida" | "outra";
+export type SituacaoOrder = SituacaoCobranca;
 
 const DETALHES_DE_REEMBOLSO = new Set(["refunded", "partially_refunded"]);
 const DETALHES_DE_CONTESTACAO_PERDIDA = new Set(["settled", "reimbursed"]);
@@ -167,17 +168,10 @@ export function situacaoDaOrder(status: string, detalhe: string | null | undefin
   return "outra";
 }
 
-export type OrderMercadoPago = {
-  id: string;
-  status: string;
-  statusDetalhe: string | null;
-  referencia: string | null;
-  totalCentavos: number | null;
-  /** Processada e creditada: o dinheiro entrou. */
-  paga: boolean;
-  situacao: SituacaoOrder;
-  pix: { copiaECola: string; qrCodeBase64: string } | null;
-};
+export type OrderMercadoPago = Cobranca;
+
+/** Status de order que não vão mais mudar para pago. */
+const ORDER_ENCERRADA = new Set(["failed", "expired", "canceled", "cancelled", "refunded"]);
 
 function lerOrder(corpo: unknown): OrderMercadoPago {
   const o = order.parse(corpo);
@@ -192,6 +186,8 @@ function lerOrder(corpo: unknown): OrderMercadoPago {
     totalCentavos: valorParaCentavos(o.total_amount),
     paga: situacao === "paga",
     situacao,
+    encerrada: ORDER_ENCERRADA.has(o.status),
+    urlPagamento: null,
     pix:
       qr?.qr_code && qr.qr_code_base64
         ? { copiaECola: qr.qr_code, qrCodeBase64: qr.qr_code_base64 }
@@ -368,23 +364,6 @@ export function assinaturaDoWebhookConfere(
 // (MP_PAYOUTS_PRIVATE_KEY). A chave pública correspondente fica cadastrada no Mercado Pago
 // (docs/mercadopago/payouts-chave-publica.pem). Como gerar e trocar a chave: docs/deploy.md.
 
-/**
- * - `pago`: transação `success` + `accredited` (o Pix chegou);
- * - `falhou`: o Mercado Pago informou que a transação não saiu (`error`, `rejected`,
- *   `canceled`); o saldo volta ao fotógrafo;
- * - `revisao`: o Pix saiu e voltou (`refunded`, `partially_refunded`); nada é devolvido
- *   sozinho, alguém precisa olhar;
- * - `processando`: todo o resto, inclusive status desconhecido.
- */
-export type SituacaoPayout = "processando" | "pago" | "falhou" | "revisao";
-
-/** O saque nem foi enviado ao Mercado Pago: falta configurar ou liberar o Payouts em produção. */
-export class SaqueNaoHabilitado extends Error {
-  constructor(motivo: string) {
-    super(`Saque em produção não habilitado: ${motivo}`);
-  }
-}
-
 type ConfigPayouts = { producao: false } | { producao: true; chave: KeyObject };
 
 /** MP_PAYOUTS_PRIVATE_KEY: o PEM PKCS8 da chave Ed25519 codificado em base64 numa linha. */
@@ -458,14 +437,6 @@ const respostaPayout = z.object({
 });
 
 type TransacaoPayout = z.infer<typeof transacaoPayout>;
-
-export type ResultadoPayout = {
-  id: string;
-  transacaoId: string | null;
-  situacao: SituacaoPayout;
-  status: string | null;
-  detalhe: string | null;
-};
 
 const DETALHES_DE_DEVOLUCAO = new Set(["refunded", "partially_refunded"]);
 
@@ -614,26 +585,6 @@ const RECUSAS_CLARAS = new Set([
 
 /** Indício de que o payout talvez já exista (referência ou chave repetida, conflito). */
 const INDICIO_DE_DUPLICIDADE = /duplicat|already|exist|conflict|reference|in_use|repeat/i;
-
-function textosDoErro(corpo: unknown): { codigos: string[]; mensagens: string[] } {
-  const codigos: string[] = [];
-  const mensagens: string[] = [];
-  const visitar = (valor: unknown) => {
-    if (!valor || typeof valor !== "object") return;
-    const o = valor as Record<string, unknown>;
-    for (const chave of ["code", "error"]) {
-      if (typeof o[chave] === "string") codigos.push((o[chave] as string).toLowerCase());
-    }
-    for (const chave of ["message", "description", "details"]) {
-      if (typeof o[chave] === "string") mensagens.push(o[chave] as string);
-    }
-    for (const chave of ["errors", "cause"]) {
-      if (Array.isArray(o[chave])) (o[chave] as unknown[]).forEach(visitar);
-    }
-  };
-  visitar(corpo);
-  return { codigos, mensagens };
-}
 
 /**
  * Um 4xx do POST de payout é recusa CLARA (o Pix certamente não saiu: assinatura, token,
