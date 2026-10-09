@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Trophy } from "lucide-react";
 
+import { FotoComSelo } from "@/components/metas/foto-com-selo";
 import { QuadroMeta } from "@/components/metas/quadro-meta";
 import { SeloMeta } from "@/components/metas/selo-meta";
 import { totalVendidoComoAutor } from "@/dados";
 import { formatarPreco } from "@/lib/formatar";
 import { METAS, situacaoDasMetas } from "@/lib/metas";
+import { urlPublica } from "@/lib/url-publica";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Metas", robots: { index: false, follow: false } };
@@ -31,6 +33,9 @@ export default function PaginaMetas() {
 async function Conteudo() {
   const { conta } = await exigirFotografo("/painel/metas");
   const metas = situacaoDasMetas(await totalVendidoComoAutor(conta.id));
+  const ultima = metas.conquistadas.at(-1);
+  // Prévia do selo: o da última meta batida ou, antes da primeira, o de 10K.
+  const seloDaPrevia = ultima?.rotulo ?? METAS[0].rotulo;
 
   return (
     <>
@@ -41,6 +46,23 @@ async function Conteudo() {
           ? `Faltam ${formatarPreco(metas.faltaCentavos)} para o quadro de ${metas.proxima.rotulo}.`
           : "Você bateu todas as metas. Parabéns!"}
       </p>
+      <section className="flex flex-col items-center gap-4 rounded-xl border p-6 text-center sm:flex-row sm:text-left">
+        <FotoComSelo
+          nome={conta.nomePublico}
+          foto={conta.fotoPerfil ? urlPublica(conta.fotoPerfil) : null}
+          rotulo={seloDaPrevia}
+        />
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold">
+            {ultima ? "Seu selo no perfil" : "O selo que aparece no seu perfil"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {ultima
+              ? `Quem abre a sua página vê a moldura dourada com o selo de ${ultima.rotulo}. A cada nova meta, o selo muda.`
+              : "Quando você bater a primeira meta, a sua foto de perfil ganha esta moldura dourada com o selo, na sua página e na sua loja. A cada nova meta, o selo muda."}
+          </p>
+        </div>
+      </section>
       <ul className="grid grid-cols-2 gap-6 sm:grid-cols-3">
         {METAS.map((meta) => (
           <li key={meta.rotulo}>

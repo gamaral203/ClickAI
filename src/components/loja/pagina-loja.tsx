@@ -3,9 +3,10 @@ import Script from "next/script";
 
 import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
 import { numerosDoFotografo, VitrineDoFotografo } from "@/components/loja/vitrine-do-fotografo";
-import { listarEventosPublicados, type LojaPublica } from "@/dados";
+import { listarEventosPublicados, totalVendidoComoAutor, type LojaPublica } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto, idGaSeguro, idGtmSeguro } from "@/lib/loja";
+import { situacaoDasMetas } from "@/lib/metas";
 
 // Loja própria do fotógrafo (docs/arquitetura.md, "Loja própria"). Nada do que o fotógrafo
 // digita vira HTML ou script: o nome e a descrição são texto, as cores passam pelo formato
@@ -13,7 +14,11 @@ import { corDoTexto, idGaSeguro, idGtmSeguro } from "@/lib/loja";
 
 /** Página da loja: a mesma no subdomínio e no domínio próprio. */
 export async function PaginaDaLoja({ loja }: { loja: LojaPublica }) {
-  const eventos = await listarEventosPublicados({ fotografoId: loja.fotografo.id });
+  const [eventos, vendido] = await Promise.all([
+    listarEventosPublicados({ fotografoId: loja.fotografo.id }),
+    totalVendidoComoAutor(loja.fotografo.id),
+  ]);
+  const conquista = situacaoDasMetas(vendido).conquistadas.at(-1)?.rotulo ?? null;
   const textoPrimaria = corDoTexto(loja.corPrimaria);
 
   return (
@@ -40,6 +45,7 @@ export async function PaginaDaLoja({ loja }: { loja: LojaPublica }) {
         redes={loja.fotografo.redesSociais}
         numeros={numerosDoFotografo(eventos)}
         urlParaCompartilhar={urlDoSite(`/fotografo/${loja.fotografo.slug}`)}
+        conquista={conquista}
       />
 
       <main className="flex flex-1 flex-col">
