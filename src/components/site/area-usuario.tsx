@@ -33,6 +33,7 @@ export async function AreaUsuario() {
         <MenuCelular
           logado={false}
           itens={[
+            { href: "/", rotulo: "Início" },
             { href: "/eventos", rotulo: "Eventos" },
             { href: "/entrar", rotulo: "Entrar" },
             { href: "/cadastro", rotulo: "Criar conta" },
@@ -82,6 +83,7 @@ export async function AreaUsuario() {
         logado
         nome={primeiroNome}
         itens={[
+          { href: "/", rotulo: "Início" },
           { href: "/eventos", rotulo: "Eventos" },
           ...areas,
           { href: "/minhas-compras", rotulo: "Minhas compras" },
