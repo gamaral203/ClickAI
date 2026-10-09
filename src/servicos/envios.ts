@@ -16,6 +16,7 @@ import {
   buscarFotoEmEnvio,
   concluirFoto,
   hashesDoEvento,
+  listarFotosPresas,
   marcarFotoComErro,
   registrarFotosEmEnvio,
   salvarRostos,
@@ -198,16 +199,72 @@ export async function confirmarEnvio(
     await indexarRostosDaFoto(foto.eventoId, foto.id, original);
     return { eventoId: foto.eventoId };
   } catch (erro) {
-    await marcarFotoComErro(foto.id);
     if (erro instanceof ArquivoRecusado) {
+      await marcarFotoComErro(foto.id, erro.message);
       // O arquivo recusado não fica no bucket (a regra de ciclo de vida de envios/ é a reserva).
       await removerOriginal(chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
+    await marcarFotoComErro(foto.id, ERRO_PROCESSAMENTO);
     // Só o id: nada do conteúdo do arquivo vai para o log.
     console.error(`[envios] falha ao processar a foto ${foto.id}`, erro);
     return { erro: "Não foi possível processar a foto. Tente de novo." };
   }
+}
+
+const ERRO_PROCESSAMENTO = "Não foi possível processar a foto. Envie de novo.";
+
+/**
+ * Foto presa em `processando` há mais disto é revisada pelo job. A URL assinada de envio vale 15
+ * minutos (VALIDADE_URL_S): com 30, um envio que ainda está subindo nunca é tocado.
+ */
+export const ESPERA_FOTO_PRESA_MS = 30 * 60 * 1000;
+/**
+ * Fotos revisadas por execução do job: cada uma pode levar alguns segundos (baixar até 30 MB,
+ * gerar prévia e miniatura, cadastrar rostos), e a função tem tempo limitado.
+ */
+export const FOTOS_PRESAS_POR_VEZ = 5;
+
+export type ResultadoFotosPresas = {
+  revisadas: number;
+  prontas: number;
+  comErro: number;
+};
+
+/**
+ * Job (docs/tarefas.md, Fase 12): fotos que ficaram em `processando` porque o navegador fechou
+ * ou a confirmação falhou no meio. Para cada uma, o processamento normal (confirmarEnvio): ele
+ * confere no R2 (HEAD) se o arquivo chegou e, se chegou e confere, gera as prévias e marca
+ * `pronta`; senão, marca `erro` com a mensagem que o fotógrafo vê no painel. Sem o R2
+ * configurado (desenvolvimento, testes, produção sem armazenamento), não faz nada.
+ */
+export async function revisarFotosPresas(agora = Date.now()): Promise<ResultadoFotosPresas> {
+  const resultado: ResultadoFotosPresas = { revisadas: 0, prontas: 0, comErro: 0 };
+  if (modoEnvio() !== "r2") return resultado;
+  const presas = await listarFotosPresas(
+    new Date(agora - ESPERA_FOTO_PRESA_MS),
+    FOTOS_PRESAS_POR_VEZ,
+  );
+  for (const foto of presas) {
+    resultado.revisadas++;
+    try {
+      const r = await confirmarEnvio(foto.enviadaPor, foto.id);
+      if ("erro" in r) {
+        // Registro sem arquivo temporário válido volta como "não encontrada" sem mudar de
+        // status; marcar aqui evita que ele prenda a fila do job para sempre. Só muda se a foto
+        // ainda estiver em `processando`.
+        await marcarFotoComErro(foto.id, ERRO_PROCESSAMENTO);
+        resultado.comErro++;
+      } else {
+        resultado.prontas++;
+      }
+    } catch (erro) {
+      // confirmarEnvio já trata as falhas do processamento; aqui só o que escapou (banco fora).
+      console.error(`[envios] falha ao revisar a foto presa ${foto.id}`, erro);
+      resultado.comErro++;
+    }
+  }
+  return resultado;
 }
 
 /**

@@ -141,6 +141,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Uso do cupom somado na mesma transação que marca o pedido como `pago`, com `usos < usos_max` no UPDATE e idempotente (repetir o webhook não soma de novo); limite estourado entre a criação e o pagamento mantém o pedido pago, sem estorno automático, com alerta no log
 - [x] App recusa subir na produção sem `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`: o build falha no `db:migrar` com o nome do que falta e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`); conferido antes que as duas existem na Vercel
 - [x] `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY` cadastradas na Vercel (produção) e usadas pelo deploy atual
+- [x] Job de revisão (`/api/jobs/revisao`, a cada 10 minutos pelo mesmo workflow do GitHub, com `CRON_SECRET`): confere no Mercado Pago os saques em `processando` com `conferirSaques` (ambíguos continuam em revisão manual, saldo nunca volta sem certeza) e revisa até 5 fotos presas em `processando` há mais de 30 minutos, conferindo o arquivo no R2 e reprocessando ou marcando `erro` com a mensagem mostrada no painel (migração 0007); sem Mercado Pago ou R2 configurados, não faz nada
 
 ## Em andamento
 
@@ -247,7 +248,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Worker de vídeo com FFmpeg: prévia 720p com marca d'água, miniatura e quadros para o reconhecimento (testar com vídeos reais)
 - [ ] Indexar rostos e números no job (fotos e quadros de vídeo)
 - [ ] Rota de busca facial real: selfie só em memória, sem log, rate limit `[R-alta]`
-- [ ] Job que revisa itens presos em `processando`
 - [ ] Domínio de imagens na CDN da Cloudflare
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
@@ -255,7 +255,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Mercado Pago registrar a chave pública do Payouts (`docs/mercadopago/payouts-chave-publica.pem`) e liberar o Payouts Pix em produção; depois ligar `MP_PAYOUTS_HABILITADO=1` `[R-alta]`
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
-- [ ] Job que confere saques em processamento (hoje só a página de vendas confere)
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
 - [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)

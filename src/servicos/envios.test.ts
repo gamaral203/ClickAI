@@ -32,7 +32,13 @@ import * as t from "@/db/schema";
 import { dataDeCaptura } from "@/lib/exif";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, reiniciarClienteR2 } from "@/lib/r2";
 import { autorizarDownload } from "@/servicos/downloads";
-import { chavesDaFoto, confirmarEnvio, iniciarEnvio } from "@/servicos/envios";
+import {
+  chavesDaFoto,
+  confirmarEnvio,
+  FOTOS_PRESAS_POR_VEZ,
+  iniciarEnvio,
+  revisarFotosPresas,
+} from "@/servicos/envios";
 import { confirmarPagamento, criarPedido } from "@/servicos/pedidos";
 
 const [lia, pedro] = fotografos;
@@ -336,6 +342,75 @@ describe("envio de fotos ao R2", () => {
     expect(url.searchParams.get("response-content-disposition")).toMatch(/^attachment; filename=/);
     // Sem o token do pedido, nada.
     expect(await autorizarDownload(item.id, { token: "x".repeat(40) }, null)).toBeNull();
+  });
+});
+
+describe("job que revisa fotos presas em processando", () => {
+  /** Faz o envio da foto parecer ter começado `minutos` atrás. */
+  async function envelhecer(fotoId: string, minutos: number) {
+    const banco = await obterBanco();
+    await banco
+      .update(t.fotos)
+      .set({ envioIniciadoEm: new Date(Date.now() - minutos * 60_000) })
+      .where(eq(t.fotos.id, fotoId));
+  }
+
+  it("processa a foto presa cujo arquivo chegou ao R2", async () => {
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    await envelhecer(fotoId, 40);
+
+    const resultado = await revisarFotosPresas();
+    expect(resultado.prontas).toBeGreaterThanOrEqual(1);
+    const linha = await linhaDaFoto(fotoId);
+    expect(linha.status).toBe("pronta");
+    expect(linha.erroMensagem).toBeNull();
+  });
+
+  it("marca erro com mensagem quando o arquivo não está no R2", async () => {
+    const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg());
+    await envelhecer(fotoId, 40);
+
+    await revisarFotosPresas();
+    const linha = await linhaDaFoto(fotoId);
+    expect(linha.status).toBe("erro");
+    expect(linha.erroMensagem).toMatch(/não chegou/);
+    // O painel mostra a mensagem.
+    const item = (await listarItensDoPainel(evento.id, lia.id))?.find((i) => i.id === fotoId);
+    expect(item?.erroMensagem).toMatch(/não chegou/);
+  });
+
+  it("não toca no envio recente (a URL assinada ainda pode estar em uso)", async () => {
+    const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg());
+    await envelhecer(fotoId, 10);
+    await revisarFotosPresas();
+    expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+  });
+
+  it("revisa no máximo FOTOS_PRESAS_POR_VEZ por execução", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < FOTOS_PRESAS_POR_VEZ + 2; i++) {
+      const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg(64, 64));
+      await envelhecer(fotoId, 60 + i);
+      ids.push(fotoId);
+    }
+    const primeira = await revisarFotosPresas();
+    expect(primeira.revisadas).toBe(FOTOS_PRESAS_POR_VEZ);
+    const segunda = await revisarFotosPresas();
+    expect(segunda.revisadas).toBe(2);
+    for (const id of ids) expect((await linhaDaFoto(id)).status).toBe("erro");
+  });
+
+  it("sem o R2 configurado, não faz nada", async () => {
+    const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg());
+    await envelhecer(fotoId, 40);
+    for (const chave of Object.keys(R2)) vi.stubEnv(chave, "");
+    expect(await revisarFotosPresas()).toEqual({ revisadas: 0, prontas: 0, comErro: 0 });
+    expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+    // Limpa para os próximos testes: a foto não fica na fila.
+    for (const [chave, valor] of Object.entries(R2)) vi.stubEnv(chave, valor);
+    await revisarFotosPresas();
   });
 });
 

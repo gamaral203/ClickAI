@@ -231,6 +231,14 @@ export const fotos = pgTable(
      * "Cadastrar rostos que faltam". Nulo: ainda não foi (ou o cadastro falhou).
      */
     rostosIndexadosEm: data(),
+    /**
+     * Início do envio atual (a URL assinada vale 15 minutos). O job que revisa fotos presas em
+     * `processando` só mexe nas que passaram bem desse prazo (src/servicos/envios.ts). Nulo nas
+     * fotos anteriores à migração 0007: vale o `criado_em`.
+     */
+    envioIniciadoEm: data(),
+    /** Por que a foto ficou em `erro`, para o fotógrafo ver no painel. */
+    erroMensagem: text(),
   },
   (t) => [
     index().on(t.eventoId, t.ordem),

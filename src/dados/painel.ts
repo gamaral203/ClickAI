@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
@@ -224,7 +224,11 @@ export async function listarItensDoPainel(eventoId: string, fotografoId: string)
       .where(and(eq(t.fotos.eventoId, eventoId), eq(t.pedidos.status, "pago"))),
   ]);
   const ids = new Set(vendidos.map((v) => v.fotoId));
-  return itens.map((f) => ({ ...paraFoto(f), vendido: ids.has(f.id) }));
+  return itens.map((f) => ({
+    ...paraFoto(f),
+    vendido: ids.has(f.id),
+    erroMensagem: f.status === "erro" ? f.erroMensagem : null,
+  }));
 }
 
 /** O fotógrafo pode enviar fotos ao evento: é o dono ou um colaborador dele. */
@@ -356,6 +360,8 @@ export async function registrarFotosEmEnvio(
       tamanhoBytes: arquivo.tamanhoBytes,
       hashConteudo: arquivo.hash,
       status: "processando" as const,
+      envioIniciadoEm: new Date(agora),
+      erroMensagem: null,
     };
     if (existente) {
       await banco.update(t.fotos).set(dados).where(eq(t.fotos.id, existente));
@@ -420,13 +426,42 @@ export async function concluirFoto(
   return atualizadas.length > 0;
 }
 
-/** Envio que falhou: a foto fica em `erro` (não aparece na galeria) até ser enviada de novo. */
-export async function marcarFotoComErro(fotoId: string) {
+/**
+ * Envio que falhou: a foto fica em `erro` (não aparece na galeria) até ser enviada de novo. A
+ * mensagem aparece para o fotógrafo no painel.
+ */
+export async function marcarFotoComErro(fotoId: string, mensagem: string) {
   const banco = await obterBanco();
   await banco
     .update(t.fotos)
-    .set({ status: "erro" })
+    .set({ status: "erro", erroMensagem: mensagem.slice(0, 300) })
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
+}
+
+/**
+ * Fotos presas em `processando`: o envio começou antes de `antesDe` e ninguém confirmou (o
+ * navegador fechou, a rede caiu, a função estourou o tempo). As mais antigas primeiro, no máximo
+ * `limite`, para o job caber no tempo da função.
+ */
+export async function listarFotosPresas(
+  antesDe: Date,
+  limite: number,
+): Promise<{ id: string; enviadaPor: string }[]> {
+  const banco = await obterBanco();
+  const inicio = sql`coalesce(${t.fotos.envioIniciadoEm}, ${t.fotos.criadoEm})`;
+  return banco
+    .select({ id: t.fotos.id, enviadaPor: t.fotos.enviadaPor })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.status, "processando"),
+        isNull(t.fotos.excluidaEm),
+        eq(t.fotos.tipo, "foto"),
+        lt(inicio, antesDe),
+      ),
+    )
+    .orderBy(asc(inicio))
+    .limit(limite);
 }
 
 /**
@@ -580,6 +615,22 @@ export async function listarSaquesDoFotografo(fotografoId: string): Promise<Saqu
 }
 
 /** Saques ainda em processamento, para conferir o status no Mercado Pago. */
+/**
+ * Fotógrafos com saque em `processando`, dos saques mais antigos para os mais novos, no máximo
+ * `limite` (job que confere os saques, src/servicos/jobs.ts).
+ */
+export async function listarFotografosComSaqueProcessando(limite: number): Promise<string[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ fotografoId: t.saques.fotografoId, maisAntigo: sql`min(${t.saques.criadoEm})` })
+    .from(t.saques)
+    .where(eq(t.saques.status, "processando"))
+    .groupBy(t.saques.fotografoId)
+    .orderBy(sql`min(${t.saques.criadoEm})`)
+    .limit(limite);
+  return linhas.map((l) => l.fotografoId);
+}
+
 export async function listarSaquesProcessando(fotografoId: string): Promise<Saque[]> {
   const banco = await obterBanco();
   const linhas = await banco

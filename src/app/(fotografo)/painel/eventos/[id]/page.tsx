@@ -293,6 +293,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             urlMiniatura: i.urlMiniatura,
             nomeArquivo: i.nomeArquivo,
             status: i.status,
+            erroMensagem: i.erroMensagem,
             vendido: i.vendido,
             precoCentavos: i.precoCentavos,
             precoEventoCentavos:

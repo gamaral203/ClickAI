@@ -18,6 +18,8 @@ export type ItemDoPainel = {
   urlMiniatura: string;
   nomeArquivo: string;
   status: "processando" | "pronta" | "erro";
+  /** Por que a foto ficou em `erro` (ex.: o arquivo não chegou ao armazenamento). */
+  erroMensagem: string | null;
   vendido: boolean;
   /** Preço próprio; `null` usa o do evento. */
   precoCentavos: number | null;
@@ -107,6 +109,9 @@ function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) 
       <p className="truncate text-xs text-muted-foreground" title={item.nomeArquivo}>
         {item.nomeArquivo}
       </p>
+      {item.status === "erro" && item.erroMensagem && (
+        <p className="text-xs text-destructive">{item.erroMensagem}</p>
+      )}
       <Preco item={item} />
       {pastas.length > 0 && <SeletorPasta item={item} pastas={pastas} />}
       {confirmando ? (
