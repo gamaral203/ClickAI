@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { emProducao } from "@/db/conexao";
 import { gatewayConfigurado, provedorDePagamento } from "@/lib/gateway";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import {
   iniciarCobrancaPix,
   iniciarPagamentoCartaoAsaas,
@@ -42,6 +43,7 @@ export async function simularPagamento(pedidoId: string, token: string | null): 
 export async function gerarPix(pedidoId: string, token: string | null): Promise<boolean> {
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success || !gatewayConfigurado()) return false;
+  if (await limiteDoIpAtingido("pix_ip")) return false;
   const encontrado = await buscarPedidoComAcesso(
     dados.data.pedidoId,
     await credencial(dados.data.token),
@@ -83,6 +85,7 @@ export async function pagarComCartaoAcao(
   if (!dados.success || !formulario.success || provedorDePagamento() !== "mercadopago") {
     return { ok: false, motivo: "indisponivel" };
   }
+  if (await limiteDoIpAtingido("cartao_ip")) return { ok: false, motivo: "limite" };
   const documento = formulario.data.payer?.identification;
   try {
     return await pagarComCartao(dados.data.pedidoId, await credencial(dados.data.token), {
@@ -107,6 +110,7 @@ export async function pagarCartaoNoAsaasAcao(
 ): Promise<string | null> {
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success) return null;
+  if (await limiteDoIpAtingido("cartao_ip")) return null;
   try {
     return await iniciarPagamentoCartaoAsaas(
       dados.data.pedidoId,

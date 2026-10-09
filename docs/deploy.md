@@ -27,6 +27,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Variável | O que é |
 |---|---|
 | `DATABASE_URL` e `DATABASE_URL_DIRETA` (ou `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING`) | Banco: a produção usa as duas primeiras, cadastradas à mão; as `POSTGRES_*` são as que a integração do Supabase cria. Sem ela, o build de produção falha de propósito: o banco em memória seria um por servidor e os pedidos Pix sumiriam |
+| `DATABASE_CA_CERT` (recomendada) | Certificado raiz do Supabase (**Database Settings → SSL Configuration → Download certificate**), em base64 numa linha: `base64 -w0 prod-ca-2021.crt` no Git Bash. Com ela, a conexão confere o certificado do banco (`rejectUnauthorized: true`); sem ela, cifra sem conferir. Cadastre em *Production* e faça Redeploy: se o deploy falhar no `db:migrar` com erro de certificado, apague a variável e avise |
 | `APP_URL` | Endereço do site, ex. `https://clicouai.com.br`. Usado nos links, no QR Code, no login com Google e nas lojas |
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` e `/api/jobs/revisao` |
@@ -51,7 +52,7 @@ Gere `APP_SECRET` e `CRON_SECRET` com:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e WhatsApp.
+Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e WhatsApp e torna ilegíveis os segredos da verificação em duas etapas (cifrados com uma chave derivada dele): antes de trocar, avise quem usa a verificação e, depois, desligue-a para todos no banco (`update usuarios set mfa_segredo = null, mfa_ativado_em = null, mfa_ultimo_passo = null; delete from codigos_recuperacao;`), para que liguem de novo.
 
 ### Liberação temporária do prazo de saque (só para teste)
 

@@ -14,8 +14,10 @@ import {
   loginDeuCerto,
 } from "@/servicos/limites";
 import { enviarConfirmacaoDeEmail } from "@/servicos/mensagens";
+import { MENSAGENS_CODIGO } from "@/servicos/mfa";
 import {
   cadastrar,
+  concluirLoginComCodigo,
   entrar,
   gerarConfirmacaoEmail,
   inicioDoPapel,
@@ -51,12 +53,35 @@ export async function entrarAcao(
       valores: { email },
     };
   }
-  const usuario = await entrar(dados.data.email, dados.data.senha);
+  const proximoBruto = formulario.get("proximo");
+  const proximo = typeof proximoBruto === "string" && proximoBruto ? proximoBruto : null;
+  const resultado = await entrar(dados.data.email, dados.data.senha, proximo);
   // Mesma mensagem para e-mail inexistente e senha errada.
-  if (!usuario) return { erro: "E-mail ou senha incorretos.", valores: { email } };
+  if (!resultado) return { erro: "E-mail ou senha incorretos.", valores: { email } };
   await loginDeuCerto(dados.data.email);
+  // Verificação em duas etapas ligada: a sessão só abre depois do código.
+  if (resultado.pedeCodigo) redirect("/entrar/codigo");
   // Sem ?proximo=, cada papel vai para a sua área (gestão, painel ou compras).
-  redirect(caminhoSeguro(formulario.get("proximo"), inicioDoPapel(usuario.papel)));
+  redirect(caminhoSeguro(proximo, inicioDoPapel(resultado.usuario.papel)));
+}
+
+export type EstadoCodigoLogin = { erro?: string };
+
+const codigoLogin = z.object({ codigo: z.string().trim().min(6).max(40) });
+
+/** Segunda etapa do login, com a verificação em duas etapas ligada (/entrar/codigo). */
+export async function confirmarCodigoLoginAcao(
+  _anterior: EstadoCodigoLogin,
+  formulario: FormData,
+): Promise<EstadoCodigoLogin> {
+  const dados = codigoLogin.safeParse({ codigo: formulario.get("codigo") });
+  if (!dados.success) return { erro: MENSAGENS_CODIGO.faltando };
+  const resultado = await concluirLoginComCodigo(dados.data.codigo);
+  if (!resultado.ok) {
+    if (resultado.motivo === "expirado") redirect("/entrar?erro=codigo_expirado");
+    return { erro: MENSAGENS_CODIGO[resultado.motivo] };
+  }
+  redirect(caminhoSeguro(resultado.proximo, inicioDoPapel(resultado.usuario.papel)));
 }
 
 const cadastro = z.object({

@@ -35,12 +35,19 @@ import { emailEhGestor, type PerfilGoogle } from "@/lib/google";
 import { gerarHashSenha, HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 
+import { conferirCodigoMfa } from "./mfa";
+
 // Sessão simulada da Parte A (docs/tarefas.md, Fase 5). Na Fase 11 o Better Auth assume, com
 // as mesmas garantias: cookie HttpOnly, token aleatório guardado só como hash, e e-mail
 // confirmado antes de vincular compras.
 
 const COOKIE = "clicouai_sessao";
 const DURACAO_SESSAO_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * Sessão de gestor vale no máximo 12 horas desde o login (expiração absoluta): a conta mexe em
+ * reembolsos, papéis e denúncias, e um cookie esquecido num computador vale menos tempo.
+ */
+export const DURACAO_SESSAO_GESTOR_MS = 12 * 60 * 60 * 1000;
 const DURACAO_CONFIRMACAO_MS = 24 * 60 * 60 * 1000;
 
 function hash(token: string) {
@@ -101,7 +108,9 @@ export async function sessaoAtual(): Promise<SessaoAtual | null> {
   const dados = lerDadosSessao(token);
   if (!dados) return null;
   const usuario = await usuarioDaSessao(dados.u, dados.v, dados.j);
-  return usuario ? { usuario, metodo: dados.m, entrouEm: dados.t } : null;
+  if (!usuario) return null;
+  if (usuario.papel === "admin" && Date.now() - dados.t > DURACAO_SESSAO_GESTOR_MS) return null;
+  return { usuario, metodo: dados.m, entrouEm: dados.t };
 }
 
 /** Usuário da sessão atual, ou `null`. Lê o cookie: chamar dentro de <Suspense>. */
@@ -128,16 +137,99 @@ async function iniciarSessao(
   });
 }
 
+// ---------------------------------------------------------------- Verificação em duas etapas
+//
+// Com a verificação ligada (src/servicos/mfa.ts), a senha certa (ou a volta do Google) não abre a
+// sessão: grava um cookie assinado de 5 minutos dizendo quem passou pela primeira etapa, e a
+// sessão só nasce em /entrar/codigo, com o código do app ou um código de recuperação. O cookie
+// leva a versão da sessão: trocar a senha ou sair de todos os aparelhos também o invalida.
+
+const COOKIE_MFA = "clicouai_mfa";
+const PROPOSITO_MFA = "mfa_pendente";
+const DURACAO_MFA_MS = 5 * 60 * 1000;
+
+type DadosMfaPendente = { u: string; v: string; m: MetodoLogin; p: string | null };
+
+async function pedirCodigoMfa(usuarioId: string, metodo: MetodoLogin, proximo: string | null) {
+  const versao = await versaoDaSessao(usuarioId);
+  if (!versao) return;
+  const dados: DadosMfaPendente = { u: usuarioId, v: versao, m: metodo, p: proximo };
+  (await cookies()).set(COOKIE_MFA, assinar(PROPOSITO_MFA, dados, DURACAO_MFA_MS), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: DURACAO_MFA_MS / 1000,
+  });
+}
+
+export type LoginPendente = { usuario: Usuario; metodo: MetodoLogin; proximo: string | null };
+
+/** Quem passou pela senha (ou pelo Google) e ainda precisa digitar o código, ou `null`. */
+export async function loginPendente(): Promise<LoginPendente | null> {
+  const token = (await cookies()).get(COOKIE_MFA)?.value;
+  if (!token || token.length > 1000) return null;
+  await connection();
+  const d = conferirAssinatura(PROPOSITO_MFA, token) as Partial<DadosMfaPendente> | null;
+  if (
+    typeof d?.u !== "string" ||
+    typeof d.v !== "string" ||
+    (d.m !== "senha" && d.m !== "google") ||
+    (d.p !== null && typeof d.p !== "string")
+  ) {
+    return null;
+  }
+  if ((await versaoDaSessao(d.u)) !== d.v) return null;
+  const usuario = await buscarUsuario(d.u);
+  if (!usuario?.mfaAtivo) return null;
+  return { usuario, metodo: d.m, proximo: d.p ?? null };
+}
+
+export type ResultadoCodigoLogin =
+  | { ok: true; usuario: Usuario; proximo: string | null }
+  | { ok: false; motivo: "expirado" | "invalido" | "bloqueado" };
+
 /**
- * Confere e-mail e senha e abre a sessão. E-mail inexistente e senha errada dão o mesmo
- * resultado e levam o mesmo tempo (compara com um hash falso), para não revelar quem tem conta.
+ * Segunda etapa do login: confere o código (com limite de tentativas por usuário) e, se
+ * certo, abre a sessão e apaga o cookie da primeira etapa.
  */
-export async function entrar(email: string, senha: string): Promise<Usuario | null> {
+export async function concluirLoginComCodigo(codigo: string): Promise<ResultadoCodigoLogin> {
+  const pendente = await loginPendente();
+  if (!pendente) return { ok: false, motivo: "expirado" };
+  const resultado = await conferirCodigoMfa(pendente.usuario.id, codigo);
+  if (resultado !== "ok") return { ok: false, motivo: resultado };
+  (await cookies()).delete(COOKIE_MFA);
+  await iniciarSessao(pendente.usuario.id, pendente.metodo);
+  return { ok: true, usuario: pendente.usuario, proximo: pendente.proximo };
+}
+
+export type ResultadoEntrar = {
+  usuario: Usuario;
+  /** A verificação em duas etapas está ligada: a sessão só abre em /entrar/codigo. */
+  pedeCodigo: boolean;
+};
+
+/**
+ * Confere e-mail e senha e abre a sessão (ou, com a verificação em duas etapas ligada, pede o
+ * código). E-mail inexistente e senha errada dão o mesmo resultado e levam o mesmo tempo
+ * (compara com um hash falso), para não revelar quem tem conta.
+ */
+export async function entrar(
+  email: string,
+  senha: string,
+  proximo: string | null = null,
+): Promise<ResultadoEntrar | null> {
   const usuario = await buscarUsuarioParaLogin(email);
   const confere = senhaConfere(senha, usuario?.senhaHash ?? HASH_FALSO);
-  if (!usuario || !confere) return null;
+  if (!usuario || !confere || usuario.excluidoEm) return null;
+  const publico = await buscarUsuario(usuario.id);
+  if (!publico) return null;
+  if (publico.mfaAtivo) {
+    await pedirCodigoMfa(usuario.id, "senha", proximo);
+    return { usuario: publico, pedeCodigo: true };
+  }
   await iniciarSessao(usuario.id, "senha");
-  return buscarUsuario(usuario.id);
+  return { usuario: publico, pedeCodigo: false };
 }
 
 /**
@@ -218,7 +310,8 @@ export async function confirmarEmail(token: string): Promise<number | null> {
 }
 
 export type ResultadoGoogle =
-  { ok: true; usuario: Usuario; novo: boolean } | { ok: false; motivo: "conta_google_diferente" };
+  | { ok: true; usuario: Usuario; novo: boolean; pedeCodigo: boolean }
+  | { ok: false; motivo: "conta_google_diferente" };
 
 /**
  * Entra com o perfil que o Google confirmou. Procura pela conta Google; se não achar, pelo
@@ -229,6 +322,7 @@ export type ResultadoGoogle =
 export async function entrarComGoogle(
   perfil: PerfilGoogle,
   querVender: boolean,
+  proximo: string | null = null,
 ): Promise<ResultadoGoogle> {
   let usuario = await buscarUsuarioPorGoogle(perfil.googleId);
   let novo = false;
@@ -266,11 +360,16 @@ export async function entrarComGoogle(
   }
 
   await vincularPedidosDeConvidado(usuario.id);
-  await iniciarSessao(usuario.id, "google");
   const atualizado = await buscarUsuario(usuario.id);
-  return atualizado
-    ? { ok: true, usuario: atualizado, novo }
-    : { ok: false, motivo: "conta_google_diferente" };
+  if (!atualizado) return { ok: false, motivo: "conta_google_diferente" };
+  // O Google confirma o e-mail, não substitui o segundo fator: com a verificação em duas etapas
+  // ligada, quem tem acesso só ao Gmail da pessoa ainda precisa do app autenticador.
+  if (atualizado.mfaAtivo) {
+    await pedirCodigoMfa(usuario.id, "google", proximo);
+    return { ok: true, usuario: atualizado, novo, pedeCodigo: true };
+  }
+  await iniciarSessao(usuario.id, "google");
+  return { ok: true, usuario: atualizado, novo, pedeCodigo: false };
 }
 
 /** Para onde mandar cada papel depois do login, quando não há um ?proximo=. */

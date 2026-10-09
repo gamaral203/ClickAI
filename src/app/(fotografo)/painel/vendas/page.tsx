@@ -132,6 +132,7 @@ async function Conteudo() {
           antecipado={saldo.antecipado}
           podeSacar={temChave && !emAndamento && !bloqueadoAte}
           minimoCentavos={SAQUE_MINIMO_CENTAVOS}
+          pedeCodigo={usuario.mfaAtivo}
         />
       </section>
 

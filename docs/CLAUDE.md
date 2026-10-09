@@ -10,6 +10,7 @@ Ler antes de implementar qualquer parte do sistema:
 - [referencias/fotto.md](referencias/fotto.md) — como funciona a Fotto, nossa referência de produto. Consultar ao desenhar um fluxo ou tela; ela orienta, mas quem decide é a arquitetura. Nunca copiar textos, telas ou visual da Fotto.
 - [marca/marca.md](marca/marca.md) — logo, cores (`#2362FE` azul, `#BCFA34` limão) e regras de contraste. Usar ao criar qualquer tela.
 - [riscos.md](riscos.md) — 35 riscos com como evitar e prioridade. Os 10 de prioridade alta precisam estar resolvidos antes do lançamento.
+- [seguranca.md](seguranca.md) — checklist de segurança de 19 itens (HTTPS, senhas, MFA, limites, validação, sessão, segredos, backups, menor privilégio, monitoramento…) com o estado de cada um, onde está no código e os passos que dependem de configuração.
 - [skills.md](skills.md) — skills do projeto (em `.claude/skills/`) e como cada uma se aplica à nossa stack. Ao gerar ou revisar código de rotas, upload, auth, checkout ou deploy, aplicar a `vibe-code-security`; ao criar telas, a `ui-ux-pro-max` (a marca vence as paletas sugeridas por ela); ao animar, a `motion-framer` (usando o pacote `motion`).
 
 Se uma decisão de código mudar algo descrito nesses documentos, atualize o documento junto.

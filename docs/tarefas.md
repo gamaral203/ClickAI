@@ -144,6 +144,15 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Job de revisão (`/api/jobs/revisao`, a cada 10 minutos pelo mesmo workflow do GitHub, com `CRON_SECRET`): confere no Mercado Pago os saques em `processando` com `conferirSaques` (ambíguos continuam em revisão manual, saldo nunca volta sem certeza) e revisa até 5 fotos presas em `processando` há mais de 30 minutos, conferindo o arquivo no R2 e reprocessando ou marcando `erro` com a mensagem mostrada no painel (migração 0007); sem Mercado Pago ou R2 configurados, não faz nada
 - [x] "Sair" encerra a sessão no servidor (id da sessão do cookie em `sessoes_revogadas` até a hora em que venceria) e "Sair de todos os dispositivos" em Minhas compras e em Perfil e recebimento (`usuarios.versao_sessao`, migração 0008); a versão da sessão passa a incluir o hash da senha, então trocar a senha (inclusive a de gestor em `GESTORES`) derruba as outras sessões. A leitura da sessão continua uma consulta só por requisição
 - [x] Troca de CPF/CNPJ do fotógrafo pede a senha atual de novo (ou, na conta só com o Google, login com o Google de menos de 10 minutos), volta a exigir a confirmação da chave Pix, avisa por e-mail, derruba as outras sessões e bloqueia saques por 72 horas, com a hora da liberação na tela de vendas (`fotografos.documento_trocado_em`, migração 0009) `[R-alta]`
+- [x] Verificação em duas etapas (TOTP, app autenticador), opcional para fotógrafo e gestor em Perfil e recebimento: QR Code, 10 códigos de recuperação (só o HMAC no banco), segredo cifrado com AES-256-GCM (chave derivada do `APP_SECRET`); pedida no login com senha e com o Google, na troca de CPF/CNPJ e em cada saque; cada código vale uma vez e há limite de 6 tentativas em 15 minutos (migração 0010) `[R-alta]`
+- [x] Limite de `/api/metricas` no banco (regra `metricas_ip`, 300 em 10 minutos por IP), sem o `Map` na memória de cada servidor que crescia sem limpeza
+- [x] Login com Google loga só o nome do erro (a resposta do Google pode trazer o código ou o token)
+- [x] Sessão de gestor com expiração absoluta de 12 horas desde o login (os outros papéis continuam com 30 dias)
+- [x] Conexão com o banco confere o certificado do servidor quando `DATABASE_CA_CERT` existe (`src/db/conexao.ts`); sem ela, segue cifrada sem conferir
+- [x] Validação de entrada com Zod em todas as Server Actions e rotas: varredura das 55 ações e 10 rotas; as últimas conferências manuais (domínio e imagens da loja, preço individual) passaram para schemas Zod
+- [x] Limite de tentativas de pagamento com cartão (10 por IP por hora, contra teste de cartão roubado) e de QR Code Pix gerado de novo na página do pedido (30 por IP por hora)
+- [x] `npm run db:migrar` dá ao papel `clicouai_app` (se existir) só SELECT/INSERT/UPDATE/DELETE e a política do RLS em todas as tabelas, inclusive as novas (`src/db/papel-app.ts`)
+- [x] Auditoria do checklist de segurança de 19 itens ([seguranca.md](seguranca.md)), com `npm audit fix` sem mudança de versão maior
 
 ## Em andamento
 
@@ -184,7 +193,7 @@ Não entram no MVP; ficam registrados para quando o básico estiver rodando com 
 
 ## Fase 1 — Base do app
 
-- [ ] Validação de entrada com Zod em todas as Server Actions e rotas (regra contínua; já aplicada na galeria)
+Concluída (ver **Concluído**). A validação com Zod continua como regra para toda ação ou rota nova.
 
 ## Fase 2 — Galeria (cliente)
 
@@ -251,6 +260,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Indexar rostos e números no job (fotos e quadros de vídeo)
 - [ ] Rota de busca facial real: selfie só em memória, sem log, rate limit `[R-alta]`
 - [ ] Domínio de imagens na CDN da Cloudflare
+- [ ] Conferir que o token do R2 tem só **Object Read & Write** nos buckets `fotos-originais` e `fotos-publicas` ([seguranca.md](seguranca.md), item 18)
 
 ## Fase 13 — Pagamento, e-mail e WhatsApp
 
@@ -269,12 +279,17 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 
 - [ ] Remover SAQUE_SEM_PRAZO_EMAILS da produção depois do teste de saque
 - [x] Limite de tentativas em login e cadastro (tabela `tentativas`)
-- [ ] Limite de `/api/metricas` sem o `Map` na memória de cada servidor (hoje cresce sem limpeza)
 - [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra
 - [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)
-- [ ] Backup do banco com recuperação para um ponto no tempo
+- [ ] Cadastrar `DATABASE_CA_CERT` (certificado raiz do Supabase, em base64) em Production e conferir que o deploy sobe ([deploy.md](deploy.md), item 3)
+- [ ] Menor privilégio no banco: criar o papel `clicouai_app` no Supabase e trocar a `DATABASE_URL` da Vercel para ele, deixando o `postgres` só na `DATABASE_URL_DIRETA` (passo a passo em [seguranca.md](seguranca.md), item 18)
+- [ ] Backup do banco com recuperação para um ponto no tempo; testar uma restauração num projeto separado ([seguranca.md](seguranca.md), item 15)
+- [ ] Monitor de disponibilidade (UptimeRobot ou Better Stack) na página inicial, com aviso por e-mail
+- [ ] Atualizar vitest (5) e drizzle-kit, que trazem as vulnerabilidades restantes do `npm audit` (só desenvolvimento e testes), e acompanhar o `braces` do CLI do shadcn
+- [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
+- [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra

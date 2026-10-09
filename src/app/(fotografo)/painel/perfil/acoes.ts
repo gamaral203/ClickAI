@@ -6,6 +6,7 @@ import { z } from "zod";
 import { atualizarContaDoFotografo, slugDeFotografoEmUso } from "@/dados";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import { FORMATO_SLUG } from "@/lib/slug";
+import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "@/servicos/mfa";
 import { BLOQUEIO_SAQUE_APOS_TROCA_MS } from "@/servicos/saques";
 import { exigirFotografo, sessaoAtual } from "@/servicos/sessao";
 import { confirmarIdentidade, trocarDocumento } from "@/servicos/troca-documento";
@@ -14,7 +15,7 @@ const ERRO_SENHA = "Senha incorreta. Para trocar o CPF/CNPJ, digite a senha atua
 
 export type CampoPerfil = "nomePublico" | "slug" | "bio" | "instagram" | "site" | "cpfCnpj";
 /** Campos do formulário com erro possível: os do perfil e a senha da troca do CPF/CNPJ. */
-export type CampoComErro = CampoPerfil | "senhaAtual";
+export type CampoComErro = CampoPerfil | "senhaAtual" | "codigoMfa";
 export type EstadoPerfil = {
   ok?: boolean;
   /** CPF/CNPJ salvo, mas a chave Pix ainda não foi confirmada (sem ela não dá para publicar). */
@@ -66,7 +67,7 @@ export async function salvarPerfilAcao(
   formulario: FormData,
 ): Promise<EstadoPerfil> {
   const { usuario, conta } = await exigirFotografo("/painel/perfil");
-  const { senhaAtual, ...campos } = Object.fromEntries(formulario);
+  const { senhaAtual, codigoMfa, ...campos } = Object.fromEntries(formulario);
   const dados = perfil.safeParse(campos);
   if (!dados.success) {
     const erros: EstadoPerfil["erros"] = {};
@@ -100,6 +101,9 @@ export async function salvarPerfilAcao(
       case "google_antigo":
         return { reentrarComGoogle: true };
     }
+    // Com a verificação em duas etapas ligada, a senha sozinha não troca a chave do saque.
+    const codigo = await exigirCodigoSeLigado(usuario, codigoMfa);
+    if (codigo !== "ok") return { erros: { codigoMfa: MENSAGENS_CODIGO[codigo] } };
   }
 
   await atualizarContaDoFotografo(usuario.id, {

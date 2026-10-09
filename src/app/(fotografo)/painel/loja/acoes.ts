@@ -93,14 +93,17 @@ function revalidarLoja() {
 }
 
 /** Conecta um domínio do fotógrafo (ex.: fotos.liaramos.com.br) à loja dele. */
+/** Texto do domínio digitado (a forma exata é conferida por dominioProprioValido). */
+const textoDominio = z.string().trim().min(1).max(300);
+
 export async function conectarDominioAcao(texto: unknown): Promise<ResultadoDominio> {
   const { conta } = await exigirFotografo("/painel/loja");
-  if (typeof texto !== "string" || texto.length > 300)
-    return { ok: false, erro: "Domínio inválido." };
+  const entrada = textoDominio.safeParse(texto);
+  if (!entrada.success) return { ok: false, erro: "Domínio inválido." };
   const loja = await buscarLojaDoFotografo(conta.id);
   if (!loja) return { ok: false, erro: "Salve a loja antes de conectar um domínio." };
 
-  const dominio = normalizarDominio(texto);
+  const dominio = normalizarDominio(entrada.data);
   if (!dominioProprioValido(dominio, new URL(enderecoDoSite()).hostname)) {
     return { ok: false, erro: "Informe um domínio seu, como fotos.seusite.com.br." };
   }
@@ -162,7 +165,8 @@ export async function removerDominioAcao(): Promise<ResultadoDominio> {
 
 // ---------------------------------------------------------------- Banner e logo
 
-export type ImagemDaLoja = "capa" | "fotoPerfil";
+const campoImagem = z.enum(["capa", "fotoPerfil"]);
+export type ImagemDaLoja = z.infer<typeof campoImagem>;
 export type ResultadoImagem = { ok: true } | { ok: false; erro: string };
 
 /** O navegador já reduz a imagem antes de enviar; isto é só o teto (Server Action: até 1 MB). */
@@ -183,7 +187,8 @@ export async function enviarImagemDaLojaAcao(
   dados: FormData,
 ): Promise<ResultadoImagem> {
   const { conta } = await exigirFotografo("/painel/loja");
-  if (campo !== "capa" && campo !== "fotoPerfil") return { ok: false, erro: "Imagem inválida." };
+  const qual = campoImagem.safeParse(campo);
+  if (!qual.success) return { ok: false, erro: "Imagem inválida." };
   const arquivo = dados.get("arquivo");
   if (!(arquivo instanceof File) || arquivo.size === 0) {
     return { ok: false, erro: "Escolha uma imagem." };
@@ -196,7 +201,7 @@ export async function enviarImagemDaLojaAcao(
 
   let webp: Buffer;
   try {
-    const { largura, altura, fit } = MEDIDAS[campo];
+    const { largura, altura, fit } = MEDIDAS[qual.data];
     webp = await sharp(Buffer.from(await arquivo.arrayBuffer()), { limitInputPixels: 50_000_000 })
       .rotate()
       .resize(largura, altura, { fit, withoutEnlargement: true })
@@ -208,20 +213,21 @@ export async function enviarImagemDaLojaAcao(
 
   let valor: string;
   if (modo === "r2") {
-    valor = `perfis/${conta.id}/${campo === "capa" ? "banner" : "logo"}-${randomUUID()}.webp`;
+    valor = `perfis/${conta.id}/${qual.data === "capa" ? "banner" : "logo"}-${randomUUID()}.webp`;
     await gravarPublico(valor, webp, "image/webp");
   } else {
     valor = `data:image/webp;base64,${webp.toString("base64")}`;
   }
-  await definirImagemDoFotografo(conta.id, campo, valor);
+  await definirImagemDoFotografo(conta.id, qual.data, valor);
   revalidarPaginasPublicas(conta.slug);
   return { ok: true };
 }
 
 export async function removerImagemDaLojaAcao(campo: unknown): Promise<ResultadoImagem> {
   const { conta } = await exigirFotografo("/painel/loja");
-  if (campo !== "capa" && campo !== "fotoPerfil") return { ok: false, erro: "Imagem inválida." };
-  await definirImagemDoFotografo(conta.id, campo, null);
+  const qual = campoImagem.safeParse(campo);
+  if (!qual.success) return { ok: false, erro: "Imagem inválida." };
+  await definirImagemDoFotografo(conta.id, qual.data, null);
   revalidarPaginasPublicas(conta.slug);
   return { ok: true };
 }

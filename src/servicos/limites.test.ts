@@ -34,4 +34,10 @@ describe("limite de tentativas no banco", () => {
     // A regra do download tem contagem própria para o mesmo IP.
     expect(await limiteAtingido("url_download_ip", "203.0.113.7")).toBe(false);
   });
+
+  it("segura o teste de cartão: 10 tentativas de pagamento por IP por hora", async () => {
+    const ip = `198.51.100.${Math.floor(Math.random() * 200)}`;
+    for (let i = 0; i < 10; i++) expect(await limiteAtingido("cartao_ip", ip)).toBe(false);
+    expect(await limiteAtingido("cartao_ip", ip)).toBe(true);
+  });
 });

@@ -61,6 +61,7 @@ export async function semear(banco: Banco) {
       emailConfirmadoEm: data(u.emailConfirmadoEm),
       criadoEm: new Date(u.criadoEm),
       excluidoEm: data(u.excluidoEm ?? null),
+      mfaAtivadoEm: data(u.mfaAtivadoEm ?? null),
     })),
   );
   await banco

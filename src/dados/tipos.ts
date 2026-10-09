@@ -19,11 +19,13 @@ export type Usuario = {
   emailConfirmado: boolean;
   /** Entra com a conta Google (além ou no lugar da senha). */
   temGoogle: boolean;
+  /** Verificação em duas etapas ligada (src/servicos/mfa.ts). */
+  mfaAtivo: boolean;
   criadoEm: string;
 };
 
 /** Dados privados do usuário, que não saem da camada de dados. */
-export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
+export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle" | "mfaAtivo"> & {
   /** `null` para quem só entra com o Google. */
   senhaHash: string | null;
   /** Identificador da conta Google (`sub`), nunca muda mesmo se o e-mail mudar. */
@@ -33,6 +35,10 @@ export type UsuarioInterno = Omit<Usuario, "emailConfirmado" | "temGoogle"> & {
   excluidoEm?: string | null;
   /** Contador que derruba todas as sessões quando muda (src/dados/index.ts, versaoDaSessao). */
   versaoSessao?: number;
+  /** Segredo TOTP cifrado; nunca sai da camada de dados (src/dados/mfa.ts). */
+  mfaSegredo?: string | null;
+  mfaAtivadoEm?: string | null;
+  mfaUltimoPasso?: number | null;
 };
 
 export type RedesSociais = {

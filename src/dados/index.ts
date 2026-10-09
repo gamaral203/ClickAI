@@ -1094,6 +1094,7 @@ function usuarioPublico(u: UsuarioInterno): Usuario {
     papel: u.papel,
     emailConfirmado: u.emailConfirmadoEm !== null,
     temGoogle: u.googleId !== null,
+    mfaAtivo: Boolean(u.mfaAtivadoEm),
     criadoEm: u.criadoEm,
   };
 }
@@ -1430,3 +1431,4 @@ export * from "./notificacoes";
 export * from "./relatorio";
 export * from "./estornos";
 export * from "./exclusao";
+export * from "./mfa";

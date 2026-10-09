@@ -128,7 +128,7 @@ export async function iniciarCobrancaPix(pedidoId: string): Promise<boolean> {
 
 export type ResultadoCartao =
   | { ok: true; situacao: "aprovado" | "em_analise" }
-  | { ok: false; motivo: "recusado" | "indisponivel" };
+  | { ok: false; motivo: "recusado" | "indisponivel" | "limite" };
 
 /** Cobra o cartão de um pedido pendente. O valor é sempre o total do pedido no servidor. */
 export async function pagarComCartao(

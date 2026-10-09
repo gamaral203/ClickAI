@@ -5,6 +5,8 @@ import { CheckCircle2, Loader2, Zap } from "lucide-react";
 
 import { solicitarSaqueAcao, type EstadoSaque } from "@/app/(fotografo)/painel/vendas/acoes";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatarPreco } from "@/lib/formatar";
 
 type Previa = { brutoCentavos: number; taxaCentavos: number; liquidoCentavos: number };
@@ -30,6 +32,7 @@ function CartaoSaque({
   liberado,
   acao,
   enviando,
+  pedeCodigo,
 }: {
   tipo: "normal" | "antecipado";
   titulo: string;
@@ -38,6 +41,7 @@ function CartaoSaque({
   liberado: boolean;
   acao: (formulario: FormData) => void;
   enviando: boolean;
+  pedeCodigo: boolean;
 }) {
   return (
     <form action={acao} className="flex flex-col gap-3 rounded-xl border p-5">
@@ -52,6 +56,21 @@ function CartaoSaque({
         <Linha rotulo="Taxas" valor={`− ${formatarPreco(previa.taxaCentavos)}`} />
         <Linha rotulo="Você recebe" valor={formatarPreco(previa.liquidoCentavos)} forte />
       </div>
+      {pedeCodigo && liberado && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`codigo-${tipo}`}>Código do app autenticador</Label>
+          <Input
+            id={`codigo-${tipo}`}
+            name="codigo"
+            autoComplete="one-time-code"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            maxLength={40}
+            className="h-11 tracking-widest"
+          />
+        </div>
+      )}
       <Button
         type="submit"
         size="touch"
@@ -72,12 +91,15 @@ export function BotoesSaque({
   antecipado,
   podeSacar,
   minimoCentavos,
+  pedeCodigo = false,
 }: {
   normal: Previa;
   antecipado: Previa;
   /** Tem chave Pix confirmada e nenhum saque em andamento. */
   podeSacar: boolean;
   minimoCentavos: number;
+  /** Verificação em duas etapas ligada: cada saque pede o código do app. */
+  pedeCodigo?: boolean;
 }) {
   const [estado, acao, enviando] = useActionState(solicitarSaqueAcao, inicial);
   // O antecipado só faz sentido quando antecipa algo além do que o saque normal já paga.
@@ -94,6 +116,7 @@ export function BotoesSaque({
           liberado={podeSacar && normal.liquidoCentavos >= minimoCentavos}
           acao={acao}
           enviando={enviando}
+          pedeCodigo={pedeCodigo}
         />
         <CartaoSaque
           tipo="antecipado"
@@ -103,6 +126,7 @@ export function BotoesSaque({
           liberado={podeSacar && temAntecipacao && antecipado.liquidoCentavos >= minimoCentavos}
           acao={acao}
           enviando={enviando}
+          pedeCodigo={pedeCodigo}
         />
       </div>
       {estado.ok && (

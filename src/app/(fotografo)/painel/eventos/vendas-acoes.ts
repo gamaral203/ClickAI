@@ -89,9 +89,11 @@ export async function salvarPacoteAcao(
 /** Preço próprio de um item (texto em reais), ou vazio para voltar ao preço do evento. */
 export async function definirPrecoAcao(fotoId: string, texto: string): Promise<{ erro?: string }> {
   const { conta } = await exigirFotografo("/painel/eventos");
-  if (!id.safeParse(fotoId).success || typeof texto !== "string") {
+  const preco = z.string().max(20).safeParse(texto);
+  if (!id.safeParse(fotoId).success || !preco.success) {
     return { erro: "Foto não encontrada." };
   }
+  texto = preco.data;
   let centavos: number | null = null;
   if (texto.trim() !== "") {
     centavos = reaisParaCentavos(texto);

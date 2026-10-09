@@ -49,6 +49,7 @@ export function paraUsuario(r: typeof t.usuarios.$inferSelect): UsuarioInterno {
     emailConfirmadoEm: iso(r.emailConfirmadoEm),
     criadoEm: iso(r.criadoEm),
     excluidoEm: iso(r.excluidoEm),
+    mfaAtivadoEm: iso(r.mfaAtivadoEm),
   };
 }
 

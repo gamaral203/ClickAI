@@ -15,6 +15,7 @@ import {
   ERRO_SEM_BANCO_EM_PRODUCAO,
   urlParaMigracoes,
 } from "../src/db/conexao";
+import { SQL_ACESSO_DO_APP } from "../src/db/papel-app";
 import * as schema from "../src/db/schema";
 import {
   erroMercadoPagoEmProducao,
@@ -119,6 +120,8 @@ async function main() {
     const banco = drizzle({ client: cliente, schema, casing: "snake_case" });
     await migrate(banco, { migrationsFolder: path.join(process.cwd(), "src", "db", "migracoes") });
     console.log("Migrações aplicadas.");
+    // Permissões e políticas do papel do app, se ele existir (src/db/papel-app.ts).
+    await banco.execute(SQL_ACESSO_DO_APP);
     await semear(banco);
     await sincronizarGestores(banco);
     console.log("Semente e gestores conferidos.");

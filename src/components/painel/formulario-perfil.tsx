@@ -20,10 +20,13 @@ const inicialEstado: EstadoPerfil = {};
 export function FormularioPerfil({
   inicial,
   temSenha,
+  pedeCodigo = false,
 }: {
   inicial: Valores;
   /** A conta tem senha (pede a senha para trocar o CPF/CNPJ); sem senha, pede o Google. */
   temSenha: boolean;
+  /** Verificação em duas etapas ligada: a troca do CPF/CNPJ também pede o código do app. */
+  pedeCodigo?: boolean;
 }) {
   const [estado, acao, enviando] = useActionState(salvarPerfilAcao, inicialEstado);
   const erros = estado.erros ?? {};
@@ -130,6 +133,27 @@ export function FormularioPerfil({
       )}
       {!temSenha && erros.senhaAtual && (
         <p className="text-sm text-destructive">{erros.senhaAtual}</p>
+      )}
+      {pedeCodigo && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="codigoMfa">Código do app autenticador (só para trocar o CPF/CNPJ)</Label>
+          <Input
+            id="codigoMfa"
+            name="codigoMfa"
+            autoComplete="one-time-code"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={40}
+            aria-invalid={Boolean(erros.codigoMfa)}
+            aria-describedby={erros.codigoMfa ? "codigoMfa-erro" : undefined}
+            className="h-11"
+          />
+          {erros.codigoMfa && (
+            <p id="codigoMfa-erro" className="text-sm text-destructive">
+              {erros.codigoMfa}
+            </p>
+          )}
+        </div>
       )}
       <Button type="submit" size="touch" disabled={enviando} className="w-fit">
         {enviando && (
