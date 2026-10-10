@@ -22,6 +22,7 @@ Se uma decisão de código mudar algo descrito nesses documentos, atualize o doc
 ## Regras que não podem ser quebradas
 
 - Nenhum original fica acessível sem um pedido pago. Bucket de originais é privado; download só por URL assinada de ~15 min, depois de conferir que o item pertence a um pedido pago do próprio cliente.
+  - **Única exceção:** o fotógrafo que criou o evento (`eventos.fotografo_id` = conta de fotógrafo do usuário logado) baixa, desse evento, os originais das fotos vendidas em pedido `pago` e das fotos que ele mesmo enviou (inclusive as excluídas). Colaborador, gestor (nem pelo painel com a conta própria, salvo nos eventos que essa conta criou), outro fotógrafo e cliente não. Conferido no servidor a cada lote (`src/servicos/originais-do-dono.ts`), com o código do MFA se ligado, limite por usuário, registro em `downloads_do_dono` e as mesmas URLs assinadas de ~15 min, direto do R2.
 - Pagamento só é confirmado depois que o servidor lê a order na API do Mercado Pago e confere a referência e o valor (pelo webhook com assinatura validada ou pela conferência do servidor), de forma idempotente por `pedidos.gateway_id` único; nunca pelo retorno do navegador nem pelo corpo do webhook.
 - Saque só vai para a chave Pix do próprio CPF/CNPJ do fotógrafo, com valor calculado no servidor e idempotência pelo id do saque. Saque sem resposta fica em `processando`; nunca devolver o saldo sem ter certeza de que o Pix não saiu.
 - O servidor recalcula o total do pedido a partir do banco; preço vindo do navegador é ignorado.

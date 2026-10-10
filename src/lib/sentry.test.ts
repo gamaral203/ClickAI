@@ -15,6 +15,17 @@ describe("limpeza dos eventos do Sentry", () => {
     expect(limparTexto("https://clicouai.com/entrar/nova-senha#token=abcDEF_123-xyz")).toBe(
       "https://clicouai.com/entrar/nova-senha#token=[removido]",
     );
+    // URL assinada do R2 (originais que o dono baixa) e a liberação do download do dono.
+    expect(
+      limparTexto(
+        "https://b.r2.cloudflarestorage.com/originais/a.jpg?X-Amz-Credential=AK%2F2026&X-Amz-Expires=900&X-Amz-Signature=abc123",
+      ),
+    ).toBe(
+      "https://b.r2.cloudflarestorage.com/originais/a.jpg?X-Amz-Credential=[removido]&X-Amz-Expires=900&X-Amz-Signature=[removido]",
+    );
+    expect(limparTexto("/api/painel/originais/e/f?modo=minhas&liberacao=abc.def")).toBe(
+      "/api/painel/originais/e/f?modo=minhas&liberacao=[removido]",
+    );
     expect(limparTexto("/eventos/corrida?hora=2026-09-27T07")).toBe(
       "/eventos/corrida?hora=2026-09-27T07",
     );

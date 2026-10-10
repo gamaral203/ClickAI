@@ -162,6 +162,13 @@
       "when": 1791641734274,
       "tag": "0022_data_final_opcional",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791644238254,
+      "tag": "0023_originais_do_dono",
+      "breakpoints": true
     }
   ]
 }

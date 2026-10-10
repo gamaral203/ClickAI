@@ -169,6 +169,7 @@ A selfie do cliente não tem tabela: ela não é gravada em lugar nenhum.
 | `faixas_desconto` | id, fotografo_id, evento_id (vazio = padrão para todos os eventos), quantidade_min, desconto_pct | fotografos, eventos |
 | `pacotes` | id, evento_id, tipo_preco (fixo, por_foto), preco_centavos, mostrar_a_partir_de (opcional), expira_em (opcional), ativo | eventos (1:1) |
 | `downloads` | id, item_pedido_id, baixado_em, ip | itens_pedido (N:1) |
+| `downloads_do_dono` | id, evento_id, fotografo_id, usuario_id, modo (vendidas, minhas), quantidade, ip, criado_em: um registro por lote de originais entregue ao dono do evento (sem URL nem chave) | eventos, fotografos, usuarios |
 
 **Dinheiro do fotógrafo**
 
@@ -336,6 +337,17 @@ Um job de hora em hora marca como `expirado` os pedidos `pendente` com `expira_e
 
 1. Na tela de confirmação, na área "Minhas compras" ou pelo link do e-mail ou do WhatsApp, o cliente clica em baixar.
 2. O servidor (`/api/download/[itemId]`) confere se o item pertence a um pedido pago daquele cliente (ou do token do convidado), registra em `downloads` e redireciona para uma URL assinada de 15 minutos do original no bucket privado, gerada com `Content-Disposition` de anexo e o nome `{evento}-{arquivo}.jpg`. O original não passa pelo Next.js. Itens com `excluida_em` preenchido continuam disponíveis para quem comprou. Os originais dos dados de exemplo (imagens do picsum) só baixam fora da produção.
+
+**Originais do dono do evento**
+
+Exceção estreita à regra do download (docs/CLAUDE.md): o fotógrafo que criou o evento é o autor dos arquivos e pode baixar os originais, sem marca d'água, em "Baixar originais" no painel do evento. Código: `src/servicos/originais-do-dono.ts`, `src/dados/originais-do-dono.ts`, `src/lib/baixar-originais.ts` e `src/components/painel/baixar-originais.tsx`.
+
+1. **Quem:** só o dono (`eventos.fotografo_id` = conta de fotógrafo do usuário logado, por `contaDoPainel`), conferido no servidor em cada chamada, no WHERE das consultas. Colaborador, outro fotógrafo, cliente e visitante recebem "Evento não encontrado". O gestor usa o painel com a própria conta de fotógrafo (não é personificação), então baixa só os eventos que essa conta criou. O bloco só aparece na página do evento do dono; o servidor recusa mesmo assim.
+2. **O quê:** "Fotos vendidas" são os itens do evento em pelo menos um pedido `pago` (pendente, expirado, cancelado, estornado e contestado não), de qualquer autor: o dono já vê o evento inteiro, inclusive as vendas dos colaboradores (ver "Desempenho do evento"), então os originais vendidos dos colaboradores entram. Foto excluída depois da venda continua. "Todas as minhas fotos" é tudo o que o próprio dono enviou e ficou `pronta`, inclusive as excluídas (marcadas e gravadas na subpasta `excluidas/`); as dos colaboradores não entram.
+3. **Liberação:** `liberarOriginaisAcao` pede o código do app autenticador se o MFA estiver ligado e devolve um token assinado (`assinar`, preso ao usuário e ao evento) que vale 3 horas, para um evento grande terminar sem pedir o código a cada lote.
+4. **Lotes:** `loteDeOriginaisAcao` devolve até 50 URLs assinadas de GET (~15 min, `Content-Disposition` de anexo, nome `{nome original saneado}_{8 primeiros do id}.{ext}`, único no evento), em ordem de id com cursor (`depois`), ou só os `ids` pedidos (repetir falhas, renovar URL vencida; ids fora do evento ou da opção não voltam). Cada lote conta no limite `originais_dono_usuario` (120 em 10 minutos) e é registrado em `downloads_do_dono` (quem, evento, opção, quantidade, IP). Os arquivos nunca passam pelo Next.js.
+5. **No navegador:** até 3 arquivos em paralelo, um Blob por arquivo (nunca o evento inteiro na memória), com progresso (X de N, MB), cancelar, "Continuar" (pula o que já está na pasta com o mesmo tamanho) e "Repetir as falhas"; URL perto de vencer ou recusada pelo R2 é trocada por outra. Destinos, nesta ordem: pasta escolhida com `showDirectoryPicker` (Chrome/Edge, grava arquivo por arquivo); ZIP em streaming com `client-zip`, gravado direto no disco com `showSaveFilePicker` ou, sem essa API, montado no navegador até 1,5 GB; em último caso, um download por arquivo. O `fetch` das URLs usa o `GET` do CORS do bucket de originais que já existe ([deploy.md](deploy.md), item 7) e o `connect-src` do CSP para `*.r2.cloudflarestorage.com`. Nos dados de exemplo (fora da produção), as URLs apontam para `/api/painel/originais/[eventoId]/[fotoId]`, que confere tudo de novo e entrega a imagem de exemplo.
+6. **Logs:** as URLs assinadas não são logadas, e o Sentry apaga `X-Amz-Signature`, `X-Amz-Credential` e a liberação das URLs (`src/lib/sentry.ts`).
 
 **Estorno e chargeback**
 

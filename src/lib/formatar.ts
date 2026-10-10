@@ -88,3 +88,10 @@ export function formatarPrecoCompacto(centavos: number) {
   }
   return `${sinal}R$ ${compacto.format(Math.floor(reaisInteiros / 100_000) / 10)} mi`;
 }
+
+/** 1.536 → "2 KB"; 5.242.880 → "5,0 MB"; 2.147.483.648 → "2,00 GB". */
+export function formatarBytes(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2).replace(".", ",")} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1).replace(".", ",")} MB`;
+  return `${Math.ceil(bytes / 1024)} KB`;
+}
