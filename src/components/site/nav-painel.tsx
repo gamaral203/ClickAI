@@ -16,7 +16,7 @@ export function LogoDoPainel({ papel }: { papel: Papel }) {
   return (
     <Link
       href={href}
-      className="shrink-0 rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="flex h-11 shrink-0 items-center rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <Image
         src="/logo.png"

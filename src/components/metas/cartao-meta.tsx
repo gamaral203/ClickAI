@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
  * Cartão compacto da meta de vendas: ícone do nível | nível, barra e valor | foto ou avatar. A
  * parte da meta leva à aba Metas; a foto, ao perfil (dois links irmãos, nunca um dentro do
  * outro). No cabeçalho do painel (tela larga) tem largura fixa; no topo do painel, ocupa a
- * largura toda no celular (`larguraTotal`) e vai até 384 px a partir do tablet. Altura de 44 px,
- * o alvo de toque mínimo.
+ * largura toda no celular (`larguraTotal`) e vai até 384 px a partir do tablet. Altura de 44 px
+ * no cabeçalho; no topo do painel, 48 px, para os dois links terem 40 px de alvo de toque.
  */
 export function CartaoMeta({
   metas,
@@ -35,8 +35,8 @@ export function CartaoMeta({
   return (
     <div
       className={cn(
-        "flex h-11 items-center gap-1 rounded-xl border bg-card p-1 text-card-foreground shadow-xs",
-        larguraTotal ? "w-full sm:max-w-sm" : "w-64",
+        "flex items-center gap-1 rounded-xl border bg-card p-1 text-card-foreground shadow-xs",
+        larguraTotal ? "h-12 w-full p-0.5 sm:max-w-sm" : "h-11 w-64",
       )}
     >
       <Link
@@ -73,9 +73,12 @@ export function CartaoMeta({
       <Link
         href="/painel/perfil"
         aria-label="Perfil e recebimento"
-        className="relative size-9 shrink-0 overflow-hidden rounded-full bg-accent ring-offset-1 hover:ring-2 hover:ring-primary/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className={cn(
+          "relative shrink-0 overflow-hidden rounded-full bg-accent ring-offset-1 hover:ring-2 hover:ring-primary/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+          larguraTotal ? "size-10" : "size-9",
+        )}
       >
-        <Image src={foto} alt="" fill sizes="36px" className="object-cover" />
+        <Image src={foto} alt="" fill sizes="40px" className="object-cover" />
       </Link>
     </div>
   );

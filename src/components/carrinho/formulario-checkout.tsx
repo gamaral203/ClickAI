@@ -324,7 +324,10 @@ export function FormularioCheckout({
             )}
           </form>
         )}
-        <Link href="/carrinho" className="text-sm font-medium text-primary hover:underline">
+        <Link
+          href="/carrinho"
+          className="-my-2.5 py-2.5 text-sm font-medium text-primary hover:underline"
+        >
           Revisar o carrinho
         </Link>
       </aside>

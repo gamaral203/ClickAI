@@ -64,7 +64,7 @@ export function MenuCelular({
       {aberto && (
         <div
           id="menu-celular"
-          className="absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg"
+          className="absolute top-full right-0 z-50 mt-2 max-h-[min(85dvh,calc(100dvh-5rem))] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg"
         >
           {nome && <p className="truncate px-3 py-2 text-sm text-muted-foreground">Olá, {nome}</p>}
           <ul className="flex flex-col">

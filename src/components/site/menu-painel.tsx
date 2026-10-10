@@ -154,7 +154,10 @@ function CorpoMenu({ titulo, itens, raiz, suporte, caminho }: PropsMenu & { cami
           </button>
         </div>
         {aberto && (
-          <div id="menu-painel-lista" className="border-t px-4 py-3 shadow-sm">
+          <div
+            id="menu-painel-lista"
+            className="max-h-[70dvh] overflow-y-auto overscroll-contain border-t px-4 py-3 shadow-sm"
+          >
             {lista}
           </div>
         )}

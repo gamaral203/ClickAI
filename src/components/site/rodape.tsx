@@ -44,10 +44,13 @@ function RodapeCompleto() {
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>© ClicouAí · Instagram @clicouai</span>
         <nav aria-label="Rodapé">
-          <ul className="flex flex-wrap gap-x-4 gap-y-1">
+          <ul className="flex flex-wrap gap-x-4 sm:gap-y-1">
             {links.map((l) => (
               <li key={l.href}>
-                <Link href={l.href} className="inline-flex h-8 items-center hover:text-foreground">
+                <Link
+                  href={l.href}
+                  className="inline-flex h-10 min-w-10 items-center hover:text-foreground sm:h-8 sm:min-w-0"
+                >
                   {l.rotulo}
                 </Link>
               </li>
@@ -70,7 +73,7 @@ function RodapeCurto() {
                 {i > 0 && <span aria-hidden="true">·</span>}
                 <Link
                   href={l.href}
-                  className="inline-flex h-8 items-center px-1 hover:text-foreground"
+                  className="inline-flex h-10 items-center px-1 hover:text-foreground sm:h-8"
                 >
                   {l.rotulo}
                 </Link>

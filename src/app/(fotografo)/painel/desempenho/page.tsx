@@ -52,7 +52,7 @@ async function Conteudo() {
                 <span className="flex flex-col">
                   <Link
                     href={`/painel/eventos/${e.evento.id}`}
-                    className="font-medium hover:underline"
+                    className="-my-2 py-2 font-medium hover:underline"
                   >
                     {e.evento.titulo}
                   </Link>

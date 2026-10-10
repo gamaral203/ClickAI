@@ -87,7 +87,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <span className="rounded-full bg-highlight px-3 py-1 text-sm font-semibold text-highlight-foreground">
             Em construção
           </span>
-          <h1 className="text-4xl font-extrabold tracking-tight text-balance sm:text-6xl">
+          {/* Tamanho fluido: 32 px no celular de 320 px, chegando a 60 px no computador. */}
+          <h1 className="text-[clamp(2rem,1.25rem+3.75vw,3.75rem)] leading-[1.05] font-extrabold tracking-tight text-balance">
             As fotos do seu evento, <span className="text-highlight">a um clique.</span>
           </h1>
           <p className="text-lg text-pretty text-white/90">

@@ -170,7 +170,14 @@ function Botao({
   variante?: "default" | "outline";
 }) {
   return (
-    <Button type="submit" size="touch" variant={variante} disabled={enviando} className="w-fit">
+    <Button
+      type="submit"
+      size="touch"
+      variant={variante}
+      disabled={enviando}
+      // No celular estreito o texto quebra em vez de vazar da tela.
+      className="h-auto min-h-11 w-fit max-w-full py-2 text-center whitespace-normal"
+    >
       {enviando && <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />}
       {children}
     </Button>
