@@ -244,6 +244,19 @@ const paraQuemVende: Artigo[] = [
     ),
   },
   {
+    id: "capa",
+    titulo: "Como escolho a capa do evento?",
+    corpo: (
+      <p>
+        Na lista de fotos do evento, toque em <strong>Usar como capa</strong> na foto que quiser;
+        ela ganha o selo “Capa”. Em <strong>Configurações</strong>, você vê a capa atual e pode
+        trocar ou remover a escolha. A capa aparece nos cartões do evento (página inicial, lista de
+        eventos e seu perfil), sempre com a marca d’água e só depois que a foto for liberada. Se
+        você não escolher, usamos uma foto liberada do evento, sempre a mesma.
+      </p>
+    ),
+  },
+  {
     id: "taxas",
     titulo: "Quais são as taxas?",
     corpo: (

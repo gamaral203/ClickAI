@@ -124,7 +124,7 @@ export async function slugDeEventoEmUso(slug: string, excetoId?: string) {
   return linha !== undefined;
 }
 
-export type DadosDoEvento = Omit<Evento, "id" | "fotografoId" | "status" | "capa">;
+export type DadosDoEvento = Omit<Evento, "id" | "fotografoId" | "status" | "capa" | "capaFotoId">;
 
 /** Dados do evento como o banco grava: as datas viram Date. */
 function linhaDoEvento(dados: Partial<DadosDoEvento>): Partial<typeof t.eventos.$inferInsert> {
@@ -507,7 +507,11 @@ export async function excluirItem(fotoId: string, fotografoId: string): Promise<
       ),
     )
     .returning({ id: t.fotos.id });
-  return atualizados.length > 0;
+  if (atualizados.length === 0) return false;
+  // Era a capa: volta para a automática. A consulta da capa já ignora a excluída; isto só deixa
+  // o painel sem uma escolha que não vale mais (exclusão lógica não dispara o "on delete").
+  await banco.update(t.eventos).set({ capaFotoId: null }).where(eq(t.eventos.capaFotoId, fotoId));
+  return true;
 }
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
