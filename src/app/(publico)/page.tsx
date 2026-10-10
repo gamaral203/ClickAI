@@ -84,9 +84,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     <>
       <CarrosselInicio slides={slides}>
         <div className="flex max-w-xl flex-col items-start gap-5 text-white">
-          <span className="rounded-full bg-highlight px-3 py-1 text-sm font-semibold text-highlight-foreground">
-            Em construção
-          </span>
           {/* Tamanho fluido: 32 px no celular de 320 px, chegando a 60 px no computador. */}
           <h1 className="text-[clamp(2rem,1.25rem+3.75vw,3.75rem)] leading-[1.05] font-extrabold tracking-tight text-balance">
             As fotos do seu evento, <span className="text-highlight">a um clique.</span>

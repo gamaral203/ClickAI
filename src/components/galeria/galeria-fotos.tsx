@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import { carregarMaisFotos } from "@/app/(publico)/eventos/[slug]/acoes";
 import { Button } from "@/components/ui/button";
 import type { FiltroGaleria } from "@/dados";
 import type { Foto, PaginaDeFotos } from "@/dados/tipos";
+import { esquecerOrigem, guardarOrigem, lerOrigem } from "@/lib/volta-da-galeria";
 
 type Props = {
   slug: string;
@@ -23,6 +24,12 @@ type Props = {
    * ampliada no rosto, para ela se reconhecer mais rápido.
    */
   recortes?: Record<string, CaixaDoRosto>;
+  /**
+   * Galeria principal do evento: identifica a lista (o filtro) para, na volta da página da foto,
+   * recuperar as fotos já carregadas se a galeria for montada do zero. Sem ela (resultado da
+   * busca), só marca de onde a pessoa saiu.
+   */
+  restaurar?: string;
 };
 
 type CaixaDoRosto = { esquerda: number; topo: number; largura: number; altura: number };
@@ -55,11 +62,50 @@ export function GaleriaFotos({
   filtro,
   vazio = VAZIO_PADRAO,
   recortes,
+  restaurar,
 }: Props) {
   const [fotos, setFotos] = useState<Foto[]>(paginaInicial.fotos);
   const [cursor, setCursor] = useState(paginaInicial.proximoCursor);
   const [erro, setErro] = useState(false);
   const [carregando, startTransition] = useTransition();
+  const [rolarAte, setRolarAte] = useState<string | null>(null);
+
+  // Volta da página da foto. Com a página preservada pelo Next (<Activity>), fotos e rolagem
+  // continuam como estavam; montada do zero, recupera as fotos carregadas e rola até a foto.
+  useEffect(() => {
+    if (!restaurar) return;
+    const origem = lerOrigem();
+    esquecerOrigem();
+    const salva = origem?.slug === slug ? origem.galeria : undefined;
+    if (!origem || salva?.chave !== restaurar || salva.fotos.length <= fotos.length) return;
+    // sessionStorage só existe no navegador: ler no render daria HTML diferente da hidratação.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFotos(salva.fotos);
+    setCursor(salva.cursor);
+    setRolarAte(origem.fotoClicada);
+    // Só ao montar ou ao reaparecer: depois disso a lista muda pelo "Carregar mais".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!rolarAte) return;
+    const quadro = requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-foto="${CSS.escape(rolarAte)}"]`)
+        ?.scrollIntoView({ block: "center", behavior: "instant" });
+      setRolarAte(null);
+    });
+    return () => cancelAnimationFrame(quadro);
+  }, [rolarAte]);
+
+  function aoAbrirFoto(fotoId: string) {
+    guardarOrigem({
+      slug,
+      fotoAtual: fotoId,
+      fotoClicada: fotoId,
+      galeria: restaurar ? { chave: restaurar, fotos, cursor } : undefined,
+    });
+  }
 
   function carregarMais() {
     if (!cursor) return;
@@ -88,9 +134,10 @@ export function GaleriaFotos({
     <div className="flex flex-col items-center gap-8">
       <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
         {fotos.map((foto, i) => (
-          <li key={foto.id}>
+          <li key={foto.id} data-foto={foto.id}>
             <Link
               href={`/fotos/${foto.id}`}
+              onClick={() => aoAbrirFoto(foto.id)}
               className="group relative block aspect-square overflow-hidden rounded-lg bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               {recortes?.[foto.id] ? (

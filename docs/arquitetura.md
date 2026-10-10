@@ -272,6 +272,7 @@ O fotógrafo pode marcar o local do evento num mapa, além de escrever o local �
 5. Filtro por horário: consulta por `capturada_em` entre a hora de início e a de fim (horário de Brasília).
 6. Se o evento tem `fotos_so_apos_busca`, a galeria aberta fica vazia e só os resultados da busca aparecem.
 7. Itens sem rosto nem número aparecem em "não identificadas", se o fotógrafo deixou ligado.
+8. Volta da foto para a galeria: ao tocar numa foto, a galeria guarda na aba (sessionStorage, só ids e URLs públicas de prévia) o evento, a foto e as fotos já carregadas. Na página da foto, "Voltar" volta no histórico quando a pessoa veio da galeria e abre `/eventos/<endereço>` quando chegou pelo link; "Anterior"/"Próxima" substituem a entrada do histórico. Na volta, o Next mostra a galeria preservada (`<Activity>`, com fotos e rolagem); se ela for montada do zero, recupera as fotos carregadas e rola até a foto (`src/lib/volta-da-galeria.ts`).
 
 **Compra e pagamento**
 

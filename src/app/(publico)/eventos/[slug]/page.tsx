@@ -208,6 +208,7 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
     listarOpcoesGaleria(evento.id),
   ]);
   const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
+  const chaveDaLista = `${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}|${filtro.pasta ?? ""}`;
   return (
     <>
       {busca}
@@ -227,7 +228,8 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
       <GaleriaFotos
         // Novo filtro, nova lista: sem a chave, a galeria manteria as fotos do filtro anterior.
-        key={`${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}|${filtro.pasta ?? ""}`}
+        key={chaveDaLista}
+        restaurar={chaveDaLista}
         slug={evento.slug}
         tituloEvento={evento.titulo}
         paginaInicial={primeiraPagina}
