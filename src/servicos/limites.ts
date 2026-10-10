@@ -105,6 +105,12 @@ const REGRAS = {
   suporte_usuario: { limite: 30, janelaMs: 60 * MINUTO },
   /** Sugestões de melhoria por usuário. */
   sugestao_usuario: { limite: 10, janelaMs: 60 * MINUTO },
+  /**
+   * Buscas de endereço e endereços de pontos do mapa (Nominatim) por IP. O Nominatim aceita só
+   * 1 requisição por segundo do site inteiro: sem limite, uma pessoa (ou um script) gastaria a
+   * vez de todo mundo. 60 em 10 minutos cobre quem arrasta o marcador várias vezes.
+   */
+  mapa_ip: { limite: 60, janelaMs: 10 * MINUTO },
 } as const;
 
 export type Regra = keyof typeof REGRAS;

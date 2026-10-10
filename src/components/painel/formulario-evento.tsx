@@ -12,7 +12,7 @@ import { LocalNoMapa } from "@/components/painel/local-no-mapa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ConfigMapa, PontoNoMapa } from "@/lib/mapa";
+import type { PontoNoMapa } from "@/lib/mapa";
 import { UFS } from "@/lib/ufs";
 
 export type ValoresEvento = {
@@ -23,7 +23,7 @@ export type ValoresEvento = {
   local: string;
   cidade: string;
   estado: string;
-  /** Ponto escolhido no Google Maps, se houver. */
+  /** Ponto escolhido no mapa, se houver. */
   pontoNoMapa: PontoNoMapa | null;
   precoFoto: string;
   precoVideo: string;
@@ -68,13 +68,10 @@ export function FormularioEvento({
   eventoId,
   categorias,
   inicial,
-  mapa = null,
 }: {
   eventoId?: string;
   categorias: { id: string; nome: string }[];
   inicial: ValoresEvento;
-  /** Google Maps configurado (src/servicos/mapa.ts); sem ele, não há botão de mapa. */
-  mapa?: ConfigMapa | null;
 }) {
   const [estado, acao, enviando] = useActionState(salvarEventoAcao, estadoInicial);
   const [visibilidade, setVisibilidade] = useState(inicial.visibilidade);
@@ -192,7 +189,6 @@ export function FormularioEvento({
         <Secao titulo="Local">
           <Campo rotulo="Local" id="local" erro={erros.local}>
             <LocalNoMapa
-              config={mapa}
               inicial={inicial.pontoNoMapa}
               formulario={formulario}
               campo={

@@ -105,7 +105,7 @@ const formulario = z
     filtroHorario: marcado,
     listarNaoIdentificadas: marcado,
     ordenacao: z.enum(["envio", "captura", "nome_arquivo", "aleatoria"], "Escolha a ordem."),
-    // Ponto escolhido no Google Maps (campos ocultos; vazios quando não há mapa).
+    // Ponto escolhido no mapa (campos ocultos; vazios quando não há mapa).
     ...camposDoMapa,
   })
   .refine((d) => !d.inicioEm || !d.fimEm || d.fimEm >= d.inicioEm, {

@@ -1,23 +1,27 @@
 "use client";
 
+import "leaflet/dist/leaflet.css";
+
 import { Dialog } from "@base-ui/react/dialog";
+import type * as Leaflet from "leaflet";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { Loader2, MapPin, MapPinOff, Search, X } from "lucide-react";
 
+import {
+  buscarEnderecoAcao,
+  enderecoDoPontoAcao,
+} from "@/app/(fotografo)/painel/eventos/mapa-acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { aoRecusarChave, carregarGoogleMaps, latLngDe } from "@/lib/google-maps";
 import {
   CENTRO_DO_BRASIL,
   coordenadasEmTexto,
-  deGeocoder,
-  extrairCidadeEstado,
-  nomeDoLocal,
-  type ComponenteEndereco,
-  type ConfigMapa,
+  MENSAGEM_BUSCA_INDISPONIVEL,
+  type LugarNoMapa,
   type PontoNoMapa,
   type Uf,
 } from "@/lib/mapa";
+import { camadaOsm, carregarLeaflet, iconeDoMarcador } from "@/lib/mapa-leaflet";
 
 /** O que volta para o formulário ao clicar em "Usar este local". */
 export type EscolhaNoMapa = {
@@ -28,34 +32,26 @@ export type EscolhaNoMapa = {
   estado: Uf | null;
 };
 
-type Marcacao = PontoNoMapa & { nome: string | null; componentes: ComponenteEndereco[] };
-
-type Sugestao = {
-  id: string;
-  principal: string;
-  secundario: string;
-  previsao: google.maps.places.PlacePrediction;
+type Marcacao = {
+  latitude: number;
+  longitude: number;
+  endereco: string | null;
+  nome: string | null;
+  cidade: string | null;
+  estado: Uf | null;
 };
 
-/** Campos do lugar pedidos ao Google (cada campo entra na conta da Places API). */
-const CAMPOS_DO_LUGAR = [
-  "id",
-  "displayName",
-  "formattedAddress",
-  "location",
-  "addressComponents",
-  "viewport",
-];
+/** Espera depois de soltar o marcador antes de pedir o endereço (o Nominatim aceita 1/s). */
+const ESPERA_ENDERECO_MS = 800;
 
 /**
- * Dialog "Escolher no mapa": busca com o Autocomplete da Places API (New), restrita ao Brasil e
- * cobrada como sessão; mapa com marcador arrastável (clicar no mapa também move); endereço
- * formatado embaixo. O Google Maps só carrega quando o dialog abre.
+ * Dialog "Escolher no mapa", com OpenStreetMap: busca de endereço pelo servidor (Nominatim, no
+ * Enter ou no botão "Buscar"), mapa com marcador arrastável (clicar no mapa também move) e o
+ * endereço do ponto embaixo. O Leaflet só carrega quando o dialog abre.
  */
 export function DialogoMapa({
   aberto,
   aoMudarAberto,
-  config,
   inicial,
   consultaInicial,
   aoConfirmar,
@@ -63,7 +59,6 @@ export function DialogoMapa({
 }: {
   aberto: boolean;
   aoMudarAberto: (aberto: boolean) => void;
-  config: ConfigMapa;
   inicial: PontoNoMapa | null;
   /** "Cidade, UF" digitados no formulário, para centralizar o mapa quando não há ponto. */
   consultaInicial: string | null;
@@ -78,7 +73,6 @@ export function DialogoMapa({
     <Dialog.Root
       open={aberto}
       onOpenChange={(abrir, detalhes) => {
-        // Esc com a lista de sugestões aberta fecha só a lista.
         if (!abrir && detalhes.reason === "escape-key" && listaAberta) {
           detalhes.cancel();
           setListaAberta(false);
@@ -107,7 +101,6 @@ export function DialogoMapa({
             </Dialog.Close>
           </div>
           <PainelMapa
-            config={config}
             inicial={inicial}
             consultaInicial={consultaInicial}
             listaAberta={listaAberta}
@@ -124,19 +117,10 @@ export function DialogoMapa({
   );
 }
 
-type Fase = "carregando" | "pronto" | "erro";
-
-type Motor = {
-  mapa: google.maps.Map;
-  marcador: google.maps.marker.AdvancedMarkerElement;
-  geocoder: google.maps.Geocoder | null;
-  places: google.maps.PlacesLibrary;
-  sessao: google.maps.places.AutocompleteSessionToken;
-};
+type Motor = { L: typeof Leaflet; mapa: Leaflet.Map; marcador: Leaflet.Marker };
 
 /** Conteúdo do dialog. Monta ao abrir e desmonta ao fechar: cada abertura começa do zero. */
 function PainelMapa({
-  config,
   inicial,
   consultaInicial,
   listaAberta,
@@ -144,7 +128,6 @@ function PainelMapa({
   campoBusca,
   aoConfirmar,
 }: {
-  config: ConfigMapa;
   inicial: PontoNoMapa | null;
   consultaInicial: string | null;
   listaAberta: boolean;
@@ -153,295 +136,252 @@ function PainelMapa({
   aoConfirmar: (escolha: EscolhaNoMapa) => void;
 }) {
   const ids = useId();
-  const idLista = `${ids}-sugestoes`;
-  const idDescricao = `${ids}-descricao`;
+  const idLista = `${ids}-resultados`;
   const divMapa = useRef<HTMLDivElement>(null);
-  const maps = useRef<Motor | null>(null);
+  const motor = useRef<Motor | null>(null);
   // Contadores: uma resposta atrasada não sobrescreve a mais nova.
   const pedidoPonto = useRef(0);
   const pedidoBusca = useRef(0);
   const espera = useRef<number | undefined>(undefined);
 
-  const [fase, setFase] = useState<Fase>("carregando");
+  const [mapaPronto, setMapaPronto] = useState(false);
+  const [mapaFalhou, setMapaFalhou] = useState(false);
   const [marcacao, setMarcacao] = useState<Marcacao | null>(
-    inicial ? { ...inicial, nome: null, componentes: [] } : null,
+    inicial
+      ? {
+          latitude: inicial.latitude,
+          longitude: inicial.longitude,
+          endereco: inicial.enderecoMapa,
+          nome: null,
+          cidade: null,
+          estado: null,
+        }
+      : null,
   );
   const [procurandoEndereco, setProcurandoEndereco] = useState(false);
   const [busca, setBusca] = useState("");
-  const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
+  const [resultados, setResultados] = useState<LugarNoMapa[]>([]);
   const [ativa, setAtiva] = useState(-1);
   const [buscando, setBuscando] = useState(false);
-  const [avisoBusca, setAvisoBusca] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [anuncio, setAnuncio] = useState("");
 
   function moverMarcador(lat: number, lng: number) {
-    const g = maps.current;
-    if (!g) return;
-    g.marcador.position = { lat, lng };
-    g.marcador.map = g.mapa;
+    const m = motor.current;
+    if (!m) return;
+    m.marcador.setLatLng([lat, lng]);
+    if (!m.mapa.hasLayer(m.marcador)) m.marcador.addTo(m.mapa);
   }
 
-  /** Clique no mapa ou marcador arrastado: guarda o ponto e procura o endereço dele. */
-  function marcarPonto({ lat, lng }: { lat: number; lng: number }) {
+  /** Clique no mapa ou marcador arrastado: guarda o ponto e, depois de 800 ms, o endereço. */
+  function marcarPonto(lat: number, lng: number) {
     moverMarcador(lat, lng);
     const n = ++pedidoPonto.current;
     setMarcacao({
       latitude: lat,
       longitude: lng,
-      placeId: null,
-      enderecoMapa: null,
+      endereco: null,
       nome: null,
-      componentes: [],
+      cidade: null,
+      estado: null,
     });
-    const geocoder = maps.current?.geocoder;
-    if (!geocoder) return;
     setProcurandoEndereco(true);
-    geocoder
-      .geocode({ location: { lat, lng }, language: "pt-BR" })
-      .then(({ results }) => {
-        const r = results[0];
-        if (n !== pedidoPonto.current || !r) return;
-        setMarcacao({
-          latitude: lat,
-          longitude: lng,
-          placeId: r.place_id || null,
-          enderecoMapa: r.formatted_address || null,
-          nome: null,
-          componentes: deGeocoder(r.address_components),
-        });
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (n === pedidoPonto.current) setProcurandoEndereco(false);
-      });
-  }
-
-  /** Lugar escolhido na busca ou clicado no mapa: busca os detalhes e centraliza nele. */
-  async function usarLugar(lugar: google.maps.places.Place) {
-    const g = maps.current;
-    if (!g) return;
-    const n = ++pedidoPonto.current;
-    setProcurandoEndereco(true);
-    try {
-      await lugar.fetchFields({ fields: CAMPOS_DO_LUGAR });
-      if (n !== pedidoPonto.current || !lugar.location) return;
-      const { lat, lng } = latLngDe(lugar.location);
-      moverMarcador(lat, lng);
-      if (lugar.viewport) g.mapa.fitBounds(lugar.viewport);
-      else {
-        g.mapa.setCenter({ lat, lng });
-        g.mapa.setZoom(17);
+    window.clearTimeout(espera.current);
+    espera.current = window.setTimeout(async () => {
+      const r = await enderecoDoPontoAcao(lat, lng).catch(() => null);
+      if (n !== pedidoPonto.current) return;
+      setProcurandoEndereco(false);
+      if (!r || !r.ok) {
+        setAviso(r?.erro ?? MENSAGEM_BUSCA_INDISPONIVEL);
+        return;
       }
+      const lugar = r.valor;
+      if (!lugar) return;
+      setAviso(null);
       setMarcacao({
         latitude: lat,
         longitude: lng,
-        placeId: lugar.id || null,
-        enderecoMapa: lugar.formattedAddress ?? null,
-        nome: lugar.displayName ?? null,
-        componentes: (lugar.addressComponents ?? []).map((c) => ({
-          longText: c.longText,
-          shortText: c.shortText,
-          types: c.types,
-        })),
+        endereco: lugar.endereco || null,
+        nome: lugar.nome,
+        cidade: lugar.cidade,
+        estado: lugar.estado,
       });
-    } catch {
-      if (n === pedidoPonto.current)
-        setAvisoBusca("Não foi possível abrir esse lugar. Tente outro.");
-    } finally {
-      if (n === pedidoPonto.current) setProcurandoEndereco(false);
+    }, ESPERA_ENDERECO_MS);
+  }
+
+  function enquadrar(lugar: Pick<LugarNoMapa, "latitude" | "longitude" | "caixa">) {
+    const m = motor.current;
+    if (!m) return;
+    if (lugar.caixa) {
+      const [sul, norte, oeste, leste] = lugar.caixa;
+      m.mapa.fitBounds(
+        [
+          [sul, oeste],
+          [norte, leste],
+        ],
+        { maxZoom: 17 },
+      );
+    } else {
+      m.mapa.setView([lugar.latitude, lugar.longitude], 17);
     }
   }
 
-  // Carrega o Google Maps e monta o mapa (uma vez por abertura do dialog).
+  // Carrega o Leaflet e monta o mapa (uma vez por abertura do dialog).
   useEffect(() => {
     let cancelado = false;
-    const pararDeOuvir = aoRecusarChave(() => setFase("erro"));
+    let observador: ResizeObserver | null = null;
 
     async function montar() {
-      await carregarGoogleMaps({ chave: config.chave, nonce: config.nonce });
-      const [{ Map, RenderingType }, { AdvancedMarkerElement }, places] = await Promise.all([
-        google.maps.importLibrary("maps") as Promise<google.maps.MapsLibrary>,
-        google.maps.importLibrary("marker") as Promise<google.maps.MarkerLibrary>,
-        google.maps.importLibrary("places") as Promise<google.maps.PlacesLibrary>,
-      ]);
-      // O Geocoding é opcional: sem a API ativa, o endereço do ponto clicado não aparece.
-      const geocoding = (await google.maps
-        .importLibrary("geocoding")
-        .catch(() => null)) as google.maps.GeocodingLibrary | null;
+      const L = await carregarLeaflet();
       if (cancelado || !divMapa.current) return;
-
-      const centro = inicial ? { lat: inicial.latitude, lng: inicial.longitude } : CENTRO_DO_BRASIL;
-      const mapa = new Map(divMapa.current, {
-        center: { lat: centro.lat, lng: centro.lng },
+      const centro: [number, number] = inicial
+        ? [inicial.latitude, inicial.longitude]
+        : [CENTRO_DO_BRASIL.lat, CENTRO_DO_BRASIL.lng];
+      const mapa = L.map(divMapa.current, {
+        center: centro,
         zoom: inicial ? 16 : CENTRO_DO_BRASIL.zoom,
-        mapId: config.idDoMapa,
-        // Raster: o vetorial usa WebGL e workers, que pedem mais da CSP.
-        renderingType: RenderingType.RASTER,
-        streetViewControl: false,
-        mapTypeControl: false,
-        fullscreenControl: false,
-        gestureHandling: "greedy",
-        clickableIcons: true,
       });
-      const marcador = new AdvancedMarkerElement({
-        map: inicial ? mapa : null,
-        position: inicial ? centro : null,
-        gmpDraggable: true,
+      camadaOsm(L, () => setMapaFalhou(true)).addTo(mapa);
+      const marcador = L.marker(centro, {
+        icon: iconeDoMarcador(L),
+        draggable: true,
         title: "Local do evento. Arraste para ajustar.",
+        alt: "Local do evento",
       });
-      marcador.addListener("dragend", () => {
-        if (marcador.position) marcarPonto(latLngDe(marcador.position));
+      if (inicial) marcador.addTo(mapa);
+      marcador.on("dragend", () => {
+        const { lat, lng } = marcador.getLatLng();
+        marcarPonto(lat, lng);
       });
-      mapa.addListener("click", (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent) => {
-        // Clique num lugar do mapa (parque, loja): usa o lugar, sem abrir o balão do Google.
-        if ("placeId" in e && e.placeId) {
-          e.stop();
-          void usarLugar(new places.Place({ id: e.placeId, requestedLanguage: "pt-BR" }));
-        } else if (e.latLng) {
-          marcarPonto(latLngDe(e.latLng));
-        }
-      });
-      maps.current = {
-        mapa,
-        marcador,
-        geocoder: geocoding ? new geocoding.Geocoder() : null,
-        places,
-        sessao: new places.AutocompleteSessionToken(),
-      };
-      setFase((f) => (f === "erro" ? f : "pronto"));
+      mapa.on("click", (e: Leaflet.LeafletMouseEvent) => marcarPonto(e.latlng.lat, e.latlng.lng));
+      motor.current = { L, mapa, marcador };
+      // O dialog abre com animação: o Leaflet precisa medir o tamanho final.
+      observador = new ResizeObserver(() => mapa.invalidateSize());
+      observador.observe(divMapa.current);
+      setMapaPronto(true);
 
-      // Sem ponto, centraliza na cidade digitada no formulário (se o Geocoding estiver ativo).
-      if (!inicial && consultaInicial && maps.current.geocoder) {
-        maps.current.geocoder
-          .geocode({ address: consultaInicial, componentRestrictions: { country: "BR" } })
-          .then(({ results }) => {
-            const viewport = results[0]?.geometry.viewport;
-            if (!cancelado && viewport) mapa.fitBounds(viewport);
-          })
-          .catch(() => {});
+      // Sem ponto, centraliza na cidade digitada no formulário (mesma busca, com cache).
+      if (!inicial && consultaInicial) {
+        const r = await buscarEnderecoAcao(consultaInicial).catch(() => null);
+        const cidade = r?.ok ? r.valor[0] : undefined;
+        if (!cancelado && cidade && !motor.current?.mapa.hasLayer(marcador)) {
+          if (cidade.caixa) {
+            const [sul, norte, oeste, leste] = cidade.caixa;
+            mapa.fitBounds([
+              [sul, oeste],
+              [norte, leste],
+            ]);
+          } else {
+            mapa.setView([cidade.latitude, cidade.longitude], 12);
+          }
+        }
       }
     }
 
     montar().catch(() => {
-      if (!cancelado) setFase("erro");
+      if (!cancelado) setMapaFalhou(true);
     });
     return () => {
       cancelado = true;
-      pararDeOuvir();
+      observador?.disconnect();
       window.clearTimeout(espera.current);
-      const g = maps.current;
-      maps.current = null;
-      if (g) {
-        // Com a chave recusada, o próprio Maps pode falhar ao desmontar; o erro não pode
-        // derrubar a tela (um erro na limpeza do efeito chega à página de erro do React).
-        try {
-          g.marcador.map = null;
-          google.maps.event.clearInstanceListeners(g.mapa);
-          google.maps.event.clearInstanceListeners(g.marcador);
-        } catch {
-          // Nada a fazer: o dialog já está fechando.
-        }
+      const m = motor.current;
+      motor.current = null;
+      try {
+        m?.mapa.remove();
+      } catch {
+        // O dialog já está fechando; um erro aqui não pode derrubar a tela.
       }
     };
-    // Monta uma vez por abertura; as funções abaixo leem o estado por refs.
+    // Monta uma vez por abertura; as funções acima só leem refs e mudam estado.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function digitar(texto: string) {
-    setBusca(texto);
-    setAvisoBusca(null);
-    window.clearTimeout(espera.current);
-    if (texto.trim().length < 3) {
-      setSugestoes([]);
-      setListaAberta(false);
+  async function buscar() {
+    const texto = busca.trim();
+    if (texto.length < 3) {
+      setAviso("Digite pelo menos 3 letras para buscar.");
       return;
     }
-    espera.current = window.setTimeout(() => void sugerir(texto.trim()), 250);
-  }
-
-  async function sugerir(texto: string) {
-    const g = maps.current;
-    if (!g) return;
     const n = ++pedidoBusca.current;
     setBuscando(true);
-    try {
-      const { suggestions } = await g.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
-        input: texto,
-        sessionToken: g.sessao,
-        includedRegionCodes: ["br"],
-        language: "pt-BR",
-        region: "br",
-        locationBias: g.mapa.getBounds() ?? undefined,
-      });
-      if (n !== pedidoBusca.current) return;
-      const lista = suggestions.flatMap((s) =>
-        s.placePrediction
-          ? [
-              {
-                id: s.placePrediction.placeId,
-                principal: s.placePrediction.mainText?.text ?? s.placePrediction.text.text,
-                secundario: s.placePrediction.secondaryText?.text ?? "",
-                previsao: s.placePrediction,
-              },
-            ]
-          : [],
-      );
-      setSugestoes(lista);
-      setAtiva(-1);
-      setListaAberta(true);
-      if (lista.length === 0)
-        setAvisoBusca("Nenhum lugar encontrado. Tente outro nome ou endereço.");
-    } catch {
-      if (n === pedidoBusca.current) setAvisoBusca("A busca não respondeu. Tente de novo.");
-    } finally {
-      if (n === pedidoBusca.current) setBuscando(false);
+    setAviso(null);
+    const r = await buscarEnderecoAcao(texto).catch(() => null);
+    if (n !== pedidoBusca.current) return;
+    setBuscando(false);
+    if (!r || !r.ok) {
+      setResultados([]);
+      setListaAberta(false);
+      setAviso(r?.erro ?? MENSAGEM_BUSCA_INDISPONIVEL);
+      setAnuncio("");
+      return;
     }
+    setResultados(r.valor);
+    setAtiva(r.valor.length > 0 ? 0 : -1);
+    setListaAberta(r.valor.length > 0);
+    if (r.valor.length === 0) {
+      setAviso("Nenhum lugar encontrado. Tente outro nome ou endereço, ou marque o ponto no mapa.");
+    }
+    setAnuncio(
+      r.valor.length === 1
+        ? "1 lugar encontrado. Use as setas para escolher."
+        : `${r.valor.length} lugares encontrados. Use as setas para escolher.`,
+    );
   }
 
-  function escolherSugestao(s: Sugestao) {
-    const g = maps.current;
-    setBusca(s.principal);
+  function escolher(lugar: LugarNoMapa) {
+    ++pedidoPonto.current;
+    window.clearTimeout(espera.current);
+    setProcurandoEndereco(false);
     setListaAberta(false);
-    setSugestoes([]);
-    // O toPlace() leva o token da sessão; o fetchFields encerra a sessão. A próxima busca é outra.
-    void usarLugar(s.previsao.toPlace());
-    if (g) g.sessao = new g.places.AutocompleteSessionToken();
+    setAviso(null);
+    moverMarcador(lugar.latitude, lugar.longitude);
+    enquadrar(lugar);
+    setMarcacao({
+      latitude: lugar.latitude,
+      longitude: lugar.longitude,
+      endereco: lugar.endereco || null,
+      nome: lugar.nome,
+      cidade: lugar.cidade,
+      estado: lugar.estado,
+    });
   }
 
   function teclar(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown" && sugestoes.length > 0) {
+    const visivel = listaAberta && resultados.length > 0;
+    if (e.key === "ArrowDown" && resultados.length > 0) {
       e.preventDefault();
       setListaAberta(true);
-      setAtiva((i) => (i + 1) % sugestoes.length);
-    } else if (e.key === "ArrowUp" && sugestoes.length > 0) {
+      setAtiva((i) => (i + 1) % resultados.length);
+    } else if (e.key === "ArrowUp" && resultados.length > 0) {
       e.preventDefault();
-      setAtiva((i) => (i <= 0 ? sugestoes.length - 1 : i - 1));
+      setListaAberta(true);
+      setAtiva((i) => (i <= 0 ? resultados.length - 1 : i - 1));
     } else if (e.key === "Enter") {
       // Nunca envia o formulário do evento.
       e.preventDefault();
-      const s = sugestoes[ativa] ?? (sugestoes.length === 1 ? sugestoes[0] : undefined);
-      if (listaAberta && s) escolherSugestao(s);
+      if (visivel && resultados[ativa]) escolher(resultados[ativa]);
+      else void buscar();
     }
   }
 
   function confirmar() {
     if (!marcacao) return;
-    const { cidade, estado } = extrairCidadeEstado(marcacao.componentes);
     aoConfirmar({
       ponto: {
         latitude: marcacao.latitude,
         longitude: marcacao.longitude,
-        placeId: marcacao.placeId,
-        enderecoMapa: marcacao.enderecoMapa,
+        enderecoMapa: marcacao.endereco,
       },
-      local: nomeDoLocal(marcacao.componentes, marcacao.nome),
-      cidade,
-      estado,
+      local: marcacao.nome,
+      cidade: marcacao.cidade,
+      estado: marcacao.estado,
     });
   }
 
-  const listaVisivel = listaAberta && sugestoes.length > 0;
+  const listaVisivel = listaAberta && resultados.length > 0;
   const textoDoPonto = marcacao
-    ? (marcacao.enderecoMapa ??
+    ? (marcacao.endereco ??
       (procurandoEndereco
         ? "Procurando o endereço…"
         : `Ponto marcado no mapa (${coordenadasEmTexto(marcacao)})`))
@@ -450,95 +390,119 @@ function PainelMapa({
   return (
     <>
       <div className="flex flex-col gap-3 px-5 pt-4 pb-5">
-        <Dialog.Description id={idDescricao} className="text-sm text-muted-foreground">
+        <Dialog.Description className="text-sm text-muted-foreground">
           Busque pelo nome do lugar ou pelo endereço, ou toque no mapa. Arraste o marcador para
           ajustar o ponto.
         </Dialog.Description>
 
         <div className="relative">
-          <label htmlFor={`${ids}-busca`} className="sr-only">
-            Buscar lugar ou endereço
-          </label>
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            ref={campoBusca}
-            id={`${ids}-busca`}
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={listaVisivel}
-            aria-controls={idLista}
-            aria-activedescendant={listaVisivel && ativa >= 0 ? `${idLista}-${ativa}` : undefined}
-            autoComplete="off"
-            enterKeyHint="search"
-            placeholder="Ex.: Parque Ibirapuera, São Paulo"
-            value={busca}
-            disabled={fase === "erro"}
-            onChange={(e) => digitar(e.target.value)}
-            onKeyDown={teclar}
-            onBlur={() => setListaAberta(false)}
-            onFocus={() => sugestoes.length > 0 && setListaAberta(true)}
-            className="h-11 pr-10 pl-9"
-          />
-          {buscando && (
-            <Loader2
-              aria-hidden="true"
-              className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
-            />
-          )}
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <label htmlFor={`${ids}-busca`} className="sr-only">
+                Buscar lugar ou endereço
+              </label>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                ref={campoBusca}
+                id={`${ids}-busca`}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={listaVisivel}
+                aria-controls={idLista}
+                aria-activedescendant={
+                  listaVisivel && ativa >= 0 ? `${idLista}-${ativa}` : undefined
+                }
+                autoComplete="off"
+                enterKeyHint="search"
+                placeholder="Ex.: Parque Ibirapuera, São Paulo"
+                value={busca}
+                maxLength={200}
+                onChange={(e) => {
+                  setBusca(e.target.value);
+                  setListaAberta(false);
+                }}
+                onKeyDown={teclar}
+                onBlur={() => setListaAberta(false)}
+                className="h-11 pl-9"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="touch"
+              onClick={() => void buscar()}
+              disabled={buscando}
+              className="shrink-0 px-4"
+            >
+              {buscando ? (
+                <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <Search aria-hidden="true" data-icon="inline-start" />
+              )}
+              Buscar
+            </Button>
+          </div>
           <ul
             id={idLista}
             role="listbox"
             aria-label="Lugares encontrados"
             hidden={!listaVisivel}
-            className="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
+            className="absolute inset-x-0 top-full z-[1100] mt-1 max-h-72 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
           >
-            {sugestoes.map((s, i) => (
+            {resultados.map((l, i) => (
               <li
-                key={s.id}
+                key={l.id}
                 id={`${idLista}-${i}`}
                 role="option"
                 aria-selected={i === ativa}
                 // mousedown: escolhe antes do blur do campo fechar a lista.
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  escolherSugestao(s);
+                  escolher(l);
                 }}
                 onMouseEnter={() => setAtiva(i)}
                 className={`flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm ${i === ativa ? "bg-accent text-accent-foreground" : ""}`}
               >
                 <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
                 <span className="flex min-w-0 flex-col">
-                  <span className="font-medium">{s.principal}</span>
-                  {s.secundario && (
-                    <span className="truncate text-muted-foreground">{s.secundario}</span>
+                  <span className="font-medium">{l.nome ?? l.endereco}</span>
+                  {l.nome && l.endereco && (
+                    <span className="text-muted-foreground">{l.endereco}</span>
                   )}
                 </span>
               </li>
             ))}
           </ul>
         </div>
-        {avisoBusca && <p className="text-sm text-muted-foreground">{avisoBusca}</p>}
+        <p className="sr-only" aria-live="polite">
+          {anuncio}
+        </p>
+        {aviso && (
+          <p role="alert" className="text-sm text-muted-foreground">
+            {aviso}
+          </p>
+        )}
 
-        <div className="relative h-[min(360px,45dvh)] w-full overflow-hidden rounded-lg border bg-muted">
+        <div className="relative isolate h-[min(360px,45dvh)] w-full overflow-hidden rounded-lg border bg-muted">
           <div
             ref={divMapa}
             role="region"
             aria-label="Mapa para escolher o local do evento"
             className="size-full"
           />
-          {fase === "carregando" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
+          {!mapaPronto && !mapaFalhou && (
+            <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
               <Loader2 aria-hidden="true" className="size-6 animate-spin" />
               Carregando o mapa…
             </div>
           )}
-          {fase === "erro" && (
+          {mapaFalhou && (
             <div
               role="alert"
-              className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted p-6 text-center"
+              className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-2 bg-muted p-6 text-center"
             >
               <span className="flex size-12 items-center justify-center rounded-full bg-background text-muted-foreground">
                 <MapPinOff aria-hidden="true" className="size-6" />
@@ -572,12 +536,7 @@ function PainelMapa({
         <Dialog.Close render={<Button type="button" variant="outline" size="touch" />}>
           Cancelar
         </Dialog.Close>
-        <Button
-          type="button"
-          size="touch"
-          disabled={!marcacao || fase !== "pronto"}
-          onClick={confirmar}
-        >
+        <Button type="button" size="touch" disabled={!marcacao} onClick={confirmar}>
           <MapPin aria-hidden="true" data-icon="inline-start" />
           Usar este local
         </Button>

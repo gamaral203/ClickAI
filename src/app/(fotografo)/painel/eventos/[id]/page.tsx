@@ -53,7 +53,6 @@ import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
 import { provedorFacial } from "@/lib/reconhecimento";
-import { configDoMapa } from "@/servicos/mapa";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -412,7 +411,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         <FormularioEvento
           eventoId={evento.id}
           categorias={categorias}
-          mapa={await configDoMapa()}
           inicial={{
             titulo: evento.titulo,
             categoriaId: evento.categoriaId,

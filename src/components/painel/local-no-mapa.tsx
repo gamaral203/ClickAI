@@ -5,7 +5,7 @@ import { MapPin } from "lucide-react";
 
 import { DialogoMapa, type EscolhaNoMapa } from "@/components/painel/dialogo-mapa";
 import { Button } from "@/components/ui/button";
-import { coordenadasEmTexto, type ConfigMapa, type PontoNoMapa } from "@/lib/mapa";
+import { coordenadasEmTexto, type PontoNoMapa } from "@/lib/mapa";
 
 function campoDoFormulario(formulario: HTMLFormElement | null, nome: string) {
   const campo = formulario?.elements.namedItem(nome);
@@ -13,18 +13,15 @@ function campoDoFormulario(formulario: HTMLFormElement | null, nome: string) {
 }
 
 /**
- * Campo "Local" com o botão "Escolher no mapa" ao lado e o resumo do ponto escolhido embaixo.
- * Guarda o ponto em campos ocultos (o servidor valida de novo). Sem a chave do Google Maps
- * (`config` nulo), o botão não aparece, mas um ponto já gravado continua no formulário (e pode
- * ser removido). Editar o texto do local à mão não apaga o ponto; só o "Remover".
+ * Campo "Local" com o botão "Escolher no mapa" (OpenStreetMap) ao lado e o resumo do ponto
+ * escolhido embaixo. Guarda o ponto em campos ocultos (o servidor valida de novo). Editar o texto
+ * do local à mão não apaga o ponto; só o "Remover".
  */
 export function LocalNoMapa({
-  config,
   inicial,
   formulario,
   campo,
 }: {
-  config: ConfigMapa | null;
   inicial: PontoNoMapa | null;
   formulario: RefObject<HTMLFormElement | null>;
   /** O <Input> do local, já com nome, valor inicial e mensagens de erro. */
@@ -68,24 +65,21 @@ export function LocalNoMapa({
     <>
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="min-w-0 flex-1">{campo}</div>
-        {config && (
-          <Button
-            ref={botao}
-            type="button"
-            variant="outline"
-            size="touch"
-            onClick={abrir}
-            className="shrink-0"
-          >
-            <MapPin aria-hidden="true" data-icon="inline-start" />
-            Escolher no mapa
-          </Button>
-        )}
+        <Button
+          ref={botao}
+          type="button"
+          variant="outline"
+          size="touch"
+          onClick={abrir}
+          className="shrink-0"
+        >
+          <MapPin aria-hidden="true" data-icon="inline-start" />
+          Escolher no mapa
+        </Button>
       </div>
       {/* Campos ocultos: o servidor confere tudo de novo (src/lib/mapa.ts). */}
       <input type="hidden" name="latitude" value={ponto?.latitude ?? ""} />
       <input type="hidden" name="longitude" value={ponto?.longitude ?? ""} />
-      <input type="hidden" name="placeId" value={ponto?.placeId ?? ""} />
       <input type="hidden" name="enderecoMapa" value={ponto?.enderecoMapa ?? ""} />
       <p role="status" className="sr-only">
         {aviso}
@@ -98,15 +92,13 @@ export function LocalNoMapa({
             {ponto.enderecoMapa ?? `Ponto no mapa (${coordenadasEmTexto(ponto)})`}
           </span>
           <span className="flex">
-            {config && (
-              <button
-                type="button"
-                onClick={abrir}
-                className="inline-flex h-11 items-center rounded-lg px-3 font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                Alterar
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={abrir}
+              className="inline-flex h-11 items-center rounded-lg px-3 font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Alterar
+            </button>
             <button
               type="button"
               onClick={remover}
@@ -117,17 +109,14 @@ export function LocalNoMapa({
           </span>
         </div>
       )}
-      {config && (
-        <DialogoMapa
-          aberto={aberto}
-          aoMudarAberto={setAberto}
-          config={config}
-          inicial={ponto}
-          consultaInicial={consulta}
-          aoConfirmar={confirmar}
-          focoAoFechar={botao}
-        />
-      )}
+      <DialogoMapa
+        aberto={aberto}
+        aoMudarAberto={setAberto}
+        inicial={ponto}
+        consultaInicial={consulta}
+        aoConfirmar={confirmar}
+        focoAoFechar={botao}
+      />
     </>
   );
 }

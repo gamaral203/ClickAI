@@ -36,10 +36,9 @@ import {
 import { urlDoSite } from "@/lib/endereco";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
-import { linkComoChegar, linkVerNoMapa, pontoDoEvento } from "@/lib/mapa";
+import { linkComoChegar, linkVerNoOpenStreetMap, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
 import { lerFiltroGaleria } from "@/lib/validacao";
-import { configDoMapa } from "@/servicos/mapa";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export async function generateMetadata({
@@ -247,13 +246,13 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
 }
 
 /**
- * Bloco "Onde": só no evento com ponto escolhido no Google Maps. Endereço e links do Google Maps
- * sempre; o mapa pequeno só com a chave configurada, carregado quando chega perto da tela.
+ * Bloco "Onde": só no evento com ponto escolhido no mapa. Endereço, mapa pequeno do
+ * OpenStreetMap (carregado quando chega perto da tela) e os links "Como chegar" (Google Maps,
+ * que abre o app de navegação no celular, sem chave) e "Ver no OpenStreetMap".
  */
-async function Onde({ evento }: { evento: EventoResumo }) {
+function Onde({ evento }: { evento: EventoResumo }) {
   const ponto = pontoDoEvento(evento);
   if (!ponto) return null;
-  const mapa = await configDoMapa();
   const link = buttonVariants({ variant: "outline", size: "touch" });
   return (
     <section aria-labelledby="onde" className="flex flex-col gap-4 rounded-xl border p-5">
@@ -266,23 +265,21 @@ async function Onde({ evento }: { evento: EventoResumo }) {
           {ponto.enderecoMapa ?? `${evento.cidade}, ${evento.estado}`}
         </p>
       </div>
-      {mapa && (
-        <MapaDoEvento
-          config={mapa}
-          latitude={ponto.latitude}
-          longitude={ponto.longitude}
-          nome={evento.local}
-        />
-      )}
+      <MapaDoEvento latitude={ponto.latitude} longitude={ponto.longitude} nome={evento.local} />
       <div className="flex flex-wrap gap-3">
         <a href={linkComoChegar(ponto)} target="_blank" rel="noopener noreferrer" className={link}>
           <Navigation aria-hidden="true" data-icon="inline-start" />
           Como chegar
           <span className="sr-only"> (abre o Google Maps em outra aba)</span>
         </a>
-        <a href={linkVerNoMapa(ponto)} target="_blank" rel="noopener noreferrer" className={link}>
+        <a
+          href={linkVerNoOpenStreetMap(ponto)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={link}
+        >
           <ExternalLink aria-hidden="true" data-icon="inline-start" />
-          Ver no Google Maps
+          Ver no OpenStreetMap
           <span className="sr-only"> (abre em outra aba)</span>
         </a>
       </div>
