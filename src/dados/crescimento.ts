@@ -139,7 +139,7 @@ export async function dashboardDoFotografo(fotografoId: string): Promise<Dashboa
 // ---------------------------------------------------------------- Desempenho
 
 export type DesempenhoDoEvento = {
-  evento: Pick<Evento, "id" | "titulo" | "slug" | "status" | "inicioEm">;
+  evento: Pick<Evento, "id" | "titulo" | "slug" | "status" | "inicioEm" | "fimEm">;
   visitas: number;
   carrinhos: number;
   pedidos: number;
@@ -171,6 +171,7 @@ export async function desempenhoDoFotografo(fotografoId: string): Promise<{
       slug: t.eventos.slug,
       status: t.eventos.status,
       inicioEm: t.eventos.inicioEm,
+      fimEm: t.eventos.fimEm,
     })
     .from(t.eventos)
     .where(eq(t.eventos.fotografoId, fotografoId));
@@ -228,7 +229,7 @@ export async function desempenhoDoFotografo(fotografoId: string): Promise<{
       const visitas = m?.visitas ?? 0;
       const pedidos = v?.pedidos ?? 0;
       return {
-        evento: { ...e, inicioEm: iso(e.inicioEm) },
+        evento: { ...e, inicioEm: iso(e.inicioEm), fimEm: iso(e.fimEm) },
         visitas,
         carrinhos: m?.carrinhos ?? 0,
         pedidos,

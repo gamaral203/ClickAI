@@ -1,0 +1,1 @@
+ALTER TABLE "eventos" ALTER COLUMN "fim_em" DROP NOT NULL;

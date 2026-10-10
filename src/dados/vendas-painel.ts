@@ -379,7 +379,7 @@ export type ColaboracaoDoPainel = {
   aceitoEm: string | null;
   evento: Pick<
     Evento,
-    "id" | "titulo" | "slug" | "inicioEm" | "status" | "liberacao" | "liberadoEm"
+    "id" | "titulo" | "slug" | "inicioEm" | "fimEm" | "status" | "liberacao" | "liberadoEm"
   >;
   donoNome: string;
   comissaoDonoPct: number;
@@ -409,6 +409,7 @@ export async function listarColaboracoes(fotografoId: string): Promise<Colaborac
         titulo: l.evento.titulo,
         slug: l.evento.slug,
         inicioEm: iso(l.evento.inicioEm),
+        fimEm: iso(l.evento.fimEm),
         status: l.evento.status,
         liberacao: l.evento.liberacao,
         liberadoEm: iso(l.evento.liberadoEm),

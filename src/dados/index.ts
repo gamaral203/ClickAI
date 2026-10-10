@@ -17,6 +17,7 @@ import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { avatarPadrao } from "@/lib/avatares";
+import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlPublica } from "@/lib/url-publica";
 
@@ -124,11 +125,6 @@ function normalizar(texto: string) {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
-}
-
-/** Data AAAA-MM-DD de um instante, no horário de Brasília. */
-function diaEmBrasilia(iso: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(new Date(iso));
 }
 
 const formatoHora = new Intl.DateTimeFormat("en-CA", {
@@ -367,7 +363,7 @@ async function resumir(
 export type FiltroEventos = {
   /** Busca no título, local, cidade, UF, categoria e fotógrafo, sem diferenciar acentos. */
   busca?: string;
-  /** Dia do evento, AAAA-MM-DD, no horário de Brasília. */
+  /** Dia do evento, AAAA-MM-DD, no horário de Brasília (entre o início e o fim, se houver). */
   data?: string;
   /** Slug da categoria. */
   categoria?: string;
@@ -408,7 +404,8 @@ export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promi
   if (categoriaId === null) return [];
 
   const escolhidos = (await eventosListados())
-    .filter((e) => !filtro.data || diaEmBrasilia(e.inicioEm) === filtro.data)
+    // Evento de vários dias aparece em qualquer um deles; sem data final, só no dia de início.
+    .filter((e) => !filtro.data || eventoNoDia(e, filtro.data))
     .filter((e) => !categoriaId || e.categoriaId === categoriaId)
     .filter((e) => !cidade || normalizar(e.cidade) === cidade)
     .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId);

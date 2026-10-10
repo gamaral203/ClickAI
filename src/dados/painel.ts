@@ -133,7 +133,7 @@ function linhaDoEvento(dados: Partial<DadosDoEvento>): Partial<typeof t.eventos.
   return {
     ...resto,
     ...(inicioEm !== undefined ? { inicioEm: new Date(inicioEm) } : {}),
-    ...(fimEm !== undefined ? { fimEm: new Date(fimEm) } : {}),
+    ...(fimEm !== undefined ? { fimEm: deIso(fimEm) } : {}),
     ...(liberadoEm !== undefined ? { liberadoEm: deIso(liberadoEm) } : {}),
   };
 }

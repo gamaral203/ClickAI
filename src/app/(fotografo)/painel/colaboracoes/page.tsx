@@ -9,7 +9,7 @@ import { TopCliques } from "@/components/painel/top-cliques";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { horaDaRequisicao, listarColaboracoes, topCliquesDoEvento } from "@/dados";
 import { descreverPadrao } from "@/lib/liberacao";
-import { formatarData } from "@/lib/formatar";
+import { formatarPeriodo } from "@/lib/formatar";
 import { modoEnvio } from "@/lib/r2";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -72,8 +72,9 @@ async function Conteudo() {
               <StatusEventoSelo status={c.evento.status} />
             </div>
             <p className="text-sm text-muted-foreground">
-              {formatarData(c.evento.inicioEm)} · de {c.donoNome} · comissão do dono{" "}
-              {c.comissaoDonoPct}% · {c.meusItens} {c.meusItens === 1 ? "foto sua" : "fotos suas"}
+              {formatarPeriodo(c.evento.inicioEm, c.evento.fimEm)} · de {c.donoNome} · comissão do
+              dono {c.comissaoDonoPct}% · {c.meusItens}{" "}
+              {c.meusItens === 1 ? "foto sua" : "fotos suas"}
             </p>
             <div className="flex flex-wrap gap-x-5">
               {c.evento.status === "publicado" && (
