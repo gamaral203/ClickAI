@@ -41,8 +41,7 @@ const BASE = {
 const PONTO = {
   latitude: -23.5874,
   longitude: -46.6576,
-  placeId: "ChIJ-ZpHqbBZzpQRx3pBdIsbr6w",
-  enderecoMapa: "Av. Pedro Álvares Cabral - Vila Mariana, São Paulo - SP, 04094-050, Brasil",
+  enderecoMapa: "Avenida Pedro Álvares Cabral, Vila Mariana, São Paulo – SP",
 };
 
 function slug() {
@@ -50,7 +49,7 @@ function slug() {
 }
 
 describe("local do evento no mapa", () => {
-  it("grava e devolve as coordenadas, o place_id e o endereço do mapa", async () => {
+  it("grava e devolve as coordenadas e o endereço do mapa", async () => {
     const evento = await criarEvento(lia.id, {
       ...BASE,
       ...PONTO,
@@ -62,6 +61,8 @@ describe("local do evento no mapa", () => {
     expect(lido).toMatchObject(PONTO);
     // A precisão do double precision é mantida.
     expect(lido!.latitude).toBe(-23.5874);
+    // place_id (resíduo do Google Maps) continua no banco, mas fora do schema: não aparece.
+    expect(lido).not.toHaveProperty("placeId");
   });
 
   it("evento sem mapa fica com tudo nulo; o Remover limpa o ponto sem mexer no local", async () => {
@@ -69,7 +70,6 @@ describe("local do evento no mapa", () => {
     expect(semMapa).toMatchObject({
       latitude: null,
       longitude: null,
-      placeId: null,
       enderecoMapa: null,
     });
 
@@ -82,7 +82,6 @@ describe("local do evento no mapa", () => {
     const removido = await atualizarEvento(comMapa.id, lia.id, {
       latitude: null,
       longitude: null,
-      placeId: null,
       enderecoMapa: null,
     });
     expect(removido).toMatchObject({ latitude: null, longitude: null, local: BASE.local });
@@ -97,7 +96,7 @@ describe("local do evento no mapa", () => {
   it("a página pública recebe o ponto do evento de exemplo do Ibirapuera", async () => {
     const evento = await buscarEventoPublicado("corrida-ibirapuera-10k-2026");
     expect(evento).toMatchObject({ latitude: -23.5874, longitude: -46.6576 });
-    expect(evento!.enderecoMapa).toContain("São Paulo - SP");
+    expect(evento!.enderecoMapa).toBe("Avenida Pedro Álvares Cabral, Vila Mariana, São Paulo – SP");
   });
 
   it("o modelo do evento guarda o ponto do mapa junto com o local", async () => {

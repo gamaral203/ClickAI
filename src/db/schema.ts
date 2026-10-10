@@ -275,15 +275,17 @@ export const eventos = pgTable(
     cidade: text().notNull(),
     estado: text().notNull(),
     /**
-     * Ponto escolhido no Google Maps (docs/arquitetura.md, "Local no mapa"). Os dois juntos ou
-     * nenhum: sem eles, o evento tem só o texto de local, cidade e estado.
+     * Ponto escolhido no mapa (OpenStreetMap; docs/arquitetura.md, "Local no mapa"). Os dois
+     * juntos ou nenhum: sem eles, o evento tem só o texto de local, cidade e estado.
      */
     latitude: doublePrecision(),
     longitude: doublePrecision(),
-    /** Id do lugar no Google (place_id), para o link "Como chegar" abrir o lugar certo. */
-    placeId: text(),
-    /** Endereço formatado devolvido pelo Google na escolha. */
+    /** Endereço curto do ponto (rua, número, bairro, cidade – UF), vindo do Nominatim. */
     enderecoMapa: text(),
+    // place_id (migração 0020, resíduo do Google Maps) continua no banco, fora do schema: nenhum
+    // código o lê. Sai numa migração de limpeza depois do deploy do OpenStreetMap, porque as
+    // migrações são só aditivas (docs/seguranca.md). Atenção: o próximo `npm run db:gerar` já
+    // inclui o DROP dessa coluna; só gere quando for a hora da limpeza (docs/tarefas.md).
     capa: text(),
     /**
      * Foto de capa escolhida pelo dono (cartões, página do evento, divulgação). Nula: capa
