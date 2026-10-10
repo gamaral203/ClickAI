@@ -56,8 +56,8 @@ export function GradeFotosPainel({
   const [mostrando, setMostrando] = useState(POR_VEZ);
   const router = useRouter();
   const processando = itens.some((item) => item.status === "processando");
-  // Fotos ainda em processamento (o envio processa em segundo plano): atualiza a grade sozinha
-  // até todas ficarem prontas, só com a aba visível.
+  // Fotos que ainda não ficaram prontas (o servidor as termina em segundo plano): atualiza a
+  // grade sozinha até todas ficarem prontas, só com a aba visível.
   useEffect(() => {
     if (!processando) return;
     const intervalo = setInterval(() => {
@@ -122,8 +122,14 @@ function Cartao({
       <div className="relative aspect-square overflow-hidden rounded-md bg-muted">
         {item.status === "pronta" ? (
           <Image src={item.urlMiniatura} alt="" fill sizes="200px" className="object-cover" />
+        ) : item.status === "processando" ? (
+          // A miniatura só existe depois que a foto fica pronta. Enquanto isso, um espaço
+          // esmaecido, sem rótulo: o progresso do envio fica no círculo da tela de envio.
+          <div className="flex size-full items-center justify-center text-muted-foreground/40 motion-safe:animate-pulse">
+            <ImageIcon aria-hidden="true" className="size-8" />
+            <span className="sr-only">Foto ainda chegando</span>
+          </div>
         ) : (
-          // A miniatura só existe depois que a foto foi processada.
           <div className="flex size-full items-center justify-center text-muted-foreground">
             <ImageIcon aria-hidden="true" className="size-8" />
           </div>
@@ -134,9 +140,9 @@ function Cartao({
               Vendida
             </span>
           )}
-          {item.status !== "pronta" && (
+          {item.status === "erro" && (
             <span className="rounded-full bg-background/90 px-2 py-0.5 text-xs font-semibold">
-              {item.status === "processando" ? "Processando" : "Erro"}
+              Erro
             </span>
           )}
         </div>
