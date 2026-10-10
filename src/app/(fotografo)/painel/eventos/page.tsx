@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarPlus, Images } from "lucide-react";
+import { CalendarPlus, ChartColumn, Images } from "lucide-react";
 
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { buttonVariants } from "@/components/ui/button";
@@ -71,16 +71,31 @@ async function Lista() {
             {evento.totalItens} {evento.totalItens === 1 ? "foto" : "fotos"} · {evento.vendidos}{" "}
             {evento.vendidos === 1 ? "vendida" : "vendidas"}
           </p>
-          <Link
-            href={`/painel/eventos/${evento.id}`}
-            className={buttonVariants({
-              variant: "outline",
-              size: "touch",
-              className: "w-full sm:w-auto",
-            })}
-          >
-            Gerenciar
-          </Link>
+          {/* No celular, os dois botões dividem a linha. */}
+          <div className="flex gap-2">
+            <Link
+              href={`/painel/eventos/${evento.id}/desempenho`}
+              aria-label={`Desempenho de ${evento.titulo}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "touch",
+                className: "flex-1 sm:flex-none",
+              })}
+            >
+              <ChartColumn aria-hidden="true" data-icon="inline-start" />
+              Desempenho
+            </Link>
+            <Link
+              href={`/painel/eventos/${evento.id}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "touch",
+                className: "flex-1 sm:flex-none",
+              })}
+            >
+              Gerenciar
+            </Link>
+          </div>
         </li>
       ))}
     </ul>

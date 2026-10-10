@@ -5,15 +5,10 @@ import { Suspense } from "react";
 
 import { Celula, Tabela } from "@/components/admin/tabela";
 import { desempenhoDoFotografo } from "@/dados";
-import { formatarData, formatarPreco } from "@/lib/formatar";
+import { formatarData, formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Desempenho", robots: { index: false, follow: false } };
-
-const porcentagem = new Intl.NumberFormat("pt-BR", {
-  style: "percent",
-  maximumFractionDigits: 1,
-});
 
 export default function PaginaDesempenho() {
   return (
@@ -71,9 +66,7 @@ async function Conteudo() {
               <Celula direita>{e.carrinhos}</Celula>
               <Celula direita>{e.pedidos}</Celula>
               <Celula direita>{e.itensVendidos}</Celula>
-              <Celula direita>
-                {e.conversao === null ? "—" : porcentagem.format(e.conversao)}
-              </Celula>
+              <Celula direita>{formatarPorcentagem(e.conversao)}</Celula>
               <Celula direita forte>
                 {formatarPreco(e.faturamentoCentavos)}
               </Celula>
