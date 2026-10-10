@@ -23,6 +23,7 @@ import {
   hashesDoEvento,
   listarFotosPresas,
   marcarFotoComErro,
+  modeloMarcaDoEvento,
   registrarFotosEmEnvio,
   salvarRostos,
   type ChavesDaFoto,
@@ -406,10 +407,12 @@ export async function confirmarEnvio(
     }
     medir("conferenciaMs");
 
-    // Prévias geradas aqui, no servidor, sempre com marca d'água: nunca vindas do navegador.
+    // Prévias geradas aqui, no servidor, sempre com marca d'água (no modelo do dono do evento):
+    // nunca vindas do navegador.
+    const modelo = await modeloMarcaDoEvento(foto.eventoId);
     let versoes;
     try {
-      versoes = await gerarVersoes(original);
+      versoes = await gerarVersoes(original, modelo);
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }

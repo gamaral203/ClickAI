@@ -212,6 +212,8 @@ export const fotografos = pgTable(
     documentoTrocadoEm: data(),
     /** Comissão da plataforma no saque normal; o antecipado paga mais (src/servicos/saques.ts). */
     comissaoPct: integer().notNull().default(8),
+    /** Modelo de marca d'água das prévias (src/lib/marca-dagua.ts); vale para as próximas fotos. */
+    modeloMarca: text().notNull().default("padrao"),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
 ).enableRLS();
