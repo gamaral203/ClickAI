@@ -39,6 +39,7 @@ import {
   quantasPartes,
   tamanhoDaParte,
 } from "@/lib/limites-envio";
+import { escolhaLiberacaoSchema } from "@/lib/liberacao";
 import {
   abrirEnvioEmPartes,
   ERRO_SEM_ARMAZENAMENTO,
@@ -145,9 +146,13 @@ export async function iniciarEnvio(
   fotografoId: string,
   eventoId: string,
   lista: unknown,
+  liberacao: unknown = null,
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   if (modoEnvio() !== "r2") return { erro: ERRO_SEM_ARMAZENAMENTO };
   if (!z.uuid().safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  // Liberação escolhida para o lote (só vale para o dono; src/dados/liberacao.ts).
+  const escolha = escolhaLiberacaoSchema.nullable().safeParse(liberacao);
+  if (!escolha.success) return { erro: "Escolha quando as fotos aparecem." };
   const dados = lote.safeParse(lista);
   if (!dados.success) {
     if (dados.error.issues.some((i) => i.message === MENSAGEM_RAW)) return { erro: MENSAGEM_RAW };
@@ -170,8 +175,12 @@ export async function iniciarEnvio(
   });
   const novos = dados.data.filter((_, i) => !repetida[i]);
 
-  const ids = await registrarFotosEmEnvio(eventoId, fotografoId, novos, (fotoId, i): ChavesDaFoto =>
-    chavesDaFoto(fotografoId, eventoId, fotoId, novos[i].formato),
+  const ids = await registrarFotosEmEnvio(
+    eventoId,
+    fotografoId,
+    novos,
+    (fotoId, i): ChavesDaFoto => chavesDaFoto(fotografoId, eventoId, fotoId, novos[i].formato),
+    escolha.data,
   );
   if (!ids) return { erro: "Evento não encontrado." };
 

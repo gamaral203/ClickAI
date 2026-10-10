@@ -81,7 +81,11 @@ export async function POST(request: NextRequest) {
     );
     const fotos = await fotosEncontradas(evento.id, fotoIds);
     // Onde está o rosto da pessoa em cada foto: a tela amplia a miniatura nele.
-    const recortes = await caixasDosRostos(rostoIds);
+    // Só das fotos devolvidas: foto ainda não liberada não aparece nem pelo id.
+    const devolvidas = new Set(fotos.map((f) => f.id));
+    const recortes = Object.fromEntries(
+      Object.entries(await caixasDosRostos(rostoIds)).filter(([fotoId]) => devolvidas.has(fotoId)),
+    );
     return resposta({ fotos, recortes, pacote: await ofertaDePacote(evento, fotos) });
   } catch (erro) {
     if (erro instanceof BuscaFacialDesligada) {

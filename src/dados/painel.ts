@@ -3,14 +3,17 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
 import { emProducao } from "@/db/conexao";
 import * as t from "@/db/schema";
 
+import type { EscolhaLiberacao } from "@/lib/liberacao";
+
 import imagens from "./exemplo/imagens.json";
+import { liberacaoParaEnvio } from "./liberacao";
 import { deIso, iso, paraEvento, paraFoto, paraLancamento, paraSaque } from "./mapas";
 import type {
   Categoria,
@@ -231,29 +234,6 @@ export async function listarItensDoPainel(eventoId: string, fotografoId: string)
   }));
 }
 
-/** O fotógrafo pode enviar fotos ao evento: é o dono ou um colaborador dele. */
-async function podeEnviarAoEvento(eventoId: string, fotografoId: string) {
-  const banco = await obterBanco();
-  const [evento] = await banco
-    .select({ dono: t.eventos.fotografoId })
-    .from(t.eventos)
-    .where(eq(t.eventos.id, eventoId));
-  if (!evento) return false;
-  if (evento.dono === fotografoId) return true;
-  const [colaborador] = await banco
-    .select({ id: t.colaboradores.id })
-    .from(t.colaboradores)
-    .where(
-      and(
-        eq(t.colaboradores.eventoId, eventoId),
-        eq(t.colaboradores.fotografoId, fotografoId),
-        // Só depois de aceitar o convite (e as condições).
-        isNotNull(t.colaboradores.aceitoEm),
-      ),
-    );
-  return colaborador !== undefined;
-}
-
 async function ultimaOrdem(eventoId: string) {
   const banco = await obterBanco();
   const [{ ultima }] = await banco
@@ -272,12 +252,15 @@ export async function adicionarItensSimulados(
   eventoId: string,
   fotografoId: string,
   arquivos: { nome: string; tamanhoBytes: number }[],
+  escolha: EscolhaLiberacao | null = null,
 ): Promise<Foto[] | null> {
   // Defesa em profundidade: na produção, item de exemplo nunca entra (docs/tarefas.md, Fase 12).
   if (emProducao()) {
     throw new Error("Envio simulado não existe na produção");
   }
-  if (!(await podeEnviarAoEvento(eventoId, fotografoId))) return null;
+  // Também confere se pode enviar (dono ou colaborador que aceitou).
+  const liberacao = await liberacaoParaEnvio(eventoId, fotografoId, escolha);
+  if (!liberacao) return null;
   const banco = await obterBanco();
   const ultima = await ultimaOrdem(eventoId);
   const agora = Date.now();
@@ -300,6 +283,7 @@ export async function adicionarItensSimulados(
       ordem: ultima + i + 1,
       status: "pronta" as const,
       criadoEm: new Date(agora + i),
+      ...liberacao,
     };
   });
   if (novos.length === 0) return [];
@@ -320,16 +304,20 @@ export type ChavesDaFoto = {
  * Registra as fotos de um envio real, cada uma em `processando`, com o original na chave
  * temporária e o hash informado pelo navegador (conferido depois com o arquivo). Uma foto do
  * mesmo fotógrafo com o mesmo hash que ficou em `processando` ou `erro` (envio que caiu ou
- * falhou) é reaproveitada, em vez de virar outro item. Devolve o id de cada foto, na ordem
- * dos arquivos, ou `null` se o fotógrafo não pode enviar ao evento.
+ * falhou) é reaproveitada, em vez de virar outro item. Cada foto grava a liberação do lote
+ * (`escolha` do dono ou o padrão do evento; src/dados/liberacao.ts). Devolve o id de cada foto,
+ * na ordem dos arquivos, ou `null` se o fotógrafo não pode enviar ao evento.
  */
 export async function registrarFotosEmEnvio(
   eventoId: string,
   fotografoId: string,
   arquivos: { nome: string; tamanhoBytes: number; hash: string }[],
   chaves: (fotoId: string, indice: number) => ChavesDaFoto,
+  escolha: EscolhaLiberacao | null = null,
 ): Promise<string[] | null> {
-  if (!(await podeEnviarAoEvento(eventoId, fotografoId))) return null;
+  // Também confere se pode enviar (dono ou colaborador que aceitou).
+  const liberacao = await liberacaoParaEnvio(eventoId, fotografoId, escolha);
+  if (!liberacao) return null;
   if (arquivos.length === 0) return [];
   const banco = await obterBanco();
   const pendentes = await banco
@@ -370,6 +358,8 @@ export async function registrarFotosEmEnvio(
       status: "processando" as const,
       envioIniciadoEm: new Date(agora),
       erroMensagem: null,
+      ...liberacao,
+      avisoLiberacaoEm: null,
     };
     if (existente) {
       await banco.update(t.fotos).set(dados).where(eq(t.fotos.id, existente));

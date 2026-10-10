@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { formatarPreco } from "@/lib/formatar";
+import { rotuloDaLiberacao, type EstadoLiberacao } from "@/lib/liberacao";
 
 export type ItemDoPainel = {
   id: string;
@@ -26,6 +27,15 @@ export type ItemDoPainel = {
   /** Preço do evento para o tipo do item. */
   precoEventoCentavos: number;
   pastaId: string | null;
+  /** Liberação da foto, calculada no servidor (src/lib/liberacao.ts). */
+  estadoLiberacao: EstadoLiberacao;
+  liberarEm: string | null;
+};
+
+/** Seleção de fotos para liberar ou agendar (só o dono do evento). */
+export type SelecaoDeFotos = {
+  selecionados: ReadonlySet<string>;
+  alternar: (id: string) => void;
 };
 
 type PastaOpcao = { id: string; nome: string };
@@ -33,9 +43,13 @@ type PastaOpcao = { id: string; nome: string };
 export function GradeFotosPainel({
   itens,
   pastas,
+  selecao,
+  vazio = "Nenhuma foto enviada ainda.",
 }: {
   itens: ItemDoPainel[];
   pastas: PastaOpcao[];
+  selecao?: SelecaoDeFotos;
+  vazio?: string;
 }) {
   // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
   // celular, eram dezenas de milhares de pixels) nem pesada de carregar.
@@ -54,7 +68,7 @@ export function GradeFotosPainel({
   if (itens.length === 0) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-        Nenhuma foto enviada ainda.
+        {vazio}
       </p>
     );
   }
@@ -63,7 +77,7 @@ export function GradeFotosPainel({
     <div className="flex flex-col items-center gap-4">
       <ul className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {itens.slice(0, mostrando).map((item) => (
-          <Cartao key={item.id} item={item} pastas={pastas} />
+          <Cartao key={item.id} item={item} pastas={pastas} selecao={selecao} />
         ))}
       </ul>
       {restantes > 0 && (
@@ -79,7 +93,15 @@ const POR_VEZ = 24;
 /** Intervalo da atualização automática enquanto há fotos em processamento. */
 const ATUALIZAR_A_CADA_MS = 15_000;
 
-function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) {
+function Cartao({
+  item,
+  pastas,
+  selecao,
+}: {
+  item: ItemDoPainel;
+  pastas: PastaOpcao[];
+  selecao?: SelecaoDeFotos;
+}) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -122,6 +144,18 @@ function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) 
       <p className="truncate text-xs text-muted-foreground" title={item.nomeArquivo}>
         {item.nomeArquivo}
       </p>
+      <SeloLiberacao item={item} />
+      {selecao && item.estadoLiberacao !== "liberada" && (
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium">
+          <input
+            type="checkbox"
+            checked={selecao.selecionados.has(item.id)}
+            onChange={() => selecao.alternar(item.id)}
+            className="size-5 accent-primary"
+          />
+          Selecionar
+        </label>
+      )}
       {item.status === "erro" && item.erroMensagem && (
         <p className="text-xs text-destructive">{item.erroMensagem}</p>
       )}
@@ -171,6 +205,21 @@ function Cartao({ item, pastas }: { item: ItemDoPainel; pastas: PastaOpcao[] }) 
         </p>
       )}
     </li>
+  );
+}
+
+/** Estado da liberação: o texto diz tudo (a cor só acompanha). */
+function SeloLiberacao({ item }: { item: ItemDoPainel }) {
+  const classe =
+    item.estadoLiberacao === "liberada"
+      ? "bg-accent text-accent-foreground"
+      : item.estadoLiberacao === "agendada"
+        ? "bg-primary/10 text-primary"
+        : "bg-highlight/40 text-highlight-foreground";
+  return (
+    <p className={`w-fit rounded-full px-2 py-0.5 text-xs font-medium ${classe}`}>
+      {rotuloDaLiberacao(item.estadoLiberacao, item.liberarEm)}
+    </p>
   );
 }
 

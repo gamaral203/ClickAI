@@ -18,7 +18,7 @@ import { gatewayConfigurado } from "@/lib/gateway";
 
 import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
 import { revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
-import { enviarLembrete, enviarLembretePix } from "./mensagens";
+import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
 import { sincronizarPedido } from "./pagamentos";
 import { conferirSaques } from "./saques";
 
@@ -43,11 +43,19 @@ export type ResultadoJobPedidos = {
   pagos: number;
   lembretes: number;
   lembretesPix: number;
+  /** E-mails de lote agendado liberado (ao dono e aos colaboradores). */
+  avisosLiberacao: number;
 };
 
 export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
   const agora = Date.now();
-  const resultado: ResultadoJobPedidos = { expirados: 0, pagos: 0, lembretes: 0, lembretesPix: 0 };
+  const resultado: ResultadoJobPedidos = {
+    expirados: 0,
+    pagos: 0,
+    lembretes: 0,
+    lembretesPix: 0,
+    avisosLiberacao: 0,
+  };
 
   // 0. Lembrete do Pix ainda dentro do prazo, uma vez por pedido.
   for (const pedido of await listarPixParaLembrar(agora, ESPERA_LEMBRETE_PIX_MS)) {
@@ -76,6 +84,14 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     if (!(await marcarLembreteEnviado(pedido.id))) continue;
     await enviarLembrete(pedido);
     resultado.lembretes++;
+  }
+
+  // 3. Aviso de lote agendado liberado. As fotos já apareceram no minuto certo (a galeria compara
+  // o horário na consulta); o job só avisa, uma vez por lote. Uma falha aqui não para o resto.
+  try {
+    resultado.avisosLiberacao = await avisarLotesLiberados(agora);
+  } catch (erro) {
+    console.error("[jobs] falha ao avisar os lotes liberados", erro);
   }
 
   await apagarTentativasAntigas(agora - VALIDADE_TENTATIVAS_MS);

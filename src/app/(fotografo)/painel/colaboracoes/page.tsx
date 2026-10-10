@@ -7,7 +7,8 @@ import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { ResponderConvite } from "@/components/painel/responder-convite";
 import { TopCliques } from "@/components/painel/top-cliques";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
-import { listarColaboracoes, topCliquesDoEvento } from "@/dados";
+import { horaDaRequisicao, listarColaboracoes, topCliquesDoEvento } from "@/dados";
+import { descreverPadrao } from "@/lib/liberacao";
 import { formatarData } from "@/lib/formatar";
 import { modoEnvio } from "@/lib/r2";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -50,6 +51,7 @@ async function Conteudo() {
     ),
   );
   const modo = modoEnvio();
+  const agora = await horaDaRequisicao();
 
   if (colaboracoes.length === 0) {
     return (
@@ -97,7 +99,16 @@ async function Conteudo() {
           {c.aceitoEm ? (
             <>
               <TopCliques posicoes={rankings.get(c.evento.id) ?? []} destaque={conta.id} />
-              <EnvioFotos eventoId={c.evento.id} modo={modo} />
+              <EnvioFotos
+                eventoId={c.evento.id}
+                modo={modo}
+                liberacao={{
+                  modo: c.evento.liberacao,
+                  em: "",
+                  podeEscolher: false,
+                  descricao: descreverPadrao(c.evento.liberacao, c.evento.liberadoEm, agora),
+                }}
+              />
             </>
           ) : (
             <div className="flex flex-col gap-3 rounded-lg border border-highlight-foreground/20 bg-highlight/20 p-4">

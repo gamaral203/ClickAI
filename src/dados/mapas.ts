@@ -68,7 +68,7 @@ export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {
 }
 
 export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
-  const f = omitir(r, "chaveOriginal", "tamanhoBytes", "hashConteudo");
+  const f = omitir(r, "chaveOriginal", "tamanhoBytes", "hashConteudo", "avisoLiberacaoEm");
   return {
     ...f,
     urlPrevia: urlPublica(f.urlPrevia),
@@ -76,6 +76,7 @@ export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
     capturadaEm: iso(f.capturadaEm),
     criadoEm: iso(f.criadoEm),
     excluidaEm: iso(f.excluidaEm),
+    liberarEm: iso(f.liberarEm),
   };
 }
 

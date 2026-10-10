@@ -64,14 +64,12 @@ export async function semear(banco: Banco) {
       mfaAtivadoEm: data(u.mfaAtivadoEm ?? null),
     })),
   );
-  await banco
-    .insert(t.fotografos)
-    .values(
-      exemplo.fotografos.map((f) => ({
-        ...f,
-        documentoTrocadoEm: data(f.documentoTrocadoEm ?? null),
-      })),
-    );
+  await banco.insert(t.fotografos).values(
+    exemplo.fotografos.map((f) => ({
+      ...f,
+      documentoTrocadoEm: data(f.documentoTrocadoEm ?? null),
+    })),
+  );
   await banco.insert(t.categorias).values(exemplo.categorias);
   await banco.insert(t.eventos).values(
     exemplo.eventos.map((e) => ({
@@ -94,6 +92,9 @@ export async function semear(banco: Banco) {
         capturadaEm: data(f.capturadaEm),
         criadoEm: new Date(f.criadoEm),
         excluidaEm: data(f.excluidaEm),
+        liberarEm: data(f.liberarEm),
+        // Liberações de exemplo que já passaram não geram aviso.
+        avisoLiberacaoEm: data(f.liberarEm),
       })),
     ),
   );

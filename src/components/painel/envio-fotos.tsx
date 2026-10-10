@@ -14,6 +14,7 @@ import {
   type FaixaDeConcorrencia,
 } from "@/lib/concorrencia-adaptativa";
 import { impressaoDoBlob } from "@/lib/impressao-arquivo";
+import { instanteDoCampo, type EscolhaLiberacao, type ModoLiberacao } from "@/lib/liberacao";
 import {
   FOTOS_POR_LOTE,
   LIMITE_FOTO_BYTES,
@@ -323,8 +324,32 @@ function lotesDoEnvio(indices: number[]) {
 
 const ENVIAVEL: Estado[] = ["aguardando", "erro"];
 
-export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnvio }) {
+/** Liberação dos próximos envios: o padrão do evento e se quem envia pode trocar (só o dono). */
+export type LiberacaoDoEnvio = {
+  modo: ModoLiberacao;
+  /** Horário padrão da agendada, no formato do campo (Brasília), ou "". */
+  em: string;
+  podeEscolher: boolean;
+  /** Ex.: "Agendada para 16:00 de 10/10", para quem não pode escolher. */
+  descricao: string;
+};
+
+export function EnvioFotos({
+  eventoId,
+  modo,
+  liberacao,
+}: {
+  eventoId: string;
+  modo: ModoEnvio;
+  liberacao?: LiberacaoDoEnvio;
+}) {
   const router = useRouter();
+  // Liberação deste lote: começa no padrão do evento; o dono pode trocar antes de enviar.
+  const [modoLote, setModoLote] = useState<ModoLiberacao>(liberacao?.modo ?? "automatica");
+  const [emLote, setEmLote] = useState(liberacao?.em ?? "");
+  const [horarioPassado, setHorarioPassado] = useState(false);
+  /** Escolha fixada no início do envio: o "tentar de novo" usa a mesma. */
+  const escolhaDoEnvio = useRef<EscolhaLiberacao | null>(null);
   /** Os itens ficam fora do estado do React: com milhares de fotos, cada progresso de envio
    *  copiaria a lista inteira. A tela redesenha em intervalos curtos (redesenhar). */
   const itens = useRef<Item[]>([]);
@@ -487,6 +512,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         hash: itens.current[i].hash,
         formato: itens.current[i].formato,
       })),
+      escolhaDoEnvio.current,
     ).catch(() => ({ erro: "A conexão caiu. Tente de novo." }));
     telemetria.current.urls.lotes++;
     telemetria.current.urls.fotos += lote.length;
@@ -829,6 +855,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           formato: itens.current[i].formato,
           ...(itens.current[i].hash && { hash: itens.current[i].hash }),
         })),
+        escolhaDoEnvio.current,
       ).catch(() => ({ erro: "A conexão caiu." }));
       if (resultado.erro) return resultado.erro;
       for (const i of validos) {
@@ -836,6 +863,26 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       }
     }
     return null;
+  }
+
+  /** Começa o envio com a liberação escolhida; agendada no passado não começa. */
+  function comecar(indices: number[]) {
+    setHorarioPassado(false);
+    if (liberacao?.podeEscolher) {
+      if (modoLote === "agendada") {
+        const em = instanteDoCampo(emLote);
+        if (!em || em.getTime() <= Date.now()) {
+          setHorarioPassado(true);
+          return;
+        }
+        escolhaDoEnvio.current = { modo: "agendada", em: emLote };
+      } else {
+        escolhaDoEnvio.current = { modo: modoLote };
+      }
+    } else {
+      escolhaDoEnvio.current = null;
+    }
+    void enviar(indices);
   }
 
   async function enviar(indices: number[]) {
@@ -1035,12 +1082,34 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
             </p>
           )}
 
+          {!comecou && liberacao && (
+            <EscolhaDaLiberacao
+              eventoId={eventoId}
+              liberacao={liberacao}
+              modo={modoLote}
+              em={emLote}
+              aoMudarModo={(m) => {
+                setModoLote(m);
+                setHorarioPassado(false);
+              }}
+              aoMudarEm={(v) => {
+                setEmLote(v);
+                setHorarioPassado(false);
+              }}
+              horarioPassado={horarioPassado}
+              aoLiberarAgora={() => {
+                setModoLote("automatica");
+                setHorarioPassado(false);
+              }}
+            />
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             {!comecou && (
               <Button
                 size="touch"
                 disabled={enviando || indisponivel || paraEnviar.length === 0}
-                onClick={() => void enviar(paraEnviar)}
+                onClick={() => comecar(paraEnviar)}
               >
                 {paraEnviar.length === 0
                   ? "Nenhuma foto válida"
@@ -1127,6 +1196,96 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         </p>
       )}
     </div>
+  );
+}
+
+const OPCOES_LIBERACAO: { valor: ModoLiberacao; rotulo: string; ajuda: string }[] = [
+  { valor: "automatica", rotulo: "Automática", ajuda: "cada foto aparece assim que fica pronta" },
+  { valor: "manual", rotulo: "Manual", ajuda: "ficam guardadas até você clicar em Liberar agora" },
+  { valor: "agendada", rotulo: "Agendada", ajuda: "aparecem sozinhas na data e hora escolhidas" },
+];
+
+/** Quando as fotos deste envio aparecem. O colaborador só vê o padrão do dono. */
+function EscolhaDaLiberacao({
+  eventoId,
+  liberacao,
+  modo,
+  em,
+  aoMudarModo,
+  aoMudarEm,
+  horarioPassado,
+  aoLiberarAgora,
+}: {
+  eventoId: string;
+  liberacao: LiberacaoDoEnvio;
+  modo: ModoLiberacao;
+  em: string;
+  aoMudarModo: (m: ModoLiberacao) => void;
+  aoMudarEm: (v: string) => void;
+  horarioPassado: boolean;
+  aoLiberarAgora: () => void;
+}) {
+  if (!liberacao.podeEscolher) {
+    return (
+      <p className="text-muted-foreground">
+        <strong className="text-foreground">Quando aparecem:</strong> {liberacao.descricao}. Quem
+        decide é o dono do evento.
+      </p>
+    );
+  }
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 font-medium">Quando estas fotos aparecem para o público</legend>
+      <div className="flex flex-col gap-1">
+        {OPCOES_LIBERACAO.map((o) => (
+          <label key={o.valor} className="flex min-h-11 cursor-pointer items-center gap-2">
+            <input
+              type="radio"
+              name={`liberacao-${eventoId}`}
+              value={o.valor}
+              checked={modo === o.valor}
+              onChange={() => aoMudarModo(o.valor)}
+              className="size-5 accent-primary"
+            />
+            <span>
+              <strong>{o.rotulo}:</strong> {o.ajuda}
+              {o.valor === liberacao.modo && (
+                <span className="text-muted-foreground"> (padrão do evento)</span>
+              )}
+            </span>
+          </label>
+        ))}
+      </div>
+      {modo === "agendada" && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`liberar-lote-${eventoId}`} className="font-medium">
+            Liberar em (horário de Brasília)
+          </label>
+          <input
+            id={`liberar-lote-${eventoId}`}
+            type="datetime-local"
+            value={em}
+            onChange={(e) => aoMudarEm(e.target.value)}
+            aria-invalid={horarioPassado}
+            className="h-11 w-full max-w-xs rounded-md border border-input bg-transparent px-3 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </div>
+      )}
+      {horarioPassado && (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 text-destructive sm:flex-row sm:items-center"
+        >
+          <span>
+            {em ? "Esse horário já passou." : "Escolha a data e a hora."} Escolha um horário no
+            futuro ou libere as fotos assim que ficarem prontas.
+          </span>
+          <Button size="sm" variant="outline" onClick={aoLiberarAgora}>
+            Liberar ao ficarem prontas
+          </Button>
+        </div>
+      )}
+    </fieldset>
   );
 }
 
