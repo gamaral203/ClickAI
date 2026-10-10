@@ -51,7 +51,7 @@ export function ImagensDaLoja({ capa, logo }: { capa: string | null; logo: strin
         <CampoImagem
           campo="fotoPerfil"
           rotulo="Logo ou foto de perfil"
-          ajuda="Quadrada, aparece num círculo ao lado do nome."
+          ajuda="Quadrada, aparece num círculo ao lado do nome. Sem ela, aparece o avatar escolhido em Perfil e recebimento."
           atual={logo}
           formato="aspect-square max-w-40 rounded-full"
         />

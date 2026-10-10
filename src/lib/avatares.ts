@@ -64,3 +64,19 @@ export function urlDoAvatar(fotografo: {
   if (fotografo.fotoPerfil) return urlPublica(fotografo.fotoPerfil);
   return avatarDoFotografo(fotografo).url;
 }
+
+/**
+ * Imagem do perfil no topo da página pública e da loja: a foto enviada, com o texto alternativo
+ * do logo, ou o avatar, decorativo (o nome aparece logo ao lado).
+ */
+export function logoDoFotografo(
+  fotografo: {
+    id: string;
+    nomePublico: string;
+    fotoPerfil?: string | null;
+    avatar?: string | null;
+  },
+  nome = fotografo.nomePublico,
+): { url: string; alt: string } {
+  return { url: urlDoAvatar(fotografo), alt: fotografo.fotoPerfil ? `Logo de ${nome}` : "" };
+}
