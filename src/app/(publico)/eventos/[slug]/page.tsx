@@ -23,7 +23,9 @@ import {
 import { urlDoSite } from "@/lib/endereco";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { podeComprar } from "@/lib/navegacao";
 import { lerFiltroGaleria } from "@/lib/validacao";
+import { usuarioAtual } from "@/servicos/sessao";
 
 export async function generateMetadata({
   params,
@@ -157,11 +159,15 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
   if (situacao.tipo === "senha") {
     return <FormularioSenhaEvento slug={evento.slug} />;
   }
+  // Quem vende vê a busca como o cliente, mas sem os botões de compra (conta de fotógrafo não
+  // compra; a regra vale no checkout).
+  const [temNumeros, usuario] = await Promise.all([eventoTemNumeros(evento.id), usuarioAtual()]);
   const busca = (
     <BuscaNoEvento
       slug={evento.slug}
       tituloEvento={evento.titulo}
-      temNumeros={await eventoTemNumeros(evento.id)}
+      temNumeros={temNumeros}
+      podeComprar={podeComprar(usuario)}
     />
   );
   if (situacao.tipo === "so_apos_busca") {

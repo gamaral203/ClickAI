@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { papelEscolhido, type PapelCadastro } from "@/lib/cadastro";
+import { podeComprar } from "@/lib/navegacao";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { senhaNovaSchema } from "@/lib/regras-senha";
 import { reenviarCodigo, type ResultadoEnvioCodigo } from "@/servicos/confirmacao-email";
@@ -193,7 +194,11 @@ export async function confirmarCodigoEmailAcao(
   }
   if (resultado.pedeCodigo) redirect("/entrar/codigo");
   const { usuario, proximo, vinculados, novo } = resultado;
-  if (vinculados > 0 && !proximo) redirect(`/minhas-compras?vinculadas=${vinculados}`);
+  // Compras de convidado ligadas à conta: o cliente vê em Minhas compras. Quem vende segue para o
+  // painel (conta de fotógrafo não compra; os pedidos continuam abrindo pelo link do e-mail).
+  if (vinculados > 0 && !proximo && podeComprar(usuario)) {
+    redirect(`/minhas-compras?vinculadas=${vinculados}`);
+  }
   redirect(
     novo
       ? destinoDoCadastro(proximo, usuario.papel)
@@ -234,6 +239,15 @@ export async function comecarAVenderAcao() {
 export async function sairAcao() {
   await sair();
   redirect("/");
+}
+
+/**
+ * "Sair para comprar", nas telas de compra abertas por quem vende: conta de fotógrafo não compra,
+ * então a pessoa sai e volta ao carrinho (guardado no navegador) como convidada.
+ */
+export async function sairParaComprarAcao() {
+  await sair();
+  redirect("/carrinho");
 }
 
 /** "Sair de todos os dispositivos": derruba todas as sessões da conta, inclusive esta. */

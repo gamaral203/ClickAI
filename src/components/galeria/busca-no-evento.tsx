@@ -11,6 +11,7 @@ import {
   MAXIMO_ITENS,
   useCarrinho,
 } from "@/components/carrinho/carrinho";
+import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { enviarMetrica } from "@/components/metricas/registrar";
 import { DialogoBuscaFacial } from "@/components/galeria/dialogo-busca-facial";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
@@ -58,11 +59,14 @@ export function BuscaNoEvento({
   slug,
   tituloEvento,
   temNumeros,
+  podeComprar = true,
 }: {
   slug: string;
   tituloEvento: string;
   /** Mostra a busca por número de peito (eventos de corrida). */
   temNumeros: boolean;
+  /** `false` para quem vende: no lugar do pacote e do "Adicionar todas", um aviso. */
+  podeComprar?: boolean;
 }) {
   const [aba, setAba] = useState<"selfie" | "numero">("selfie");
   const [dialogoAberto, setDialogoAberto] = useState(false);
@@ -223,7 +227,9 @@ export function BuscaNoEvento({
                 : "Nenhuma foto com esse número."
               : `${resultado.fotos.length} ${resultado.fotos.length === 1 ? "foto encontrada" : "fotos encontradas"}`}
           </p>
-          {resultado.pacote ? (
+          {!podeComprar ? (
+            resultado.fotos.length > 0 && <AvisoVendoComoFotografo />
+          ) : resultado.pacote ? (
             <OfertaPacote oferta={resultado.pacote} />
           ) : (
             resultado.fotos.length > 1 && (

@@ -13,13 +13,16 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { autoresPorId, buscarFotoPublica } from "@/dados";
 import { formatarData, formatarPreco } from "@/lib/formatar";
+import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
+import { usuarioAtual } from "@/servicos/sessao";
 
 async function carregar(id: string) {
   return ehIdValido(id) ? buscarFotoPublica(id) : null;
@@ -56,7 +59,9 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   if (!dados) notFound();
   const { foto, evento, precoCentavos, posicao, anteriorId, proximaId } = dados;
   // Crédito ao autor: quem fez a foto, que pode não ser o dono do evento (evento colaborativo).
-  const autor = (await autoresPorId([foto.enviadaPor])).get(foto.enviadaPor);
+  // Quem vende vê a página como o cliente, mas sem o botão de compra (conta de fotógrafo não compra).
+  const [autores, usuario] = await Promise.all([autoresPorId([foto.enviadaPor]), usuarioAtual()]);
+  const autor = autores.get(foto.enviadaPor);
   const descricao = posicao ? `Foto ${posicao} de ${evento.titulo}` : `Foto de ${evento.titulo}`;
 
   return (
@@ -132,7 +137,11 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
                 Pagamento por Pix ou cartão
               </li>
             </ul>
-            <BotaoAdicionar fotoId={foto.id} />
+            {podeComprar(usuario) ? (
+              <BotaoAdicionar fotoId={foto.id} />
+            ) : (
+              <AvisoVendoComoFotografo />
+            )}
           </div>
 
           {posicao && (

@@ -67,7 +67,8 @@ async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "search
           <h2 className="text-lg font-semibold">Quer vender com a conta que você já tem?</h2>
           <p className="text-sm text-muted-foreground">
             Você entrou como <strong>{usuario.email}</strong>, uma conta de comprador. Ative a venda
-            para abrir o painel do fotógrafo com esta mesma conta; suas compras continuam nela.
+            para abrir o painel do fotógrafo com esta mesma conta. Conta de fotógrafo não compra
+            fotos: as compras já feitas continuam abrindo pelo link enviado por e-mail.
           </p>
           <form action={comecarAVenderAcao}>
             <Button type="submit" size="touch">
