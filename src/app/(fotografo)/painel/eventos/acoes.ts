@@ -17,13 +17,17 @@ import {
   excluirModelo,
   hashesDoEvento,
   listarCategorias,
+  moverAgendamentoPadrao,
+  mudarLiberacao,
   mudarStatusDoEvento,
   registrarHashes,
   salvarModeloDoEvento,
+  situacaoDasFotos,
   slugDeEventoEmUso,
   type DadosDoEvento,
 } from "@/dados";
 import { campoParaIso } from "@/lib/datas";
+import { escolhaLiberacaoSchema } from "@/lib/liberacao";
 import { reaisParaCentavos } from "@/lib/dinheiro";
 import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES, LIMITE_FOTO_TEXTO } from "@/lib/limites-envio";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, r2Configurado, removerOriginal } from "@/lib/r2";
@@ -134,13 +138,24 @@ export async function salvarEventoAcao(
   }
   if (senha && senha.length < 4) return { erros: { senha: "Use pelo menos 4 caracteres." } };
 
+  // Liberação: é o padrão dos próximos envios (cada foto guarda a sua; src/dados/liberacao.ts).
+  // Na agendada, o horário (de Brasília) precisa estar no futuro, a não ser que não tenha mudado.
   let liberadoEm: string | null = null;
+  const agora = Date.now();
+  const anterior =
+    existente?.liberacao === "agendada" && existente.liberadoEm ? existente.liberadoEm : null;
   if (d.liberacao === "agendada") {
     liberadoEm = d.liberadoEm ? campoParaIso(d.liberadoEm) : null;
     if (!liberadoEm) return { erros: { liberadoEm: "Informe quando as fotos serão liberadas." } };
-  } else if (d.liberacao === "manual") {
-    // Manual: continua como estava até o fotógrafo clicar em "Liberar agora".
-    liberadoEm = existente?.liberacao === "manual" ? existente.liberadoEm : null;
+    const mudou = !anterior || new Date(anterior).getTime() !== new Date(liberadoEm).getTime();
+    if (mudou && new Date(liberadoEm).getTime() <= agora) {
+      return {
+        erros: {
+          liberadoEm:
+            "Esse horário já passou. Escolha um horário no futuro ou use “Liberar agora” nas fotos.",
+        },
+      };
+    }
   }
 
   const dados: Omit<DadosDoEvento, "slug"> = {
@@ -167,6 +182,10 @@ export async function salvarEventoAcao(
   if (existente) {
     await atualizarEvento(existente.id, conta.id, dados);
     id = existente.id;
+    // Fotos que seguiam o horário padrão antigo (ainda não liberadas) vão para o novo.
+    if (anterior && liberadoEm && new Date(anterior).getTime() !== new Date(liberadoEm).getTime()) {
+      await moverAgendamentoPadrao(id, conta.id, new Date(anterior), new Date(liberadoEm), agora);
+    }
   } else {
     const evento = await criarEvento(conta.id, { ...dados, slug: await slugDisponivel(d) });
     id = evento.id;
@@ -249,15 +268,14 @@ export async function excluirEventoAcao(eventoId: string): Promise<{ erro?: stri
   return {};
 }
 
-/** Libera agora as fotos de um evento com liberação manual. */
+/** Libera agora todas as fotos ainda não liberadas do evento (manuais e agendadas). */
 export async function liberarAgoraAcao(eventoId: string): Promise<{ erro?: string }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
-  const evento = await buscarEventoDoFotografo(eventoId, conta.id);
-  if (!evento || evento.liberacao !== "manual")
-    return { erro: "Este evento não usa liberação manual." };
-  await atualizarEvento(eventoId, conta.id, { liberadoEm: new Date().toISOString() });
+  const alteradas = await mudarLiberacao(eventoId, conta.id, { acao: "liberar" }, null, Date.now());
+  if (alteradas === null) return { erro: "Evento não encontrado." };
   revalidatePath(`/painel/eventos/${eventoId}`);
+  revalidatePath("/painel/colaboracoes");
   return {};
 }
 
@@ -295,12 +313,15 @@ const arquivos = z
 export async function enviarFotosAcao(
   eventoId: string,
   lista: unknown,
+  liberacao: unknown = null,
 ): Promise<{ erro?: string; enviados?: number; repetidas?: number }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   const modo = modoEnvio();
   if (modo === "indisponivel") return { erro: ERRO_SEM_ARMAZENAMENTO };
   if (modo === "r2") return { erro: "Atualize a página para enviar as fotos." };
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  const escolha = escolhaLiberacaoSchema.nullable().safeParse(liberacao);
+  if (!escolha.success) return { erro: "Escolha quando as fotos aparecem." };
   const dados = arquivos.safeParse(lista);
   if (!dados.success) {
     return { erro: `Envie fotos JPEG, PNG, WebP, TIFF ou AVIF de até ${LIMITE_FOTO_TEXTO} cada.` };
@@ -318,7 +339,7 @@ export async function enviarFotosAcao(
   const repetidas = dados.data.length - novos.length;
   if (novos.length === 0) return { enviados: 0, repetidas };
 
-  const criados = await adicionarItensSimulados(eventoId, conta.id, novos);
+  const criados = await adicionarItensSimulados(eventoId, conta.id, novos, escolha.data);
   if (!criados) return { erro: "Evento não encontrado." };
   await registrarHashes(
     eventoId,
@@ -341,12 +362,44 @@ export async function enviarFotosAcao(
 export async function iniciarEnvioAcao(
   eventoId: string,
   lista: unknown,
+  liberacao: unknown = null,
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   if (await limiteAtingido("url_envio_usuario", conta.id)) {
     return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
   }
-  return iniciarEnvio(conta.id, eventoId, lista);
+  return iniciarEnvio(conta.id, eventoId, lista, liberacao);
+}
+
+/** Fotos por consulta da situação do envio (a tela divide as que acompanha). */
+const FOTOS_POR_CONSULTA = 500;
+const idsDasFotos = z.array(z.uuid()).min(1).max(FOTOS_POR_CONSULTA);
+
+export type SituacaoDaFotoEnviada = {
+  id: string;
+  status: "processando" | "pronta" | "erro";
+  erro: string | null;
+};
+
+/**
+ * Situação das fotos que a tela de envio entregou ao servidor (src/components/painel/
+ * envio-fotos.tsx), para o círculo de progresso só chegar a 100% quando elas estiverem prontas.
+ * Só leitura, e só das fotos enviadas por quem está logado.
+ */
+export async function situacaoDoEnvioAcao(
+  lista: unknown,
+): Promise<{ erro: string } | { fotos: SituacaoDaFotoEnviada[] }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  const ids = idsDasFotos.safeParse(lista);
+  if (!ids.success) return { erro: "Pedido inválido." };
+  const linhas = await situacaoDasFotos(ids.data, conta.id);
+  return {
+    fotos: linhas.map((f) => ({
+      id: f.id,
+      status: f.status,
+      erro: f.status === "erro" ? f.erroMensagem : null,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------- Reaproveitar configuração

@@ -9,7 +9,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 
@@ -68,8 +68,54 @@ async function agora() {
   return Date.now();
 }
 
-/** Item que pode aparecer para o público: pronto e não excluído. */
-const itemVisivel = and(eq(t.fotos.status, "pronta"), isNull(t.fotos.excluidaEm));
+/** Item pronto e não excluído (ainda pode estar aguardando a liberação). */
+const itemPronto = and(eq(t.fotos.status, "pronta"), isNull(t.fotos.excluidaEm));
+
+/**
+ * Item que pode aparecer para o público em `instante`: pronto, não excluído e já liberado
+ * (`liberar_em <= instante`). A comparação é feita na consulta, com a hora da requisição: a foto
+ * agendada aparece no minuto certo sem depender de job, e nenhuma página guarda o resultado em
+ * cache (todas leem a hora com `connection()`).
+ */
+function itemVisivel(instante: number) {
+  return and(itemPronto, isNotNull(t.fotos.liberarEm), lte(t.fotos.liberarEm, new Date(instante)));
+}
+
+/** Como está a liberação das fotos prontas de cada evento, em `instante`. */
+type LiberacaoDoEvento = {
+  liberadas: number;
+  /** Prontas ainda não liberadas (agendadas ou aguardando o dono). */
+  pendentes: number;
+  /** Próximo horário agendado, ou `null`. */
+  proximaEm: string | null;
+};
+
+async function liberacaoDosEventos(eventoIds: string[], instante: number) {
+  const mapa = new Map<string, LiberacaoDoEvento>();
+  if (eventoIds.length === 0) return mapa;
+  const banco = await obterBanco();
+  const momento = new Date(instante).toISOString();
+  const linhas = await banco
+    .select({
+      eventoId: t.fotos.eventoId,
+      liberadas: sql<number>`count(*) filter (where ${t.fotos.liberarEm} <= ${momento}::timestamptz)::int`,
+      pendentes: sql<number>`count(*) filter (where ${t.fotos.liberarEm} is null or ${t.fotos.liberarEm} > ${momento}::timestamptz)::int`,
+      proximaEm: sql<
+        string | null
+      >`min(${t.fotos.liberarEm}) filter (where ${t.fotos.liberarEm} > ${momento}::timestamptz)`,
+    })
+    .from(t.fotos)
+    .where(and(inArray(t.fotos.eventoId, eventoIds), itemPronto))
+    .groupBy(t.fotos.eventoId);
+  for (const l of linhas) {
+    mapa.set(l.eventoId, {
+      liberadas: l.liberadas,
+      pendentes: l.pendentes,
+      proximaEm: l.proximaEm ? new Date(l.proximaEm).toISOString() : null,
+    });
+  }
+  return mapa;
+}
 
 function normalizar(texto: string) {
   return texto
@@ -117,15 +163,18 @@ function perfilPublico(conta: FotografoConta): Fotografo {
  * `senhaAceita`: este navegador já acertou a senha do evento (ver `acessoPorSenha`). Nas
  * listagens fica falso: evento com senha aparece sempre fechado ali.
  */
-function situacaoGaleria(evento: Evento, instante: number, senhaAceita = false): SituacaoGaleria {
-  if (evento.liberacao !== "automatica") {
-    const liberado =
-      evento.liberadoEm !== null && new Date(evento.liberadoEm).getTime() <= instante;
-    if (!liberado) return { tipo: "aguardando_liberacao", liberaEm: evento.liberadoEm };
+function situacaoGaleria(
+  evento: Evento,
+  liberacao: LiberacaoDoEvento | undefined,
+  senhaAceita = false,
+): SituacaoGaleria {
+  // Nenhuma foto liberada ainda, mas há fotos esperando: aviso (manual) ou contagem regressiva.
+  if (liberacao && liberacao.liberadas === 0 && liberacao.pendentes > 0) {
+    return { tipo: "aguardando_liberacao", liberaEm: liberacao.proximaEm };
   }
   if (evento.visibilidade === "senha" && !senhaAceita) return { tipo: "senha" };
   if (evento.fotosSoAposBusca) return { tipo: "so_apos_busca" };
-  return { tipo: "aberta" };
+  return { tipo: "aberta", proximaLiberacao: liberacao?.proximaEm ?? null };
 }
 
 /**
@@ -152,8 +201,10 @@ async function acessoPorSenha(evento: Evento) {
 }
 
 /** Situação da galeria para quem está fazendo esta requisição (lê o cookie da senha). */
-async function situacaoParaVisitante(evento: Evento) {
-  return situacaoGaleria(evento, await agora(), await acessoPorSenha(evento));
+async function situacaoParaVisitante(evento: Evento, instante?: number) {
+  const momento = instante ?? (await agora());
+  const liberacao = (await liberacaoDosEventos([evento.id], momento)).get(evento.id);
+  return situacaoGaleria(evento, liberacao, await acessoPorSenha(evento));
 }
 
 async function eventoPorId(eventoId: string, soPublicado = true): Promise<Evento | null> {
@@ -180,7 +231,7 @@ type ChaveItem = Pick<
  * ordem natural do nome do arquivo (IMG_2 antes de IMG_10) e a "aleatória" estável por evento
  * são feitas aqui; o item inteiro é buscado só para a página pedida.
  */
-async function chavesVisiveisDoEvento(evento: Evento): Promise<ChaveItem[]> {
+async function chavesVisiveisDoEvento(evento: Evento, instante: number): Promise<ChaveItem[]> {
   const banco = await obterBanco();
   const linhas = await banco
     .select({
@@ -195,7 +246,7 @@ async function chavesVisiveisDoEvento(evento: Evento): Promise<ChaveItem[]> {
       urlMiniatura: t.fotos.urlMiniatura,
     })
     .from(t.fotos)
-    .where(and(eq(t.fotos.eventoId, evento.id), itemVisivel));
+    .where(and(eq(t.fotos.eventoId, evento.id), itemVisivel(instante)));
   const itens = linhas.map((l) => ({
     ...l,
     urlMiniatura: urlPublica(l.urlMiniatura),
@@ -233,13 +284,18 @@ async function fotosPorIds(ids: string[]): Promise<Foto[]> {
   return ids.flatMap((id) => porId.get(id) ?? []);
 }
 
+/**
+ * Eventos com fotógrafo, categoria, contagens (só itens já liberados) e a situação da galeria.
+ * `senhasAceitas[i]`: este navegador já acertou a senha do evento i (nas listagens, falso).
+ */
 async function resumir(
   eventosLista: Evento[],
-  situacoes: SituacaoGaleria[],
+  instante: number,
+  senhasAceitas: boolean[] = [],
 ): Promise<EventoResumo[]> {
   if (eventosLista.length === 0) return [];
   const banco = await obterBanco();
-  const [contas, cats, contagens] = await Promise.all([
+  const [contas, cats, contagens, liberacoes] = await Promise.all([
     banco
       .select()
       .from(t.fotografos)
@@ -258,10 +314,14 @@ async function resumir(
             t.fotos.eventoId,
             eventosLista.map((e) => e.id),
           ),
-          itemVisivel,
+          itemVisivel(instante),
         ),
       )
       .groupBy(t.fotos.eventoId),
+    liberacaoDosEventos(
+      eventosLista.map((e) => e.id),
+      instante,
+    ),
   ]);
   return Promise.all(
     eventosLista.map(async (evento, i) => {
@@ -270,11 +330,13 @@ async function resumir(
       if (!conta || !categoria) {
         throw new Error(`Evento ${evento.id} com fotógrafo ou categoria inválidos`);
       }
-      const situacao = situacoes[i];
+      const situacao = situacaoGaleria(evento, liberacoes.get(evento.id), senhasAceitas[i]);
       const contagem = contagens.find((c) => c.eventoId === evento.id);
       // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
       const capa =
-        situacao.tipo === "aberta" ? (await chavesVisiveisDoEvento(evento))[0] : undefined;
+        situacao.tipo === "aberta"
+          ? (await chavesVisiveisDoEvento(evento, instante))[0]
+          : undefined;
       return {
         ...evento,
         fotografo: perfilPublico(paraFotografo(conta)),
@@ -339,10 +401,7 @@ export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promi
     .filter((e) => !categoriaId || e.categoriaId === categoriaId)
     .filter((e) => !cidade || normalizar(e.cidade) === cidade)
     .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId);
-  const resumos = await resumir(
-    escolhidos,
-    escolhidos.map((e) => situacaoGaleria(e, instante)),
-  );
+  const resumos = await resumir(escolhidos, instante);
   return resumos
     .filter(
       (e) =>
@@ -393,7 +452,7 @@ export async function buscarEventoPublicado(slug: string): Promise<EventoResumo 
     .where(and(eq(t.eventos.slug, slug), eq(t.eventos.status, "publicado")));
   if (!linha) return null;
   const evento = paraEvento(linha);
-  const [resumo] = await resumir([evento], [await situacaoParaVisitante(evento)]);
+  const [resumo] = await resumir([evento], await agora(), [await acessoPorSenha(evento)]);
   return resumo;
 }
 
@@ -490,12 +549,13 @@ export type OpcoesGaleria = {
 
 /** Opções de filtro da galeria aberta, para quem pode vê-la agora. */
 export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaleria> {
+  const instante = await agora();
   const evento = await eventoPorId(eventoId);
-  if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
+  if (!evento || (await situacaoParaVisitante(evento, instante)).tipo !== "aberta") {
     return { horas: null, naoIdentificadas: null, pastas: [] };
   }
   const banco = await obterBanco();
-  const itens = await chavesVisiveisDoEvento(evento);
+  const itens = await chavesVisiveisDoEvento(evento, instante);
   let horas: OpcoesGaleria["horas"] = null;
   if (evento.filtroHorario) {
     const contagem = new Map<string, number>();
@@ -541,11 +601,16 @@ export async function listarFotosDoEvento(
     filtro = {},
   }: { cursor?: string | null; limite?: number; filtro?: FiltroGaleria } = {},
 ): Promise<PaginaDeFotos> {
+  const instante = await agora();
   const evento = await eventoPorId(eventoId);
-  if (!evento || (await situacaoParaVisitante(evento)).tipo !== "aberta") {
+  if (!evento || (await situacaoParaVisitante(evento, instante)).tipo !== "aberta") {
     return { fotos: [], proximoCursor: null };
   }
-  const itens = await filtrarGaleria(await chavesVisiveisDoEvento(evento), evento, filtro);
+  const itens = await filtrarGaleria(
+    await chavesVisiveisDoEvento(evento, instante),
+    evento,
+    filtro,
+  );
   // Cursor desconhecido dá findIndex -1, então começa do início em vez de dar página vazia.
   const inicio = cursor ? itens.findIndex((f) => f.id === cursor) + 1 : 0;
   const pagina = itens.slice(inicio, inicio + limite);
@@ -583,17 +648,18 @@ export function precoDoItem(foto: Pick<Foto, "precoCentavos" | "tipo">, evento: 
  * - Aguardando liberação ou com senha: não abre.
  */
 export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | null> {
+  const instante = await agora();
   const banco = await obterBanco();
   const [linha] = await banco
     .select()
     .from(t.fotos)
-    .where(and(eq(t.fotos.id, fotoId), itemVisivel));
+    .where(and(eq(t.fotos.id, fotoId), itemVisivel(instante)));
   if (!linha) return null;
   const foto = paraFoto(linha);
   const evento = await eventoPorId(foto.eventoId);
   if (!evento) return null;
 
-  const [resumo] = await resumir([evento], [await situacaoParaVisitante(evento)]);
+  const [resumo] = await resumir([evento], instante, [await acessoPorSenha(evento)]);
   const situacao = resumo.situacaoGaleria.tipo;
   if (situacao === "aguardando_liberacao" || situacao === "senha") return null;
 
@@ -601,7 +667,7 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
   if (situacao === "so_apos_busca") {
     return { ...base, posicao: null, anteriorId: null, proximaId: null };
   }
-  const itens = await chavesVisiveisDoEvento(evento);
+  const itens = await chavesVisiveisDoEvento(evento, instante);
   const indice = itens.findIndex((f) => f.id === foto.id);
   return {
     ...base,
@@ -617,19 +683,23 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
  * Evento publicado onde a busca vale: galeria aberta ou "só após a busca". Aguardando
  * liberação ou com senha (sem a senha aceita) não abrem nem pela busca.
  */
-async function eventoBuscavel(eventoId: string) {
+async function eventoBuscavel(eventoId: string, instante: number) {
   const evento = await eventoPorId(eventoId);
   if (!evento) return null;
-  const situacao = (await situacaoParaVisitante(evento)).tipo;
+  const situacao = (await situacaoParaVisitante(evento, instante)).tipo;
   return situacao === "aberta" || situacao === "so_apos_busca" ? evento : null;
 }
 
 /** Itens visíveis do evento entre os ids encontrados pela busca, na ordem da galeria. */
 export async function fotosEncontradas(eventoId: string, fotoIds: string[]): Promise<Foto[]> {
-  const evento = await eventoBuscavel(eventoId);
+  const instante = await agora();
+  const evento = await eventoBuscavel(eventoId, instante);
   if (!evento) return [];
   const alvo = new Set(fotoIds);
-  const ids = (await chavesVisiveisDoEvento(evento)).filter((f) => alvo.has(f.id)).map((f) => f.id);
+  // Só as já liberadas: a busca nunca devolve foto agendada ou aguardando o dono.
+  const ids = (await chavesVisiveisDoEvento(evento, instante))
+    .filter((f) => alvo.has(f.id))
+    .map((f) => f.id);
   return fotosPorIds(ids);
 }
 
@@ -684,8 +754,8 @@ export type ItemParaCompra = {
 
 /**
  * Itens à venda pelos ids, com o preço vindo dos dados e nunca do navegador
- * (docs/riscos.md, prioridade alta). Ids inválidos, itens indisponíveis ou de eventos ainda
- * não liberados são ignorados.
+ * (docs/riscos.md, prioridade alta). Ids inválidos, itens indisponíveis, de evento não publicado
+ * ou ainda não liberados (`liberar_em` no futuro ou aguardando o dono) são ignorados.
  */
 export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaCompra[]> {
   const unicos = [...new Set(ids)];
@@ -696,12 +766,13 @@ export async function buscarItensParaCompra(ids: string[]): Promise<ItemParaComp
     .select({ foto: t.fotos, evento: t.eventos })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
-    .where(and(inArray(t.fotos.id, unicos), itemVisivel, eq(t.eventos.status, "publicado")));
-  return linhas.flatMap((l) => {
+    .where(
+      and(inArray(t.fotos.id, unicos), itemVisivel(instante), eq(t.eventos.status, "publicado")),
+    );
+  return linhas.map((l) => {
     const foto = paraFoto(l.foto);
     const evento = paraEvento(l.evento);
-    if (situacaoGaleria(evento, instante).tipo === "aguardando_liberacao") return [];
-    return [{ foto, evento, precoCentavos: precoDoItem(foto, evento) }];
+    return { foto, evento, precoCentavos: precoDoItem(foto, evento) };
   });
 }
 
@@ -1461,6 +1532,7 @@ export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: A
 }
 
 export * from "./painel";
+export * from "./processamento";
 export * from "./admin";
 export * from "./vendas-painel";
 export * from "./loja-moderacao";
@@ -1475,3 +1547,4 @@ export * from "./mfa";
 export * from "./autenticacao";
 export * from "./autores";
 export * from "./rankings";
+export * from "./liberacao";

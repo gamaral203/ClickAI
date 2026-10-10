@@ -193,6 +193,34 @@ const paraQuemVende: Artigo[] = [
     ),
   },
   {
+    id: "liberacao",
+    titulo: "Como escolho quando as fotos aparecem?",
+    corpo: (
+      <>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            <strong>Automática:</strong> cada foto aparece assim que termina de processar.
+          </li>
+          <li>
+            <strong>Manual:</strong> as fotos ficam guardadas, só no seu painel, até você clicar em
+            “Liberar agora” (todas as pendentes ou só as que escolher).
+          </li>
+          <li>
+            <strong>Agendada:</strong> você escolhe o dia e a hora (sempre no horário de Brasília),
+            e as fotos aparecem sozinhas nesse minuto.
+          </li>
+        </ul>
+        <p>
+          O padrão fica nas configurações do evento, e na hora de enviar dá para escolher outro só
+          para aquele lote. Na lista de fotos, cada uma mostra se está liberada, agendada ou
+          aguardando; ali você filtra, libera agora, reagenda ou cancela o agendamento. As fotos só
+          aparecem com o evento publicado. Quando um lote agendado é liberado, você e os
+          colaboradores recebem um e-mail. Colaboradores enviam seguindo o padrão que você definiu.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "precos",
     titulo: "Como defino preços e descontos?",
     corpo: (
