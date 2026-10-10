@@ -16,10 +16,17 @@ import sharp from "sharp";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // `connection()` só existe dentro de uma requisição do Next; aqui as funções rodam direto.
+// `after()` roda o trabalho depois da resposta; aqui ele fica guardado e o teste o executa.
+const depois = vi.hoisted(() => ({ tarefas: [] as (() => unknown)[] }));
 vi.mock("next/server", async (original) => ({
   ...(await original<typeof import("next/server")>()),
   connection: async () => {},
+  after: (tarefa: () => unknown) => void depois.tarefas.push(tarefa),
 }));
+/** Roda o que a rota deixou para depois da resposta. */
+async function rodarDepois() {
+  while (depois.tarefas.length > 0) await depois.tarefas.shift()!();
+}
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 // As Server Actions pedem o fotógrafo logado; aqui ele é escolhido pelo teste.
 const sessao = vi.hoisted(() => ({ fotografoId: "" }));
@@ -32,7 +39,7 @@ vi.mock("@/servicos/sessao", () => ({
 import { enviarFotosAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { POST as partesRota } from "@/app/api/envios/partes/route";
 import { POST as processarRota } from "@/app/api/envios/processar/route";
-import { adicionarItensSimulados, listarItensDoPainel } from "@/dados";
+import { adicionarItensSimulados, listarItensDoPainel, reservarFotoParaProcessar } from "@/dados";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -47,8 +54,8 @@ import {
   chavesDaFoto,
   concluirPartes,
   confirmarEnvio,
+  ESPERA_FOTO_PRESA_MS,
   FOTOS_POR_LOTE,
-  FOTOS_PRESAS_POR_VEZ,
   iniciarEnvio,
   revisarFotosPresas,
 } from "@/servicos/envios";
@@ -351,7 +358,7 @@ describe("envio de fotos ao R2", () => {
     ]);
     expect(deNovo).toEqual({ itens: [{ repetida: true }] });
     // E confirmar outra vez não processa de novo.
-    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ erro: "Foto não encontrada." });
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ emAndamento: true });
   });
 
   it("arquivo que não é do formato informado vira erro, mesmo com a impressão certa", async () => {
@@ -552,8 +559,42 @@ describe("rota de processamento (/api/envios/processar)", () => {
     expect(resposta.status).toBe(200);
     expect(resposta.headers.get("cache-control")).toBe("no-store");
     expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
-    // De novo: já processada, não processa outra vez.
-    expect((await processarRota(pedido({ fotoId }))).status).toBe(422);
+    await rodarDepois();
+    // De novo: já processada, não processa outra vez e responde que está pronta (sem erro).
+    const idas = vi.mocked(S3Client.prototype.send).mock.calls.length;
+    const repetida = await processarRota(pedido({ fotoId }));
+    expect(repetida.status).toBe(200);
+    expect(await repetida.json()).toMatchObject({ ok: true, emAndamento: true });
+    expect(vi.mocked(S3Client.prototype.send).mock.calls.length).toBe(idas);
+  });
+
+  it("entrega em segundo plano: responde 202 na hora e processa depois da resposta", async () => {
+    sessao.fotografoId = lia.id;
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const corpo = await jpeg();
+      const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+      simularPut(lia.id, evento.id, fotoId, corpo);
+      ids.push(fotoId);
+    }
+    // A do Pedro vai junto na entrega, mas não é processada: só as da conta logada.
+    const corpoDoPedro = await jpeg();
+    const doPedro = await iniciarUm(pedro.id, ibirapuera.id, corpoDoPedro);
+    simularPut(pedro.id, ibirapuera.id, doPedro.fotoId, corpoDoPedro);
+
+    const resposta = await processarRota(pedido({ fotoIds: [...ids, doPedro.fotoId] }));
+    expect(resposta.status).toBe(202);
+    for (const id of ids) expect((await linhaDaFoto(id)).status).toBe("processando");
+    await rodarDepois();
+    for (const id of ids)
+      expect(await linhaDaFoto(id)).toMatchObject({ erroMensagem: null, status: "pronta" });
+    expect((await linhaDaFoto(doPedro.fotoId)).status).toBe("processando");
+    // Mais de 100 ids, ou ids inválidos: recusa.
+    const muitos = Array.from({ length: 101 }, () => crypto.randomUUID());
+    expect((await processarRota(pedido({ fotoIds: muitos }))).status).toBe(400);
+    expect((await processarRota(pedido({ fotoIds: ["1"] }))).status).toBe(400);
+    // Termina a do Pedro para ela não ficar na fila dos próximos testes.
+    await confirmarEnvio(pedro.id, doPedro.fotoId);
   });
 
   it("recusa outra origem, sem sessão, corpo inválido e foto de outro fotógrafo", async () => {
@@ -661,23 +702,94 @@ describe("job que revisa fotos presas em processando", () => {
 
   it("não toca no envio recente (a URL assinada ainda pode estar em uso)", async () => {
     const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg());
-    await envelhecer(fotoId, 10);
+    await envelhecer(fotoId, ESPERA_FOTO_PRESA_MS / 60_000 - 2);
     await revisarFotosPresas();
     expect((await linhaDaFoto(fotoId)).status).toBe("processando");
   });
 
-  it("revisa no máximo FOTOS_PRESAS_POR_VEZ por execução", async () => {
+  it("pega a foto parada há poucos minutos (não espera mais meia hora)", async () => {
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    await envelhecer(fotoId, ESPERA_FOTO_PRESA_MS / 60_000 + 1);
+    await revisarFotosPresas();
+    expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
+  });
+
+  it("sem arquivo e com o envio recente, a foto volta para a fila sem virar erro", async () => {
+    const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg());
+    await envelhecer(fotoId, 10);
+    const antes = (await linhaDaFoto(fotoId)).envioIniciadoEm;
+    await revisarFotosPresas();
+    const linha = await linhaDaFoto(fotoId);
+    expect(linha.status).toBe("processando");
+    // O horário do envio volta ao original: a foto vira erro quando passar de meia hora.
+    expect(linha.envioIniciadoEm?.getTime()).toBe(antes?.getTime());
+    await envelhecer(fotoId, 40);
+    await revisarFotosPresas();
+    expect((await linhaDaFoto(fotoId)).status).toBe("erro");
+  });
+
+  it("não pega a foto que outra chamada está processando (reserva)", async () => {
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    await envelhecer(fotoId, 40);
+    const agora = Date.now();
+    const reservar = () =>
+      reservarFotoParaProcessar(fotoId, lia.id, new Date(agora), new Date(agora + 60_000));
+    expect(await reservar()).toBe(true);
+    // Uma segunda reserva perde, e o job nem lista a foto reservada.
+    expect(await reservar()).toBe(false);
+    await revisarFotosPresas();
+    expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ emAndamento: true });
+    // Reserva vencida (a função morreu no meio): o job processa.
+    await envelhecer(fotoId, 40);
+    await revisarFotosPresas();
+    expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
+  });
+
+  it("duas chamadas ao mesmo tempo: só uma processa", async () => {
+    const corpo = await jpeg();
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    const copias = () =>
+      vi.mocked(S3Client.prototype.send).mock.calls.filter(([c]) => c instanceof CopyObjectCommand)
+        .length;
+    const antes = copias();
+    const resultados = await Promise.all([
+      confirmarEnvio(lia.id, fotoId),
+      confirmarEnvio(lia.id, fotoId),
+      confirmarEnvio(lia.id, fotoId),
+    ]);
+    expect(resultados.filter((r) => "eventoId" in r)).toHaveLength(1);
+    expect(resultados.filter((r) => "emAndamento" in r)).toHaveLength(2);
+    expect(copias() - antes).toBe(1);
+    expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
+  });
+
+  it("revisa no máximo o limite por execução", async () => {
     const ids: string[] = [];
-    for (let i = 0; i < FOTOS_PRESAS_POR_VEZ + 2; i++) {
+    for (let i = 0; i < 5; i++) {
       const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg(64, 64));
       await envelhecer(fotoId, 60 + i);
       ids.push(fotoId);
     }
-    const primeira = await revisarFotosPresas();
-    expect(primeira.revisadas).toBe(FOTOS_PRESAS_POR_VEZ);
-    const segunda = await revisarFotosPresas();
+    const primeira = await revisarFotosPresas(Date.now(), { limite: 3 });
+    expect(primeira.revisadas).toBe(3);
+    const segunda = await revisarFotosPresas(Date.now(), { limite: 3 });
     expect(segunda.revisadas).toBe(2);
     for (const id of ids) expect((await linhaDaFoto(id)).status).toBe("erro");
+  });
+
+  it("para de começar fotos novas quando o prazo do job acaba", async () => {
+    const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg(64, 64));
+    await envelhecer(fotoId, 60);
+    const r = await revisarFotosPresas(Date.now(), { prazoMs: -1 });
+    expect(r.revisadas).toBe(0);
+    expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+    await revisarFotosPresas();
   });
 
   it("sem o R2 configurado, não faz nada", async () => {

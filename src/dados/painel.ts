@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
@@ -435,32 +435,6 @@ export async function marcarFotoComErro(fotoId: string, mensagem: string) {
     .update(t.fotos)
     .set({ status: "erro", erroMensagem: mensagem.slice(0, 300) })
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
-}
-
-/**
- * Fotos presas em `processando`: o envio começou antes de `antesDe` e ninguém confirmou (o
- * navegador fechou, a rede caiu, a função estourou o tempo). As mais antigas primeiro, no máximo
- * `limite`, para o job caber no tempo da função.
- */
-export async function listarFotosPresas(
-  antesDe: Date,
-  limite: number,
-): Promise<{ id: string; enviadaPor: string }[]> {
-  const banco = await obterBanco();
-  const inicio = sql`coalesce(${t.fotos.envioIniciadoEm}, ${t.fotos.criadoEm})`;
-  return banco
-    .select({ id: t.fotos.id, enviadaPor: t.fotos.enviadaPor })
-    .from(t.fotos)
-    .where(
-      and(
-        eq(t.fotos.status, "processando"),
-        isNull(t.fotos.excluidaEm),
-        eq(t.fotos.tipo, "foto"),
-        lt(inicio, antesDe),
-      ),
-    )
-    .orderBy(asc(inicio))
-    .limit(limite);
 }
 
 /**

@@ -20,11 +20,14 @@ import { z } from "zod";
 import {
   buscarFotoEmEnvio,
   concluirFoto,
+  devolverReserva,
   hashesDoEvento,
-  listarFotosPresas,
+  listarFotosParadas,
   marcarFotoComErro,
   registrarFotosEmEnvio,
+  reservarFotoParaProcessar,
   salvarRostos,
+  situacaoDaFoto,
   type ChavesDaFoto,
 } from "@/dados";
 import { emParalelo, Orcamento } from "@/lib/concorrencia";
@@ -352,20 +355,66 @@ const ERRO_LEITURA = "Não foi possível ler a imagem. Exporte de novo e envie."
 const ERRO_DIFERENTE = "O arquivo chegou diferente do escolhido. Envie de novo.";
 
 /**
+ * Quanto vale a reserva de uma foto em processamento (src/dados/processamento.ts). Bem mais que
+ * o processamento de uma foto (segundos; a função tem no máximo 300 s): enquanto vale, nenhuma
+ * outra chamada nem o job pegam a mesma foto. Se a função morrer no meio, a reserva vence e o
+ * job processa a foto depois.
+ */
+export const RESERVA_DO_PROCESSAMENTO_MS = 3 * 60 * 1000;
+/**
+ * Até quanto tempo depois do início do envio o arquivo pode ainda estar subindo (a URL assinada
+ * vale 15 minutos e um PUT começado no fim dela ainda leva alguns). Antes disso, o job não marca
+ * erro numa foto sem arquivo: devolve a foto para a fila e confere de novo depois.
+ */
+export const ENVIO_PODE_ESTAR_SUBINDO_MS = 30 * 60 * 1000;
+
+export type OpcoesDoProcessamento = {
+  /** Recebe a duração de cada etapa (telemetria da tela de envio). */
+  tempos?: TemposDoProcessamento;
+  /**
+   * Início do envio, quando quem chama é o job (a foto parada na fila). Arquivo ausente com o
+   * envio ainda recente não vira erro: o upload pode estar terminando.
+   */
+  inicioDoEnvio?: Date;
+};
+
+export type ResultadoDoProcessamento =
+  | { erro: string }
+  | { eventoId: string }
+  /** Outra chamada está processando a foto agora, ou ela já ficou pronta. */
+  | { emAndamento: true }
+  /** Só no job: o arquivo ainda não chegou e o envio é recente; a foto volta para a fila. */
+  | { aguardando: true };
+
+/**
  * Confere e processa uma foto depois que o navegador terminou de enviá-la: tamanho (o mesmo
  * informado no início), formato real pelo conteúdo (o mesmo informado), a impressão informada
  * no início e o limite de pixels; gera prévia e miniatura com marca d'água no bucket público,
  * move o original para `originais/` e marca a foto `pronta`. Em qualquer falha, a foto fica em
- * `erro` e a mensagem volta para a tela. `tempos`, se vier, recebe a duração de cada etapa.
+ * `erro` e a mensagem volta para a tela.
+ *
+ * Idempotente: só quem reserva a foto (src/dados/processamento.ts) processa. Chamadas ao mesmo
+ * tempo (o navegador, o segundo plano e o job) recebem `emAndamento`, e uma chamada depois de a
+ * foto ficar pronta também, em vez de um erro.
  */
 export async function confirmarEnvio(
   fotografoId: string,
   fotoId: string,
-  tempos: TemposDoProcessamento = {},
-): Promise<{ erro: string } | { eventoId: string }> {
+  opcoes: OpcoesDoProcessamento = {},
+): Promise<ResultadoDoProcessamento> {
   if (modoEnvio() !== "r2") return { erro: ERRO_SEM_ARMAZENAMENTO };
+  const tempos = opcoes.tempos ?? {};
   const valida = await fotoEmEnvio(fotografoId, fotoId);
-  if (!valida) return { erro: "Foto não encontrada." };
+  if (!valida) {
+    // Já processada (por outra chamada) ou já com erro: responde o estado, sem processar de novo.
+    const situacao = idFoto.safeParse(fotoId).success
+      ? await situacaoDaFoto(fotoId, fotografoId)
+      : null;
+    if (situacao?.status === "pronta") return { emAndamento: true };
+    if (situacao?.status === "erro" && situacao.erroMensagem)
+      return { erro: situacao.erroMensagem };
+    return { erro: "Foto não encontrada." };
+  }
   const { foto, chaves, formato } = valida;
 
   let marco = performance.now();
@@ -377,10 +426,34 @@ export async function confirmarEnvio(
 
   const liberar = await memoria.reservar(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   medir("esperaMs");
+  // A reserva vem depois da espera pela memória: uma foto na fila desta instância não fica
+  // reservada (e escondida do job) sem ninguém trabalhando nela.
+  const agora = Date.now();
+  let reservou;
+  try {
+    reservou = await reservarFotoParaProcessar(
+      foto.id,
+      fotografoId,
+      new Date(agora),
+      new Date(agora + RESERVA_DO_PROCESSAMENTO_MS),
+    );
+  } catch (erro) {
+    liberar();
+    throw erro;
+  }
+  if (!reservou) {
+    liberar();
+    return { emAndamento: true };
+  }
   try {
     const lido = await lerEnviado(chaves.temporaria, LIMITE_FOTO_BYTES);
     medir("leituraMs");
     if (lido.situacao === "ausente") {
+      const inicio = opcoes.inicioDoEnvio;
+      if (inicio && agora - inicio.getTime() < ENVIO_PODE_ESTAR_SUBINDO_MS) {
+        await devolverReserva(foto.id, inicio);
+        return { aguardando: true };
+      }
       throw new ArquivoRecusado("O arquivo não chegou ao armazenamento. Envie de novo.");
     }
     if (lido.situacao === "grande") throw new ArquivoRecusado(`Maior que ${LIMITE_FOTO_TEXTO}.`);
@@ -438,7 +511,7 @@ export async function confirmarEnvio(
       capturadaEm: dataDeCaptura(info.exif),
     });
     medir("gravacaoMs");
-    if (!concluiu) return { erro: "Esta foto já foi processada." };
+    if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
     await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
@@ -463,17 +536,57 @@ export async function confirmarEnvio(
 const ERRO_PROCESSAMENTO = "Não foi possível processar a foto. Envie de novo.";
 
 /**
- * Foto presa em `processando` há mais disto é revisada pelo job. A URL assinada de envio vale 15
- * minutos (VALIDADE_URL_S): com 30, um envio que ainda está subindo nunca é tocado.
+ * Fotos processadas ao mesmo tempo por uma chamada em segundo plano ou pelo job. A memória já é
+ * limitada pelo orçamento (ORCAMENTO_DE_MEMORIA_BYTES); aqui o limite é o de idas ao R2, ao banco
+ * e ao Rekognition de uma vez.
  */
-export const ESPERA_FOTO_PRESA_MS = 30 * 60 * 1000;
+export const PROCESSAMENTOS_NO_SERVIDOR = 6;
+
 /**
- * Fotos revisadas por execução do job: cada uma leva de 1 a 3 segundos (baixar o original, gerar
- * prévia e miniatura, cadastrar rostos), PRESAS_AO_MESMO_TEMPO por vez, e a função tem tempo
- * limitado (maxDuration de /api/jobs/revisao).
+ * Processa no servidor, em segundo plano, as fotos que o navegador já enviou e entregou de uma
+ * vez (a tela de envio terminou os uploads, ou a página está fechando). Roda depois da resposta
+ * (`after`), até `prazoMs`; o que não couber fica em `processando` e o job termina.
  */
-export const FOTOS_PRESAS_POR_VEZ = 30;
-const PRESAS_AO_MESMO_TEMPO = 3;
+export async function processarEmSegundoPlano(
+  fotografoId: string,
+  fotoIds: string[],
+  prazoMs: number,
+): Promise<{ prontas: number; comErro: number; puladas: number }> {
+  const resultado = { prontas: 0, comErro: 0, puladas: 0 };
+  if (modoEnvio() !== "r2") return resultado;
+  const limite = Date.now() + prazoMs;
+  await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_NO_SERVIDOR, async (fotoId) => {
+    if (Date.now() > limite) {
+      resultado.puladas++;
+      return;
+    }
+    try {
+      const r = await confirmarEnvio(fotografoId, fotoId);
+      if ("erro" in r) resultado.comErro++;
+      else if ("eventoId" in r) resultado.prontas++;
+      else resultado.puladas++;
+    } catch (erro) {
+      console.error(`[envios] falha ao processar em segundo plano a foto ${fotoId}`, erro);
+      resultado.comErro++;
+    }
+  });
+  return resultado;
+}
+
+/**
+ * Foto parada em `processando` há mais disto (ou com a reserva vencida há mais disto) é revisada
+ * pelo job. Curto: a reserva (src/dados/processamento.ts) já impede de pegar uma foto que outra
+ * chamada está processando, e um arquivo que ainda não chegou só vira erro depois de
+ * ENVIO_PODE_ESTAR_SUBINDO_MS.
+ */
+export const ESPERA_FOTO_PRESA_MS = 5 * 60 * 1000;
+/** Fotos listadas por execução do job (no máximo; o prazo costuma parar antes). */
+export const FOTOS_PRESAS_POR_VEZ = 400;
+/**
+ * Até quando o job começa fotos novas: abaixo do maxDuration de /api/jobs/revisao (120 s) e do
+ * tempo que o GitHub Actions espera a resposta (150 s), com folga para a última foto terminar.
+ */
+export const PRAZO_DO_JOB_MS = 80 * 1000;
 
 export type ResultadoFotosPresas = {
   revisadas: number;
@@ -483,29 +596,32 @@ export type ResultadoFotosPresas = {
 
 /**
  * Job (docs/tarefas.md, Fase 12): fotos que ficaram em `processando` porque o navegador fechou
- * ou a confirmação falhou no meio. Para cada uma, o processamento normal (confirmarEnvio): ele
- * confere no R2 (HEAD) se o arquivo chegou e, se chegou e confere, gera as prévias e marca
- * `pronta`; senão, marca `erro` com a mensagem que o fotógrafo vê no painel. Sem o R2
- * configurado (desenvolvimento, testes, produção sem armazenamento), não faz nada.
+ * ou a confirmação falhou no meio. Para cada uma, o processamento normal (confirmarEnvio), até o
+ * prazo: se o arquivo chegou e confere, gera as prévias e marca `pronta`; se não chegou e o
+ * envio é recente, deixa para a próxima; senão, marca `erro` com a mensagem que o fotógrafo vê
+ * no painel. Sem o R2 configurado (desenvolvimento, testes, produção sem armazenamento), não faz
+ * nada.
  */
-export async function revisarFotosPresas(agora = Date.now()): Promise<ResultadoFotosPresas> {
+export async function revisarFotosPresas(
+  agora = Date.now(),
+  { limite = FOTOS_PRESAS_POR_VEZ, prazoMs = PRAZO_DO_JOB_MS } = {},
+): Promise<ResultadoFotosPresas> {
   const resultado: ResultadoFotosPresas = { revisadas: 0, prontas: 0, comErro: 0 };
   if (modoEnvio() !== "r2") return resultado;
-  const presas = await listarFotosPresas(
-    new Date(agora - ESPERA_FOTO_PRESA_MS),
-    FOTOS_PRESAS_POR_VEZ,
-  );
-  await emParalelo(presas, PRESAS_AO_MESMO_TEMPO, async (foto) => {
+  const fim = Date.now() + prazoMs;
+  const presas = await listarFotosParadas(new Date(agora - ESPERA_FOTO_PRESA_MS), limite);
+  await emParalelo(presas, PROCESSAMENTOS_NO_SERVIDOR, async (foto) => {
+    if (Date.now() > fim) return;
     resultado.revisadas++;
     try {
-      const r = await confirmarEnvio(foto.enviadaPor, foto.id);
+      const r = await confirmarEnvio(foto.enviadaPor, foto.id, { inicioDoEnvio: foto.inicio });
       if ("erro" in r) {
         // Registro sem arquivo temporário válido volta como "não encontrada" sem mudar de
         // status; marcar aqui evita que ele prenda a fila do job para sempre. Só muda se a foto
         // ainda estiver em `processando`.
         await marcarFotoComErro(foto.id, ERRO_PROCESSAMENTO);
         resultado.comErro++;
-      } else {
+      } else if ("eventoId" in r) {
         resultado.prontas++;
       }
     } catch (erro) {

@@ -41,13 +41,18 @@ import {
 //      ajustada pela vazão medida (src/lib/concorrencia-adaptativa.ts); arquivos grandes sobem
 //      em partes, e uma parte que falha é reenviada sozinha;
 //   3. PROCESSAMENTOS_SIMULTANEOS fotos sendo processadas no servidor (prévia com marca d'água,
-//      miniatura, rostos) pela rota /api/envios/processar, enquanto as próximas sobem.
+//      miniatura, rostos) pela rota /api/envios/processar, enquanto as próximas sobem. Quando o
+//      último upload termina, as fotos que ainda esperam processamento são entregues ao servidor
+//      de uma vez ({ fotoIds }): ele as processa sozinho, e a página pode fechar. Se a página
+//      fechar antes, as que já subiram vão por sendBeacon.
 // Cada arquivo tem novas tentativas com espera crescente; um erro não para a fila. A tela não
 // desenha uma linha por foto: mostra o progresso somado, só as fotos com problema e, em
 // "Detalhes técnicos", os tempos médios de cada etapa (para medir o envio em produção).
 
 /** Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). */
 const PROCESSAMENTOS_SIMULTANEOS = 6;
+/** Fotos por entrega ao servidor (o mesmo limite da rota /api/envios/processar). */
+const FOTOS_POR_ENTREGA = 100;
 /** Impressões calculadas ao mesmo tempo (cada uma lê só ~3 MB do arquivo). */
 const IMPRESSOES_SIMULTANEAS = 8;
 /** Partes de um mesmo arquivo grande subindo ao mesmo tempo (dentro das vagas gerais). */
@@ -74,7 +79,15 @@ const QUALIDADE_HEIC = 0.95;
 export type ModoEnvio = "r2" | "simulado" | "indisponivel";
 
 type Estado =
-  "recusada" | "repetida" | "aguardando" | "enviando" | "processando" | "pronta" | "erro";
+  | "recusada"
+  | "repetida"
+  | "aguardando"
+  | "enviando"
+  | "processando"
+  /** Já subiu e foi entregue ao servidor, que a processa sozinho (a página pode fechar). */
+  | "no-servidor"
+  | "pronta"
+  | "erro";
 
 type Partes = {
   uploadId: string;
@@ -270,6 +283,8 @@ async function postJson<T>(url: string, corpo: object): Promise<{ status: number
 
 type RespostaDoProcessamento = {
   erro?: string;
+  /** Outra chamada (entrega em segundo plano ou job) já estava processando, ou já está pronta. */
+  emAndamento?: boolean;
   tempos?: Partial<Record<EtapaDoServidor, number>>;
 };
 
@@ -310,6 +325,11 @@ class Fila {
   fechar() {
     this.fechada = true;
     this.esperando.splice(0).forEach((f) => f(null));
+  }
+
+  /** Tira da fila tudo o que ainda não foi pego. */
+  retirarTodos() {
+    return this.itens.splice(0);
   }
 }
 
@@ -377,7 +397,7 @@ export function EnvioFotos({
     return itens.current.reduce(
       (s, item) =>
         s +
-        (item.estado === "processando" || item.estado === "pronta"
+        (item.estado === "processando" || item.estado === "pronta" || item.estado === "no-servidor"
           ? item.arquivo.size
           : item.estado === "enviando"
             ? item.enviados
@@ -729,6 +749,10 @@ export function EnvioFotos({
       const { status, dados } = await postJson<RespostaDoProcessamento>("/api/envios/processar", {
         fotoId,
       });
+      if (status === 200 && dados.emAndamento) {
+        atualizar(i, { estado: "pronta", problema: null });
+        return;
+      }
       if (status === 200) {
         const t = telemetria.current;
         t.processamento.n++;
@@ -756,8 +780,39 @@ export function EnvioFotos({
       estado: "erro",
       destino: null,
       problema:
-        "O processamento não respondeu. Ela aparece no evento em até 1 hora, ou tente de novo.",
+        "O processamento não respondeu. Ela aparece no evento em alguns minutos, ou tente de novo.",
     });
+  }
+
+  /**
+   * Entrega ao servidor fotos que já subiram, para ele processar sozinho (a página pode fechar).
+   * `beacon`: a página está fechando; vai por sendBeacon, sem esperar resposta. Devolve as que
+   * não foram entregues (a rede falhou), para processar daqui.
+   */
+  async function entregarAoServidor(indices: number[], beacon = false): Promise<number[]> {
+    const comId = indices.filter((i) => itens.current[i].destino?.fotoId);
+    const falharam: number[] = [];
+    for (let k = 0; k < comId.length; k += FOTOS_POR_ENTREGA) {
+      const parte = comId.slice(k, k + FOTOS_POR_ENTREGA);
+      const corpo = { fotoIds: parte.map((i) => itens.current[i].destino!.fotoId) };
+      let entregou = false;
+      if (beacon) {
+        entregou = navigator.sendBeacon?.(
+          "/api/envios/processar",
+          new Blob([JSON.stringify(corpo)], { type: "application/json" }),
+        );
+      } else {
+        for (let tentativa = 1; tentativa <= TENTATIVAS && !entregou; tentativa++) {
+          const { status } = await postJson("/api/envios/processar", corpo);
+          entregou = status === 202;
+          if (!entregou && status >= 400 && status < 500) break;
+          if (!entregou && tentativa < TENTATIVAS) await dormir(esperaDaTentativa(tentativa));
+        }
+      }
+      if (entregou) for (const i of parte) atualizar(i, { estado: "no-servidor", problema: null });
+      else falharam.push(...parte);
+    }
+    return falharam;
   }
 
   /** Envio real: lotes de URLs, envios em paralelo ao R2 e processamento em paralelo. */
@@ -823,14 +878,25 @@ export function EnvioFotos({
       }
     });
 
+    // Página fechando no meio: as fotos que já subiram e esperam processamento vão para o
+    // servidor (sem isto, ficavam paradas até o job de revisão).
+    const aoSair = () => void entregarAoServidor(paraProcessar.retirarTodos(), true);
+    window.addEventListener("pagehide", aoSair);
+
+    let naoEntregues: number[] = [];
     try {
       await preparar;
       await Promise.all(subidas);
+      // Todos os uploads terminaram: o que ainda espera processamento vai para o servidor de uma
+      // vez, em vez de a tela processar de poucas em poucas com a página aberta.
+      naoEntregues = await entregarAoServidor(paraProcessar.retirarTodos());
     } finally {
       clearInterval(relogio);
+      window.removeEventListener("pagehide", aoSair);
     }
     paraProcessar.fechar();
     await Promise.all(processamentos);
+    await emParalelo(naoEntregues, PROCESSAMENTOS_SIMULTANEOS, processarUma);
     // O que não teve URL (lote interrompido) volta para a fila do "tentar de novo".
     for (const i of indices) {
       if (itens.current[i].estado === "aguardando" && erroGeral) {
@@ -906,6 +972,7 @@ export function EnvioFotos({
   let repetidas = 0;
   let subiram = 0;
   let prontas = 0;
+  let noServidor = 0;
   let comErro = 0;
   let heics = 0;
   let totalBytes = 0;
@@ -930,13 +997,18 @@ export function EnvioFotos({
       comErro++;
       problemas.push(i);
     }
-    if (item.estado === "processando" || item.estado === "pronta") {
+    if (
+      item.estado === "processando" ||
+      item.estado === "pronta" ||
+      item.estado === "no-servidor"
+    ) {
       subiram++;
       bytesEnviados += item.arquivo.size;
     } else if (item.estado === "enviando") {
       bytesEnviados += item.enviados;
     }
     if (item.estado === "pronta") prontas++;
+    if (item.estado === "no-servidor") noServidor++;
   });
 
   // Tempo que falta para subir o resto, pela velocidade média dos últimos segundos.
@@ -1068,9 +1140,18 @@ export function EnvioFotos({
                   ` · ${duracao(restante)} para terminar de enviar`}
                 {enviando &&
                   bytesEnviados >= totalBytes &&
-                  subiram > prontas &&
-                  ` · processando as últimas ${subiram - prontas}`}
+                  subiram > prontas + noServidor &&
+                  ` · processando as últimas ${subiram - prontas - noServidor}`}
               </p>
+              {noServidor > 0 && (
+                <p className="text-muted-foreground tabular-nums">
+                  {noServidor}{" "}
+                  {noServidor === 1
+                    ? "foto está sendo processada no servidor"
+                    : "fotos estão sendo processadas no servidor"}
+                  : elas aparecem no evento em instantes, mesmo que você feche esta página.
+                </p>
+              )}
             </div>
           )}
 

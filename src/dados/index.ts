@@ -1525,6 +1525,7 @@ export async function atualizarContaDoFotografo(usuarioId: string, alteracoes: A
 }
 
 export * from "./painel";
+export * from "./processamento";
 export * from "./admin";
 export * from "./vendas-painel";
 export * from "./loja-moderacao";
