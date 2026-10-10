@@ -396,7 +396,7 @@ function PainelMapa({
         </Dialog.Description>
 
         <div className="relative">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative min-w-0 flex-1">
               <label htmlFor={`${ids}-busca`} className="sr-only">
                 Buscar lugar ou endereço
@@ -417,7 +417,7 @@ function PainelMapa({
                 }
                 autoComplete="off"
                 enterKeyHint="search"
-                placeholder="Ex.: Parque Ibirapuera, São Paulo"
+                placeholder="Endereço ou lugar"
                 value={busca}
                 maxLength={200}
                 onChange={(e) => {
@@ -435,7 +435,7 @@ function PainelMapa({
               size="touch"
               onClick={() => void buscar()}
               disabled={buscando}
-              className="shrink-0 px-4"
+              className="w-full shrink-0 px-4 sm:w-auto"
             >
               {buscando ? (
                 <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
