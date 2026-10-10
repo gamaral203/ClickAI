@@ -568,43 +568,6 @@ export async function mudarStatusSaque(
   return atualizados.length > 0;
 }
 
-/** O saque ligado a uma transferência no gateway (pelo id dela). */
-export async function buscarSaquePorGatewayId(gatewayId: string): Promise<Saque | null> {
-  const banco = await obterBanco();
-  const [linha] = await banco.select().from(t.saques).where(eq(t.saques.gatewayId, gatewayId));
-  return linha ? paraSaque(linha) : null;
-}
-
-/**
- * Asaas: o webhook de validação pergunta se a transferência pode sair. Liga a transferência ao
- * saque em `processando` com o mesmo valor e a mesma chave Pix, só se o saque ainda não tiver
- * outra transferência (`UPDATE … WHERE gateway_id IS NULL OR gateway_id = id`). Devolve se ligou:
- * é o que impede pagar o mesmo saque duas vezes.
- */
-export async function reivindicarSaqueParaTransferencia(dados: {
-  transferenciaId: string;
-  liquidoCentavos: number;
-  chavesPix: string[];
-}): Promise<boolean> {
-  if (dados.chavesPix.length === 0) return false;
-  const banco = await obterBanco();
-  const atualizados = await banco
-    .update(t.saques)
-    .set({ gatewayId: dados.transferenciaId })
-    .where(
-      and(
-        eq(t.saques.status, "processando"),
-        eq(t.saques.liquidoCentavos, dados.liquidoCentavos),
-        inArray(t.saques.chavePix, dados.chavesPix),
-        sql`(${t.saques.gatewayId} is null or ${t.saques.gatewayId} = ${dados.transferenciaId})`,
-      ),
-    )
-    .returning({ id: t.saques.id });
-  // Mais de um saque igual (mesma chave e valor) em processamento não acontece: um saque por
-  // vez por fotógrafo, e a chave é o CPF/CNPJ dele.
-  return atualizados.length === 1;
-}
-
 /** Saque que falhou devolve os lançamentos ao saldo, para o fotógrafo tentar de novo. */
 export async function soltarLancamentosDoSaque(saqueId: string) {
   const banco = await obterBanco();

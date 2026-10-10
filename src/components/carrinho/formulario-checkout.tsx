@@ -15,6 +15,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatarPreco } from "@/lib/formatar";
+import { acrescimoCartao, acrescimoCartaoPct } from "@/lib/taxas";
 import { enviarSemLimpar } from "@/lib/formulario";
 import type { ResumoCarrinho } from "@/servicos/carrinho";
 
@@ -22,11 +23,11 @@ import { esvaziarCarrinho, useCarrinho, usePacotes } from "./carrinho";
 
 export function FormularioCheckout({
   inicial,
-  pedirCpf = false,
+  taxaCartaoPct,
 }: {
   inicial?: { nome: string; email: string };
-  /** O gateway (Asaas) exige o CPF/CNPJ de quem paga. */
-  pedirCpf?: boolean;
+  /** Taxa do cartão do Mercado Pago: o comprador paga metade (src/lib/taxas.ts). */
+  taxaCartaoPct: number;
 }) {
   const router = useRouter();
   const ids = useCarrinho();
@@ -40,6 +41,14 @@ export function FormularioCheckout({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [enviando, startTransition] = useTransition();
   const [redirecionando, setRedirecionando] = useState(false);
+  const [metodo, setMetodo] = useState<"pix" | "cartao">("pix");
+  // O servidor recalcula; aqui é só para mostrar o mesmo valor antes de pagar.
+  const acrescimo =
+    resumo && metodo === "cartao" ? acrescimoCartao(resumo.totalCentavos, taxaCartaoPct) : 0;
+  const totalAPagar = (resumo?.totalCentavos ?? 0) + acrescimo;
+  const acrescimoTexto = acrescimoCartaoPct(taxaCartaoPct).toLocaleString("pt-BR", {
+    maximumFractionDigits: 2,
+  });
 
   useEffect(() => {
     if (ids.length === 0) return;
@@ -84,7 +93,6 @@ export function FormularioCheckout({
           ids: [...ids],
           nome: String(formulario.get("nome") ?? ""),
           email: String(formulario.get("email") ?? ""),
-          cpf: String(formulario.get("cpf") ?? ""),
           whatsapp: String(formulario.get("whatsapp") ?? ""),
           aceitaWhatsapp: formulario.get("aceitaWhatsapp") === "on",
           metodo: formulario.get("metodo"),
@@ -154,27 +162,6 @@ export function FormularioCheckout({
               className="h-11"
             />
           </Campo>
-          {pedirCpf && (
-            <Campo
-              id="cpf"
-              rotulo="CPF"
-              ajuda="Exigido pelo processador de pagamento. Não aparece para o fotógrafo."
-              erro={erros.cpf}
-            >
-              <Input
-                id="cpf"
-                name="cpf"
-                inputMode="numeric"
-                autoComplete="off"
-                required
-                maxLength={18}
-                placeholder="000.000.000-00"
-                aria-invalid={Boolean(erros.cpf)}
-                aria-describedby={erros.cpf ? "cpf-erro" : "cpf-ajuda"}
-                className="h-11"
-              />
-            </Campo>
-          )}
           <Campo
             id="whatsapp"
             rotulo="WhatsApp (opcional)"
@@ -212,7 +199,7 @@ export function FormularioCheckout({
               [
                 "cartao",
                 "Cartão de crédito",
-                "Os dados do cartão ficam com o processador de pagamento.",
+                `À vista, com acréscimo de ${acrescimoTexto}% (metade da taxa do cartão). Os dados do cartão ficam com o processador de pagamento.`,
               ],
             ] as const
           ).map(([valor, rotulo, descricao], i) => (
@@ -225,6 +212,7 @@ export function FormularioCheckout({
                 name="metodo"
                 value={valor}
                 defaultChecked={i === 0}
+                onChange={() => setMetodo(valor)}
                 className="mt-1 size-4 accent-primary"
               />
               <span className="flex flex-col">
@@ -245,7 +233,7 @@ export function FormularioCheckout({
           {enviando
             ? "Criando o pedido…"
             : resumo
-              ? `Pagar ${formatarPreco(resumo.totalCentavos)}`
+              ? `Pagar ${formatarPreco(totalAPagar)}`
               : "Calculando…"}
         </Button>
       </form>
@@ -273,9 +261,15 @@ export function FormularioCheckout({
                 <dd className="tabular-nums">−{formatarPreco(linha.valorCentavos)}</dd>
               </div>
             ))}
+            {acrescimo > 0 && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Taxa do cartão ({acrescimoTexto}%)</dt>
+                <dd className="tabular-nums">+{formatarPreco(acrescimo)}</dd>
+              </div>
+            )}
             <div className="flex justify-between border-t pt-2 text-base font-semibold">
               <dt>Total</dt>
-              <dd className="tabular-nums">{formatarPreco(resumo.totalCentavos)}</dd>
+              <dd className="tabular-nums">{formatarPreco(totalAPagar)}</dd>
             </div>
           </dl>
         ) : (

@@ -19,8 +19,8 @@ import {
   type RegraDeDivisao,
 } from "@/dados";
 
-import { provedorDePagamento } from "@/lib/gateway";
 import { podeComprar } from "@/lib/navegacao";
+import { acrescimoCartao, parteDoVendedorNaTaxa, taxaCartaoPct } from "@/lib/taxas";
 
 import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
 import { avisarVenda, enviarEntrega, linkDoPedidoConfere } from "./mensagens";
@@ -30,9 +30,9 @@ import { avisarVenda, enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 /** O Pix (e o pedido pendente) expira em 1 hora. */
 const VALIDADE_PEDIDO_MS = 60 * 60 * 1000;
 const DIA_MS = 24 * 60 * 60 * 1000;
-/** Prazo para a venda entrar no saque normal (com 10%), seja Pix ou cartão. */
+/** Prazo para a venda entrar no saque normal (taxa de 8%), seja Pix ou cartão. */
 export const PRAZO_SAQUE_MS = 30 * DIA_MS;
-/** Prazo para a venda entrar no saque antecipado (com 10% + 1%). */
+/** Prazo para a venda entrar no saque antecipado (taxa de 8% + 2%). */
 export const PRAZO_ANTECIPACAO_MS = DIA_MS;
 
 export type DadosComprador = {
@@ -43,8 +43,6 @@ export type DadosComprador = {
   whatsapp: string | null;
   aceitaWhatsapp: boolean;
   metodo: MetodoPagamento;
-  /** CPF/CNPJ só com dígitos; o checkout pede quando o pagamento é pelo Asaas. */
-  cpf?: string | null;
 };
 
 /**
@@ -135,18 +133,22 @@ export async function criarPedido(
 
   const subtotal = itens.reduce((soma, i) => soma + i.precoCentavos, 0);
   const desconto = itens.reduce((soma, i) => soma + i.descontoCentavos, 0);
+  // Cartão: o comprador paga metade da taxa do Mercado Pago; a outra metade sai da parte do
+  // fotógrafo quando a venda é confirmada (lancamentosDaVenda). Pix não tem acréscimo.
+  const acrescimo =
+    comprador.metodo === "cartao" ? acrescimoCartao(subtotal - desconto, taxaCartaoPct()) : 0;
   const pedido: PedidoInterno = {
     id: pedidoId,
     clienteId: comprador.clienteId,
     emailComprador: comprador.email,
     nomeComprador: comprador.nome,
-    cpfComprador: comprador.cpf ?? null,
     whatsapp: comprador.aceitaWhatsapp ? comprador.whatsapp : null,
     aceitaWhatsapp: comprador.aceitaWhatsapp && comprador.whatsapp !== null,
     cupomId: descontos.cupom.situacao === "aplicado" ? descontos.cupom.cupomId : null,
     subtotalCentavos: subtotal,
     descontoCentavos: desconto,
-    totalCentavos: subtotal - desconto,
+    acrescimoCartaoCentavos: acrescimo,
+    totalCentavos: subtotal - desconto + acrescimo,
     metodo: comprador.metodo,
     status: "pendente",
     expiraEm: new Date(agora + VALIDADE_PEDIDO_MS).toISOString(),
@@ -241,8 +243,8 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
 
 /**
  * Lançamentos de uma venda confirmada em `agora`: a parte do autor de cada item e, se o autor é
- * colaborador, a do dono do evento. No Asaas, o dinheiro do cartão só fica disponível perto de
- * 30 dias depois: a venda no cartão não entra no saque antecipado, só no normal.
+ * colaborador, a do dono do evento. No cartão, cada um deixa metade da taxa do Mercado Pago sobre a
+ * sua parte (a outra metade o comprador pagou como acréscimo: src/lib/taxas.ts).
  */
 export async function lancamentosDaVenda(
   itens: ItemPedido[],
@@ -250,10 +252,10 @@ export async function lancamentosDaVenda(
   metodo?: MetodoPagamento,
 ): Promise<Lancamento[]> {
   const disponivelEm = new Date(agora + PRAZO_SAQUE_MS).toISOString();
-  const cartaoNoAsaas = metodo === "cartao" && provedorDePagamento() === "asaas";
-  const antecipavelEm = cartaoNoAsaas
-    ? disponivelEm
-    : new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
+  const pct = taxaCartaoPct();
+  const liquido = (valor: number) =>
+    metodo === "cartao" ? valor - parteDoVendedorNaTaxa(valor, pct) : valor;
+  const antecipavelEm = new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
   const regras = await buscarRegrasDeDivisao(itens.map((i) => i.fotoId));
   return itens.flatMap((item) => {
     const regra = regras.find((r) => r.fotoId === item.fotoId);
@@ -262,7 +264,7 @@ export async function lancamentosDaVenda(
         id: randomUUID(),
         fotografoId: item.fotografoId,
         itemPedidoId: item.id,
-        valorCentavos: item.valorFotografoCentavos,
+        valorCentavos: liquido(item.valorFotografoCentavos),
         disponivelEm,
         antecipavelEm,
         saqueId: null,
@@ -273,7 +275,7 @@ export async function lancamentosDaVenda(
         id: randomUUID(),
         fotografoId: regra.donoEventoId,
         itemPedidoId: item.id,
-        valorCentavos: item.valorDonoEventoCentavos,
+        valorCentavos: liquido(item.valorDonoEventoCentavos),
         disponivelEm,
         antecipavelEm,
         saqueId: null,

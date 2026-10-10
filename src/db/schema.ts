@@ -212,7 +212,8 @@ export const fotografos = pgTable(
      * depois dela (src/servicos/saques.ts), contra quem invade a conta e troca o documento.
      */
     documentoTrocadoEm: data(),
-    comissaoPct: integer().notNull().default(10),
+    /** Comissão da plataforma no saque normal; o antecipado paga mais (src/servicos/saques.ts). */
+    comissaoPct: integer().notNull().default(8),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
 ).enableRLS();
@@ -481,7 +482,7 @@ export const pedidos = pgTable(
     clienteId: uuid().references(() => usuarios.id),
     emailComprador: text().notNull(),
     nomeComprador: text().notNull(),
-    /** CPF/CNPJ do comprador, só dígitos: o Asaas exige para cobrar. Nulo com o Mercado Pago. */
+    /** CPF/CNPJ do comprador. Não é mais pedido (era exigido pelo Asaas); fica nulo. */
     cpfComprador: text(),
     whatsapp: text(),
     aceitaWhatsapp: boolean().notNull().default(false),
@@ -490,12 +491,17 @@ export const pedidos = pgTable(
     cupomId: uuid().references(() => cupons.id),
     subtotalCentavos: integer().notNull(),
     descontoCentavos: integer().notNull(),
+    /**
+     * No cartão, a metade da taxa do Mercado Pago que o comprador paga (src/lib/taxas.ts); a outra
+     * metade sai da parte do fotógrafo. Já está somado no total. Zero no Pix.
+     */
+    acrescimoCartaoCentavos: integer().notNull().default(0),
     totalCentavos: integer().notNull(),
     metodo: metodoPagamento().notNull(),
     status: statusPedido().notNull().default("pendente"),
     expiraEm: data().notNull(),
     /**
-     * Cobrança no gateway (order do Mercado Pago ou cobrança do Asaas). Única: o webhook busca
+     * Order no Mercado Pago. Única: o webhook busca
      * por ela e não confirma duas vezes.
      */
     gatewayId: text(),
@@ -727,4 +733,26 @@ export const tentativas = pgTable(
     em: momento(),
   },
   (t) => [index().on(t.chave, t.em)],
+).enableRLS();
+
+// ---------------------------------------------------------------- Notificações
+
+/**
+ * Inscrições de notificação do navegador (Web Push) de cada usuário: uma por aparelho/navegador
+ * em que ele clicou em "Ativar notificações". O endpoint é único; se o navegador disser que a
+ * inscrição venceu, ela é apagada (src/lib/push.ts).
+ */
+export const inscricoesPush = pgTable(
+  "inscricoes_push",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    endpoint: text().notNull(),
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [uniqueIndex().on(t.endpoint), index().on(t.usuarioId)],
 ).enableRLS();

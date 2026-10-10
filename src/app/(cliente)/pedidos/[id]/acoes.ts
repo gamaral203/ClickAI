@@ -5,12 +5,7 @@ import { z } from "zod";
 import { emProducao } from "@/db/conexao";
 import { gatewayConfigurado, provedorDePagamento } from "@/lib/gateway";
 import { limiteDoIpAtingido } from "@/servicos/limites";
-import {
-  iniciarCobrancaPix,
-  iniciarPagamentoCartaoAsaas,
-  pagarComCartao,
-  type ResultadoCartao,
-} from "@/servicos/pagamentos";
+import { iniciarCobrancaPix, pagarComCartao, type ResultadoCartao } from "@/servicos/pagamentos";
 import { buscarPedidoComAcesso, confirmarPagamento } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
 
@@ -97,27 +92,5 @@ export async function pagarComCartaoAcao(
   } catch (erro) {
     console.error("Falha ao cobrar o cartão", erro);
     return { ok: false, motivo: "recusado" };
-  }
-}
-
-/**
- * Asaas: leva o comprador à página de pagamento da cobrança no cartão, no próprio Asaas. Devolve
- * o endereço, ou `null` se o pedido não pode mais ser pago.
- */
-export async function pagarCartaoNoAsaasAcao(
-  pedidoId: string,
-  token: string | null,
-): Promise<string | null> {
-  const dados = acesso.safeParse({ pedidoId, token });
-  if (!dados.success) return null;
-  if (await limiteDoIpAtingido("cartao_ip")) return null;
-  try {
-    return await iniciarPagamentoCartaoAsaas(
-      dados.data.pedidoId,
-      await credencial(dados.data.token),
-    );
-  } catch (erro) {
-    console.error("Falha ao abrir o pagamento no cartão (Asaas)", erro);
-    return null;
   }
 }

@@ -200,6 +200,17 @@ export async function listarSaquesDoAdmin(): Promise<SaqueDoAdmin[]> {
   return linhas.map((l) => ({ ...paraSaque(l.saque), fotografoNome: l.nome }));
 }
 
+/** Um saque pelo id, com o nome do fotógrafo (para a baixa manual). */
+export async function buscarSaqueDoAdmin(saqueId: string): Promise<SaqueDoAdmin | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ saque: t.saques, nome: t.fotografos.nomePublico })
+    .from(t.saques)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.saques.fotografoId))
+    .where(eq(t.saques.id, saqueId));
+  return linha ? { ...paraSaque(linha.saque), fotografoNome: linha.nome } : null;
+}
+
 export type UsuarioDoAdmin = {
   id: string;
   nome: string;
