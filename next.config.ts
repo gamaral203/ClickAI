@@ -28,6 +28,17 @@ function dominioPublicoDoR2() {
   }
 }
 
+/**
+ * Build com banco de verdade (a produção da Vercel; previews e desenvolvimento usam o PGlite). O
+ * app só abre o PGlite sem DATABASE_URL/POSTGRES_URL, e na produção sem URL ele nem sobe
+ * (src/db/index.ts). Então, aqui, o PGlite (~20 MB de WebAssembly e dados), as migrações (rodam
+ * no build, por scripts/migrar.ts) e as fotos de exemplo ficam fora das funções. Antes, entravam
+ * em quase todas as ~60 funções de cada deploy e estouravam o Functions Storage da Vercel.
+ */
+const buildComBancoReal =
+  process.env.VERCEL_ENV === "production" ||
+  Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
@@ -56,6 +67,15 @@ const nextConfig: NextConfig = {
     "/api/envios/**": ["./public/logo.png"],
     "/api/jobs/**": ["./public/logo.png"],
   },
+  outputFileTracingExcludes: buildComBancoReal
+    ? {
+        "/**": [
+          "./node_modules/@electric-sql/pglite/**",
+          "./src/db/migracoes/**",
+          "./public/exemplo/**",
+        ],
+      }
+    : {},
   turbopack: {
     rules: {
       "*.css": {
