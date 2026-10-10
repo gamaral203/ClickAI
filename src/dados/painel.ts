@@ -200,6 +200,53 @@ export async function mudarStatusDoEvento(
   return atualizados.length > 0;
 }
 
+export type ResultadoExclusaoEvento =
+  | { ok: true; chavesOriginais: string[] }
+  | { ok: false; motivo: "nao_encontrado" | "revisao" | "tem_pedidos" | "tem_denuncias" };
+
+/**
+ * Apaga de vez um evento do fotógrafo que nunca teve pedido (pago ou não): fotos, pastas e o
+ * resto que depende dele. Evento com pedido não sai daqui (quem comprou precisa continuar
+ * baixando): esse se arquiva. Devolve as chaves dos originais, para apagar os arquivos.
+ */
+export async function excluirEventoSemPedidos(
+  eventoId: string,
+  fotografoId: string,
+): Promise<ResultadoExclusaoEvento> {
+  const banco = await obterBanco();
+  return banco.transaction(async (tx): Promise<ResultadoExclusaoEvento> => {
+    const [evento] = await tx
+      .select({ status: t.eventos.status })
+      .from(t.eventos)
+      .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)))
+      .for("update");
+    if (!evento) return { ok: false, motivo: "nao_encontrado" };
+    if (evento.status === "revisao") return { ok: false, motivo: "revisao" };
+    const fotosDoEvento = tx
+      .select({ id: t.fotos.id })
+      .from(t.fotos)
+      .where(eq(t.fotos.eventoId, eventoId));
+    const [pedido] = await tx
+      .select({ id: t.itensPedido.id })
+      .from(t.itensPedido)
+      .where(inArray(t.itensPedido.fotoId, fotosDoEvento))
+      .limit(1);
+    if (pedido) return { ok: false, motivo: "tem_pedidos" };
+    const [denuncia] = await tx
+      .select({ id: t.denuncias.id })
+      .from(t.denuncias)
+      .where(eq(t.denuncias.eventoId, eventoId))
+      .limit(1);
+    if (denuncia) return { ok: false, motivo: "tem_denuncias" };
+    const apagadas = await tx
+      .delete(t.fotos)
+      .where(eq(t.fotos.eventoId, eventoId))
+      .returning({ chave: t.fotos.chaveOriginal });
+    await tx.delete(t.eventos).where(eq(t.eventos.id, eventoId));
+    return { ok: true, chavesOriginais: apagadas.flatMap((f) => (f.chave ? [f.chave] : [])) };
+  });
+}
+
 // ---------------------------------------------------------------- Fotos do evento
 
 /** Itens do evento para o painel: todos os status, sem os excluídos, na ordem de envio. */

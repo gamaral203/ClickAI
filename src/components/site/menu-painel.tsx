@@ -12,6 +12,7 @@ import {
   Images,
   Mail,
   Menu,
+  MessageCircle,
   Store,
   Tags,
   Trophy,
@@ -52,6 +53,8 @@ type PropsMenu = {
   itens: ItemMenu[];
   /** Endereço do início do painel (ex.: "/painel"). */
   raiz: string;
+  /** Link de suporte (WhatsApp), no fim da lista; abre em outra aba. */
+  suporte?: string;
 };
 
 /**
@@ -74,7 +77,7 @@ function MenuNaPagina(props: PropsMenu) {
   return <CorpoMenu {...props} caminho={usePathname()} />;
 }
 
-function CorpoMenu({ titulo, itens, raiz, caminho }: PropsMenu & { caminho: string }) {
+function CorpoMenu({ titulo, itens, raiz, suporte, caminho }: PropsMenu & { caminho: string }) {
   // Guarda em qual página a lista foi aberta: ao trocar de página, ela fecha sozinha.
   const [abertoEm, setAbertoEm] = useState<string | null>(null);
   const aberto = abertoEm === caminho;
@@ -102,6 +105,20 @@ function CorpoMenu({ titulo, itens, raiz, caminho }: PropsMenu & { caminho: stri
           </li>
         );
       })}
+      {suporte && (
+        <li className="mt-2 border-t pt-2">
+          <a
+            href={suporte}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-11 items-center gap-3 rounded-lg px-3 font-medium text-[#128C4B] hover:bg-[#25D366]/10 dark:text-[#25D366]"
+          >
+            <MessageCircle aria-hidden="true" className="size-4 shrink-0" />
+            Suporte
+            <span className="sr-only"> (abre o WhatsApp)</span>
+          </a>
+        </li>
+      )}
     </ul>
   );
 

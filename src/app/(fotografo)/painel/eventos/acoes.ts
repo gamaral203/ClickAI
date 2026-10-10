@@ -12,6 +12,7 @@ import {
   copiarDescontosDoEvento,
   criarEvento,
   definirSenhaDoEvento,
+  excluirEventoSemPedidos,
   excluirItem,
   excluirModelo,
   hashesDoEvento,
@@ -25,7 +26,7 @@ import {
 import { campoParaIso } from "@/lib/datas";
 import { reaisParaCentavos } from "@/lib/dinheiro";
 import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES, LIMITE_FOTO_TEXTO } from "@/lib/limites-envio";
-import { ERRO_SEM_ARMAZENAMENTO, modoEnvio } from "@/lib/r2";
+import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, r2Configurado, removerOriginal } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { ehNomeDeRaw, FORMATOS_ACEITOS, MENSAGEM_RAW } from "@/lib/tipos-imagem";
@@ -220,6 +221,31 @@ export async function arquivarEventoAcao(eventoId: string): Promise<{ erro?: str
   if (!arquivou) return { erro: "Não foi possível arquivar este evento." };
   revalidatePath("/painel/eventos");
   revalidatePath(`/painel/eventos/${eventoId}`);
+  return {};
+}
+
+const MOTIVO_NAO_EXCLUI = {
+  nao_encontrado: "Evento não encontrado.",
+  revisao: "Este evento está em revisão pela equipe e não pode ser excluído agora.",
+  tem_pedidos:
+    "Este evento já tem pedidos, então não pode ser excluído: quem comprou precisa continuar baixando as fotos. Use Arquivar para tirar do ar.",
+  tem_denuncias:
+    "Este evento tem uma denúncia registrada e não pode ser excluído. Fale com o suporte.",
+} as const;
+
+/**
+ * Exclui de vez um evento sem nenhum pedido (fotos e arquivos junto). Com pedido, só arquivando.
+ * Os originais saem do armazenamento depois; se algum falhar, fica só o arquivo órfão.
+ */
+export async function excluirEventoAcao(eventoId: string): Promise<{ erro?: string }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  const resultado = await excluirEventoSemPedidos(eventoId, conta.id);
+  if (!resultado.ok) return { erro: MOTIVO_NAO_EXCLUI[resultado.motivo] };
+  if (r2Configurado()) {
+    await Promise.allSettled(resultado.chavesOriginais.map((chave) => removerOriginal(chave)));
+  }
+  revalidatePath("/painel/eventos");
   return {};
 }
 
