@@ -2,8 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Archive, ArrowRight, KeyRound, Loader2, Rocket, Trash2, Unlock } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  Archive,
+  ArrowRight,
+  FileText,
+  KeyRound,
+  Loader2,
+  MoreHorizontal,
+  Rocket,
+  Trash2,
+  Unlock,
+} from "lucide-react";
 
 import {
   arquivarEventoAcao,
@@ -25,6 +35,24 @@ export function AcoesEvento({ eventoId, status, pendentesDeLiberacao }: Props) {
   const [erro, setErro] = useState<string | null>(null);
   const [irParaPerfil, setIrParaPerfil] = useState(false);
   const [pendente, startTransition] = useTransition();
+  // "Mais": arquivar, excluir e o relatório ficam num menu, fora do caminho das ações do dia a dia.
+  const [maisAberto, setMaisAberto] = useState(false);
+  const mais = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!maisAberto) return;
+    const fora = (e: MouseEvent) => {
+      if (!mais.current?.contains(e.target as Node)) setMaisAberto(false);
+    };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMaisAberto(false);
+    };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [maisAberto]);
 
   function executar(
     acao: (id: string) => Promise<{ erro?: string; irParaPerfil?: boolean }>,
@@ -89,34 +117,72 @@ export function AcoesEvento({ eventoId, status, pendentesDeLiberacao }: Props) {
             agora
           </Button>
         )}
-        {status === "publicado" && (
+        <div ref={mais} className="relative">
           <Button
             variant="outline"
             size="touch"
             disabled={pendente}
-            onClick={() => executar(arquivarEventoAcao)}
+            aria-expanded={maisAberto}
+            aria-haspopup="menu"
+            onClick={() => setMaisAberto((a) => !a)}
           >
-            <Archive aria-hidden="true" />
-            Arquivar
+            <MoreHorizontal aria-hidden="true" />
+            Mais
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="touch"
-          disabled={pendente}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => {
-            if (
-              window.confirm(
-                "Excluir este evento de vez? As fotos e os arquivos enviados são apagados e não dá para desfazer. (Evento com pedido não pode ser excluído: use Arquivar.)",
-              )
-            )
-              executar(excluirEventoAcao, () => router.replace("/painel/eventos"));
-          }}
-        >
-          <Trash2 aria-hidden="true" />
-          Excluir evento
-        </Button>
+          {maisAberto && (
+            <ul
+              role="menu"
+              className="absolute left-0 z-40 mt-1 w-56 rounded-xl border bg-background p-1.5 shadow-xl"
+            >
+              <li role="none">
+                <Link
+                  role="menuitem"
+                  href={`/painel/eventos/${eventoId}/relatorio`}
+                  onClick={() => setMaisAberto(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-muted"
+                >
+                  <FileText aria-hidden="true" className="size-4 text-muted-foreground" />
+                  Relatório (PDF)
+                </Link>
+              </li>
+              {status === "publicado" && (
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMaisAberto(false);
+                      executar(arquivarEventoAcao);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted"
+                  >
+                    <Archive aria-hidden="true" className="size-4 text-muted-foreground" />
+                    Arquivar (tirar do ar)
+                  </button>
+                </li>
+              )}
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMaisAberto(false);
+                    if (
+                      window.confirm(
+                        "Excluir este evento de vez? As fotos e os arquivos enviados são apagados e não dá para desfazer. (Evento com pedido não pode ser excluído: use Arquivar.)",
+                      )
+                    )
+                      executar(excluirEventoAcao, () => router.replace("/painel/eventos"));
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 aria-hidden="true" className="size-4" />
+                  Excluir evento
+                </button>
+              </li>
+            </ul>
+          )}
+        </div>
       </div>
       {erro &&
         (irParaPerfil ? (

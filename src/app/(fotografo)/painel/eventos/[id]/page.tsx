@@ -2,16 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import {
-  ArrowLeft,
-  ChartColumn,
-  CheckCircle2,
-  ChevronDown,
-  ExternalLink,
-  FileText,
-} from "lucide-react";
+import { ArrowLeft, ChartColumn, CheckCircle2, ChevronDown, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
+import { MenuDoEvento } from "@/components/painel/menu-do-evento";
 import { BaixarOriginais } from "@/components/painel/baixar-originais";
 import { CapaDoEvento } from "@/components/painel/capa-do-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
@@ -208,13 +202,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             </Link>
           )}
           <Link
-            href={`/painel/eventos/${evento.id}/relatorio`}
-            className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            Relatório do evento (PDF)
-            <FileText aria-hidden="true" className="size-4" />
-          </Link>
-          <Link
             href={`/painel/eventos/${evento.id}/desempenho`}
             className={buttonVariants({ variant: "outline", size: "touch" })}
           >
@@ -229,40 +216,79 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         />
       </header>
 
-      <RostosDoEvento
-        eventoId={evento.id}
-        prontas={rostos.prontas}
-        comRosto={rostos.comRosto}
-        pendentes={rostos.pendentes}
-        configurado={provedorFacial() === "rekognition"}
+      <MenuDoEvento
+        itens={[
+          { icone: "fotos", rotulo: "Fotos", secao: "fotos" },
+          ...(qrCode
+            ? [{ icone: "divulgar" as const, rotulo: "Divulgar o evento", secao: "divulgar" }]
+            : []),
+          { icone: "ranking", rotulo: "Ranking de cliques", secao: "ranking" },
+          { icone: "rostos", rotulo: "Busca por selfie", secao: "rostos" },
+          ...(originais
+            ? [{ icone: "originais" as const, rotulo: "Baixar originais", secao: "originais" }]
+            : []),
+          { icone: "descontos", rotulo: "Descontos do evento", secao: "descontos" },
+          { icone: "colaboradores", rotulo: "Colaboradores", secao: "colaboradores" },
+          { icone: "pastas", rotulo: "Pastas", secao: "pastas" },
+          { icone: "configuracoes", rotulo: "Configurações", secao: "configuracoes" },
+          {
+            icone: "desempenho",
+            rotulo: "Desempenho",
+            href: `/painel/eventos/${evento.id}/desempenho`,
+          },
+          {
+            icone: "relatorio",
+            rotulo: "Relatório (PDF)",
+            href: `/painel/eventos/${evento.id}/relatorio`,
+          },
+        ]}
       />
 
-      <TopCliques posicoes={top} destaque={conta.id} />
+      <div id="rostos" className="scroll-mt-32">
+        <RostosDoEvento
+          eventoId={evento.id}
+          prontas={rostos.prontas}
+          comRosto={rostos.comRosto}
+          pendentes={rostos.pendentes}
+          configurado={provedorFacial() === "rekognition"}
+        />
+      </div>
+
+      <div id="ranking" className="scroll-mt-32">
+        <TopCliques posicoes={top} destaque={conta.id} />
+      </div>
 
       {qrCode && (
-        <CompartilharEvento
-          url={urlPublica}
-          titulo={evento.titulo}
-          slug={evento.slug}
-          visibilidade={evento.visibilidade}
-          qrSvg={qrCode.svg}
-          qrPngDataUrl={qrCode.pngDataUrl}
-          eventoId={evento.id}
-        />
+        <div id="divulgar" className="scroll-mt-32">
+          <CompartilharEvento
+            url={urlPublica}
+            titulo={evento.titulo}
+            slug={evento.slug}
+            visibilidade={evento.visibilidade}
+            qrSvg={qrCode.svg}
+            qrPngDataUrl={qrCode.pngDataUrl}
+            eventoId={evento.id}
+          />
+        </div>
       )}
 
       {originais && (
-        <BaixarOriginais
-          eventoId={evento.id}
-          slug={evento.slug}
-          resumo={originais}
-          pedeCodigo={usuario.mfaAtivo}
-        />
+        <div id="originais" className="scroll-mt-32">
+          <BaixarOriginais
+            eventoId={evento.id}
+            slug={evento.slug}
+            resumo={originais}
+            pedeCodigo={usuario.mfaAtivo}
+          />
+        </div>
       )}
 
       <ReaproveitarEvento eventoId={evento.id} titulo={evento.titulo} />
 
-      <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
+      <details
+        id="descontos"
+        className="group scroll-mt-32 rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden"
+      >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
           <h2 className="text-xl font-semibold">Descontos do evento</h2>
           <ChevronDown
@@ -319,7 +345,10 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         </div>
       </details>
 
-      <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
+      <details
+        id="colaboradores"
+        className="group scroll-mt-32 rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden"
+      >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
           <h2 className="text-xl font-semibold">
             Colaboradores{colaboradores?.length ? ` (${colaboradores.length})` : ""}
@@ -350,7 +379,10 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         </div>
       </details>
 
-      <details className="group rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden">
+      <details
+        id="pastas"
+        className="group scroll-mt-32 rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden"
+      >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
           <h2 className="text-xl font-semibold">
             Pastas{pastas?.length ? ` (${pastas.length})` : ""}
@@ -372,7 +404,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         </div>
       </details>
 
-      <section className="flex flex-col gap-4">
+      <section id="fotos" className="flex scroll-mt-32 flex-col gap-4">
         <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
         <EnvioFotos
           eventoId={evento.id}
@@ -410,7 +442,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         />
       </section>
 
-      <section className="flex flex-col gap-4">
+      <section id="configuracoes" className="flex scroll-mt-32 flex-col gap-4">
         <h2 className="text-xl font-semibold">Configurações</h2>
         <CapaDoEvento
           eventoId={evento.id}

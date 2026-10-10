@@ -13,6 +13,7 @@ import { ehModeloMarca, MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marc
 
 import type { EscolhaLiberacao } from "@/lib/liberacao";
 
+import { capasParaODono } from "./capa";
 import imagens from "./exemplo/imagens.json";
 import { liberacaoParaEnvio } from "./liberacao";
 import { deIso, iso, paraEvento, paraFoto, paraLancamento, paraSaque } from "./mapas";
@@ -33,13 +34,15 @@ export type EventoDoPainel = Evento & {
   totalItens: number;
   processando: number;
   vendidos: number;
+  /** Miniatura da capa (escolhida ou automática), ou `null` sem foto pronta. */
+  capaMiniatura: { urlMiniatura: string; largura: number; altura: number } | null;
 };
 
 async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<EventoDoPainel[]> {
   if (linhas.length === 0) return [];
   const banco = await obterBanco();
   const ids = linhas.map((l) => l.id);
-  const [cats, contagens, vendidos] = await Promise.all([
+  const [cats, contagens, vendidos, capas] = await Promise.all([
     banco.select().from(t.categorias),
     banco
       .select({
@@ -67,9 +70,11 @@ async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<Ev
         ),
       )
       .groupBy(t.fotos.eventoId),
+    capasParaODono(ids),
   ]);
   return linhas.map((l) => {
     const categoria = cats.find((c) => c.id === l.categoriaId);
+    const capa = capas.get(l.id);
     if (!categoria) throw new Error(`Categoria ${l.categoriaId} não existe`);
     const contagem = contagens.find((c) => c.eventoId === l.id);
     return {
@@ -79,6 +84,9 @@ async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<Ev
       totalItens: contagem?.prontas ?? 0,
       processando: contagem?.processando ?? 0,
       vendidos: vendidos.find((v) => v.eventoId === l.id)?.total ?? 0,
+      capaMiniatura: capa
+        ? { urlMiniatura: capa.urlMiniatura, largura: capa.largura, altura: capa.altura }
+        : null,
     };
   });
 }

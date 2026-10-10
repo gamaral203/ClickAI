@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
-import { Camera, Check, Info, Loader2, Trash2 } from "lucide-react";
+import { Camera, Check, ChevronDown, Info, Loader2, Trash2 } from "lucide-react";
 
 import { escolherAvatarAcao } from "@/app/(fotografo)/painel/perfil/avatar-acoes";
 import { TIPOS_DE_IMAGEM, useImagemDaLoja } from "@/components/painel/usar-imagem-da-loja";
@@ -134,15 +134,21 @@ export function EscolherAvatar({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t pt-5">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">Ou use um avatar</h3>
-          {!foto && (
-            <p className="text-sm text-muted-foreground">
-              Este é o seu avatar atual. Clique em outro para trocar.
-            </p>
-          )}
-        </div>
+      <details className="group flex flex-col gap-3 border-t pt-4 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-1">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium">Ou use um avatar</span>
+            {!foto && (
+              <span className="text-sm text-muted-foreground">
+                Este é o seu avatar atual. Toque para ver os outros.
+              </span>
+            )}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+          />
+        </summary>
         {foto && (
           <p className="flex items-start gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground">
             <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />A foto enviada tem
@@ -193,7 +199,7 @@ export function EscolherAvatar({
         >
           {mensagem?.texto}
         </p>
-      </div>
+      </details>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { BlocoRecolhivel } from "@/components/painel/bloco-recolhivel";
 import { DominioProprio } from "@/components/painel/dominio-proprio";
 import { FormularioLoja } from "@/components/painel/formulario-loja";
 import { ImagensDaLoja } from "@/components/painel/imagens-da-loja";
@@ -61,19 +62,17 @@ async function Conteudo() {
           ativa: loja?.ativa ?? true,
         }}
       />
-      <section className="flex flex-col gap-4 border-t pt-8">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold">Domínio próprio (opcional)</h2>
-          <p className="text-sm text-muted-foreground">
-            Use um endereço seu, como fotos.seusite.com.br, além do endereço do ClicouAí.
-          </p>
-        </div>
+      <BlocoRecolhivel
+        titulo="Domínio próprio"
+        descricao="Opcional: um endereço seu, como fotos.seusite.com.br"
+        aberto={Boolean(loja?.dominioProprio)}
+      >
         <DominioProprio
           dominio={loja?.dominioProprio ?? null}
           verificado={loja?.dominioVerificado ?? false}
           temLoja={Boolean(loja)}
         />
-      </section>
+      </BlocoRecolhivel>
     </>
   );
 }
