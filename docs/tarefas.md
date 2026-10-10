@@ -310,3 +310,4 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Tornar a verificação em duas etapas obrigatória para gestor (hoje é opcional para fotógrafo e gestor)
 - [ ] Recuperação de conta de quem perdeu o celular e os códigos de recuperação: hoje só pelo suporte, que confere a identidade e apaga `mfa_segredo`, `mfa_ativado_em` e os códigos no banco
 - [ ] Conferir que as respostas ao e-mail do pedido (`EMAIL_REMETENTE`) chegam a uma caixa lida pela equipe: a central de ajuda manda o comprador responder o e-mail da compra
+- [ ] Páginas do painel que chamam `notFound()` dentro do `<Suspense>` (evento, desempenho do evento, relatório) respondem 200 com o conteúdo de "não encontrado" em vez de 404, porque o cabeçalho já saiu no streaming; conferir no `next start` e, se preciso, checar a posse do evento antes do `Suspense`. Nenhum dado vaza
