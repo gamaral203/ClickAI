@@ -3,13 +3,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { CheckCircle2, Clock, Copy, Download, XCircle } from "lucide-react";
+import { Copy, Download, XCircle } from "lucide-react";
 import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
 import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
 import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
-import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/pagamento/pix";
+import { PagamentoPix } from "@/components/pagamento/pagamento-pix";
+import { AtualizadorDePagamento, BotaoGerarPix } from "@/components/pagamento/pix";
+import { SeloPagamento } from "@/components/pagamento/selo-pagamento";
 import { buttonVariants } from "@/components/ui/button";
 import { autoresPorId, contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
@@ -65,24 +67,37 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   return (
     <>
       {pedido.status === "pendente" && (
-        <section className="flex flex-col gap-4 rounded-xl border p-6">
-          <div className="flex items-center gap-3">
-            <Clock aria-hidden="true" className="size-6 text-primary" />
-            <h1 className="text-2xl font-bold tracking-tight">Aguardando pagamento</h1>
+        <section className="flex flex-col gap-6 overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <SeloPagamento pago={false} />
+            <div className="flex min-w-0 flex-col">
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Aguardando pagamento</h1>
+              <p className="text-sm text-muted-foreground">
+                {pedido.metodo === "pix" ? "Pix" : "Cartão de crédito à vista"} · {detalhes.length}{" "}
+                {detalhes.length === 1 ? "foto" : "fotos"}
+              </p>
+            </div>
+            <p className="ml-auto text-right whitespace-nowrap">
+              <span className="block text-xs text-muted-foreground">Total</span>
+              <span className="text-2xl font-extrabold tabular-nums sm:text-3xl">
+                {formatarPreco(pedido.totalCentavos)}
+              </span>
+            </p>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {pedido.metodo === "pix"
-              ? `Pague com o Pix abaixo até ${formatarDataEHora(pedido.expiraEm)}. As fotos são liberadas assim que o pagamento for confirmado.`
-              : "Preencha os dados do cartão abaixo. O pagamento é à vista, e as fotos são liberadas assim que ele for confirmado."}
+              ? `Pague até ${formatarDataEHora(pedido.expiraEm)}. As fotos são liberadas assim que o pagamento for confirmado, sem precisar atualizar a página.`
+              : "Preencha os dados do cartão abaixo. As fotos são liberadas assim que o pagamento for confirmado."}
           </p>
           {gateway ? (
             <>
               <AtualizadorDePagamento />
               {pedido.metodo === "pix" &&
                 (pedido.pix ? (
-                  <QrCodePix
+                  <PagamentoPix
                     copiaECola={pedido.pix.copiaECola}
                     qrCodeBase64={pedido.pix.qrCodeBase64}
+                    expiraEm={pedido.expiraEm}
                   />
                 ) : (
                   <BotaoGerarPix pedidoId={pedido.id} token={dados.data.token} />
@@ -122,9 +137,9 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
       )}
 
       {liberado && (
-        <section className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-accent p-6 text-accent-foreground">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 aria-hidden="true" className="size-6" />
+        <section className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-accent p-6 text-accent-foreground">
+          <div className="flex items-center gap-4">
+            <SeloPagamento pago />
             <h1 className="text-2xl font-bold tracking-tight">Pagamento confirmado</h1>
           </div>
           <p>
@@ -229,6 +244,11 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
             </li>
           ))}
         </ul>
+        {(pedido.acrescimoCartaoCentavos ?? 0) > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Inclui {formatarPreco(pedido.acrescimoCartaoCentavos ?? 0)} de taxa do cartão.
+          </p>
+        )}
         <p className="text-sm text-muted-foreground">
           Pedido em nome de {pedido.nomeComprador} ({pedido.emailComprador}).
         </p>
