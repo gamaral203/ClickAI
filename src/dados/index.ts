@@ -1559,3 +1559,4 @@ export * from "./rankings";
 export * from "./liberacao";
 export * from "./push";
 export * from "./capa";
+export * from "./suporte";

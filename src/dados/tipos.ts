@@ -4,6 +4,8 @@
 // Campos sensíveis (senha do evento, CPF/CNPJ, chave Pix) ficam em tipos
 // separados e nunca entram nos tipos públicos, que podem ir para o navegador.
 
+import type { ModeloMarca } from "@/lib/marca-dagua";
+
 // ---------------------------------------------------------------- Núcleo
 
 /** Papéis: cliente compra; fotógrafo (vendedor) publica e vende; admin (gestor) vê tudo e muda papéis. */
@@ -70,6 +72,8 @@ export type FotografoConta = Fotografo & {
   documentoTrocadoEm?: string | null;
   /** Comissão da plataforma, descontada no saque. */
   comissaoPct: number;
+  /** Modelo de marca d'água das prévias (padrão quando ausente). */
+  modeloMarca?: ModeloMarca;
 };
 
 export type Categoria = {

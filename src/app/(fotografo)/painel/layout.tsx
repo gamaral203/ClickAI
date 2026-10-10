@@ -1,4 +1,7 @@
+import { Suspense } from "react";
+
 import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
+import { ChatDoPainel } from "@/components/suporte/chat-do-painel";
 import { linkWhatsappSuporte } from "@/lib/suporte";
 
 const itens: ItemMenu[] = [
@@ -10,6 +13,7 @@ const itens: ItemMenu[] = [
   { href: "/painel/descontos", rotulo: "Descontos e cupons", icone: "descontos" },
   { href: "/painel/colaboracoes", rotulo: "Colaborações", icone: "colaboracoes" },
   { href: "/painel/loja", rotulo: "Minha loja", icone: "loja" },
+  { href: "/painel/marca-dagua", rotulo: "Marca d'água", icone: "marca" },
   { href: "/painel/perfil", rotulo: "Perfil e recebimento", icone: "perfil" },
 ];
 
@@ -26,6 +30,9 @@ export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
         />
       </div>
       <div className="min-w-0">{children}</div>
+      <Suspense fallback={null}>
+        <ChatDoPainel />
+      </Suspense>
     </div>
   );
 }
