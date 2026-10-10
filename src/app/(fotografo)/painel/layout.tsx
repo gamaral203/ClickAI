@@ -1,4 +1,7 @@
+import { Suspense } from "react";
+
 import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
+import { ChatDoPainel } from "@/components/suporte/chat-do-painel";
 
 const itens: ItemMenu[] = [
   { href: "/painel", rotulo: "Início", icone: "inicio" },
@@ -20,6 +23,9 @@ export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
         <MenuPainel titulo="Painel do fotógrafo" itens={itens} raiz="/painel" />
       </div>
       <div className="min-w-0">{children}</div>
+      <Suspense fallback={null}>
+        <ChatDoPainel />
+      </Suspense>
     </div>
   );
 }

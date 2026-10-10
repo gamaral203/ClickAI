@@ -12,6 +12,8 @@ import {
   Images,
   Mail,
   Menu,
+  MessageCircle,
+  Rocket,
   Store,
   Tags,
   Trophy,
@@ -38,6 +40,8 @@ const ICONES = {
   mensagens: Mail,
   usuarios: Users,
   contas: BookUser,
+  suporte: MessageCircle,
+  sugestoes: Rocket,
 } as const;
 
 export type ItemMenu = { href: string; rotulo: string; icone: keyof typeof ICONES };

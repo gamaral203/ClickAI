@@ -4,6 +4,8 @@ const itens: ItemMenu[] = [
   { href: "/admin", rotulo: "Visão geral", icone: "inicio" },
   { href: "/admin/vendas", rotulo: "Financeiro", icone: "financeiro" },
   { href: "/admin/saques", rotulo: "Saques", icone: "saques" },
+  { href: "/admin/suporte", rotulo: "Chat de ajuda", icone: "suporte" },
+  { href: "/admin/sugestoes", rotulo: "Sugestões", icone: "sugestoes" },
   { href: "/admin/denuncias", rotulo: "Denúncias", icone: "denuncias" },
   { href: "/admin/mensagens", rotulo: "Mensagens", icone: "mensagens" },
   { href: "/admin/usuarios", rotulo: "Usuários", icone: "usuarios" },
