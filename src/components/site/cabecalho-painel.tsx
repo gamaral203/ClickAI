@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { LogOut } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
+import { BotaoSugestao } from "@/components/suporte/botao-sugestao";
 import type { Usuario } from "@/dados/tipos";
 import type { Navegacao } from "@/lib/navegacao";
 
@@ -43,6 +44,7 @@ export function CabecalhoPainel({
         </nav>
 
         <div className="flex items-center gap-1">
+          <BotaoSugestao />
           {/* Selo da meta na mesma linha, antes do nome (só o fotógrafo, só em tela larga). */}
           {navegacao.meta && (
             <Suspense fallback={null}>

@@ -740,3 +740,64 @@ export const inscricoesPush = pgTable(
   },
   (t) => [uniqueIndex().on(t.endpoint), index().on(t.usuarioId)],
 ).enableRLS();
+
+// ---------------------------------------------------------------- Suporte e sugestões
+
+export const autorMensagemSuporte = pgEnum("autor_mensagem_suporte", ["usuario", "equipe"]);
+export const statusSugestao = pgEnum("status_sugestao", [
+  "nova",
+  "em_analise",
+  "feita",
+  "descartada",
+]);
+
+/**
+ * Conversa do chat de ajuda do painel: uma por usuário, como um fio de WhatsApp. Os dois
+ * "não lida" acendem o aviso de mensagem nova de cada lado.
+ */
+export const conversasSuporte = pgTable(
+  "conversas_suporte",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    /** Nome e e-mail que a pessoa informou no chat (podem diferir dos da conta). */
+    nome: text().notNull(),
+    email: text().notNull(),
+    naoLidaPelaEquipe: boolean().notNull().default(false),
+    naoLidaPeloUsuario: boolean().notNull().default(false),
+    criadoEm: momento(),
+    atualizadoEm: momento(),
+  },
+  (t) => [uniqueIndex().on(t.usuarioId), index().on(t.atualizadoEm)],
+).enableRLS();
+
+export const mensagensSuporte = pgTable(
+  "mensagens_suporte",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    conversaId: uuid()
+      .notNull()
+      .references(() => conversasSuporte.id, { onDelete: "cascade" }),
+    autor: autorMensagemSuporte().notNull(),
+    texto: text().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.conversaId, t.criadoEm)],
+).enableRLS();
+
+/** Sugestão de melhoria mandada pelo botão do foguete no painel. */
+export const sugestoes = pgTable(
+  "sugestoes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+    nome: text().notNull(),
+    email: text().notNull(),
+    texto: text().notNull(),
+    status: statusSugestao().notNull().default("nova"),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.criadoEm)],
+).enableRLS();

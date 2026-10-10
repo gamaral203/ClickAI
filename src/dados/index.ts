@@ -1469,3 +1469,4 @@ export * from "./autenticacao";
 export * from "./autores";
 export * from "./rankings";
 export * from "./push";
+export * from "./suporte";
