@@ -2,7 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, Calendar, Camera, Clock, Flag, Images, MapPin, ScanFace } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Camera,
+  Clock,
+  ExternalLink,
+  Flag,
+  Images,
+  MapPin,
+  Navigation,
+  ScanFace,
+} from "lucide-react";
 
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
@@ -11,7 +22,9 @@ import { AtualizarNaHora, ContagemRegressiva } from "@/components/galeria/contag
 import { FiltrosGaleria } from "@/components/galeria/filtros-galeria";
 import { FormularioSenhaEvento } from "@/components/galeria/formulario-senha-evento";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
+import { MapaDoEvento } from "@/components/galeria/mapa-do-evento";
 import { RegistrarVisita } from "@/components/metricas/registrar";
+import { buttonVariants } from "@/components/ui/button";
 import {
   buscarEventoPublicado,
   eventoTemNumeros,
@@ -23,8 +36,10 @@ import {
 import { urlDoSite } from "@/lib/endereco";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { linkComoChegar, linkVerNoMapa, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
 import { lerFiltroGaleria } from "@/lib/validacao";
+import { configDoMapa } from "@/servicos/mapa";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export async function generateMetadata({
@@ -133,6 +148,8 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
 
       <Galeria evento={evento} filtro={filtro} />
 
+      <Onde evento={evento} />
+
       <Link
         href={`/denunciar?evento=${evento.slug}`}
         className="inline-flex h-11 w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -226,6 +243,50 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
         }
       />
     </>
+  );
+}
+
+/**
+ * Bloco "Onde": só no evento com ponto escolhido no Google Maps. Endereço e links do Google Maps
+ * sempre; o mapa pequeno só com a chave configurada, carregado quando chega perto da tela.
+ */
+async function Onde({ evento }: { evento: EventoResumo }) {
+  const ponto = pontoDoEvento(evento);
+  if (!ponto) return null;
+  const mapa = await configDoMapa();
+  const link = buttonVariants({ variant: "outline", size: "touch" });
+  return (
+    <section aria-labelledby="onde" className="flex flex-col gap-4 rounded-xl border p-5">
+      <div className="flex flex-col gap-1">
+        <h2 id="onde" className="text-lg font-semibold">
+          Onde
+        </h2>
+        <p className="font-medium">{evento.local}</p>
+        <p className="text-sm text-muted-foreground">
+          {ponto.enderecoMapa ?? `${evento.cidade}, ${evento.estado}`}
+        </p>
+      </div>
+      {mapa && (
+        <MapaDoEvento
+          config={mapa}
+          latitude={ponto.latitude}
+          longitude={ponto.longitude}
+          nome={evento.local}
+        />
+      )}
+      <div className="flex flex-wrap gap-3">
+        <a href={linkComoChegar(ponto)} target="_blank" rel="noopener noreferrer" className={link}>
+          <Navigation aria-hidden="true" data-icon="inline-start" />
+          Como chegar
+          <span className="sr-only"> (abre o Google Maps em outra aba)</span>
+        </a>
+        <a href={linkVerNoMapa(ponto)} target="_blank" rel="noopener noreferrer" className={link}>
+          <ExternalLink aria-hidden="true" data-icon="inline-start" />
+          Ver no Google Maps
+          <span className="sr-only"> (abre em outra aba)</span>
+        </a>
+      </div>
+    </section>
   );
 }
 
