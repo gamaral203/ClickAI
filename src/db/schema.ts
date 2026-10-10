@@ -176,6 +176,27 @@ export const codigosEmail = pgTable(
 ).enableRLS();
 
 /**
+ * Código de acesso do gestor (6 dígitos, src/servicos/codigo-login.ts): segunda etapa obrigatória
+ * do login de quem tem o papel `admin`, enviada ao e-mail da conta. Um por usuário (a chave
+ * primária é o índice por usuário): um login novo troca o código. Do código, só o HMAC; vale 10
+ * minutos, aceita 5 tentativas e é apagado ao ser usado. `login_id` é o login pendente que pediu o
+ * código (o mesmo id vai no cookie assinado), e `reenvios` conta os códigos novos desse login.
+ */
+export const codigosDeLogin = pgTable("codigos_de_login", {
+  usuarioId: uuid()
+    .primaryKey()
+    .references(() => usuarios.id, { onDelete: "cascade" }),
+  loginId: uuid().notNull(),
+  codigoHash: text().notNull(),
+  expiraEm: data().notNull(),
+  tentativas: integer().notNull().default(0),
+  reenvios: integer().notNull().default(0),
+  /** Último envio: o reenvio espera 60 segundos. */
+  enviadoEm: data().notNull(),
+  criadoEm: momento(),
+}).enableRLS();
+
+/**
  * Link de "Esqueci a senha" (src/servicos/redefinicao-senha.ts): só o SHA-256 do token, vale 30
  * minutos e uma vez só. Redefinir a senha apaga os outros links da conta.
  */
