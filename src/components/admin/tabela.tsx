@@ -28,7 +28,7 @@ export function CartaoNumero({
         <span className="mt-0.5 shrink-0 sm:mt-0">{icone}</span>
         {titulo}
       </span>
-      <span className="text-lg font-bold break-words sm:text-3xl">{valor}</span>
+      <span className="text-lg font-bold break-words tabular-nums sm:text-3xl">{valor}</span>
       {texto && <span className="text-xs text-muted-foreground sm:text-sm">{texto}</span>}
     </div>
   );
