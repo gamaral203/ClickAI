@@ -198,7 +198,13 @@ export function DiafragmaProgresso({
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           {mostrarCheck ? (
-            <Check aria-hidden="true" strokeWidth={3} className="size-8 text-primary sm:size-11" />
+            // Envio concluído: o diafragma abre e mostra o círculo limão com o check escuro.
+            <span
+              aria-hidden="true"
+              className="flex size-14 items-center justify-center rounded-full bg-highlight text-highlight-foreground shadow-sm sm:size-20"
+            >
+              <Check strokeWidth={3} className="size-8 sm:size-11" />
+            </span>
           ) : (
             <span className="text-base leading-none font-bold tabular-nums sm:text-2xl">
               {valor}%

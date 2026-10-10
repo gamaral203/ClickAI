@@ -95,9 +95,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             Fotógrafos publicam as fotos de corridas, festas, formaturas e esportes. Você encontra
             as suas, paga e baixa o original.
           </p>
-          <Link href="#eventos" className={buttonVariants({ size: "touch" })}>
+          <Link href="#eventos" className={buttonVariants({ size: "touch", className: "pr-2" })}>
             Encontrar meu evento
-            <ArrowRight aria-hidden="true" data-icon="inline-end" />
+            {/* Pastilha limão com a seta escura (14:1): o detalhe verde do botão principal. */}
+            <span
+              aria-hidden="true"
+              className="flex size-7 items-center justify-center rounded-md bg-highlight text-highlight-foreground transition-transform duration-150 group-hover/button:translate-x-0.5 motion-reduce:transition-none"
+            >
+              <ArrowRight className="size-4" />
+            </span>
           </Link>
         </div>
       </CarrosselInicio>

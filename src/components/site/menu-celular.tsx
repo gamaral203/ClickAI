@@ -77,7 +77,7 @@ export function MenuCelular({
                       : item.href
                   }
                   aria-current={linkAtivo(caminho, item.href, item.exato) ? "page" : undefined}
-                  className="flex h-11 items-center rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary"
+                  className="flex h-11 items-center gap-2 rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary aria-[current=page]:before:size-2 aria-[current=page]:before:shrink-0 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-highlight"
                 >
                   {item.rotulo}
                 </Link>

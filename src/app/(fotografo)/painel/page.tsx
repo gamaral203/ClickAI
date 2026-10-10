@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import {
   CalendarDays,
-  CheckCircle2,
+  Check,
   Circle,
   Clock,
   Percent,
@@ -117,7 +117,13 @@ async function Conteudo() {
             {passos.map((passo) => (
               <li key={passo.texto} className="flex items-center gap-3">
                 {passo.feito ? (
-                  <CheckCircle2 aria-hidden="true" className="size-5 text-primary" />
+                  // Passo concluído: círculo limão com o check escuro (14:1).
+                  <span
+                    aria-hidden="true"
+                    className="flex size-5 shrink-0 items-center justify-center rounded-full bg-highlight text-highlight-foreground"
+                  >
+                    <Check className="size-3.5" strokeWidth={3} />
+                  </span>
                 ) : (
                   <Circle aria-hidden="true" className="size-5 text-muted-foreground" />
                 )}

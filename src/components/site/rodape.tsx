@@ -42,7 +42,10 @@ function RodapeCompleto() {
   return (
     <footer className="border-t print:hidden">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <span>© ClicouAí · Instagram @clicouai</span>
+        <span className="flex items-center gap-2">
+          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />©
+          ClicouAí · Instagram @clicouai
+        </span>
         <nav aria-label="Rodapé">
           <ul className="flex flex-wrap gap-x-4 sm:gap-y-1">
             {links.map((l) => (
@@ -81,7 +84,10 @@ function RodapeCurto() {
             ))}
           </ul>
         </nav>
-        <span>ClicouAí © {new Date().getFullYear()}</span>
+        <span className="flex items-center gap-2">
+          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />
+          ClicouAí © {new Date().getFullYear()}
+        </span>
       </div>
     </footer>
   );

@@ -61,7 +61,7 @@ export function CartaoMeta({
             className="block h-1 overflow-hidden rounded-full bg-primary/15"
           >
             <span
-              className="block h-full rounded-full bg-primary"
+              className="block h-full rounded-full bg-linear-to-r from-primary to-highlight"
               style={{ width: `${metas.progressoPct}%` }}
             />
           </span>

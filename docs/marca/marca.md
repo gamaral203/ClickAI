@@ -41,6 +41,23 @@ As cores estão em [`src/app/globals.css`](../../src/app/globals.css) como vari�
 
 O limão não fica no `--accent` porque o shadcn usa esse token no hover de vários componentes, e a interface inteira ficaria verde. Nunca usar `text-highlight` sobre fundo claro.
 
+### Onde o limão aparece
+
+Proporção 60/30/10: branco (fundo), azul (cor principal) e limão só como detalhe. O limão nunca é a única pista de um estado; o azul, o texto ou um ícone escuro dizem a mesma coisa.
+
+| Lugar | Como | Por quê |
+|---|---|---|
+| Link ativo do cabeçalho do site e atalhos do painel | Traço limão de 3 px embaixo; o texto fica azul | Marca a página atual sem pesar no cabeçalho |
+| Menu lateral do painel e menu do celular | Barra limão à esquerda do item atual; ponto limão no menu do celular | Mesma linguagem do cabeçalho |
+| Faixa do topo do cabeçalho do painel | Gradiente do azul para o limão | Assinatura da marca em toda página do painel |
+| Selos positivos ("Publicado", "Pago", "Em construção", top da semana, contagem do carrinho) | `bg-highlight text-highlight-foreground` (14:1) | Status bom em destaque |
+| Barra do cartão da meta | Preenchimento do azul para o limão sobre o trilho azul-claro | O azul no começo garante contraste com o trilho; o limão marca o avanço |
+| Passo concluído (checklist do painel) e fim do envio de fotos | Círculo limão com check escuro | Conclusão comemorada, com o check legível |
+| Botão "Encontrar meu evento" da inicial | Pastilha limão com a seta escura | Chama para a ação principal |
+| Botões secundários (contorno) | Borda limão no hover; o foco continua com o anel azul | Resposta ao passar o mouse; o foco precisa de contraste |
+| Rodapé | Ponto limão antes do © | Fecha a página com a cor de apoio |
+| Pedido pago | Onda limão atrás do check azul | Comemoração da compra |
+
 Fonte: Plus Jakarta Sans (via `next/font`), geométrica e arredondada como a logo.
 
 ## Avatares
