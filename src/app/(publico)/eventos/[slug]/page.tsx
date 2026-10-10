@@ -34,7 +34,7 @@ import {
   type FiltroGaleria,
 } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { linkComoChegar, linkVerNoOpenStreetMap, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
@@ -54,7 +54,7 @@ export async function generateMetadata({
       openGraph: { images: [{ url: capa.startsWith("/") ? urlDoSite(capa) : capa }] },
     }),
     title: evento.titulo,
-    description: `${contarItens(evento)} de ${evento.titulo}, ${formatarData(evento.inicioEm)}, ${evento.cidade}.`,
+    description: `${contarItens(evento)} de ${evento.titulo}, ${formatarPeriodo(evento.inicioEm, evento.fimEm)}, ${evento.cidade}.`,
     // Não listado e com senha ficam fora do Google (docs/arquitetura.md, Galeria e busca).
     robots: evento.visibilidade === "publico" ? undefined : { index: false, follow: false },
   };
@@ -97,7 +97,7 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
               <Calendar aria-hidden="true" className="size-4" />
               <span className="sr-only">Data</span>
             </dt>
-            <dd>{formatarData(evento.inicioEm)}</dd>
+            <dd>{formatarPeriodo(evento.inicioEm, evento.fimEm)}</dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>
@@ -208,6 +208,7 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
     listarOpcoesGaleria(evento.id),
   ]);
   const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
+  const chaveDaLista = `${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}|${filtro.pasta ?? ""}`;
   return (
     <>
       {busca}
@@ -227,7 +228,8 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
       <GaleriaFotos
         // Novo filtro, nova lista: sem a chave, a galeria manteria as fotos do filtro anterior.
-        key={`${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}|${filtro.pasta ?? ""}`}
+        key={chaveDaLista}
+        restaurar={chaveDaLista}
         slug={evento.slug}
         tituloEvento={evento.titulo}
         paginaInicial={primeiraPagina}

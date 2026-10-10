@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 import { Celula, Tabela } from "@/components/admin/tabela";
 import { desempenhoDoFotografo } from "@/dados";
-import { formatarData, formatarPorcentagem, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Desempenho", robots: { index: false, follow: false } };
@@ -57,7 +57,7 @@ async function Conteudo() {
                     {e.evento.titulo}
                   </Link>
                   <span className="text-xs text-muted-foreground">
-                    {formatarData(e.evento.inicioEm)}
+                    {formatarPeriodo(e.evento.inicioEm, e.evento.fimEm)}
                     {e.evento.status !== "publicado" && " · não publicado"}
                   </span>
                 </span>

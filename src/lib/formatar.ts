@@ -47,6 +47,39 @@ export function formatarDataCurta(iso: string, { hora = true } = {}) {
   return hora ? texto : texto.slice(0, 8);
 }
 
+/** "2026-10-07" (AAAA-MM-DD), no horário de Brasília. */
+export function diaEmBrasilia(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(new Date(iso));
+}
+
+const partes = (opcoes: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat("pt-BR", { ...opcoes, timeZone: FUSO });
+const dia = partes({ day: "numeric" });
+const diaEMes = partes({ day: "numeric", month: "long" });
+const completa = partes({ day: "numeric", month: "long", year: "numeric" });
+
+/**
+ * Período do evento por extenso, no horário de Brasília:
+ * - sem data final, ou terminando no mesmo dia: "7 de outubro de 2026";
+ * - no mesmo mês: "7 a 9 de outubro de 2026";
+ * - no mesmo ano: "30 de setembro a 2 de outubro de 2026";
+ * - em anos diferentes: "31 de dezembro de 2026 a 1 de janeiro de 2027".
+ */
+export function formatarPeriodo(inicioEm: string, fimEm: string | null | undefined) {
+  const inicio = new Date(inicioEm);
+  if (!fimEm) return completa.format(inicio);
+  const fim = new Date(fimEm);
+  const [di, df] = [diaEmBrasilia(inicioEm), diaEmBrasilia(fimEm)];
+  if (df <= di) return completa.format(inicio);
+  if (di.slice(0, 7) === df.slice(0, 7)) {
+    return `${dia.format(inicio)} a ${completa.format(fim)}`;
+  }
+  if (di.slice(0, 4) === df.slice(0, 4)) {
+    return `${diaEMes.format(inicio)} a ${completa.format(fim)}`;
+  }
+  return `${completa.format(inicio)} a ${completa.format(fim)}`;
+}
+
 const porcentagem = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
 
 /** 0.125 → "12,5%". `null` (sem base para calcular, como conversão sem visitas) vira "—". */

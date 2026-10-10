@@ -15,11 +15,12 @@ import {
 
 import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
+import { LinkOutraFoto, VoltarParaGaleria } from "@/components/galeria/navegacao-da-foto";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { autoresPorId, buscarFotoPublica } from "@/dados";
-import { formatarData, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
 import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -34,7 +35,7 @@ export async function generateMetadata({ params }: PageProps<"/fotos/[id]">): Pr
   if (!dados) return { title: "Foto não encontrada" };
   return {
     title: dados.posicao ? `Foto ${dados.posicao} — ${dados.evento.titulo}` : dados.evento.titulo,
-    description: `Foto de ${dados.evento.titulo}, ${formatarData(dados.evento.inicioEm)}, ${dados.evento.cidade}.`,
+    description: `Foto de ${dados.evento.titulo}, ${formatarPeriodo(dados.evento.inicioEm, dados.evento.fimEm)}, ${dados.evento.cidade}.`,
     // Só indexa foto de evento público com galeria aberta; as outras só abrem pelo link.
     robots:
       dados.evento.visibilidade === "publico" && dados.evento.situacaoGaleria.tipo === "aberta"
@@ -67,13 +68,15 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   return (
     <div className="flex flex-col gap-6">
       <RegistrarVisita fotoId={foto.id} />
-      <Link
-        href={`/eventos/${evento.slug}`}
+      {/* Veio da galeria: volta no histórico, no mesmo ponto; link direto: abre a galeria. */}
+      <VoltarParaGaleria
+        slug={evento.slug}
+        fotoId={foto.id}
         className="inline-flex h-11 w-fit items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />
         Voltar para {evento.titulo}
-      </Link>
+      </VoltarParaGaleria>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <figure className="flex flex-col gap-3">
@@ -109,7 +112,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             )}
             <h1 className="text-2xl font-bold tracking-tight text-balance">{evento.titulo}</h1>
             <p className="text-muted-foreground">
-              {formatarData(evento.inicioEm)} · {evento.cidade}, {evento.estado}
+              {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.cidade}, {evento.estado}
             </p>
             <p className="text-muted-foreground">
               Foto por{" "}
@@ -147,24 +150,28 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
           {posicao && (
             <nav aria-label="Navegar entre as fotos do evento" className="flex gap-3">
               {anteriorId ? (
-                <Link
-                  href={`/fotos/${anteriorId}`}
+                <LinkOutraFoto
+                  slug={evento.slug}
+                  de={foto.id}
+                  para={anteriorId}
                   className={cn(buttonVariants({ variant: "outline", size: "touch" }), "flex-1")}
                 >
                   <ChevronLeft aria-hidden="true" data-icon="inline-start" />
                   Anterior
-                </Link>
+                </LinkOutraFoto>
               ) : (
                 <span className="flex-1" />
               )}
               {proximaId && (
-                <Link
-                  href={`/fotos/${proximaId}`}
+                <LinkOutraFoto
+                  slug={evento.slug}
+                  de={foto.id}
+                  para={proximaId}
                   className={cn(buttonVariants({ variant: "outline", size: "touch" }), "flex-1")}
                 >
                   Próxima
                   <ChevronRight aria-hidden="true" data-icon="inline-end" />
-                </Link>
+                </LinkOutraFoto>
               )}
             </nav>
           )}

@@ -8,17 +8,21 @@ import {
   type CampoEvento,
   type EstadoEvento,
 } from "@/app/(fotografo)/painel/eventos/acoes";
+import { CampoDataEvento } from "@/components/painel/campo-data-evento";
 import { LocalNoMapa } from "@/components/painel/local-no-mapa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MENSAGEM_FIM_ANTES_DO_INICIO, separarCampo } from "@/lib/campo-data";
 import type { PontoNoMapa } from "@/lib/mapa";
+
 import { UFS } from "@/lib/ufs";
 
 export type ValoresEvento = {
   titulo: string;
   categoriaId: string;
   inicioEm: string;
+  /** Opcional: "" sem data final. */
   fimEm: string;
   local: string;
   cidade: string;
@@ -50,7 +54,6 @@ const NOMES_DOS_CAMPOS: Partial<Record<CampoEvento, string>> = {
   titulo: "o nome do evento",
   categoriaId: "a categoria",
   inicioEm: "o início",
-  fimEm: "o fim",
   local: "o local",
   cidade: "a cidade",
   estado: "o estado",
@@ -76,6 +79,10 @@ export function FormularioEvento({
   const [estado, acao, enviando] = useActionState(salvarEventoAcao, estadoInicial);
   const [visibilidade, setVisibilidade] = useState(inicial.visibilidade);
   const [liberacao, setLiberacao] = useState(inicial.liberacao);
+  // Datas: o início limita os dias da data final e sugere a hora dela.
+  const [inicio, setInicio] = useState(inicial.inicioEm);
+  const [fim, setFim] = useState(inicial.fimEm);
+  const fimAntesDoInicio = Boolean(inicio && fim && fim < inicio);
   const erros = estado.erros ?? {};
   const formulario = useRef<HTMLFormElement>(null);
   // Criar evento usa o assistente em passos; editar mostra tudo de uma vez.
@@ -98,6 +105,10 @@ export function FormularioEvento({
     );
     if (vazios.length > 0) {
       setFaltando(`Preencha ${vazios.map((c) => NOMES_DOS_CAMPOS[c]).join(", ")}.`);
+      return;
+    }
+    if (passo === 0 && fimAntesDoInicio) {
+      setFaltando(MENSAGEM_FIM_ANTES_DO_INICIO);
       return;
     }
     setFaltando(null);
@@ -164,23 +175,30 @@ export function FormularioEvento({
               ))}
             </select>
           </Campo>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Campo rotulo="Início" id="inicioEm" erro={erros.inicioEm}>
-              <Input
-                {...props("inicioEm")}
-                type="datetime-local"
-                defaultValue={inicial.inicioEm}
-                className="h-11"
-              />
-            </Campo>
-            <Campo rotulo="Fim" id="fimEm" erro={erros.fimEm}>
-              <Input
-                {...props("fimEm")}
-                type="datetime-local"
-                defaultValue={inicial.fimEm}
-                className="h-11"
-              />
-            </Campo>
+          <div className="flex flex-col gap-5">
+            <CampoDataEvento
+              nome="inicioEm"
+              rotulo="Início"
+              valorInicial={inicial.inicioEm}
+              erro={erros.inicioEm}
+              aoMudar={setInicio}
+            />
+            <CampoDataEvento
+              nome="fimEm"
+              rotulo="Data final"
+              valorInicial={inicial.fimEm}
+              erro={erros.fimEm ?? (fimAntesDoInicio ? MENSAGEM_FIM_ANTES_DO_INICIO : undefined)}
+              aoMudar={setFim}
+              minimo={separarCampo(inicio).dia || undefined}
+              horaSugerida={separarCampo(inicio).hora || undefined}
+              opcional={{
+                textoAdicionar: "Adicionar data final",
+                textoRemover: "Remover a data final",
+              }}
+            />
+            <p className="text-sm text-muted-foreground">
+              Horário de Brasília. Sem data final, o evento aparece com a data de início.
+            </p>
           </div>
         </Secao>
       </div>

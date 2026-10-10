@@ -270,7 +270,8 @@ export const eventos = pgTable(
     titulo: text().notNull(),
     slug: text().notNull(),
     inicioEm: data().notNull(),
-    fimEm: data().notNull(),
+    /** Data e hora de fim. Opcional: sem ela, o evento vale só pela data de início. */
+    fimEm: data(),
     local: text().notNull(),
     cidade: text().notNull(),
     estado: text().notNull(),

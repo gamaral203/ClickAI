@@ -6,7 +6,7 @@ import { CalendarPlus, ChartColumn, Images } from "lucide-react";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { buttonVariants } from "@/components/ui/button";
 import { listarEventosDoFotografo } from "@/dados";
-import { formatarData } from "@/lib/formatar";
+import { formatarPeriodo } from "@/lib/formatar";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -65,7 +65,7 @@ async function Lista() {
               <StatusEventoSelo status={evento.status} />
             </div>
             <p className="text-sm text-muted-foreground">
-              {formatarData(evento.inicioEm)} · {evento.cidade}, {evento.estado} ·{" "}
+              {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.cidade}, {evento.estado} ·{" "}
               {evento.categoria.nome}
             </p>
           </div>

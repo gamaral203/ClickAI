@@ -339,7 +339,8 @@ function gerarFotos(): Foto[] {
   eventosBase.forEach((base, i) => {
     const evento = eventos[i];
     const inicio = new Date(evento.inicioEm).getTime();
-    const duracao = new Date(evento.fimEm).getTime() - inicio;
+    // Sem data final, as fotos se espalham pelas 4 horas seguintes ao início.
+    const duracao = evento.fimEm ? new Date(evento.fimEm).getTime() - inicio : 4 * 3_600_000;
     for (let n = 0; n < base.quantidadeFotos; n++) {
       contador++;
       // Cada evento começa num ponto diferente do ciclo de imagens, para não parecerem iguais.

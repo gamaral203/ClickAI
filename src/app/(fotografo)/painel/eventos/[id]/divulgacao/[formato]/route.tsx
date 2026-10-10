@@ -6,7 +6,7 @@ import sharp from "sharp";
 
 import { buscarEventoDoFotografo, imagemDeCapaDoEvento } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarData } from "@/lib/formatar";
+import { formatarPeriodo } from "@/lib/formatar";
 import { gerarQrCode } from "@/lib/qrcode";
 import { urlPublica } from "@/lib/url-publica";
 import { ehIdValido } from "@/lib/validacao";
@@ -149,7 +149,7 @@ export async function GET(
             {evento.titulo}
           </div>
           <div style={{ display: "flex", fontSize: 38, opacity: 0.9 }}>
-            {formatarData(evento.inicioEm)} · {evento.cidade}
+            {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.cidade}
           </div>
         </div>
 

@@ -97,7 +97,8 @@ export type Evento = {
   titulo: string;
   slug: string;
   inicioEm: string;
-  fimEm: string;
+  /** Fim do evento; `null` quando o fotógrafo não informou (vale só a data de início). */
+  fimEm: string | null;
   local: string;
   cidade: string;
   /** Sigla da UF. */
