@@ -29,6 +29,13 @@ import {
 import { campoParaIso } from "@/lib/datas";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
 import { reaisParaCentavos } from "@/lib/dinheiro";
+import {
+  CAMPOS_DO_MAPA,
+  camposDoMapa,
+  mapaCompleto,
+  MENSAGEM_MAPA_INVALIDO,
+  normalizarMapa,
+} from "@/lib/mapa";
 import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES, LIMITE_FOTO_TEXTO } from "@/lib/limites-envio";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, r2Configurado, removerOriginal } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
@@ -98,15 +105,24 @@ const formulario = z
     filtroHorario: marcado,
     listarNaoIdentificadas: marcado,
     ordenacao: z.enum(["envio", "captura", "nome_arquivo", "aleatoria"], "Escolha a ordem."),
+    // Ponto escolhido no Google Maps (campos ocultos; vazios quando não há mapa).
+    ...camposDoMapa,
   })
   .refine((d) => !d.inicioEm || !d.fimEm || d.fimEm >= d.inicioEm, {
     path: ["fimEm"],
     message: "O fim precisa ser depois do início.",
-  });
+  })
+  .refine(mapaCompleto, { path: ["latitude"], message: MENSAGEM_MAPA_INVALIDO });
+
+const CAMPOS_OCULTOS_DO_MAPA: ReadonlySet<PropertyKey> = new Set(CAMPOS_DO_MAPA);
 
 function errosDe(issues: z.core.$ZodIssue[]) {
   const erros: EstadoEvento["erros"] = {};
-  for (const problema of issues) erros[problema.path[0] as CampoEvento] ??= problema.message;
+  for (const problema of issues) {
+    // Os campos do mapa são ocultos: o erro aparece no campo "Local", ao lado do botão do mapa.
+    const campo = CAMPOS_OCULTOS_DO_MAPA.has(problema.path[0]) ? "local" : problema.path[0];
+    erros[campo as CampoEvento] ??= problema.message;
+  }
   return erros;
 }
 
@@ -166,6 +182,7 @@ export async function salvarEventoAcao(
     local: d.local,
     cidade: d.cidade,
     estado: d.estado,
+    ...normalizarMapa(d),
     precoFotoCentavos: d.precoFoto,
     precoVideoCentavos: d.precoVideo,
     visibilidade: d.visibilidade,

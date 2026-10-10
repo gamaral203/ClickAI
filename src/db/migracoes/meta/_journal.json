@@ -141,6 +141,13 @@
       "when": 1791609240459,
       "tag": "0019_avatar_do_fotografo",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791610349810,
+      "tag": "0020_local_no_mapa",
+      "breakpoints": true
     }
   ]
 }
