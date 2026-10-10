@@ -1,19 +1,21 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
-import { Check, Info, Loader2 } from "lucide-react";
+import { Camera, Check, Info, Loader2, Trash2 } from "lucide-react";
 
 import { escolherAvatarAcao } from "@/app/(fotografo)/painel/perfil/avatar-acoes";
+import { TIPOS_DE_IMAGEM, useImagemDaLoja } from "@/components/painel/usar-imagem-da-loja";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { AVATARES } from "@/lib/avatares";
 import { cn } from "@/lib/utils";
 
 /**
- * Foto de perfil em Perfil e recebimento: mostra o que está em uso (a foto enviada em Minha loja
- * ou o avatar) e a grade para escolher um dos avatares. A foto enviada tem prioridade: com ela,
- * o avatar escolhido fica guardado para quando a foto sair.
+ * Foto de perfil em Perfil e recebimento: o que está em uso (a foto enviada ou o avatar), o envio
+ * da foto ali mesmo (o mesmo fluxo de Minha loja) e a grade para escolher um dos avatares. A conta
+ * já nasce com um avatar marcado. A foto enviada tem prioridade: com ela, o avatar escolhido fica
+ * guardado para quando a foto sair.
  */
 export function EscolherAvatar({
   escolhido,
@@ -29,6 +31,8 @@ export function EscolherAvatar({
   const [selecionado, selecionar] = useOptimistic(salvo);
   const [salvando, iniciar] = useTransition();
   const [mensagem, setMensagem] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  const envio = useImagemDaLoja("fotoPerfil");
 
   const avatar = AVATARES.find((a) => a.id === selecionado) ?? AVATARES[0];
 
@@ -49,41 +53,100 @@ export function EscolherAvatar({
   }
 
   return (
-    <section aria-labelledby="foto-de-perfil" className="flex flex-col gap-5 rounded-xl border p-5">
-      <div className="flex items-center gap-4">
-        <span className="relative size-20 shrink-0 overflow-hidden rounded-full border bg-muted">
-          <Image
-            src={foto ?? avatar.url}
-            alt={foto ? "Sua foto de perfil" : avatar.nome}
-            fill
-            sizes="80px"
-            className="object-cover"
-          />
-        </span>
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 id="foto-de-perfil" className="text-lg font-semibold">
-            Foto de perfil
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {foto
-              ? "Em uso: a foto que você enviou."
-              : "Em uso: o avatar marcado abaixo. Aparece no painel, no seu link e na sua loja."}{" "}
-            <Link
-              href="/painel/loja"
-              className="font-medium text-primary underline-offset-4 hover:underline"
+    <section
+      aria-labelledby="foto-de-perfil"
+      className="flex flex-col gap-6 rounded-xl border p-4 sm:p-5"
+    >
+      <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+        <figure className="flex shrink-0 flex-col items-center gap-2">
+          <span className="relative size-28 overflow-hidden rounded-full border bg-muted ring-4 ring-accent">
+            <Image
+              src={foto ?? avatar.url}
+              alt={foto ? "Sua foto de perfil" : avatar.nome}
+              fill
+              sizes="112px"
+              className="object-cover"
+            />
+            {envio.ocupado && (
+              <span className="absolute inset-0 flex items-center justify-center bg-background/70">
+                <Loader2 aria-hidden="true" className="size-6 animate-spin text-primary" />
+              </span>
+            )}
+          </span>
+          <figcaption className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+            {foto ? "Foto enviada" : "Avatar"}
+          </figcaption>
+        </figure>
+        <div className="flex w-full min-w-0 flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 id="foto-de-perfil" className="text-lg font-semibold">
+              Foto de perfil
+            </h2>
+            <p className="text-sm text-pretty text-muted-foreground">
+              Aparece no painel, no seu link e na sua loja. Envie uma foto sua ou o seu logo, de
+              preferência quadrada (JPEG, PNG ou WebP). Sem foto, aparece o avatar.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <label
+              className={buttonVariants({
+                size: "touch",
+                className:
+                  "h-12 w-full cursor-pointer px-6 has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-disabled:pointer-events-none has-disabled:opacity-50 sm:w-auto",
+              })}
             >
-              {foto ? "Trocar ou remover a foto" : "Enviar uma foto"}
-            </Link>
-          </p>
+              {envio.ocupado ? (
+                <Loader2 aria-hidden="true" className="size-5 animate-spin" />
+              ) : (
+                <Camera aria-hidden="true" className="size-5" />
+              )}
+              {foto ? "Enviar outra foto" : "Enviar minha foto"}
+              <input
+                type="file"
+                accept={TIPOS_DE_IMAGEM}
+                className="sr-only"
+                disabled={envio.ocupado}
+                onChange={(e) => {
+                  void envio.enviar(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {foto && (
+              <Button
+                type="button"
+                variant="outline"
+                size="touch"
+                className="w-full sm:w-auto"
+                disabled={envio.ocupado}
+                onClick={() => void envio.remover()}
+              >
+                <Trash2 aria-hidden="true" data-icon="inline-start" />
+                Remover foto
+              </Button>
+            )}
+          </div>
+          {envio.erro && (
+            <p role="alert" className="text-sm text-destructive">
+              {envio.erro}
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-medium">Ou escolha um avatar</h3>
+      <div className="flex flex-col gap-3 border-t pt-5">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-sm font-medium">Ou use um avatar</h3>
+          {!foto && (
+            <p className="text-sm text-muted-foreground">
+              Este é o seu avatar atual. Clique em outro para trocar.
+            </p>
+          )}
+        </div>
         {foto && (
           <p className="flex items-start gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground">
             <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />A foto enviada tem
-            prioridade; remova-a em Minha loja para usar o avatar.
+            prioridade; remova a foto para voltar a usar o avatar marcado.
           </p>
         )}
         <ul className="grid max-w-2xl grid-cols-4 gap-3 sm:grid-cols-6">

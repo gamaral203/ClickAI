@@ -12,7 +12,7 @@ import { AtalhosDoPainel, LogoDoPainel } from "./nav-painel";
 
 /**
  * Cabeçalho de quem vende (fotógrafo e gestor), em todas as páginas: mais sóbrio que o do site de
- * compra. Faixa azul fina no topo, fundo branco, atalhos de trabalho (Início, Meus eventos,
+ * compra. Faixa fina no topo (azul que termina em limão), fundo branco, atalhos de trabalho (Início, Meus eventos,
  * Financeiro, Desempenho, Minha loja; o gestor também tem Gestão), o perfil e o Sair, tudo numa
  * linha só. Quem tem conta de fotógrafo (o gestor que também vende, inclusive), em tela larga,
  * vê o cartão da meta com a foto de perfil no lugar do nome. Sem carrinho nem vitrine: conta de fotógrafo não compra. Os itens vêm de
@@ -29,7 +29,7 @@ export function CabecalhoPainel({
   const perfil = navegacao.perfil;
   return (
     <header className="border-b bg-background print:hidden">
-      <div aria-hidden="true" className="h-1 bg-primary" />
+      <div aria-hidden="true" className="h-1 bg-linear-to-r from-primary from-55% to-highlight" />
       <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-4 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <LogoDoPainel papel={usuario.papel} />

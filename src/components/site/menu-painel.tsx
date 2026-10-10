@@ -98,9 +98,9 @@ function CorpoMenu({ titulo, itens, raiz, suporte, caminho }: PropsMenu & { cami
             <Link
               href={item.href}
               aria-current={eAtual ? "page" : undefined}
-              className={`flex h-11 items-center gap-3 rounded-lg px-3 font-medium ${
+              className={`relative flex h-11 items-center gap-3 rounded-lg px-3 font-medium ${
                 eAtual
-                  ? "bg-accent text-accent-foreground"
+                  ? "bg-accent text-accent-foreground before:absolute before:inset-y-2.5 before:left-0 before:w-1 before:rounded-full before:bg-highlight"
                   : "text-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
@@ -154,7 +154,10 @@ function CorpoMenu({ titulo, itens, raiz, suporte, caminho }: PropsMenu & { cami
           </button>
         </div>
         {aberto && (
-          <div id="menu-painel-lista" className="border-t px-4 py-3 shadow-sm">
+          <div
+            id="menu-painel-lista"
+            className="max-h-[70dvh] overflow-y-auto overscroll-contain border-t px-4 py-3 shadow-sm"
+          >
             {lista}
           </div>
         )}

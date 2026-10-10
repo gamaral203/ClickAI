@@ -65,7 +65,7 @@ export function BotaoSugestao() {
           if (e.target === e.currentTarget) setAberto(false);
         }}
         aria-labelledby="titulo-sugestao"
-        className="m-auto w-[min(480px,calc(100vw-2rem))] rounded-2xl bg-transparent p-0 backdrop:bg-black/50 backdrop:backdrop-blur-[2px]"
+        className="m-auto max-h-[85dvh] w-[min(480px,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl bg-transparent p-0 backdrop:bg-black/50 backdrop:backdrop-blur-[2px]"
       >
         <AnimatePresence>
           {aberto && (

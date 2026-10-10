@@ -15,7 +15,7 @@ export function SeloPagamento({ pago }: { pago: boolean }) {
         {!reduzir && (
           <motion.span
             aria-hidden="true"
-            className="absolute inset-0 rounded-full bg-primary/25"
+            className="absolute inset-0 rounded-full bg-highlight/70"
             initial={{ scale: 0.6, opacity: 0.9 }}
             animate={{ scale: 1.6, opacity: 0 }}
             transition={{ duration: 0.9, ease: "easeOut" }}

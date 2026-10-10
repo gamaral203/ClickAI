@@ -404,7 +404,7 @@ export default function PaginaAjuda() {
               <span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <Icone aria-hidden="true" className="size-4" />
               </span>
-              <a href={`#${id}`} className="hover:underline">
+              <a href={`#${id}`} className="-my-1.5 py-1.5 hover:underline">
                 {titulo}
               </a>
             </h2>

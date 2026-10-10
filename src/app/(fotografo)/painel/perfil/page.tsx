@@ -104,7 +104,7 @@ async function Conteudo() {
         </p>
         <Link
           href="/conta/excluir"
-          className="w-fit text-sm font-medium text-primary hover:underline"
+          className="-my-2.5 w-fit py-2.5 text-sm font-medium text-primary hover:underline"
         >
           Excluir minha conta
         </Link>

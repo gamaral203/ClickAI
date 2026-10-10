@@ -43,7 +43,7 @@ describe("subdomínio", () => {
 describe("cores", () => {
   it("escolhe o texto com mais contraste", () => {
     expect(corDoTexto("#2362FE")).toBe("#ffffff");
-    expect(corDoTexto("#BCFA34")).toBe("#111111");
+    expect(corDoTexto("#B8FF32")).toBe("#111111");
     expect(contraste("#ffffff", "#000000")).toBeCloseTo(21, 0);
   });
 });

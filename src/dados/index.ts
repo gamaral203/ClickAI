@@ -7,7 +7,7 @@
 
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
@@ -16,6 +16,7 @@ import { connection } from "next/server";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
+import { avatarPadrao } from "@/lib/avatares";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlPublica } from "@/lib/url-publica";
 
@@ -1483,13 +1484,23 @@ export async function slugDeFotografoEmUso(slug: string, excetoId?: string) {
   return linha !== undefined;
 }
 
+/**
+ * A conta já nasce com um avatar gravado (o mesmo que o padrão daria), para o fotógrafo vê-lo
+ * marcado em Perfil e recebimento e trocar quando quiser. Contas antigas com `avatar` nulo
+ * continuam com o padrão calculado na hora (src/lib/avatares.ts), que dá o mesmo resultado.
+ */
+function comAvatarInicial<T extends object>(dados: T): T & { id: string; avatar: string } {
+  const id = randomUUID();
+  return { ...dados, id, avatar: avatarPadrao(id).id };
+}
+
 export async function criarContaDeFotografo(dados: {
   usuarioId: string;
   nomePublico: string;
   slug: string;
 }): Promise<FotografoConta> {
   const banco = await obterBanco();
-  const [linha] = await banco.insert(t.fotografos).values(dados).returning();
+  const [linha] = await banco.insert(t.fotografos).values(comAvatarInicial(dados)).returning();
   return paraFotografo(linha);
 }
 
@@ -1504,7 +1515,11 @@ export async function criarContaDeFotografoSeNaoExistir(dados: {
   slug: string;
 }): Promise<FotografoConta | null> {
   const banco = await obterBanco();
-  const [linha] = await banco.insert(t.fotografos).values(dados).onConflictDoNothing().returning();
+  const [linha] = await banco
+    .insert(t.fotografos)
+    .values(comAvatarInicial(dados))
+    .onConflictDoNothing()
+    .returning();
   return linha ? paraFotografo(linha) : null;
 }
 
