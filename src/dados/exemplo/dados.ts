@@ -123,7 +123,7 @@ const eventosBase: EventoBase[] = [
     // Escolhido no mapa (os outros eventos de exemplo têm só o texto do local).
     latitude: -23.5874,
     longitude: -46.6576,
-    enderecoMapa: "Av. Pedro Álvares Cabral - Vila Mariana, São Paulo - SP, 04094-050, Brasil",
+    enderecoMapa: "Avenida Pedro Álvares Cabral, Vila Mariana, São Paulo – SP",
     precoFotoCentavos: 1990,
     precoVideoCentavos: 3990,
     filtroHorario: true,
@@ -178,7 +178,7 @@ const eventosBase: EventoBase[] = [
     estado: "RJ",
     latitude: -22.9311,
     longitude: -43.1727,
-    enderecoMapa: "Av. Infante Dom Henrique - Flamengo, Rio de Janeiro - RJ, Brasil",
+    enderecoMapa: "Avenida Infante Dom Henrique, Flamengo, Rio de Janeiro – RJ",
     precoFotoCentavos: 2490,
     precoVideoCentavos: 4990,
     quantidadeFotos: 240,

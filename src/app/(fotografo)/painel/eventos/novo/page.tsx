@@ -9,7 +9,6 @@ import { buscarModelo, listarCategorias, listarEventosDoFotografo, listarModelos
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatar";
 import { pontoDoEvento } from "@/lib/mapa";
-import { configDoMapa } from "@/servicos/mapa";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Novo evento", robots: { index: false, follow: false } };
@@ -54,11 +53,10 @@ async function Formulario({
 }: Pick<PageProps<"/painel/eventos/novo">, "searchParams">) {
   const { conta } = await exigirFotografo("/painel/eventos/novo");
   const { modelo: modeloId } = await searchParams;
-  const [categorias, modelos, eventos, mapa] = await Promise.all([
+  const [categorias, modelos, eventos] = await Promise.all([
     listarCategorias(),
     listarModelos(conta.id),
     listarEventosDoFotografo(conta.id),
-    configDoMapa(),
   ]);
   const modelo =
     typeof modeloId === "string" && /^[0-9a-f-]{36}$/.test(modeloId)
@@ -124,7 +122,6 @@ async function Formulario({
       <FormularioEvento
         key={modelo?.id ?? "vazio"}
         categorias={categorias}
-        mapa={mapa}
         inicial={
           modelo
             ? {

@@ -262,7 +262,6 @@ export function configDoEvento(evento: Evento): ConfigModelo {
     // O ponto no mapa acompanha o local: evento no mesmo lugar, mesmo mapa.
     latitude: evento.latitude ?? null,
     longitude: evento.longitude ?? null,
-    placeId: evento.placeId ?? null,
     enderecoMapa: evento.enderecoMapa ?? null,
     precoFotoCentavos: evento.precoFotoCentavos,
     precoVideoCentavos: evento.precoVideoCentavos,
