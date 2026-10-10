@@ -1,10 +1,10 @@
-// Tipos comuns aos gateways de pagamento (Mercado Pago e Asaas). Os serviços (pagamentos,
+// Tipos comuns aos gateways de pagamento (hoje, o Mercado Pago). Os serviços (pagamentos,
 // estornos, saques) só conhecem estes tipos, pela fachada em src/lib/gateway.ts.
 
 /**
  * O que a cobrança diz sobre o dinheiro, lido na API do gateway:
  * - `paga`: o pagamento foi confirmado;
- * - `reembolsada`: devolvida ao comprador (inclusive chargeback perdido, no Asaas);
+ * - `reembolsada`: devolvida ao comprador;
  * - `contestada`: chargeback aberto ou em disputa;
  * - `contestacao_perdida`: disputa encerrada contra a plataforma (Mercado Pago);
  * - `outra`: o resto (aguardando pagamento, recusada, vencida...).
@@ -25,7 +25,7 @@ export type Cobranca = {
   /** Não vai mais virar paga (vencida, cancelada, recusada, reembolsada). */
   encerrada: boolean;
   pix: { copiaECola: string; qrCodeBase64: string } | null;
-  /** Página do gateway onde o comprador paga (cartão no Asaas); `null` no Mercado Pago. */
+  /** Página do gateway onde o comprador paga, se o gateway usar uma; `null` no Mercado Pago. */
   urlPagamento: string | null;
 };
 

@@ -5,7 +5,8 @@ import { z } from "zod";
 
 import { formatarPreco } from "@/lib/formatar";
 import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "@/servicos/mfa";
-import { mensagemDeBloqueio, solicitarSaque } from "@/servicos/saques";
+import { avisarSaqueSolicitado } from "@/servicos/avisos-saque";
+import { mensagemDeBloqueio, saqueAutomatico, solicitarSaque } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export type EstadoSaque = { ok?: string; erro?: string };
@@ -46,7 +47,14 @@ export async function solicitarSaqueAcao(
     }
     return { erro: MOTIVOS[resultado.motivo] };
   }
+  if (saqueAutomatico()) {
+    return {
+      ok: `Saque de ${formatarPreco(resultado.saque.liquidoCentavos)} pedido. O Pix vai para a sua chave cadastrada.`,
+    };
+  }
+  // Saque manual: a gestão é avisada e faz o Pix em até 1 dia.
+  await avisarSaqueSolicitado(resultado.saque, conta);
   return {
-    ok: `Saque de ${formatarPreco(resultado.saque.liquidoCentavos)} pedido. O Pix vai para a sua chave cadastrada.`,
+    ok: `Saque de ${formatarPreco(resultado.saque.liquidoCentavos)} pedido. A nossa equipe faz o Pix para a sua chave em até 1 dia e você recebe um aviso quando sair.`,
   };
 }

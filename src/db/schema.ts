@@ -212,7 +212,10 @@ export const fotografos = pgTable(
      * depois dela (src/servicos/saques.ts), contra quem invade a conta e troca o documento.
      */
     documentoTrocadoEm: data(),
-    comissaoPct: integer().notNull().default(10),
+    /** Comissão da plataforma no saque normal; o antecipado paga mais (src/servicos/saques.ts). */
+    comissaoPct: integer().notNull().default(8),
+    /** Modelo de marca d'água das prévias (src/lib/marca-dagua.ts); vale para as próximas fotos. */
+    modeloMarca: text().notNull().default("padrao"),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
 ).enableRLS();
@@ -245,6 +248,12 @@ export const eventos = pgTable(
     cidade: text().notNull(),
     estado: text().notNull(),
     capa: text(),
+    /**
+     * Foto de capa escolhida pelo dono (cartões, página do evento, divulgação). Nula: capa
+     * automática. Só vale enquanto a foto estiver pronta, liberada e não excluída; senão a
+     * consulta cai para a automática (src/dados/capa.ts).
+     */
+    capaFotoId: uuid().references((): AnyPgColumn => fotos.id, { onDelete: "set null" }),
     precoFotoCentavos: integer().notNull(),
     precoVideoCentavos: integer().notNull(),
     status: statusEvento().notNull().default("rascunho"),
@@ -481,7 +490,7 @@ export const pedidos = pgTable(
     clienteId: uuid().references(() => usuarios.id),
     emailComprador: text().notNull(),
     nomeComprador: text().notNull(),
-    /** CPF/CNPJ do comprador, só dígitos: o Asaas exige para cobrar. Nulo com o Mercado Pago. */
+    /** CPF/CNPJ do comprador. Não é mais pedido (era exigido pelo Asaas); fica nulo. */
     cpfComprador: text(),
     whatsapp: text(),
     aceitaWhatsapp: boolean().notNull().default(false),
@@ -490,12 +499,17 @@ export const pedidos = pgTable(
     cupomId: uuid().references(() => cupons.id),
     subtotalCentavos: integer().notNull(),
     descontoCentavos: integer().notNull(),
+    /**
+     * No cartão, a metade da taxa do Mercado Pago que o comprador paga (src/lib/taxas.ts); a outra
+     * metade sai da parte do fotógrafo. Já está somado no total. Zero no Pix.
+     */
+    acrescimoCartaoCentavos: integer().notNull().default(0),
     totalCentavos: integer().notNull(),
     metodo: metodoPagamento().notNull(),
     status: statusPedido().notNull().default("pendente"),
     expiraEm: data().notNull(),
     /**
-     * Cobrança no gateway (order do Mercado Pago ou cobrança do Asaas). Única: o webhook busca
+     * Order no Mercado Pago. Única: o webhook busca
      * por ela e não confirma duas vezes.
      */
     gatewayId: text(),
@@ -727,4 +741,87 @@ export const tentativas = pgTable(
     em: momento(),
   },
   (t) => [index().on(t.chave, t.em)],
+).enableRLS();
+
+// ---------------------------------------------------------------- Notificações
+
+/**
+ * Inscrições de notificação do navegador (Web Push) de cada usuário: uma por aparelho/navegador
+ * em que ele clicou em "Ativar notificações". O endpoint é único; se o navegador disser que a
+ * inscrição venceu, ela é apagada (src/lib/push.ts).
+ */
+export const inscricoesPush = pgTable(
+  "inscricoes_push",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    endpoint: text().notNull(),
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [uniqueIndex().on(t.endpoint), index().on(t.usuarioId)],
+).enableRLS();
+
+// ---------------------------------------------------------------- Suporte e sugestões
+
+export const autorMensagemSuporte = pgEnum("autor_mensagem_suporte", ["usuario", "equipe"]);
+export const statusSugestao = pgEnum("status_sugestao", [
+  "nova",
+  "em_analise",
+  "feita",
+  "descartada",
+]);
+
+/**
+ * Conversa do chat de ajuda do painel: uma por usuário, como um fio de WhatsApp. Os dois
+ * "não lida" acendem o aviso de mensagem nova de cada lado.
+ */
+export const conversasSuporte = pgTable(
+  "conversas_suporte",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    /** Nome e e-mail que a pessoa informou no chat (podem diferir dos da conta). */
+    nome: text().notNull(),
+    email: text().notNull(),
+    naoLidaPelaEquipe: boolean().notNull().default(false),
+    naoLidaPeloUsuario: boolean().notNull().default(false),
+    criadoEm: momento(),
+    atualizadoEm: momento(),
+  },
+  (t) => [uniqueIndex().on(t.usuarioId), index().on(t.atualizadoEm)],
+).enableRLS();
+
+export const mensagensSuporte = pgTable(
+  "mensagens_suporte",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    conversaId: uuid()
+      .notNull()
+      .references(() => conversasSuporte.id, { onDelete: "cascade" }),
+    autor: autorMensagemSuporte().notNull(),
+    texto: text().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.conversaId, t.criadoEm)],
+).enableRLS();
+
+/** Sugestão de melhoria mandada pelo botão do foguete no painel. */
+export const sugestoes = pgTable(
+  "sugestoes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    usuarioId: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+    nome: text().notNull(),
+    email: text().notNull(),
+    texto: text().notNull(),
+    status: statusSugestao().notNull().default("nova"),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.criadoEm)],
 ).enableRLS();

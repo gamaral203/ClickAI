@@ -30,11 +30,20 @@ import {
 // Saque do fotógrafo (docs/arquitetura.md, "Saque do fotógrafo"). O cliente paga na conta da
 // plataforma; o fotógrafo saca pelo painel e o dinheiro sai por Pix para o CPF/CNPJ dele, já
 // sem a comissão:
-//   - saque normal: vendas com 30 dias ou mais, comissão de 10%;
-//   - saque antecipado: vendas com 1 dia ou mais; o que ainda não tinha 30 dias paga 10% + 1%.
+//   - saque normal: vendas com 30 dias ou mais, comissão de 8%;
+//   - saque antecipado: vendas com 1 dia ou mais; o que ainda não tinha 30 dias paga 8% + 2%.
+//
+// Por enquanto o saque é MANUAL: o pedido fica em `processando`, a gestão é avisada, faz o Pix
+// pelo app do banco em até 1 dia e marca como pago em /admin/saques. Com SAQUE_AUTOMATICO=1 (e o
+// Payouts liberado no gateway), o saque volta a sair sozinho pelo gateway.
 
 /** Taxa extra do saque antecipado, em pontos percentuais. */
-export const TAXA_ANTECIPACAO_PCT = 1;
+export const TAXA_ANTECIPACAO_PCT = 2;
+
+/** O saque sai sozinho pelo gateway? Só com SAQUE_AUTOMATICO=1; sem ele, a gestão paga à mão. */
+export function saqueAutomatico() {
+  return process.env.SAQUE_AUTOMATICO === "1" && gatewayConfigurado();
+}
 /** Os gateways não enviam Pix abaixo de R$ 1,00. */
 export const SAQUE_MINIMO_CENTAVOS = 100;
 /**
@@ -310,9 +319,9 @@ export async function solicitarSaque(
   // CPF/CNPJ trocado há menos de 72 horas: nenhum saque, nem com a liberação de teste.
   const bloqueadoAte = saqueBloqueadoAte(conta, Date.now());
   if (bloqueadoAte) return { ok: false, motivo: "documento_trocado", bloqueadoAte };
-  // Na produção, saque simulado nunca: sem as credenciais do gateway, o saque sairia "pago"
-  // sem Pix nenhum. Recusa antes de reservar o saldo.
-  if (emProducao() && !gatewayConfigurado()) {
+  // Saque automático na produção sem as credenciais do gateway: recusa antes de reservar o saldo
+  // (o saque sairia "pago" sem Pix nenhum). O manual não depende do gateway.
+  if (process.env.SAQUE_AUTOMATICO === "1" && emProducao() && !gatewayConfigurado()) {
     console.error("Saque recusado: gateway sem credenciais na produção");
     return { ok: false, motivo: "falhou" };
   }
@@ -361,22 +370,18 @@ export async function solicitarSaque(
     });
   }
 
-  if (!gatewayConfigurado()) {
-    // Sem credenciais (Parte A): o saque é simulado e sai pago na hora.
-    await mudarStatusSaque(saque.id, "processando", "pago", { pagoEm: new Date().toISOString() });
-  } else {
-    await enviar(saque, true);
-  }
+  // Manual (o padrão): fica em `processando` até a gestão pagar e dar baixa em /admin/saques.
+  if (saqueAutomatico()) await enviar(saque, true);
   return { ok: true, saque };
 }
 
 /** Confere no gateway os saques ainda em processamento do fotógrafo. */
 export async function conferirSaques(fotografoId: string) {
-  if (!gatewayConfigurado()) return;
+  // Saque manual: quem confere é a gestão, não o gateway.
+  if (!saqueAutomatico()) return;
   for (const saque of await listarSaquesProcessando(fotografoId)) {
     if (!saque.gatewayId) {
-      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência (no
-      // Asaas, o webhook de validação aprova uma transferência só por saque).
+      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência.
       await enviar(saque, false);
       continue;
     }

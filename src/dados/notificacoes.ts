@@ -53,6 +53,8 @@ export async function marcarLembretePix(pedidoId: string): Promise<boolean> {
 
 export type VendaParaAvisar = {
   fotografoId: string;
+  /** Usuário dono da conta, para a notificação do navegador. */
+  usuarioId: string;
   nome: string;
   email: string;
   valorCentavos: number;
@@ -69,6 +71,7 @@ export async function vendasDoPedidoPorFotografo(pedidoId: string): Promise<Vend
   const linhas = await banco
     .select({
       fotografoId: t.fotografos.id,
+      usuarioId: t.usuarios.id,
       nome: t.fotografos.nomePublico,
       email: t.usuarios.email,
       valorCentavos: t.lancamentos.valorCentavos,
@@ -86,6 +89,7 @@ export async function vendasDoPedidoPorFotografo(pedidoId: string): Promise<Vend
   for (const l of linhas) {
     const atual = porFotografo.get(l.fotografoId) ?? {
       fotografoId: l.fotografoId,
+      usuarioId: l.usuarioId,
       nome: l.nome,
       email: l.email,
       valorCentavos: 0,

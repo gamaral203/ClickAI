@@ -2,9 +2,8 @@ import Link from "next/link";
 import { Camera, Download, ScanFace, Search } from "lucide-react";
 
 import { CartaoEvento } from "@/components/galeria/cartao-evento";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { EventoResumo } from "@/dados";
+import { FiltrosEventos, filtrandoEventos } from "@/components/galeria/filtros-eventos";
+import type { EventoResumo, FiltroEventos, OpcoesFiltroEventos } from "@/dados";
 
 import type { NumerosDoFotografo } from "./cabecalho-loja";
 
@@ -25,17 +24,23 @@ const passos = [
 
 /**
  * Corpo da página pública do fotógrafo: os 3 passos para achar as fotos e os eventos em grade.
- * Com `busca`, mostra o campo de busca (só no /fotografo/<endereço>; a loja no subdomínio não tem
- * parâmetros na URL).
+ * Com `filtros`, mostra a busca e os filtros de data, cidade e categoria (só no
+ * /fotografo/<endereço>; a loja no subdomínio não tem parâmetros na URL).
  */
 export function VitrineDoFotografo({
   eventos,
-  busca,
+  filtros,
 }: {
   eventos: EventoResumo[];
-  busca?: { termo: string; limpar: string; rotulo: string };
+  filtros?: {
+    filtro: FiltroEventos;
+    opcoes: OpcoesFiltroEventos;
+    /** Endereço da página (o formulário volta para ela) e link de limpar. */
+    pagina: string;
+    rotulo: string;
+  };
 }) {
-  const termo = busca?.termo ?? "";
+  const filtrando = filtros ? filtrandoEventos(filtros.filtro) : false;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10">
@@ -56,44 +61,36 @@ export function VitrineDoFotografo({
       </ol>
 
       <section className="flex flex-col gap-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-bold tracking-tight">Eventos</h2>
-            <p className="text-sm text-muted-foreground">
-              {termo
-                ? `${eventos.length} ${eventos.length === 1 ? "resultado" : "resultados"} para “${termo}”`
-                : "Encontre o seu evento e veja as fotos."}
-            </p>
-          </div>
-          {busca && (
-            <form role="search" className="flex gap-2 sm:w-80">
-              <Input
-                name="busca"
-                type="search"
-                defaultValue={termo}
-                maxLength={100}
-                aria-label={busca.rotulo}
-                placeholder="Buscar evento ou cidade"
-                className="h-11"
-              />
-              <button type="submit" className={buttonVariants({ size: "touch" })}>
-                <Search aria-hidden="true" />
-                <span className="sr-only">Buscar</span>
-              </button>
-            </form>
-          )}
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold tracking-tight">Eventos</h2>
+          <p role="status" className="text-sm text-muted-foreground">
+            {filtrando
+              ? `${eventos.length} ${eventos.length === 1 ? "evento encontrado" : "eventos encontrados"}`
+              : "Encontre o seu evento e veja as fotos."}
+          </p>
         </div>
+        {filtros && (
+          <FiltrosEventos
+            action={filtros.pagina}
+            filtro={filtros.filtro}
+            opcoes={filtros.opcoes}
+            limpar={filtros.pagina}
+            rotuloBusca={filtros.rotulo}
+            placeholder="Buscar evento ou cidade"
+            idPrefixo="fotografo"
+          />
+        )}
 
         {eventos.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed p-12 text-center">
             <span className="flex size-14 items-center justify-center rounded-full bg-muted">
               <Camera aria-hidden="true" className="size-7 text-muted-foreground" />
             </span>
-            {termo && busca ? (
+            {filtrando && filtros ? (
               <>
-                <p className="font-medium">Nenhum evento encontrado para “{termo}”.</p>
+                <p className="font-medium">Nenhum evento encontrado com esses filtros.</p>
                 <Link
-                  href={busca.limpar}
+                  href={filtros.pagina}
                   className="text-sm font-medium text-primary hover:underline"
                 >
                   Ver todos os eventos

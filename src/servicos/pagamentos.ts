@@ -4,10 +4,8 @@ import { buscarPedido, ligarPedidoAoGateway, mudarStatusPedido, type PedidoInter
 import {
   buscarCobranca,
   cancelarCobranca,
-  criarCobrancaCartaoRedirecionada,
   criarCobrancaPix,
   gatewayConfigurado,
-  provedorDePagamento,
   type Cobranca,
 } from "@/lib/gateway";
 import { criarOrderCartao, type DadosCartao } from "@/lib/mercadopago";
@@ -15,7 +13,7 @@ import { criarOrderCartao, type DadosCartao } from "@/lib/mercadopago";
 import { aplicarEstornoDaOrder } from "./estornos";
 import { buscarPedidoComAcesso, confirmarPagamento, type Credencial } from "./pedidos";
 
-// Cobrança no gateway, Asaas ou Mercado Pago (docs/arquitetura.md, "Compra e pagamento"). O
+// Cobrança no Mercado Pago (docs/arquitetura.md, "Compra e pagamento"). O
 // pedido só vira `pago` depois que o servidor lê a cobrança na API do gateway e confere a
 // referência e o valor: pelo webhook, pela página do pedido ou logo depois de cobrar o cartão.
 // Nunca pelo que o navegador diz.
@@ -54,8 +52,8 @@ async function aplicarOrder(order: Cobranca): Promise<"pago" | "pendente" | "ign
 
   const venceu = new Date(pedido.expiraEm).getTime() < Date.now();
   if (pedido.status === "pendente" && venceu) {
-    // No Asaas o Pix vale até o fim do dia: cancela a cobrança antes de expirar o pedido. Se o
-    // cancelamento for recusado (acabou de ser paga), a próxima leitura confirma o pagamento.
+    // A cobrança encerrada (QR Code vencido) expira o pedido. Se o gateway puder cancelar,
+    // cancela antes; recusado (acabou de ser paga), a próxima leitura confirma o pagamento.
     if (order.encerrada || (await cancelarCobranca(order.id))) {
       await mudarStatusPedido(pedido.id, "pendente", "expirado");
     }
@@ -119,7 +117,6 @@ export async function iniciarCobrancaPix(pedidoId: string): Promise<boolean> {
     totalCentavos: pedido.totalCentavos,
     nome: pedido.nomeComprador,
     email: pedido.emailComprador,
-    cpf: pedido.cpfComprador ?? null,
   });
   if (!order.pix) throw new Error(`Cobrança ${order.id} sem QR Code Pix`);
   await ligarPedidoAoGateway(pedido.id, null, order.id, order.pix);
@@ -167,35 +164,4 @@ export async function pagarComCartao(
   if (order.encerrada) return { ok: false, motivo: "recusado" };
   const aplicado = await aplicarOrder(order);
   return { ok: true, situacao: aplicado === "pago" ? "aprovado" : "em_analise" };
-}
-
-/**
- * Asaas: o cartão é pago na página da cobrança no Asaas. Cria a cobrança (ou reaproveita a do
- * pedido) e devolve o endereço para onde o navegador vai. O resultado chega pelo webhook e pela
- * página do pedido, que confere a cobrança na API.
- */
-export async function iniciarPagamentoCartaoAsaas(
-  pedidoId: string,
-  credencial: Credencial,
-): Promise<string | null> {
-  if (provedorDePagamento() !== "asaas") return null;
-  const encontrado = await buscarPedidoComAcesso(pedidoId, credencial);
-  if (!encontrado) return null;
-  const { pedido } = encontrado;
-  const venceu = new Date(pedido.expiraEm).getTime() < Date.now();
-  if (pedido.status !== "pendente" || pedido.metodo !== "cartao" || venceu) return null;
-
-  if (pedido.gatewayId) {
-    const atual = await buscarCobranca(pedido.gatewayId);
-    if (!atual.encerrada) return atual.urlPagamento;
-  }
-  const cobranca = await criarCobrancaCartaoRedirecionada({
-    pedidoId: pedido.id,
-    totalCentavos: pedido.totalCentavos,
-    nome: pedido.nomeComprador,
-    email: pedido.emailComprador,
-    cpf: pedido.cpfComprador ?? null,
-  });
-  const ligou = await ligarPedidoAoGateway(pedido.id, pedido.gatewayId, cobranca.id, null);
-  return ligou ? cobranca.urlPagamento : null;
 }
