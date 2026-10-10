@@ -16,7 +16,7 @@ export function LogoDoPainel({ papel }: { papel: Papel }) {
   return (
     <Link
       href={href}
-      className="shrink-0 rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="flex h-11 shrink-0 items-center rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <Image
         src="/logo.png"
@@ -31,8 +31,8 @@ export function LogoDoPainel({ papel }: { papel: Papel }) {
 }
 
 /**
- * Atalhos do painel no computador, com a página atual marcada (cor e traço embaixo, alinhado à
- * linha do cabeçalho). No celular, os mesmos itens ficam no menu.
+ * Atalhos do painel no computador, com a página atual marcada (texto azul e traço limão embaixo,
+ * alinhado à linha do cabeçalho; o limão é detalhe, quem marca a página é o azul). No celular, os mesmos itens ficam no menu.
  */
 export function AtalhosDoPainel({ itens }: { itens: ItemNavegacao[] }) {
   const caminho = usePathname();
@@ -43,7 +43,7 @@ export function AtalhosDoPainel({ itens }: { itens: ItemNavegacao[] }) {
           <Link
             href={item.href}
             aria-current={linkAtivo(caminho, item.href, item.exato) ? "page" : undefined}
-            className="inline-flex items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset aria-[current=page]:border-primary aria-[current=page]:text-primary"
+            className="inline-flex items-center border-b-3 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset aria-[current=page]:border-highlight aria-[current=page]:text-primary"
           >
             {item.rotulo}
           </Link>

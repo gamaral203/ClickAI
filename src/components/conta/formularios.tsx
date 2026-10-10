@@ -40,7 +40,7 @@ export function FormularioEntrar({ proximo }: { proximo?: string }) {
           <Label htmlFor="senha">Senha</Label>
           <Link
             href="/entrar/esqueci-senha"
-            className="-my-2 py-2 text-sm font-medium text-primary hover:underline"
+            className="-my-2.5 py-2.5 text-sm font-medium text-primary hover:underline"
           >
             Esqueci a senha
           </Link>

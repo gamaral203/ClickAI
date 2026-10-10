@@ -56,7 +56,10 @@ async function Lista() {
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/painel/eventos/${evento.id}`} className="font-semibold hover:underline">
+              <Link
+                href={`/painel/eventos/${evento.id}`}
+                className="-my-2 py-2 font-semibold hover:underline"
+              >
                 {evento.titulo}
               </Link>
               <StatusEventoSelo status={evento.status} />
@@ -71,8 +74,8 @@ async function Lista() {
             {evento.totalItens} {evento.totalItens === 1 ? "foto" : "fotos"} · {evento.vendidos}{" "}
             {evento.vendidos === 1 ? "vendida" : "vendidas"}
           </p>
-          {/* No celular, os dois botões dividem a linha. */}
-          <div className="flex gap-2">
+          {/* No celular, os dois botões dividem a linha (em 320 px, um embaixo do outro). */}
+          <div className="flex flex-wrap gap-2">
             <Link
               href={`/painel/eventos/${evento.id}/desempenho`}
               aria-label={`Desempenho de ${evento.titulo}`}

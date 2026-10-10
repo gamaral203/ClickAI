@@ -20,7 +20,7 @@ export function FormularioPapel({ usuarioId, papel }: { usuarioId: string; papel
         name="papel"
         defaultValue={papel}
         aria-label="Papel do usuário"
-        className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-10 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {Object.entries(ROTULO_PAPEL).map(([valor, rotulo]) => (
           <option key={valor} value={valor}>
@@ -28,7 +28,7 @@ export function FormularioPapel({ usuarioId, papel }: { usuarioId: string; papel
           </option>
         ))}
       </select>
-      <Button type="submit" variant="outline" size="lg" disabled={enviando}>
+      <Button type="submit" variant="outline" size="lg" className="h-10" disabled={enviando}>
         {enviando ? (
           <Loader2 aria-hidden="true" className="animate-spin" />
         ) : estado.ok ? (

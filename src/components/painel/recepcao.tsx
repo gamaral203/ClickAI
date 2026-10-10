@@ -85,7 +85,7 @@ export function Recepcao({ humor, detalhe }: { humor: Humor; detalhe: string | n
         type="button"
         onClick={fechar}
         aria-label="Fechar a mensagem"
-        className="absolute top-2 right-2 inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-background/60 hover:text-foreground"
+        className="absolute top-2 right-2 inline-flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-background/60 hover:text-foreground"
       >
         <X aria-hidden="true" className="size-4" />
       </button>
@@ -95,7 +95,7 @@ export function Recepcao({ humor, detalhe }: { humor: Humor; detalhe: string | n
 
 /** Rosto desenhado (SVG): sorriso em alta e nas boas-vindas, boca reta no movimento baixo. */
 function Rosto({ humor }: { humor: Humor }) {
-  const fundo = humor === "alta" ? "#BCFA34" : humor === "baixo" ? "#9CC1FF" : "#C6CEDD";
+  const fundo = humor === "alta" ? "#B8FF32" : humor === "baixo" ? "#9CC1FF" : "#C6CEDD";
   return (
     <svg
       viewBox="0 0 80 80"

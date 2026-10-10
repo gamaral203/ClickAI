@@ -52,7 +52,7 @@ export function TopCliques({
               type="button"
               aria-pressed={criterio === valor}
               onClick={() => setCriterio(valor)}
-              className="h-9 rounded-md px-3 font-medium text-muted-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm"
+              className="h-10 rounded-md px-3 font-medium text-muted-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm"
             >
               {rotulo}
             </button>

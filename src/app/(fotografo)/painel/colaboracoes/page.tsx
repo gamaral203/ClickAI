@@ -75,11 +75,11 @@ async function Conteudo() {
               {formatarData(c.evento.inicioEm)} · de {c.donoNome} · comissão do dono{" "}
               {c.comissaoDonoPct}% · {c.meusItens} {c.meusItens === 1 ? "foto sua" : "fotos suas"}
             </p>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <div className="flex flex-wrap gap-x-5">
               {c.evento.status === "publicado" && (
                 <Link
                   href={`/eventos/${c.evento.slug}`}
-                  className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  className="flex min-h-10 w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
                 >
                   Ver a página pública
                   <ExternalLink aria-hidden="true" className="size-4" />

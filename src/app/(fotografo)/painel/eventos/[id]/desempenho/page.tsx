@@ -66,7 +66,7 @@ function plural(n: number, um: string, varios: string) {
 }
 
 const linkTexto =
-  "flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline";
+  "flex min-h-10 w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline";
 
 function LinhaGanho({
   rotulo,
@@ -125,7 +125,7 @@ async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/desempenho">
         <p className="text-sm text-muted-foreground">
           {formatarData(evento.inicioEm)} · {evento.local}, {evento.cidade}/{evento.estado}
         </p>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
+        <div className="flex flex-wrap gap-x-5">
           {dono ? (
             <Link href={`/painel/eventos/${evento.id}`} className={linkTexto}>
               <Settings aria-hidden="true" className="size-4" />

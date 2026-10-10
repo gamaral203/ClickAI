@@ -9,6 +9,7 @@ import type { Usuario } from "@/dados/tipos";
 
 import { AreaUsuario } from "./area-usuario";
 import { CabecalhoPainel } from "./cabecalho-painel";
+import { LinkDoCabecalho } from "./link-do-cabecalho";
 
 /**
  * Cabeçalho do site. Quem decide a variante é `linksDoCabecalho` (src/lib/navegacao.ts): visitante
@@ -67,19 +68,17 @@ function CabecalhoPublico({
   return (
     <header className="border-b bg-background print:hidden">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="rounded-md focus-visible:ring-3 focus-visible:ring-ring/50">
+        <Link
+          href="/"
+          className="flex h-11 shrink-0 items-center rounded-md focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           <Logo />
         </Link>
         <nav aria-label="Principal">
           <ul className="flex items-center gap-1">
             {navegacao.desktop.map((link) => (
               <li key={link.href} className="hidden sm:block">
-                <Link
-                  href={link.href}
-                  className="inline-flex h-11 items-center rounded-lg px-3 font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {link.rotulo}
-                </Link>
+                <LinkDoCabecalho {...link} />
               </li>
             ))}
             {navegacao.carrinho && (

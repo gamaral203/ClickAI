@@ -65,7 +65,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
   // O que o fotógrafo configurou em Minha loja (nome, descrição e cores) vale aqui também.
   const loja = salva?.ativa ? salva : null;
   const corPrimaria = loja?.corPrimaria ?? "#2362FE";
-  const corSecundaria = loja?.corSecundaria ?? "#BCFA34";
+  const corSecundaria = loja?.corSecundaria ?? "#B8FF32";
 
   return (
     <div

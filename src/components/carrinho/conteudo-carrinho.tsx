@@ -98,7 +98,7 @@ export function ConteudoCarrinho() {
   const { resumo } = estado;
   return (
     <div
-      className="grid gap-8 transition-opacity data-[atualizando=true]:opacity-60 lg:grid-cols-[minmax(0,1fr)_300px]"
+      className="grid grid-cols-[minmax(0,1fr)] gap-8 transition-opacity data-[atualizando=true]:opacity-60 lg:grid-cols-[minmax(0,1fr)_300px]"
       data-atualizando={atualizando}
       aria-busy={atualizando}
     >
@@ -119,7 +119,10 @@ export function ConteudoCarrinho() {
             <section key={grupo.eventoId} className="flex flex-col gap-3 rounded-xl border p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-semibold">
-                  <Link href={`/eventos/${grupo.eventoSlug}`} className="hover:underline">
+                  <Link
+                    href={`/eventos/${grupo.eventoSlug}`}
+                    className="-my-2 inline-block py-2 hover:underline"
+                  >
                     {grupo.eventoTitulo}
                   </Link>
                 </h2>
@@ -141,10 +144,10 @@ export function ConteudoCarrinho() {
               </div>
               <ul className="flex flex-col divide-y">
                 {grupo.itens.map((item) => (
-                  <li key={item.fotoId} className="flex items-center gap-4 py-3">
+                  <li key={item.fotoId} className="flex items-center gap-2.5 py-3 sm:gap-4">
                     <Link
                       href={`/fotos/${item.fotoId}`}
-                      className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted"
+                      className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted sm:size-16"
                     >
                       <Image
                         src={item.urlMiniatura}
@@ -154,7 +157,7 @@ export function ConteudoCarrinho() {
                         className="object-cover"
                       />
                     </Link>
-                    <span className="flex flex-1 flex-col text-sm text-muted-foreground">
+                    <span className="flex min-w-0 flex-1 flex-col text-sm text-muted-foreground">
                       {item.tipo === "video" ? "Vídeo" : "Foto"} em alta resolução
                       {item.autor && <span className="text-xs">Foto por {item.autor}</span>}
                     </span>

@@ -55,7 +55,7 @@ async function Conteudo() {
           subdominio: loja?.subdominio ?? gerarSlug(conta.nomePublico).slice(0, 32),
           // Sem loja ainda: começa com as cores da plataforma.
           corPrimaria: loja?.corPrimaria ?? "#2362FE",
-          corSecundaria: loja?.corSecundaria ?? "#BCFA34",
+          corSecundaria: loja?.corSecundaria ?? "#B8FF32",
           gaId: loja?.gaId ?? "",
           gtmId: loja?.gtmId ?? "",
           ativa: loja?.ativa ?? true,

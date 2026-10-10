@@ -15,10 +15,16 @@ vi.mock("@/servicos/sessao", () => ({
 }));
 
 import { escolherAvatarAcao } from "@/app/(fotografo)/painel/perfil/avatar-acoes";
-import { buscarContaDoFotografo, buscarFotografoPublico, definirAvatarDoFotografo } from "@/dados";
+import {
+  buscarContaDoFotografo,
+  buscarFotografoPublico,
+  criarContaDeFotografo,
+  criarContaDeFotografoSeNaoExistir,
+  definirAvatarDoFotografo,
+} from "@/dados";
 // Os ids vêm dos dados de exemplo: são os mesmos que a semente grava no banco (PGlite).
 import { fotografos } from "@/dados/exemplo/dados";
-import { avatarPadrao, urlDoAvatar } from "@/lib/avatares";
+import { avatarPadrao, avatarValido, urlDoAvatar } from "@/lib/avatares";
 
 const [lia, pedro] = fotografos;
 
@@ -56,5 +62,40 @@ describe("avatar do fotógrafo", () => {
       expect(resultado.ok).toBe(false);
     }
     expect((await buscarFotografoPublico(lia.slug))!.avatar).toBe("avatar-02");
+  });
+});
+
+describe("avatar inicial da conta nova", () => {
+  // Ana (cliente de exemplo) ainda não tem conta de fotógrafo; o usuarioId é único.
+  const ana = "05e70000-0000-4000-8000-000000000004";
+
+  it("a conta criada já nasce com o avatar padrão gravado", async () => {
+    const conta = await criarContaDeFotografo({
+      usuarioId: ana,
+      nomePublico: "Ana Souza",
+      slug: "ana-souza-teste",
+    });
+    expect(avatarValido(conta.avatar)).toBe(true);
+    expect(conta.avatar).toBe(avatarPadrao(conta.id).id);
+    expect((await buscarContaDoFotografo(ana))!.avatar).toBe(conta.avatar);
+    expect(urlDoAvatar(conta)).toBe(avatarPadrao(conta.id).url);
+  });
+
+  it("a criação sem conflito também grava; com conflito, não cria outra", async () => {
+    expect(
+      await criarContaDeFotografoSeNaoExistir({
+        usuarioId: ana,
+        nomePublico: "Ana Souza",
+        slug: "ana-souza-outra",
+      }),
+    ).toBeNull();
+    const nova = await criarContaDeFotografoSeNaoExistir({
+      usuarioId: "05e70000-0000-4000-8000-000000000005",
+      nomePublico: "Equipe",
+      slug: "equipe-teste",
+    });
+    // O PGlite semeia o admin de exemplo (usuário 5), que ainda não tem conta de fotógrafo.
+    expect(nova).not.toBeNull();
+    expect(nova!.avatar).toBe(avatarPadrao(nova!.id).id);
   });
 });

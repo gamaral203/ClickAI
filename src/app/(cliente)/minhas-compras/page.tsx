@@ -102,7 +102,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
                 <span
                   className={
                     pedido.status === "pago"
-                      ? "rounded-full bg-accent px-3 py-1 text-sm font-semibold text-accent-foreground"
+                      ? "rounded-full bg-highlight px-3 py-1 text-sm font-semibold text-highlight-foreground"
                       : "rounded-full bg-muted px-3 py-1 text-sm font-semibold text-muted-foreground"
                   }
                 >
