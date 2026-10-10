@@ -560,7 +560,14 @@ export async function confirmarEmailComCodigo(codigo: string): Promise<Resultado
 }
 
 export type ResultadoGoogle =
-  | { ok: true; usuario: Usuario; novo: boolean; pedeCodigo: boolean }
+  | {
+      ok: true;
+      usuario: Usuario;
+      novo: boolean;
+      pedeCodigo: boolean;
+      /** O que houve com o envio do código por e-mail do gestor (`null`: não houve envio). */
+      envioCodigo?: ResultadoEnvioCodigoLogin | null;
+    }
   | { ok: false; motivo: "conta_google_diferente" };
 
 /**
@@ -615,10 +622,11 @@ export async function entrarComGoogle(
   const atualizado = await buscarUsuario(usuario.id);
   if (!atualizado) return { ok: false, motivo: "conta_google_diferente" };
   // O Google confirma o e-mail, não substitui o segundo fator: com a verificação em duas etapas
-  // ligada, quem tem acesso só ao Gmail da pessoa ainda precisa do app autenticador.
-  if (atualizado.mfaAtivo) {
-    await pedirCodigoMfa(usuario.id, "google", proximo);
-    return { ok: true, usuario: atualizado, novo, pedeCodigo: true };
+  // ligada, quem tem acesso só ao Gmail da pessoa ainda precisa do app autenticador; e o gestor
+  // passa pelo código por e-mail, como no login com senha.
+  const etapa = await iniciarSegundaEtapa(atualizado, "google", proximo);
+  if (etapa.pedeCodigo) {
+    return { ok: true, usuario: atualizado, novo, pedeCodigo: true, envioCodigo: etapa.envio };
   }
   await iniciarSessao(usuario.id, "google");
   return { ok: true, usuario: atualizado, novo, pedeCodigo: false };
