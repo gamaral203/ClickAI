@@ -25,7 +25,7 @@ import { GraficoVendas } from "@/components/graficos/grafico-vendas";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { TopCliques } from "@/components/painel/top-cliques";
 import { desempenhoDoEvento, fracaoVendida } from "@/dados";
-import { formatarData, formatarPorcentagem, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { ehIdValido } from "@/lib/validacao";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -123,7 +123,8 @@ async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/desempenho">
           <StatusEventoSelo status={evento.status} />
         </div>
         <p className="text-sm text-muted-foreground">
-          {formatarData(evento.inicioEm)} · {evento.local}, {evento.cidade}/{evento.estado}
+          {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.local}, {evento.cidade}/
+          {evento.estado}
         </p>
         <div className="flex flex-wrap gap-x-5">
           {dono ? (

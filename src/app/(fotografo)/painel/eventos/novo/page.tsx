@@ -7,7 +7,7 @@ import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { ExcluirModelo, DuplicarRecente } from "@/components/painel/modelos-evento";
 import { buscarModelo, listarCategorias, listarEventosDoFotografo, listarModelos } from "@/dados";
 import { centavosParaCampo } from "@/lib/dinheiro";
-import { formatarData } from "@/lib/formatar";
+import { formatarPeriodo } from "@/lib/formatar";
 import { pontoDoEvento } from "@/lib/mapa";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -101,7 +101,7 @@ async function Formulario({
                   <span className="flex flex-col text-sm">
                     <span className="font-medium">{e.titulo}</span>
                     <span className="text-muted-foreground">
-                      {formatarData(e.inicioEm)} · {e.cidade}
+                      {formatarPeriodo(e.inicioEm, e.fimEm)} · {e.cidade}
                     </span>
                   </span>
                   <DuplicarRecente eventoId={e.id} />

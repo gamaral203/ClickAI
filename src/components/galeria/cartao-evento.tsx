@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Calendar, Camera, Images, Lock, MapPin } from "lucide-react";
 
 import type { EventoResumo } from "@/dados";
-import { formatarData, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
 
 /**
  * Cartão do evento nas listas. No celular as listas têm 2 colunas, então o cartão fica compacto
@@ -57,7 +57,7 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
               <Calendar aria-hidden="true" className="size-3.5 sm:size-4" />
               <span className="sr-only">Data</span>
             </dt>
-            <dd>{formatarData(evento.inicioEm)}</dd>
+            <dd>{formatarPeriodo(evento.inicioEm, evento.fimEm)}</dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>

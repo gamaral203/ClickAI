@@ -35,7 +35,7 @@ export type DesempenhoNoEvento = {
   papel: PapelNoEvento;
   evento: Pick<
     Evento,
-    "id" | "titulo" | "slug" | "status" | "inicioEm" | "local" | "cidade" | "estado"
+    "id" | "titulo" | "slug" | "status" | "inicioEm" | "fimEm" | "local" | "cidade" | "estado"
   >;
   /** Fotos e vídeos prontos e não excluídos (do colaborador, só os que ele enviou). */
   fotosCarregadas: number;
@@ -82,6 +82,7 @@ async function papelNoEvento(eventoId: string, fotografoId: string) {
       slug: t.eventos.slug,
       status: t.eventos.status,
       inicioEm: t.eventos.inicioEm,
+      fimEm: t.eventos.fimEm,
       local: t.eventos.local,
       cidade: t.eventos.cidade,
       estado: t.eventos.estado,
@@ -90,7 +91,7 @@ async function papelNoEvento(eventoId: string, fotografoId: string) {
     .where(eq(t.eventos.id, eventoId));
   if (!evento) return null;
   const { dono, ...dados } = evento;
-  const resumo = { ...dados, inicioEm: iso(dados.inicioEm) };
+  const resumo = { ...dados, inicioEm: iso(dados.inicioEm), fimEm: iso(dados.fimEm) };
   if (dono === fotografoId) return { papel: "dono" as const, evento: resumo };
   // A mesma regra de podeEnviarAoEvento: convite pendente não dá acesso.
   const [colaborador] = await banco

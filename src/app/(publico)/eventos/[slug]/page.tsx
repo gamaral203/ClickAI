@@ -34,7 +34,7 @@ import {
   type FiltroGaleria,
 } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { linkComoChegar, linkVerNoOpenStreetMap, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
@@ -54,7 +54,7 @@ export async function generateMetadata({
       openGraph: { images: [{ url: capa.startsWith("/") ? urlDoSite(capa) : capa }] },
     }),
     title: evento.titulo,
-    description: `${contarItens(evento)} de ${evento.titulo}, ${formatarData(evento.inicioEm)}, ${evento.cidade}.`,
+    description: `${contarItens(evento)} de ${evento.titulo}, ${formatarPeriodo(evento.inicioEm, evento.fimEm)}, ${evento.cidade}.`,
     // Não listado e com senha ficam fora do Google (docs/arquitetura.md, Galeria e busca).
     robots: evento.visibilidade === "publico" ? undefined : { index: false, follow: false },
   };
@@ -97,7 +97,7 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
               <Calendar aria-hidden="true" className="size-4" />
               <span className="sr-only">Data</span>
             </dt>
-            <dd>{formatarData(evento.inicioEm)}</dd>
+            <dd>{formatarPeriodo(evento.inicioEm, evento.fimEm)}</dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>

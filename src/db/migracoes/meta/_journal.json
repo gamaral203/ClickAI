@@ -155,6 +155,13 @@
       "when": 1791614747551,
       "tag": "0021_remove_place_id_do_evento",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791641734274,
+      "tag": "0022_data_final_opcional",
+      "breakpoints": true
     }
   ]
 }

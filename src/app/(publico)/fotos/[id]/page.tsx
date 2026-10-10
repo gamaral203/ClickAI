@@ -20,7 +20,7 @@ import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { autoresPorId, buscarFotoPublica } from "@/dados";
-import { formatarData, formatarPreco } from "@/lib/formatar";
+import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
 import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: PageProps<"/fotos/[id]">): Pr
   if (!dados) return { title: "Foto não encontrada" };
   return {
     title: dados.posicao ? `Foto ${dados.posicao} — ${dados.evento.titulo}` : dados.evento.titulo,
-    description: `Foto de ${dados.evento.titulo}, ${formatarData(dados.evento.inicioEm)}, ${dados.evento.cidade}.`,
+    description: `Foto de ${dados.evento.titulo}, ${formatarPeriodo(dados.evento.inicioEm, dados.evento.fimEm)}, ${dados.evento.cidade}.`,
     // Só indexa foto de evento público com galeria aberta; as outras só abrem pelo link.
     robots:
       dados.evento.visibilidade === "publico" && dados.evento.situacaoGaleria.tipo === "aberta"
@@ -112,7 +112,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             )}
             <h1 className="text-2xl font-bold tracking-tight text-balance">{evento.titulo}</h1>
             <p className="text-muted-foreground">
-              {formatarData(evento.inicioEm)} · {evento.cidade}, {evento.estado}
+              {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.cidade}, {evento.estado}
             </p>
             <p className="text-muted-foreground">
               Foto por{" "}

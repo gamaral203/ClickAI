@@ -8,7 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { BotaoImprimir } from "@/components/painel/botao-imprimir";
 import { relatorioDoEvento } from "@/dados";
 import {
-  formatarData,
+  formatarPeriodo,
   formatarDataEHora,
   formatarPorcentagem,
   formatarPreco,
@@ -71,7 +71,8 @@ async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/relatorio">)
         <p className="text-sm font-medium text-primary">ClicouAí · Relatório do evento</p>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{evento.titulo}</h1>
         <p className="text-muted-foreground">
-          {formatarData(evento.inicioEm)} · {evento.local}, {evento.cidade}/{evento.estado}
+          {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.local}, {evento.cidade}/
+          {evento.estado}
         </p>
         <p className="text-xs text-muted-foreground">
           {conta.nomePublico} · gerado em {formatarDataEHora(relatorio.geradoEm)}

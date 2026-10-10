@@ -89,7 +89,7 @@ export async function semear(banco: Banco, { contasComSenha = false }: OpcoesSem
     exemplo.eventos.map((e) => ({
       ...e,
       inicioEm: new Date(e.inicioEm),
-      fimEm: new Date(e.fimEm),
+      fimEm: e.fimEm ? new Date(e.fimEm) : null,
       liberadoEm: data(e.liberadoEm),
       senhaHash: exemplo.senhasEventos.get(e.id) ?? null,
     })),

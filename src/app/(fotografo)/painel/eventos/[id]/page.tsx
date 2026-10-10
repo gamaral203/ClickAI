@@ -415,7 +415,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             titulo: evento.titulo,
             categoriaId: evento.categoriaId,
             inicioEm: isoParaCampo(evento.inicioEm),
-            fimEm: isoParaCampo(evento.fimEm),
+            fimEm: evento.fimEm ? isoParaCampo(evento.fimEm) : "",
             local: evento.local,
             cidade: evento.cidade,
             estado: evento.estado,

@@ -29,6 +29,7 @@ import {
 import { campoParaIso } from "@/lib/datas";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
 import { reaisParaCentavos } from "@/lib/dinheiro";
+import { camposDoPeriodo, MENSAGEM_FIM_ANTES_DO_INICIO, periodoValido } from "@/lib/periodo-evento";
 import {
   CAMPOS_DO_MAPA,
   camposDoMapa,
@@ -68,13 +69,6 @@ export type EstadoEvento = { ok?: boolean; erros?: Partial<Record<CampoEvento, s
 const texto = (mensagem: string, min: number, max: number) =>
   z.string(mensagem).trim().min(min, mensagem).max(max, `Até ${max} caracteres.`);
 
-const data = (mensagem: string) =>
-  z.string(mensagem).transform((v, ctx) => {
-    const iso = campoParaIso(v);
-    if (!iso) ctx.addIssue({ code: "custom", message: mensagem });
-    return iso ?? "";
-  });
-
 const preco = (mensagem: string) =>
   z.string(mensagem).transform((v, ctx) => {
     const centavos = reaisParaCentavos(v);
@@ -90,8 +84,8 @@ const formulario = z
   .object({
     titulo: texto("Informe o nome do evento.", 3, 120),
     categoriaId: z.uuid("Escolha a categoria."),
-    inicioEm: data("Informe a data e a hora de início."),
-    fimEm: data("Informe a data e a hora de fim."),
+    // Início obrigatório; data final opcional (em branco, o evento vale só pelo dia de início).
+    ...camposDoPeriodo,
     local: texto("Informe o local.", 2, 120),
     cidade: texto("Informe a cidade.", 2, 80),
     estado: z.enum(UFS, "Escolha o estado."),
@@ -108,10 +102,7 @@ const formulario = z
     // Ponto escolhido no mapa (campos ocultos; vazios quando não há mapa).
     ...camposDoMapa,
   })
-  .refine((d) => !d.inicioEm || !d.fimEm || d.fimEm >= d.inicioEm, {
-    path: ["fimEm"],
-    message: "O fim precisa ser depois do início.",
-  })
+  .refine(periodoValido, { path: ["fimEm"], message: MENSAGEM_FIM_ANTES_DO_INICIO })
   .refine(mapaCompleto, { path: ["latitude"], message: MENSAGEM_MAPA_INVALIDO });
 
 const CAMPOS_OCULTOS_DO_MAPA: ReadonlySet<PropertyKey> = new Set(CAMPOS_DO_MAPA);
