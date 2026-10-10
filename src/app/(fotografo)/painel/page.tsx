@@ -17,7 +17,7 @@ import { CartaoNumero } from "@/components/admin/tabela";
 import { GraficoVendas } from "@/components/graficos/grafico-vendas";
 import { LinkDoFotografo } from "@/components/painel/link-do-fotografo";
 import { Recepcao } from "@/components/painel/recepcao";
-import { SeloMeta } from "@/components/metas/selo-meta";
+import { CartaoMeta } from "@/components/metas/cartao-meta";
 import { buttonVariants } from "@/components/ui/button";
 import {
   dashboardDoFotografo,
@@ -29,6 +29,7 @@ import { urlDoSite } from "@/lib/endereco";
 import { formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { situacaoDasMetas } from "@/lib/metas";
 import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
+import { urlPublica } from "@/lib/url-publica";
 import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -89,10 +90,18 @@ async function Conteudo() {
         </Link>
       </div>
 
-      {/* No computador, o selo da meta fica no cabeçalho, perto do perfil. */}
-      <div className="lg:hidden">
-        <SeloMeta metas={situacaoDasMetas(await totalVendidoComoAutor(conta.id))} />
-      </div>
+      {/* Em tela larga (xl), o cartão da meta fica no cabeçalho, no lugar do nome. A conta de
+          gestão não tem meta de vendas. */}
+      {usuario.papel !== "admin" && (
+        <div className="xl:hidden">
+          <CartaoMeta
+            metas={situacaoDasMetas(await totalVendidoComoAutor(conta.id))}
+            nome={conta.nomePublico}
+            foto={conta.fotoPerfil ? urlPublica(conta.fotoPerfil) : null}
+            larguraTotal
+          />
+        </div>
+      )}
 
       <Recepcao humor={humor} detalhe={detalheRecepcao} />
 

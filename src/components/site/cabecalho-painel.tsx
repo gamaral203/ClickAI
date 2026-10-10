@@ -13,8 +13,9 @@ import { AtalhosDoPainel, LogoDoPainel } from "./nav-painel";
 /**
  * Cabeçalho de quem vende (fotógrafo e gestor), em todas as páginas: mais sóbrio que o do site de
  * compra. Faixa azul fina no topo, fundo branco, atalhos de trabalho (Início, Meus eventos,
- * Financeiro, Desempenho, Minha loja; o gestor também tem Gestão), o selo da meta (só o
- * fotógrafo), o nome levando ao perfil e o Sair, tudo numa linha só. Sem carrinho nem vitrine: conta de fotógrafo não compra. Os itens vêm de
+ * Financeiro, Desempenho, Minha loja; o gestor também tem Gestão), o perfil e o Sair, tudo numa
+ * linha só. O fotógrafo, em tela larga, vê o cartão da meta com a foto de perfil no lugar do
+ * nome. Sem carrinho nem vitrine: conta de fotógrafo não compra. Os itens vêm de
  * `linksDoCabecalho`; a mesma altura do cabeçalho do site, para a troca não deslocar a página.
  */
 export function CabecalhoPainel({
@@ -43,16 +44,30 @@ export function CabecalhoPainel({
         </nav>
 
         <div className="flex items-center gap-1">
-          {/* Selo da meta na mesma linha, antes do nome (só o fotógrafo, só em tela larga). */}
+          {/* Cartão da meta com a foto de perfil (só o fotógrafo, só em tela larga). Enquanto
+              carrega, um bloco do mesmo tamanho, para os atalhos não pularem. */}
           {navegacao.meta && (
-            <Suspense fallback={null}>
+            <Suspense
+              fallback={
+                <div
+                  aria-hidden="true"
+                  className="hidden h-11 w-64 animate-pulse rounded-xl bg-muted xl:block"
+                />
+              }
+            >
               <MetaDoCabecalho usuario={usuario} />
             </Suspense>
           )}
+          {/* Nome e inicial levando ao perfil: para o gestor e, sem espaço para o cartão, para o
+              fotógrafo entre lg e xl. */}
           {perfil && (
             <Link
               href={perfil.href}
-              className="hidden h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex"
+              className={
+                navegacao.meta
+                  ? "hidden h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex xl:hidden"
+                  : "hidden h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex"
+              }
             >
               <span
                 aria-hidden="true"
