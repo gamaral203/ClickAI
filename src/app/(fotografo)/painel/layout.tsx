@@ -1,4 +1,5 @@
 import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
+import { linkWhatsappSuporte } from "@/lib/suporte";
 
 const itens: ItemMenu[] = [
   { href: "/painel", rotulo: "Início", icone: "inicio" },
@@ -17,7 +18,12 @@ export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
   return (
     <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10 print:block print:p-0">
       <div className="print:hidden">
-        <MenuPainel titulo="Painel do fotógrafo" itens={itens} raiz="/painel" />
+        <MenuPainel
+          titulo="Painel do fotógrafo"
+          itens={itens}
+          raiz="/painel"
+          suporte={linkWhatsappSuporte()}
+        />
       </div>
       <div className="min-w-0">{children}</div>
     </div>

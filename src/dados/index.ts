@@ -418,10 +418,17 @@ export type OpcoesFiltroEventos = {
   cidades: { nome: string; estado: string }[];
 };
 
-/** Categorias e cidades que têm evento na lista pública, para os filtros (sem opção vazia). */
-export async function listarOpcoesFiltroEventos(): Promise<OpcoesFiltroEventos> {
+/**
+ * Categorias e cidades que têm evento na lista pública, para os filtros (sem opção vazia). Com
+ * `fotografoId`, só as dos eventos desse fotógrafo (página do fotógrafo).
+ */
+export async function listarOpcoesFiltroEventos(
+  fotografoId?: string,
+): Promise<OpcoesFiltroEventos> {
   const banco = await obterBanco();
-  const listados = await eventosListados();
+  const listados = (await eventosListados()).filter(
+    (e) => !fotografoId || e.fotografoId === fotografoId,
+  );
   const categoriaIds = new Set(listados.map((e) => e.categoriaId));
   const cidades = new Map(listados.map((e) => [normalizar(e.cidade), e]));
   const cats = await banco.select().from(t.categorias);

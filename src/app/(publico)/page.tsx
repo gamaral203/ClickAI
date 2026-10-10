@@ -4,12 +4,17 @@ import { Suspense } from "react";
 import { ArrowRight, CreditCard, Images, Search } from "lucide-react";
 
 import { CartaoEvento } from "@/components/galeria/cartao-evento";
+import { FiltrosEventos, filtrandoEventos } from "@/components/galeria/filtros-eventos";
 import { CarrosselInicio, type Slide } from "@/components/site/carrossel-inicio";
 import { TopDaSemana } from "@/components/site/top-da-semana";
 import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { listarEventosPublicados, vendasDaSemanaPorEvento } from "@/dados";
+import {
+  listarEventosPublicados,
+  listarOpcoesFiltroEventos,
+  vendasDaSemanaPorEvento,
+} from "@/dados";
 import { destinoDaVitrine } from "@/lib/navegacao";
+import { lerFiltroEventos } from "@/lib/validacao";
 import { usuarioAtual } from "@/servicos/sessao";
 
 /** Quantos eventos aparecem na página inicial; o resto fica em /eventos. */
@@ -71,7 +76,7 @@ const passos = [
 // então bloqueia no servidor em vez de gerar uma casca instantânea.
 export const instant = false;
 
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<"/">) {
   // A vitrine é de quem compra: fotógrafo e gestor logados vão para o painel (ou a gestão).
   const destino = destinoDaVitrine(await usuarioAtual(), "/");
   if (destino) redirect(destino);
@@ -136,28 +141,12 @@ export default async function Home() {
 
       <section id="eventos" aria-labelledby="titulo-eventos" className="scroll-mt-20">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <h2 id="titulo-eventos" className="text-2xl font-bold tracking-tight">
-              Eventos recentes
-            </h2>
-            <form action="/eventos" role="search" className="flex gap-2 sm:w-96">
-              <Input
-                name="busca"
-                type="search"
-                maxLength={100}
-                aria-label="Buscar evento por nome, cidade ou fotógrafo"
-                placeholder="Buscar evento, cidade ou fotógrafo"
-                className="h-11"
-              />
-              <button type="submit" className={buttonVariants({ size: "touch" })}>
-                <Search aria-hidden="true" />
-                <span className="sr-only">Buscar</span>
-              </button>
-            </form>
-          </div>
+          <h2 id="titulo-eventos" className="text-2xl font-bold tracking-tight">
+            Eventos recentes
+          </h2>
           {/* A lista lê a hora (liberação agendada): sai na requisição, o resto vem do build. */}
           <Suspense fallback={<EsqueletoEventos />}>
-            <EventosRecentes />
+            <EventosRecentes searchParams={searchParams} />
           </Suspense>
         </div>
       </section>
@@ -176,17 +165,45 @@ async function EmAlta() {
   return <TopDaSemana eventos={top} />;
 }
 
-async function EventosRecentes() {
-  const eventos = await listarEventosPublicados();
-  if (eventos.length === 0) {
+/** Eventos da inicial, com os filtros de data, cidade e categoria (vêm na URL). */
+async function EventosRecentes({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
+  const filtro = lerFiltroEventos(await searchParams);
+  const filtrando = filtrandoEventos(filtro);
+  const [eventos, opcoes] = await Promise.all([
+    listarEventosPublicados(filtro),
+    listarOpcoesFiltroEventos(),
+  ]);
+  if (eventos.length === 0 && !filtrando) {
     return (
       <p className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
         Nenhum evento publicado ainda. Volte em breve!
       </p>
     );
   }
+  // O link "ver todos" leva os mesmos filtros para /eventos.
+  const consulta = new URLSearchParams(
+    Object.entries(filtro).filter((par): par is [string, string] => Boolean(par[1])),
+  ).toString();
   return (
     <>
+      <FiltrosEventos
+        action="/#eventos"
+        filtro={filtro}
+        opcoes={opcoes}
+        limpar="/#eventos"
+        idPrefixo="inicio"
+      />
+      {filtrando && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {eventos.length === 1 ? "1 evento encontrado" : `${eventos.length} eventos encontrados`}
+        </p>
+      )}
+      {eventos.length === 0 && (
+        <div className="rounded-xl border border-dashed p-10 text-center">
+          <p className="font-medium">Nenhum evento encontrado.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Tire algum dos filtros.</p>
+        </div>
+      )}
       <ul className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
         {eventos.slice(0, EVENTOS_NA_INICIAL).map((evento) => (
           <li key={evento.id} className="flex">
@@ -196,7 +213,7 @@ async function EventosRecentes() {
       </ul>
       {eventos.length > EVENTOS_NA_INICIAL && (
         <Link
-          href="/eventos"
+          href={consulta ? `/eventos?${consulta}` : "/eventos"}
           className={buttonVariants({
             variant: "outline",
             size: "touch",
