@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
-import { Trophy, UserRound } from "lucide-react";
+import { Trophy, UserPlus, UserRound } from "lucide-react";
 
 import type { PosicaoTopCliques } from "@/dados";
-import { formatarPreco } from "@/lib/formatar";
+import { formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 
 type Criterio = "fotos" | "valor";
 
@@ -16,13 +17,17 @@ type Criterio = "fotos" | "valor";
 export function TopCliques({
   posicoes,
   destaque,
+  convidar,
 }: {
   posicoes: PosicaoTopCliques[];
   /** Fotógrafo que está vendo, destacado na lista. */
   destaque?: string;
+  /** Link para convidar colaboradores (só na página do dono); sem ele, a seção some quando a equipe é só uma pessoa. */
+  convidar?: string;
 }) {
   const [criterio, setCriterio] = useState<Criterio>("fotos");
-  if (posicoes.length < 2) return null;
+  if (posicoes.length === 0) return null;
+  if (posicoes.length < 2 && !convidar) return null;
   const medida = (p: PosicaoTopCliques) => (criterio === "fotos" ? p.vendidas : p.faturadoCentavos);
   const ordenadas = [...posicoes].sort(
     (a, b) => medida(b) - medida(a) || a.nome.localeCompare(b.nome, "pt-BR"),
@@ -61,6 +66,18 @@ export function TopCliques({
           ))}
         </div>
       </div>
+      {posicoes.length < 2 && convidar && (
+        <p className="flex items-start gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground">
+          <UserPlus aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Por enquanto só você está na equipe. Chame outros fotógrafos em{" "}
+            <Link href={convidar} className="font-semibold underline underline-offset-2">
+              Colaboradores
+            </Link>{" "}
+            e o ranking compara as vendas de cada um.
+          </span>
+        </p>
+      )}
       <ol className="flex flex-col gap-3">
         {ordenadas.map((p, i) => (
           <li key={p.fotografoId} className="flex flex-col gap-1.5">
@@ -87,8 +104,13 @@ export function TopCliques({
                 </span>
               </span>
               <span className="text-right text-sm text-muted-foreground tabular-nums">
-                {p.vendidas} {p.vendidas === 1 ? "foto" : "fotos"} ·{" "}
-                {formatarPreco(p.faturadoCentavos)}
+                {p.vendidas} de {p.enviadas} {p.enviadas === 1 ? "foto" : "fotos"}
+                {p.enviadas > 0 && (
+                  <span className="ml-1 rounded-full bg-highlight/40 px-1.5 py-0.5 text-xs font-medium text-highlight-foreground">
+                    {formatarPorcentagem(p.vendidas / p.enviadas)}
+                  </span>
+                )}{" "}
+                · {formatarPreco(p.faturadoCentavos)}
               </span>
             </div>
             <span aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-muted">
