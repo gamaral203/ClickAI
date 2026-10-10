@@ -95,7 +95,7 @@ export function Recepcao({ humor, detalhe }: { humor: Humor; detalhe: string | n
 
 /** Rosto desenhado (SVG): sorriso em alta e nas boas-vindas, boca reta no movimento baixo. */
 function Rosto({ humor }: { humor: Humor }) {
-  const fundo = humor === "alta" ? "#BCFA34" : humor === "baixo" ? "#9CC1FF" : "#C6CEDD";
+  const fundo = humor === "alta" ? "#B8FF32" : humor === "baixo" ? "#9CC1FF" : "#C6CEDD";
   return (
     <svg
       viewBox="0 0 80 80"

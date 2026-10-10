@@ -53,7 +53,7 @@
 /*
  * Marca ClicouAí (docs/marca/marca.md)
  * primary   = azul #2362FE (texto branco: 4,9:1)
- * highlight = limão #BCFA34 (só com texto escuro; nunca como texto sobre fundo claro)
+ * highlight = limão #B8FF32 (só com texto escuro, 14:1; nunca como texto sobre fundo claro)
  * accent    = azul bem claro, usado pelo shadcn no hover de menus e botões
  * Neutros puxados levemente para o azul da marca.
  */
@@ -72,14 +72,14 @@
   --muted-foreground: #5a6478;
   --accent: #e8efff;
   --accent-foreground: #1747c4;
-  --highlight: #bcfa34;
+  --highlight: #b8ff32;
   --highlight-foreground: #14200a;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #e2e7f0;
   --input: #e2e7f0;
   --ring: #2362fe;
   --chart-1: #2362fe;
-  --chart-2: #bcfa34;
+  --chart-2: #b8ff32;
   --chart-3: #1747c4;
   --chart-4: #7fa3ff;
   --chart-5: #5a6478;
@@ -109,14 +109,14 @@
   --muted-foreground: #9aa6bf;
   --accent: #1c2a4f;
   --accent-foreground: #b9cdff;
-  --highlight: #bcfa34;
+  --highlight: #b8ff32;
   --highlight-foreground: #14200a;
   --destructive: oklch(0.704 0.191 22.216);
   --border: rgb(255 255 255 / 10%);
   --input: rgb(255 255 255 / 15%);
   --ring: #5b8cff;
   --chart-1: #5b8cff;
-  --chart-2: #bcfa34;
+  --chart-2: #b8ff32;
   --chart-3: #2362fe;
   --chart-4: #b9cdff;
   --chart-5: #9aa6bf;

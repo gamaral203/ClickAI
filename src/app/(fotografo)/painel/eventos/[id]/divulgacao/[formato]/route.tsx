@@ -23,7 +23,7 @@ const FORMATOS = {
 } as const;
 
 const AZUL = "#2362FE";
-const LIMAO = "#BCFA34";
+const LIMAO = "#B8FF32";
 
 /**
  * A imagem de fundo como JPEG em data URL, já recortada no tamanho do formato (o gerador de
