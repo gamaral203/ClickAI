@@ -230,9 +230,9 @@ async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/desempenho">
           />
           <CartaoNumero
             icone={<Users aria-hidden="true" className="size-4" />}
-            titulo="Fotógrafos na equipe"
+            titulo="Equipe"
             valor={String(d.equipe.quantidade)}
-            texto={dono ? "Você e os colaboradores" : "Contando você e o dono"}
+            texto={`${d.equipe.quantidade} ${d.equipe.quantidade === 1 ? "fotógrafo" : "fotógrafos"} neste evento`}
           />
         </div>
       </section>
