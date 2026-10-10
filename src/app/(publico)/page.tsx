@@ -23,16 +23,10 @@ const EVENTOS_NA_INICIAL = 9;
 // Fotos de vitrine da página inicial (public/inicio/), já reduzidas e sem metadados.
 const slides: Slide[] = [
   {
-    src: "/inicio/corrida.webp",
-    alt: "Corredor sorridente de óculos escuros e camiseta amarela, com o número de peito 10, numa corrida de rua",
+    src: "/inicio/corrida-rua.webp",
+    alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
     rotulo: "Corridas",
-    vertical: true,
-    computador: {
-      src: "/inicio/cavaleiros-familia.webp",
-      alt: "Pai com o filho pequeno no colo e mulher de chapéu branco montados a cavalo num evento ao ar livre",
-      rotulo: "Eventos e cavalgadas",
-      foco: "60% 35%",
-    },
+    foco: "50% 40%",
   },
   {
     src: "/inicio/cavalgada.webp",
@@ -41,16 +35,10 @@ const slides: Slide[] = [
     foco: "65% 40%",
   },
   {
-    src: "/inicio/retrato.webp",
-    alt: "Retrato em estúdio de uma mulher de cabelo longo e camisa branca, com a mão no queixo",
-    rotulo: "Ensaios e retratos",
-    vertical: true,
-    computador: {
-      src: "/inicio/ensaio-casal.webp",
-      alt: "Casal sorridente vestido de branco num ensaio ao ar livre, com montanhas e céu azul ao fundo",
-      rotulo: "Ensaios e retratos",
-      foco: "50% 30%",
-    },
+    src: "/inicio/salto.webp",
+    alt: "Cavaleiro de boné saltando uma barra vermelha com o cavalo, numa prova noturna com público na cerca",
+    rotulo: "Provas e vaquejadas",
+    foco: "50% 18%",
   },
 ];
 
