@@ -59,7 +59,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/entrar/codigo">, "sea
   return (
     <div className="flex flex-col gap-6">
       <p className="text-muted-foreground">
-        Enviamos um código de 6 números para o e-mail{" "}
+        Enviamos um código de 6 números para o <span className="whitespace-nowrap">e-mail</span>{" "}
         <strong className="break-words text-foreground">
           {mascararEmail(pendente.usuario.email)}
         </strong>
