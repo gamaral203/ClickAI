@@ -3,6 +3,7 @@
 // do original no R2) não saem daqui.
 
 import type * as t from "@/db/schema";
+import { ehModeloMarca, MODELO_MARCA_PADRAO } from "@/lib/marca-dagua";
 import { urlPublica } from "@/lib/url-publica";
 
 import type {
@@ -54,7 +55,11 @@ export function paraUsuario(r: typeof t.usuarios.$inferSelect): UsuarioInterno {
 }
 
 export function paraFotografo(r: typeof t.fotografos.$inferSelect): FotografoConta {
-  return { ...r, documentoTrocadoEm: iso(r.documentoTrocadoEm) };
+  return {
+    ...r,
+    documentoTrocadoEm: iso(r.documentoTrocadoEm),
+    modeloMarca: ehModeloMarca(r.modeloMarca) ? r.modeloMarca : MODELO_MARCA_PADRAO,
+  };
 }
 
 export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {

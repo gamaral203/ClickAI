@@ -113,6 +113,20 @@
       "when": 1791605545227,
       "tag": "0015_taxas_cartao_e_notificacoes",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791606275854,
+      "tag": "0016_suporte_e_sugestoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791606640988,
+      "tag": "0017_modelo_marca_dagua",
+      "breakpoints": true
     }
   ]
 }

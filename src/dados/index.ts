@@ -1549,3 +1549,4 @@ export * from "./autores";
 export * from "./rankings";
 export * from "./liberacao";
 export * from "./push";
+export * from "./suporte";
