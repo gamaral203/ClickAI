@@ -141,7 +141,7 @@ Valores em dinheiro ficam em centavos (inteiro) para evitar erro de arredondamen
 | `codigos_recuperacao` | id, usuario_id, codigo_hash (HMAC, único), usado_em | usuarios (códigos de recuperação da verificação em duas etapas) |
 | `codigos_email` | email (chave), usuario_id (opcional: conta antiga não confirmada), nome, senha_hash e papel (cadastro pendente), codigo_hash (HMAC), codigo_expira_em, tentativas, enviado_em, criado_em | usuarios (código de confirmação do e-mail; o cadastro pendente vence em 24 horas) |
 | `redefinicoes_senha` | token_hash (SHA-256, chave), usuario_id, expira_em | usuarios (links de "Esqueci a senha") |
-| `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, capa, redes_sociais, cpf_cnpj, chave_pix (o próprio CPF/CNPJ, confirmado), documento_trocado_em (última troca do CPF/CNPJ), comissao_pct | usuarios (1:1) |
+| `fotografos` | id, usuario_id, nome_publico, slug, bio, foto_perfil, avatar (id do catálogo em `src/lib/avatares.ts`; nulo = padrão pelo id; a foto tem prioridade), capa, redes_sociais, cpf_cnpj, chave_pix (o próprio CPF/CNPJ, confirmado), documento_trocado_em (última troca do CPF/CNPJ), comissao_pct | usuarios (1:1) |
 | `categorias` | id, nome, slug | — |
 | `eventos` | id, fotografo_id (dono), categoria_id, titulo, slug, inicio_em, fim_em, local, cidade, estado, capa, preco_foto_centavos, preco_video_centavos, status (rascunho, publicado, revisao, arquivado), visibilidade (publico, nao_listado, senha), senha_hash, listado, fotos_so_apos_busca, liberacao (automatica, manual, agendada: padrão dos próximos envios), liberado_em (horário padrão da agendada), filtro_horario, listar_nao_identificadas, ordenacao | fotografos, categorias |
 | `pastas` | id, evento_id, nome, ordem | eventos (N:1) |

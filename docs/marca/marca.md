@@ -39,3 +39,11 @@ As cores estão em [`src/app/globals.css`](../../src/app/globals.css) como vari�
 O limão não fica no `--accent` porque o shadcn usa esse token no hover de vários componentes, e a interface inteira ficaria verde. Nunca usar `text-highlight` sobre fundo claro.
 
 Fonte: Plus Jakarta Sans (via `next/font`), geométrica e arredondada como a logo.
+
+## Avatares
+
+Quem não envia foto de perfil aparece com um avatar: 12 ilustrações em SVG, feitas para o ClicouAí, em [`public/avatares/`](../../public/avatares/) (`avatar-01.svg` a `avatar-12.svg`). O catálogo, com o nome de cada um (texto alternativo e rótulo do botão), fica em [`src/lib/avatares.ts`](../../src/lib/avatares.ts). O fotógrafo escolhe em Perfil e recebimento; sem escolha, recebe um padrão tirado do id da conta. A foto enviada sempre tem prioridade.
+
+Estilo: ilustração plana, de busto, viewBox `0 0 120 120` com o fundo ocupando o quadrado todo (o site recorta em círculo), sem texto e sem traço fino, para ler bem em 28 a 36 px. Fundos: azul `#2362FE`, azul claro `#E8EFFF`, limão `#BCFA34` (só com desenho escuro), creme `#F5EBDD`, pêssego `#FFDCCB` e lilás `#E9E3FF`.
+
+Para adicionar um avatar: crie o SVG seguindo o estilo acima, sem metadados, como `avatar-13.svg`; inclua o nome no fim da lista `NOMES` de `src/lib/avatares.ts` (o id vem da posição) e ajuste a contagem em `src/lib/avatares.test.ts`. Não reordene nem apague avatares: o id fica gravado em `fotografos.avatar`, e o avatar padrão de cada conta depende do tamanho da lista (aumentar a lista muda o padrão de quem nunca escolheu).
