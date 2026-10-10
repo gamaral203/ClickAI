@@ -148,6 +148,13 @@
       "when": 1791610349810,
       "tag": "0020_local_no_mapa",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791614747551,
+      "tag": "0021_remove_place_id_do_evento",
+      "breakpoints": true
     }
   ]
 }
