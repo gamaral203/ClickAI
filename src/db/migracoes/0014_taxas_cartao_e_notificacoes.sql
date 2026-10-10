@@ -12,4 +12,6 @@ ALTER TABLE "fotografos" ALTER COLUMN "comissao_pct" SET DEFAULT 8;--> statement
 ALTER TABLE "pedidos" ADD COLUMN "acrescimo_cartao_centavos" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "inscricoes_push" ADD CONSTRAINT "inscricoes_push_usuario_id_usuarios_id_fk" FOREIGN KEY ("usuario_id") REFERENCES "public"."usuarios"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "inscricoes_push_endpoint_index" ON "inscricoes_push" USING btree ("endpoint");--> statement-breakpoint
-CREATE INDEX "inscricoes_push_usuario_id_index" ON "inscricoes_push" USING btree ("usuario_id");
+CREATE INDEX "inscricoes_push_usuario_id_index" ON "inscricoes_push" USING btree ("usuario_id");--> statement-breakpoint
+-- Taxa nova: quem estava com a comissão padrão antiga (10%) passa para a nova (8%).
+UPDATE "fotografos" SET "comissao_pct" = 8 WHERE "comissao_pct" = 10;
