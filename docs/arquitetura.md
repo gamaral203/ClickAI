@@ -288,6 +288,10 @@ Visão geral (o que entrou em vendas pagas, o que saiu em saques, a receita da p
 
 Para cada item vendido: se o item foi enviado por um colaborador, o dono do evento fica com `comissao_dono_pct` do preço e o colaborador com o resto; se foi o próprio dono, ele fica com tudo. A comissão da plataforma não sai aqui: cada um paga a sua no saque. A soma das partes tem que dar exatamente o preço do item; os centavos de arredondamento ficam com o autor da foto.
 
+**Desempenho do evento**
+
+`/painel/eventos/[id]/desempenho` reúne as vendas, o público e os ganhos de um evento. Só pedidos `pago` contam como venda, e a foto excluída depois da venda continua nas vendidas (mas sai das carregadas). O dono vê o evento inteiro. O colaborador que aceitou o convite vê a mesma tela restrita ao que é dele: fotos que enviou (`fotos.enviada_por`), vendas, maior pedido, última venda e downloads só dos itens de que é autor (`itens_pedido.fotografo_id`) e ganhos só dos lançamentos dele; faturamento do evento, ganho do dono e números dos outros colaboradores nunca chegam a ele. Visitas e o Top Cliques são do evento inteiro (a conversão dele é pedidos dele ÷ visitas do evento). A regra fica em `desempenhoDoEvento` (`src/dados/desempenho-evento.ts`), no servidor: quem não é dono nem colaborador aceito recebe `null` e a página dá 404. Os ganhos vêm de `lancamentos` (já líquidos de estornos), e a taxa mostrada é a do saque normal (`comissao_pct`), só uma estimativa: ela sai no saque.
+
 **Carrinho abandonado**
 
 Um job de hora em hora marca como `expirado` os pedidos `pendente` com `expira_em` vencido e confere no gateway antes de expirar. Para os expirados que ainda não receberam lembrete, envia um e-mail (e WhatsApp, se aceito) com o link para refazer a compra e preenche `lembrete_enviado_em`.
