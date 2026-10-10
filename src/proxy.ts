@@ -71,6 +71,8 @@ export function proxy(request: NextRequest) {
     desenvolvimento: process.env.NODE_ENV === "development",
     https: request.nextUrl.protocol === "https:",
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    // Só com a chave do Maps a página carrega o Google Maps (src/servicos/mapa.ts).
+    googleMaps: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim()),
   });
   const cabecalhos = new Headers(request.headers);
   cabecalhos.set("x-nonce", nonce);

@@ -102,6 +102,14 @@ export type Evento = {
   cidade: string;
   /** Sigla da UF. */
   estado: string;
+  /**
+   * Ponto escolhido no Google Maps: latitude e longitude vêm juntas ou nenhuma (sem o campo, o
+   * evento não tem mapa). `placeId` e `enderecoMapa` só existem com as coordenadas.
+   */
+  latitude?: number | null;
+  longitude?: number | null;
+  placeId?: string | null;
+  enderecoMapa?: string | null;
   capa: string | null;
   /** Foto de capa escolhida pelo dono; `null` (ou ausente): capa automática. */
   capaFotoId?: string | null;
@@ -184,6 +192,10 @@ export type ConfigModelo = Pick<
   | "local"
   | "cidade"
   | "estado"
+  | "latitude"
+  | "longitude"
+  | "placeId"
+  | "enderecoMapa"
   | "precoFotoCentavos"
   | "precoVideoCentavos"
   | "visibilidade"

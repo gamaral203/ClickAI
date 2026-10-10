@@ -8,9 +8,11 @@ import {
   type CampoEvento,
   type EstadoEvento,
 } from "@/app/(fotografo)/painel/eventos/acoes";
+import { LocalNoMapa } from "@/components/painel/local-no-mapa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { ConfigMapa, PontoNoMapa } from "@/lib/mapa";
 import { UFS } from "@/lib/ufs";
 
 export type ValoresEvento = {
@@ -21,6 +23,8 @@ export type ValoresEvento = {
   local: string;
   cidade: string;
   estado: string;
+  /** Ponto escolhido no Google Maps, se houver. */
+  pontoNoMapa: PontoNoMapa | null;
   precoFoto: string;
   precoVideo: string;
   visibilidade: "publico" | "nao_listado" | "senha";
@@ -64,10 +68,13 @@ export function FormularioEvento({
   eventoId,
   categorias,
   inicial,
+  mapa = null,
 }: {
   eventoId?: string;
   categorias: { id: string; nome: string }[];
   inicial: ValoresEvento;
+  /** Google Maps configurado (src/servicos/mapa.ts); sem ele, não há botão de mapa. */
+  mapa?: ConfigMapa | null;
 }) {
   const [estado, acao, enviando] = useActionState(salvarEventoAcao, estadoInicial);
   const [visibilidade, setVisibilidade] = useState(inicial.visibilidade);
@@ -184,12 +191,19 @@ export function FormularioEvento({
       <div hidden={!visivel(1)} className="contents">
         <Secao titulo="Local">
           <Campo rotulo="Local" id="local" erro={erros.local}>
-            <Input
-              {...props("local")}
-              defaultValue={inicial.local}
-              maxLength={120}
-              placeholder="Ex.: Parque Ibirapuera, portão 3"
-              className="h-11"
+            <LocalNoMapa
+              config={mapa}
+              inicial={inicial.pontoNoMapa}
+              formulario={formulario}
+              campo={
+                <Input
+                  {...props("local")}
+                  defaultValue={inicial.local}
+                  maxLength={120}
+                  placeholder="Ex.: Parque Ibirapuera, portão 3"
+                  className="h-11"
+                />
+              }
             />
           </Campo>
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">

@@ -9,7 +9,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | Vercel | Hospedar o site | Agora | Funções na região `gru1` (São Paulo), já em `vercel.json` |
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
 | Mercado Pago | Pix e cartão | Agora | Saque em produção só com a chave pública cadastrada no Mercado Pago e `MP_PAYOUTS_HABILITADO=1` (item 3) |
-| Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
+| Google Cloud | Login com Google e Google Maps (local do evento) | Agora | Tela de consentimento OAuth publicada. Chave do Maps restrita por site e por API (item 9) |
 | Banco (Supabase) | Dados | Agora | Região São Paulo. A produção usa `DATABASE_URL` (pooler, porta 6543) e `DATABASE_URL_DIRETA` (direta, porta 5432), cadastradas à mão na Vercel; `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING` são a alternativa, criadas pela integração do Marketplace (Storage → Supabase). O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
 | Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
 | AWS | Reconhecimento facial (Rekognition) | Fase 12 | Região `sa-east-1` (São Paulo). Usuário IAM só com as permissões do `.env.example`; chaves em `REKOGNITION_*`, nunca em `AWS_*` (item 3) |
@@ -89,7 +89,7 @@ A produção está em **https://www.clicouai.com** (domínio comprado na Vercel,
 
 - O `proxy.ts` tira o `www.` do `APP_URL` para achar o domínio do site: `www.clicouai.com` e `clicouai.com` são o site; `nome.clicouai.com` é a loja `nome`; qualquer outro host (fora `*.vercel.app` e `localhost`) é tratado como domínio próprio de loja. Por isso, com o `APP_URL` errado, a página inicial do domínio novo mostra "Loja não encontrada".
 - O curinga só funciona com o domínio usando os **nameservers da Vercel**. Se o DNS estiver em outro lugar (Registro.br, Cloudflare), aponte os nameservers para a Vercel.
-- Ao trocar o domínio do site, atualize também, fora do código: a URI de redirecionamento do Google (`{APP_URL}/api/auth/google/callback`), a URL do webhook do gateway de pagamento, o domínio do remetente no Resend, o CORS do bucket de originais (item 7) e o segredo `APP_URL` do GitHub Actions.
+- Ao trocar o domínio do site, atualize também, fora do código: a URI de redirecionamento do Google (`{APP_URL}/api/auth/google/callback`), a URL do webhook do gateway de pagamento, o domínio do remetente no Resend, os sites autorizados da chave do Google Maps (item 9), o CORS do bucket de originais (item 7) e o segredo `APP_URL` do GitHub Actions.
 - Domínio próprio de cada loja (ex. `fotos.liaramos.com.br`): o fotógrafo conecta em **Painel → Minha loja**, e o site cadastra o domínio no projeto pela API da Vercel. A loja só abre no domínio depois que o DNS é verificado.
 
 ## 5. Sentry e alertas
@@ -166,3 +166,23 @@ O `.env.local` não vai para o git. Numa máquina nova:
 5. Sem `DATABASE_URL` nem `POSTGRES_URL` no `.env.local`, o app usa o PGlite. Com elas (depois do `env pull`, quando o Supabase existir), o desenvolvimento local usa o banco de verdade: cuidado, é o mesmo banco da produção. Para continuar no PGlite, apague essas linhas do `.env.local`.
 6. Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build`.
 
+## 9. Google Maps (local do evento)
+
+Com a chave, o fotógrafo escolhe o local do evento num mapa ("Escolher no mapa", ao criar ou editar o evento) e a página pública mostra um mapa pequeno. Sem a chave, tudo funciona como antes: o local é só texto, e a página do evento que já tem um ponto gravado mostra o endereço com os links "Como chegar" e "Ver no Google Maps" (que não usam chave). Como funciona: [arquitetura.md](arquitetura.md), "Local no mapa".
+
+A chave vai para o navegador (o Maps JavaScript só funciona assim), então quem a protege são as restrições no Google Cloud. Sem elas, qualquer site poderia usar a chave e gastar a cota da conta.
+
+1. Em [console.cloud.google.com](https://console.cloud.google.com), use o mesmo projeto do login com Google. Em **Faturamento**, vincule uma conta de faturamento (o Google Maps exige, mesmo dentro da cota gratuita mensal).
+2. Em **APIs e serviços → Biblioteca**, ative:
+   - **Maps JavaScript API** (o mapa);
+   - **Places API (New)** (a busca de lugares no "Escolher no mapa"; a "Places API" antiga não serve e não precisa ser ativada);
+   - **Geocoding API** (recomendada: mostra o endereço do ponto clicado ou arrastado no mapa e centraliza o mapa na cidade digitada; sem ela, o mapa funciona, mas o ponto clicado fica só com as coordenadas).
+3. Em **APIs e serviços → Credenciais → Criar credenciais → Chave de API**. Abra a chave criada e, em **Restrições da chave**:
+   - **Restrições de aplicativo:** *Sites (referenciadores HTTP)*, com `https://www.clicouai.com/*` e `https://clicouai.com/*`. Para os previews da Vercel, acrescente `https://*.vercel.app/*` só se precisar testar o mapa neles; para a máquina local, use outra chave com `http://localhost:3000/*`, nunca a de produção.
+   - **Restrições de API:** *Restringir chave*, marcando só Maps JavaScript API, Places API (New) e Geocoding API.
+4. (Opcional, recomendado) Em **Google Maps Platform → Gerenciamento de mapas → Criar ID do mapa**, tipo *JavaScript*, *Raster*. O marcador do mapa exige um Map ID; sem um próprio, o site usa o `DEMO_MAP_ID` do Google, feito para testes.
+5. (Recomendado) Em **Google Maps Platform → Cotas**, limite as requisições por dia da Places API (New) e da Geocoding API, e crie um alerta de orçamento em **Faturamento → Orçamentos e alertas**.
+6. Na Vercel, em **Settings → Environment Variables**, cadastre para *Production* `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (e `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`, se criou o Map ID) e faça **Redeploy**: as variáveis `NEXT_PUBLIC_` entram no build.
+7. Confira: em Meus eventos, abra um evento, clique em "Escolher no mapa", busque um lugar, use o local e salve; depois abra a página pública do evento e veja o bloco "Onde" com o mapa. Se o mapa não carregar, o console do navegador mostra o motivo (`RefererNotAllowedMapError`: falta o domínio nas restrições; `ApiNotActivatedMapError`: falta ativar uma API; violação de CSP: avise, porque a política está em `src/lib/csp.ts`).
+
+A CSP (`src/lib/csp.ts`) só libera o Google Maps quando a chave existe: o script de `maps.googleapis.com` (com o nonce), as chamadas a `*.googleapis.com`, `*.gstatic.com` e `*.google.com` e as fontes do Google Fonts.
