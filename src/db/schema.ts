@@ -606,6 +606,34 @@ export const downloads = pgTable(
   (t) => [index().on(t.itemPedidoId)],
 ).enableRLS();
 
+/** O que o dono do evento baixou dos originais (src/servicos/originais-do-dono.ts). */
+export const modoOriginaisDoDono = pgEnum("modo_originais_do_dono", ["vendidas", "minhas"]);
+
+/**
+ * Auditoria do download dos originais pelo dono do evento: uma linha por lote de URLs assinadas
+ * (quem, evento, qual opção, quantos arquivos, IP). Nunca guarda as URLs nem as chaves.
+ */
+export const downloadsDoDono = pgTable(
+  "downloads_do_dono",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    eventoId: uuid()
+      .notNull()
+      .references(() => eventos.id, { onDelete: "cascade" }),
+    fotografoId: uuid()
+      .notNull()
+      .references(() => fotografos.id),
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id),
+    modo: modoOriginaisDoDono().notNull(),
+    quantidade: integer().notNull(),
+    ip: text(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.eventoId, t.criadoEm), index().on(t.fotografoId)],
+).enableRLS();
+
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
 export const saques = pgTable(

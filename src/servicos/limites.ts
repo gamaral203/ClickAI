@@ -91,6 +91,13 @@ const REGRAS = {
    */
   url_download_ip: { limite: 600, janelaMs: 10 * MINUTO },
   /**
+   * Lotes de URLs assinadas dos originais pedidos pelo dono do evento (até 50 cada,
+   * src/servicos/originais-do-dono.ts), por usuário. 120 lotes em 10 minutos são 6.000 arquivos,
+   * mais do que a conexão de quase todo mundo baixa nesse tempo; acima disso, o navegador espera
+   * e continua sozinho.
+   */
+  originais_dono_usuario: { limite: 120, janelaMs: 10 * MINUTO },
+  /**
    * Códigos da verificação em duas etapas, por usuário (login, saque, troca de CPF/CNPJ). O
    * código tem 6 dígitos: 6 tentativas a cada 15 minutos deixam a chance de acertar no chute
    * perto de zero. Código certo zera a contagem.

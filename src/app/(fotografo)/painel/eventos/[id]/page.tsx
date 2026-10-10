@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
+import { BaixarOriginais } from "@/components/painel/baixar-originais";
 import { CapaDoEvento } from "@/components/painel/capa-do-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
 import { AlternarDescontoProgressivo } from "@/components/painel/alternar-desconto-progressivo";
@@ -53,6 +54,7 @@ import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
 import { provedorFacial } from "@/lib/reconhecimento";
+import { resumoParaODono } from "@/servicos/originais-do-dono";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -83,7 +85,7 @@ export default function PaginaGerenciarEvento(props: PageProps<"/painel/eventos/
 
 async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id]">) {
   const { id } = await params;
-  const { conta } = await exigirFotografo(`/painel/eventos/${id}`);
+  const { usuario, conta } = await exigirFotografo(`/painel/eventos/${id}`);
   // Evento de outro fotógrafo dá "não encontrado", igual a um id que não existe.
   const evento = ehIdValido(id) ? await buscarEventoDoFotografo(id, conta.id) : null;
   if (!evento) notFound();
@@ -103,6 +105,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     totais,
     liberacao,
     capas,
+    originais,
   ] = await Promise.all([
     listarItensDoPainel(evento.id, conta.id),
     listarFaixas(conta.id, evento.id),
@@ -116,6 +119,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     resumoDaLiberacao(evento.id, agora),
     // A capa que os cartões mostram agora (escolhida, se valer; senão a automática).
     capasDosEventos([evento.id], agora),
+    // Download dos originais: só o dono (conferido de novo no servidor a cada lote).
+    resumoParaODono(usuario, evento.id),
   ]);
   const capaAtual = capas.get(evento.id) ?? null;
   const capaFotoId = evento.capaFotoId ?? null;
@@ -243,6 +248,15 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           qrSvg={qrCode.svg}
           qrPngDataUrl={qrCode.pngDataUrl}
           eventoId={evento.id}
+        />
+      )}
+
+      {originais && (
+        <BaixarOriginais
+          eventoId={evento.id}
+          slug={evento.slug}
+          resumo={originais}
+          pedeCodigo={usuario.mfaAtivo}
         />
       )}
 

@@ -3,7 +3,8 @@ import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
 // Configuração comum do Sentry (servidor, edge e navegador). Sem SENTRY_DSN, nada é enviado.
 //
 // O que nunca sai daqui (docs/riscos.md e LGPD):
-// - tokens de acesso a pedidos e links assinados (?token=…), que valem como senha;
+// - tokens de acesso a pedidos e links assinados (?token=…), que valem como senha, e a
+//   assinatura das URLs do R2 (X-Amz-Signature…, como as dos originais que o dono baixa);
 // - cookies, cabeçalho Authorization e corpo das requisições: a selfie da busca facial vai no
 //   corpo e não pode ser gravada em lugar nenhum, nem em log de erro.
 
@@ -11,7 +12,8 @@ import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
  * O parâmetro secreto no começo do texto (query string sem "?") ou depois de ?, & ou # (o link de
  * "Esqueci a senha" leva o token depois do #: /entrar/nova-senha#token=…).
  */
-const PARAMETROS_SECRETOS = /((?:^|[?&#])(?:token|code|state|acesso)=)[^&#\s"']+/gi;
+const PARAMETROS_SECRETOS =
+  /((?:^|[?&#])(?:token|code|state|acesso|liberacao|x-amz-signature|x-amz-credential|x-amz-security-token)=)[^&#\s"']+/gi;
 
 export function limparTexto<T>(valor: T): T {
   return (

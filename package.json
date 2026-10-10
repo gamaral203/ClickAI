@@ -25,6 +25,7 @@
     "@electric-sql/pglite": "^0.5.8",
     "@sentry/nextjs": "^11.5.0",
     "class-variance-authority": "^0.7.1",
+    "client-zip": "^2.5.1",
     "cn": "^0.4.0",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.3",
