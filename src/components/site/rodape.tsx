@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { linksDoCabecalho } from "@/lib/navegacao";
+import { usuarioAtual } from "@/servicos/sessao";
 
 const links = [
   { href: "/como-funciona", rotulo: "Como funciona" },
@@ -11,7 +15,30 @@ const links = [
   { href: "/remover-foto", rotulo: "Remover uma foto" },
 ];
 
+const linksCurtos = [
+  { href: "/ajuda", rotulo: "Ajuda" },
+  { href: "/termos", rotulo: "Termos" },
+  { href: "/privacidade", rotulo: "Privacidade" },
+];
+
+/**
+ * Rodapé do site. Quem vende (cabeçalho do painel) vê o rodapé curto; visitante e cliente, o
+ * completo. A mesma `linksDoCabecalho` decide; como lê a sessão, sai dentro do <Suspense>.
+ */
 export function Rodape() {
+  return (
+    <Suspense fallback={null}>
+      <RodapeDoPapel />
+    </Suspense>
+  );
+}
+
+async function RodapeDoPapel() {
+  const { rodape } = linksDoCabecalho(await usuarioAtual());
+  return rodape === "curto" ? <RodapeCurto /> : <RodapeCompleto />;
+}
+
+function RodapeCompleto() {
   return (
     <footer className="border-t print:hidden">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
@@ -27,6 +54,31 @@ export function Rodape() {
             ))}
           </ul>
         </nav>
+      </div>
+    </footer>
+  );
+}
+
+function RodapeCurto() {
+  return (
+    <footer className="border-t print:hidden">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-4 text-sm text-muted-foreground">
+        <nav aria-label="Rodapé">
+          <ul className="flex flex-wrap items-center gap-x-1">
+            {linksCurtos.map((l, i) => (
+              <li key={l.href} className="flex items-center gap-x-1">
+                {i > 0 && <span aria-hidden="true">·</span>}
+                <Link
+                  href={l.href}
+                  className="inline-flex h-8 items-center px-1 hover:text-foreground"
+                >
+                  {l.rotulo}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <span>ClicouAí © {new Date().getFullYear()}</span>
       </div>
     </footer>
   );

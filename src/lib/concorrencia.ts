@@ -51,3 +51,42 @@ export function emLotes<T>(itens: readonly T[], tamanho: number): T[][] {
   for (let i = 0; i < itens.length; i += tamanho) lotes.push(itens.slice(i, i + tamanho));
   return lotes;
 }
+
+/**
+ * Orçamento de um recurso contado em unidades (ex.: bytes de memória): `reservar(n)` espera até
+ * caber e devolve a função que libera. Um pedido maior que o orçamento inteiro passa sozinho,
+ * quando nada mais está reservado, para nunca ficar preso. A fila é por ordem de chegada.
+ */
+export class Orcamento {
+  private usado = 0;
+  private fila: { quanto: number; liberar: () => void }[] = [];
+
+  constructor(private readonly total: number) {}
+
+  get emUso() {
+    return this.usado;
+  }
+
+  private cabe(quanto: number) {
+    return this.usado === 0 || this.usado + quanto <= this.total;
+  }
+
+  async reservar(quanto: number): Promise<() => void> {
+    if (this.fila.length === 0 && this.cabe(quanto)) {
+      this.usado += quanto;
+    } else {
+      await new Promise<void>((ok) => this.fila.push({ quanto, liberar: ok }));
+    }
+    let liberado = false;
+    return () => {
+      if (liberado) return;
+      liberado = true;
+      this.usado -= quanto;
+      while (this.fila.length > 0 && this.cabe(this.fila[0].quanto)) {
+        const proximo = this.fila.shift()!;
+        this.usado += proximo.quanto;
+        proximo.liberar();
+      }
+    };
+  }
+}

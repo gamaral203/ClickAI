@@ -327,7 +327,7 @@ export async function registrarFotosEmEnvio(
   eventoId: string,
   fotografoId: string,
   arquivos: { nome: string; tamanhoBytes: number; hash: string }[],
-  chaves: (fotoId: string) => ChavesDaFoto,
+  chaves: (fotoId: string, indice: number) => ChavesDaFoto,
 ): Promise<string[] | null> {
   if (!(await podeEnviarAoEvento(eventoId, fotografoId))) return null;
   if (arquivos.length === 0) return [];
@@ -359,7 +359,7 @@ export async function registrarFotosEmEnvio(
     const existente = reaproveitar.get(arquivo.hash);
     reaproveitar.delete(arquivo.hash);
     const id = existente ?? crypto.randomUUID();
-    const c = chaves(id);
+    const c = chaves(id, i);
     const dados = {
       chaveOriginal: c.temporaria,
       urlPrevia: c.previa,

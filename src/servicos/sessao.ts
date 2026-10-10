@@ -29,6 +29,7 @@ import {
 } from "@/dados";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { emailEhGestor, type PerfilGoogle } from "@/lib/google";
+import { inicioDoPapel } from "@/lib/navegacao";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 
@@ -465,12 +466,8 @@ export async function entrarComGoogle(
   return { ok: true, usuario: atualizado, novo, pedeCodigo: false };
 }
 
-/** Para onde mandar cada papel depois do login, quando não há um ?proximo=. */
-export function inicioDoPapel(papel: Papel) {
-  if (papel === "admin") return "/admin";
-  if (papel === "fotografo") return "/painel";
-  return "/minhas-compras";
-}
+// Para onde mandar cada papel depois do login: função pura em src/lib/navegacao.ts.
+export { inicioDoPapel };
 
 async function slugDisponivel(nome: string) {
   const base = gerarSlug(nome) || "fotografo";
@@ -526,7 +523,8 @@ async function garantirContaDeFotografo(
  * "Quero vender": o cliente logado passa a fotógrafo e ganha o perfil de vendedor, como no login
  * com o Google pelo botão de vender. Serve para quem criou a conta como comprador e depois quer
  * vender (ou marcou o tipo errado no cadastro), sem precisar de outro e-mail. Gestor e fotógrafo
- * ficam como estão. Devolve se o usuário pode usar o painel depois disso.
+ * ficam como estão. Conta de fotógrafo não compra: para comprar depois, a pessoa sai da conta.
+ * Devolve se o usuário pode usar o painel depois disso.
  */
 export async function comecarAVender(usuario: Usuario): Promise<boolean> {
   if (usuario.papel !== "cliente") return podeUsarPainel(usuario);

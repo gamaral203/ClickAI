@@ -7,6 +7,7 @@ import { connection } from "next/server";
 import {
   buscarPedido,
   buscarRegrasDeDivisao,
+  buscarUsuario,
   marcarPedidoPago,
   mudarStatusPedido,
   salvarLancamentos,
@@ -18,6 +19,7 @@ import {
   type RegraDeDivisao,
 } from "@/dados";
 
+import { podeComprar } from "@/lib/navegacao";
 import { acrescimoCartao, parteDoVendedorNaTaxa, taxaCartaoPct } from "@/lib/taxas";
 
 import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
@@ -72,19 +74,29 @@ export function tokenConfere(pedido: Pick<PedidoInterno, "tokenAcessoHash">, tok
 
 export type ResultadoCriarPedido =
   | { ok: true; pedidoId: string; token: string }
-  | { ok: false; motivo: "carrinho_vazio" | "itens_indisponiveis" | "pacote_recusado" }
+  | {
+      ok: false;
+      motivo: "carrinho_vazio" | "itens_indisponiveis" | "pacote_recusado" | "conta_sem_compra";
+    }
   | { ok: false; motivo: "cupom_recusado"; mensagem: string };
 
 /**
  * Cria o pedido como `pendente` a partir dos ids do carrinho, com preço, descontos e divisão
  * calculados aqui (o mesmo cálculo do carrinho). Devolve o token de acesso do convidado uma
  * única vez; o pedido guarda só o hash.
+ *
+ * Conta de fotógrafo ou de gestor não compra (docs/arquitetura.md, "Login e papéis"): o papel é
+ * lido do banco pelo `clienteId`, que o checkout tira da sessão, nunca do navegador.
  */
 export async function criarPedido(
   ids: string[],
   comprador: DadosComprador,
   opcoes: OpcoesCompra = {},
 ): Promise<ResultadoCriarPedido> {
+  if (comprador.clienteId) {
+    const cliente = await buscarUsuario(comprador.clienteId);
+    if (cliente && !podeComprar(cliente)) return { ok: false, motivo: "conta_sem_compra" };
+  }
   const unicos = [...new Set(ids)];
   if (unicos.length === 0) return { ok: false, motivo: "carrinho_vazio" };
 

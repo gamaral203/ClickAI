@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CheckCircle2, Download, ShoppingBag } from "lucide-react";
 
+import { AvisoContaDeFotografo } from "@/components/carrinho/aviso-conta-de-fotografo";
 import { CartaoSeguranca } from "@/components/conta/cartao-seguranca";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
   type StatusPedido,
 } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { podeComprar } from "@/lib/navegacao";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -23,12 +25,16 @@ export const metadata: Metadata = {
 
 export default function PaginaMinhasCompras({ searchParams }: PageProps<"/minhas-compras">) {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">Minhas compras</h1>
-      <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}>
-        <Conteudo searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
+          <h1 className="text-3xl font-bold tracking-tight">Minhas compras</h1>
+          <div className="h-64 animate-pulse rounded-xl bg-muted" />
+        </div>
+      }
+    >
+      <Conteudo searchParams={searchParams} />
+    </Suspense>
   );
 }
 
@@ -44,6 +50,8 @@ const ROTULO_STATUS: Record<StatusPedido, string> = {
 async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "searchParams">) {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar?proximo=/minhas-compras");
+  // Conta de fotógrafo não compra: no lugar das compras, o aviso para sair da conta.
+  if (!podeComprar(usuario)) return <AvisoContaDeFotografo papel={usuario.papel} />;
 
   const { vinculadas } = await searchParams;
   const pedidos = await listarPedidosDoCliente(usuario.id);
@@ -56,7 +64,8 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
   );
 
   return (
-    <>
+    <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
+      <h1 className="text-3xl font-bold tracking-tight">Minhas compras</h1>
       {typeof vinculadas === "string" && /^[1-9]\d{0,4}$/.test(vinculadas) && (
         <p
           role="status"
@@ -162,6 +171,6 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
       </p>
 
       <CartaoSeguranca />
-    </>
+    </div>
   );
 }

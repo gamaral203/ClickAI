@@ -22,7 +22,7 @@ Arquitetura completa: [Arquitetura — Plataforma de Venda de Fotos](arquitetura
 | Upload | Foto ou vídeo preso em "processando" porque o aviso ao servidor falhou | Job que revisa itens parados e confere se o arquivo existe no R2 | Média |
 | Upload | Arquivos órfãos ocupando espaço pago no R2 | Upload numa pasta temporária com regra de ciclo de vida; mover para `originais/` só após confirmar | Média |
 | Upload | Vídeo grande (até 500 MB) falha no meio do envio | Upload multipart, com retomada das partes | Média |
-| Upload | Fotógrafo envia RAW, HEIC ou PNG renomeado como JPEG | Conferir o tipo real no job; status `erro` com mensagem clara pedindo o JPEG exportado | Média |
+| Upload | Fotógrafo envia RAW, HEIC ou PNG renomeado como JPEG | Conferir o tipo real pelos bytes no navegador e no servidor (`src/lib/tipos-imagem.ts`): RAW recusado com mensagem pedindo a exportação; HEIC convertido em JPEG no navegador; PNG renomeado é tratado e guardado como PNG; arquivo diferente do formato informado vira `erro` | Média |
 | Processamento | Worker estoura memória ou tempo ao processar vídeo | Testar cedo com vídeos reais de 500 MB; limitar duração a 5 minutos; fila com concorrência controlada | Média |
 | Processamento | Prévia girada ou com cores lavadas | Aplicar a rotação do EXIF e converter para sRGB | Média |
 | Privacidade | GPS e dados da câmera expostos nas prévias públicas | Remover metadados EXIF das prévias e miniaturas | Média |

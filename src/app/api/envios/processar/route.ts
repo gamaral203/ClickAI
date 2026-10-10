@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { vemDoMesmoSite } from "@/lib/mesma-origem";
-import { confirmarEnvio } from "@/servicos/envios";
+import { confirmarEnvio, type TemposDoProcessamento } from "@/servicos/envios";
 import { contaDoPainel, usuarioAtual } from "@/servicos/sessao";
 
 // Processa uma foto que o navegador acabou de enviar ao R2 (docs/arquitetura.md, "Upload"):
@@ -12,7 +12,11 @@ import { contaDoPainel, usuarioAtual } from "@/servicos/sessao";
 // fotos ao mesmo tempo (cada chamada é uma função separada) enquanto continua subindo as
 // próximas. O arquivo não passa por aqui: só o id da foto.
 
-/** Uma foto por chamada: cabe com folga no tempo da função, mesmo com um original de 30 MB. */
+/**
+ * Uma foto por chamada: cabe com folga no tempo da função mesmo com um original de 200 MB
+ * (medido localmente, com 1 thread: TIFF de 16 bits de 60 MP em ~1,4 s; a leitura do R2 nos EUA
+ * soma alguns segundos). A memória fica no padrão do plano Hobby (2 GB, sem como aumentar).
+ */
 export const maxDuration = 60;
 
 const corpo = z.object({ fotoId: z.uuid() });
@@ -40,7 +44,9 @@ export async function POST(request: NextRequest) {
   if (!dados.success) return resposta({ erro: "Pedido inválido." }, 400);
 
   // Confere dono e status: só processa foto em `processando` enviada por esta conta.
-  const resultado = await confirmarEnvio(conta.id, dados.data.fotoId);
-  if ("erro" in resultado) return resposta({ erro: resultado.erro }, 422);
-  return resposta({ ok: true });
+  // Tempos de cada etapa (só números), para a telemetria da tela de envio.
+  const tempos: TemposDoProcessamento = {};
+  const resultado = await confirmarEnvio(conta.id, dados.data.fotoId, tempos);
+  if ("erro" in resultado) return resposta({ erro: resultado.erro, tempos }, 422);
+  return resposta({ ok: true, tempos });
 }

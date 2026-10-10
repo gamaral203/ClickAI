@@ -24,10 +24,11 @@ import {
 } from "@/dados";
 import { campoParaIso } from "@/lib/datas";
 import { reaisParaCentavos } from "@/lib/dinheiro";
-import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
+import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES, LIMITE_FOTO_TEXTO } from "@/lib/limites-envio";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
+import { ehNomeDeRaw, FORMATOS_ACEITOS, MENSAGEM_RAW } from "@/lib/tipos-imagem";
 import { UFS } from "@/lib/ufs";
 import { iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
 import { limiteAtingido } from "@/servicos/limites";
@@ -242,9 +243,14 @@ const arquivos = z
         .trim()
         .min(1)
         .max(200)
-        .regex(/\.jpe?g$/i, "Só arquivos JPEG."),
-      tamanhoBytes: z.number().int().positive().max(LIMITE_FOTO_BYTES, "Até 30 MB por foto."),
-      /** SHA-256 do arquivo, calculado no navegador: acha a mesma foto enviada duas vezes. */
+        .refine((n) => !ehNomeDeRaw(n), MENSAGEM_RAW),
+      tamanhoBytes: z
+        .number()
+        .int()
+        .positive()
+        .max(LIMITE_FOTO_BYTES, `Até ${LIMITE_FOTO_TEXTO} por foto.`),
+      formato: z.enum(FORMATOS_ACEITOS).optional(),
+      /** Impressão do arquivo (src/lib/impressao-arquivo.ts): acha a mesma foto enviada de novo. */
       hash: z
         .string()
         .regex(/^[0-9a-f]{64}$/)
@@ -271,7 +277,7 @@ export async function enviarFotosAcao(
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   const dados = arquivos.safeParse(lista);
   if (!dados.success) {
-    return { erro: "Envie fotos JPEG de até 30 MB cada." };
+    return { erro: `Envie fotos JPEG, PNG, WebP, TIFF ou AVIF de até ${LIMITE_FOTO_TEXTO} cada.` };
   }
 
   // Foto repetida (mesmo arquivo já no evento, ou duas vezes no mesmo envio) não entra de novo.
@@ -303,7 +309,7 @@ export async function enviarFotosAcao(
 /**
  * Envio real, passo 1: registra um lote de fotos (até FOTOS_POR_LOTE; o navegador divide a
  * seleção, sem limite de quantidade) em `processando` e devolve as URLs assinadas para o
- * navegador mandar cada JPEG direto ao R2 (o arquivo não passa por aqui). O passo 2, conferir e
+ * navegador mandar cada foto direto ao R2 (o arquivo não passa por aqui). O passo 2, conferir e
  * processar cada foto, é a rota /api/envios/processar, chamada várias vezes ao mesmo tempo.
  */
 export async function iniciarEnvioAcao(

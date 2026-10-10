@@ -137,7 +137,7 @@ As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o s
    ]
    ```
 
-   Ao trocar de domínio, acrescente o novo em `AllowedOrigins`. O download pelo link não precisa de CORS (é navegação, não `fetch`); o `GET` na regra é para o compartilhar.
+   Ao trocar de domínio, acrescente o novo em `AllowedOrigins`. O download pelo link não precisa de CORS (é navegação, não `fetch`); o `GET` na regra é para o compartilhar. O upload em partes dos arquivos acima de 50 MB usa a mesma regra: cada parte é um `PUT` (sem cabeçalho além dos que o navegador manda sozinho) e o navegador lê o `ETag` da resposta, por isso o `ExposeHeaders`. Abrir e fechar o upload em partes é feito pelo servidor, sem CORS. Multipart incompleto (envio abandonado) é apagado pelo R2 em 7 dias pela regra padrão do bucket; não a remova.
 4. **Ciclo de vida da pasta temporária.** Em `fotos-originais` → **Settings → Object lifecycle rules → Add rule**: nome `apagar-envios`, prefixo `envios/`, **Delete objects** depois de **1 dia**. Apaga o que sobrou de envios abandonados ou recusados; o original conferido fica em `originais/`.
 5. **Token de acesso.** Em **R2 Object Storage → Manage API tokens → Create API token**: permissão **Object Read & Write**, aplicada **só aos buckets** `fotos-originais` e `fotos-publicas`, sem prazo (ou com rotação anotada). Copie o **Access Key ID** e o **Secret Access Key** (o segredo aparece uma vez só). O **Account ID** aparece na página inicial do R2.
 6. **Variáveis na Vercel** (*Production*; em *Preview* só se quiser testar com buckets separados):
@@ -153,7 +153,7 @@ As fotos vão direto do navegador do fotógrafo para o R2, por URL assinada; o s
 
 7. Faça um novo deploy (as variáveis só valem a partir dele) e confira: envie uma foto num evento de teste, veja a miniatura no painel, publique, compre com Pix de teste e baixe o original.
 
-As chaves do R2 ficam só no servidor (`src/lib/r2.ts`); o navegador recebe apenas URLs assinadas de um objeto, válidas por 15 minutos. O processamento de cada foto roda na própria Server Action de confirmação (até 60 s por foto) até ir para o Inngest.
+As chaves do R2 ficam só no servidor (`src/lib/r2.ts`); o navegador recebe apenas URLs assinadas de um objeto, válidas por 15 minutos. O processamento de cada foto roda na rota `/api/envios/processar` (até 60 s por foto, memória padrão do Hobby, 2 GB) até ir para o Inngest.
 
 ## 8. Máquina nova (para quem vai programar)
 

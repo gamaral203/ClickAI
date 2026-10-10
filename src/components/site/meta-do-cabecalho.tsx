@@ -1,21 +1,22 @@
 import { SeloMeta } from "@/components/metas/selo-meta";
 import { buscarContaDoFotografo, totalVendidoComoAutor } from "@/dados";
+import type { Usuario } from "@/dados/tipos";
 import { situacaoDasMetas } from "@/lib/metas";
-import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
+import { podeUsarPainel } from "@/servicos/sessao";
 
 /**
- * Linha logo abaixo do cabeçalho, alinhada à direita (embaixo do perfil), com o selo da meta de
- * vendas. Só para quem vende e só no computador; no celular, o selo fica no topo do painel.
- * Lê o cookie da sessão: usar dentro de <Suspense>.
+ * Selo da meta de vendas na linha do cabeçalho do painel, antes do nome. Só para o fotógrafo (a
+ * conta de gestão não tem meta) e só em tela larga (xl), onde cabe ao lado dos atalhos; no
+ * celular e em telas menores, o selo fica no topo do painel. Recebe o usuário já lido pelo
+ * cabeçalho; consulta o banco: usar dentro de <Suspense>.
  */
-export async function MetaDoCabecalho() {
-  const usuario = await usuarioAtual();
-  if (!usuario || !podeUsarPainel(usuario)) return null;
+export async function MetaDoCabecalho({ usuario }: { usuario: Usuario }) {
+  if (usuario.papel === "admin" || !podeUsarPainel(usuario)) return null;
   const conta = await buscarContaDoFotografo(usuario.id);
   if (!conta) return null;
   const metas = situacaoDasMetas(await totalVendidoComoAutor(conta.id));
   return (
-    <div className="mx-auto hidden max-w-6xl justify-end px-4 pb-3 lg:flex">
+    <div className="hidden xl:flex">
       <SeloMeta metas={metas} compacto />
     </div>
   );
