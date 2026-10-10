@@ -96,19 +96,19 @@ async function Conteudo() {
           icone={<Wallet aria-hidden="true" className="size-4" />}
           titulo="Disponível"
           valor={saldo.disponivelCentavos}
-          texto="Vendas com 30 dias ou mais."
+          texto={`Vendas com 30 dias ou mais: saque normal, taxa de ${conta.comissaoPct}%.`}
         />
         <CartaoSaldo
           icone={<Hourglass aria-hidden="true" className="size-4" />}
           titulo="Antecipável"
           valor={saldo.antecipavelCentavos}
-          texto={`Vendas entre 1 e 30 dias: dá para sacar com ${TAXA_ANTECIPACAO_PCT}% a mais.`}
+          texto={`Vendas de 1 a 29 dias: saque antecipado, taxa de ${conta.comissaoPct + TAXA_ANTECIPACAO_PCT}%.`}
         />
         <CartaoSaldo
           icone={<Clock aria-hidden="true" className="size-4" />}
-          titulo="A liberar"
+          titulo="Vendas de hoje"
           valor={saldo.aLiberarCentavos}
-          texto="Vendas de hoje: liberam amanhã."
+          texto="Amanhã passam para Antecipável."
         />
         <CartaoSaldo
           icone={<Send aria-hidden="true" className="size-4" />}

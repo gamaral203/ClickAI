@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import {
@@ -38,70 +38,104 @@ export function BotaoReembolsar({ pedidoId, total }: { pedidoId: string; total: 
   const [resultado, setResultado] = useState<ResultadoAcaoEstorno | null>(null);
   const [pendente, startTransition] = useTransition();
 
+  const dialogo = useRef<HTMLDialogElement>(null);
+
+  // A confirmação é um <dialog> modal: dentro da célula da tabela ela ficava cortada pela rolagem.
+  useEffect(() => {
+    const d = dialogo.current;
+    if (!d) return;
+    if (aberto && !d.open) d.showModal();
+    if (!aberto && d.open) d.close();
+  }, [aberto]);
+
+  function fechar() {
+    setAberto(false);
+    setConfirmacao("");
+  }
+
   function reembolsar() {
     setResultado(null);
     startTransition(async () => {
       const r = await reembolsarAcao(pedidoId, confirmacao).catch(() => FALHA);
       setResultado(r);
-      if (r.ok) setAberto(false);
+      if (r.ok) fechar();
       router.refresh();
     });
   }
 
-  if (!aberto) {
-    return (
-      <span className="flex flex-col items-start gap-1">
-        <Button variant="outline" size="sm" onClick={() => setAberto(true)}>
-          Reembolsar
-        </Button>
-        <Retorno resultado={resultado} />
-      </span>
-    );
-  }
-
   return (
-    <div className="flex max-w-xs flex-col gap-2 rounded-lg border border-destructive/40 p-3 text-sm">
-      <p>
-        Devolver <strong>{total}</strong> ao comprador? Os downloads param na hora e o valor sai do
-        saldo dos fotógrafos (abatido do próximo saque, se já foi sacado). Não dá para desfazer.
-      </p>
-      <label htmlFor={campo} className="text-xs text-muted-foreground">
-        Para confirmar, digite o valor do pedido
-      </label>
-      <input
-        id={campo}
-        value={confirmacao}
-        onChange={(e) => setConfirmacao(e.target.value)}
-        placeholder={total}
-        autoComplete="off"
-        inputMode="decimal"
-        className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={pendente || confirmacao.trim() === ""}
-          onClick={reembolsar}
-        >
-          {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
-          Confirmar reembolso
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={pendente}
-          onClick={() => {
-            setAberto(false);
-            setConfirmacao("");
-            setResultado(null);
+    <span className="flex flex-col items-start gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setResultado(null);
+          setAberto(true);
+        }}
+      >
+        Reembolsar
+      </Button>
+      {!aberto && <Retorno resultado={resultado} />}
+
+      <dialog
+        ref={dialogo}
+        onClose={fechar}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !pendente) fechar();
+        }}
+        aria-labelledby={`${campo}-titulo`}
+        className="m-auto w-[min(420px,calc(100vw-2rem))] rounded-2xl bg-transparent p-0 text-left text-foreground backdrop:bg-black/50"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (confirmacao.trim()) reembolsar();
           }}
+          className="flex flex-col gap-3 rounded-2xl border border-destructive/40 bg-background p-5 text-sm shadow-2xl"
         >
-          Cancelar
-        </Button>
-      </div>
-      <Retorno resultado={resultado} />
-    </div>
+          <p id={`${campo}-titulo`} className="text-base font-semibold">
+            Reembolsar {total}?
+          </p>
+          <p className="text-muted-foreground">
+            O valor volta ao comprador, os downloads param na hora e o valor sai do saldo dos
+            fotógrafos (abatido do próximo saque, se já foi sacado). Não dá para desfazer.
+          </p>
+          <label htmlFor={campo} className="text-xs text-muted-foreground">
+            Para confirmar, digite o valor do pedido
+          </label>
+          <input
+            id={campo}
+            value={confirmacao}
+            onChange={(e) => setConfirmacao(e.target.value)}
+            placeholder={total}
+            autoComplete="off"
+            inputMode="decimal"
+            className="h-11 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+          <Retorno resultado={resultado} />
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="touch"
+              disabled={pendente}
+              onClick={fechar}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              size="touch"
+              disabled={pendente || confirmacao.trim() === ""}
+            >
+              {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
+              Confirmar reembolso
+            </Button>
+          </div>
+        </form>
+      </dialog>
+    </span>
   );
 }
 
