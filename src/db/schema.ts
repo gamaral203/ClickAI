@@ -246,6 +246,12 @@ export const eventos = pgTable(
     cidade: text().notNull(),
     estado: text().notNull(),
     capa: text(),
+    /**
+     * Foto de capa escolhida pelo dono (cartões, página do evento, divulgação). Nula: capa
+     * automática. Só vale enquanto a foto estiver pronta, liberada e não excluída; senão a
+     * consulta cai para a automática (src/dados/capa.ts).
+     */
+    capaFotoId: uuid().references((): AnyPgColumn => fotos.id, { onDelete: "set null" }),
     precoFotoCentavos: integer().notNull(),
     precoVideoCentavos: integer().notNull(),
     status: statusEvento().notNull().default("rascunho"),

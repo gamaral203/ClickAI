@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { EstadoLiberacao } from "@/lib/liberacao";
 
+import { useEscolhaDeCapa } from "./capa-do-evento";
 import { GradeFotosPainel, type ItemDoPainel } from "./grade-fotos-painel";
 
 type Filtro = "todas" | EstadoLiberacao;
@@ -36,12 +37,16 @@ export function FotosDoEvento({
   itens,
   pastas,
   podeLiberar,
+  capaFotoId,
 }: {
   eventoId: string;
   itens: ItemDoPainel[];
   pastas: { id: string; nome: string }[];
   podeLiberar: boolean;
+  /** Capa escolhida; sem o campo, a grade não oferece "Usar como capa" (só o dono escolhe). */
+  capaFotoId?: string | null;
 }) {
+  const capa = useEscolhaDeCapa(eventoId, capaFotoId ?? null);
   const router = useRouter();
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -207,10 +212,16 @@ export function FotosDoEvento({
         </div>
       )}
 
+      {capa.erro && (
+        <p role="alert" className="text-sm text-destructive">
+          {capa.erro}
+        </p>
+      )}
       <GradeFotosPainel
         itens={visiveis}
         pastas={pastas}
         selecao={podeLiberar ? { selecionados, alternar } : undefined}
+        capa={capaFotoId === undefined ? undefined : capa.escolha}
         vazio={itens.length === 0 ? undefined : "Nenhuma foto neste filtro."}
       />
     </div>
