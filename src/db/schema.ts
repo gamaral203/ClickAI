@@ -282,10 +282,6 @@ export const eventos = pgTable(
     longitude: doublePrecision(),
     /** Endereço curto do ponto (rua, número, bairro, cidade – UF), vindo do Nominatim. */
     enderecoMapa: text(),
-    // place_id (migração 0020, resíduo do Google Maps) continua no banco, fora do schema: nenhum
-    // código o lê. Sai numa migração de limpeza depois do deploy do OpenStreetMap, porque as
-    // migrações são só aditivas (docs/seguranca.md). Atenção: o próximo `npm run db:gerar` já
-    // inclui o DROP dessa coluna; só gere quando for a hora da limpeza (docs/tarefas.md).
     capa: text(),
     /**
      * Foto de capa escolhida pelo dono (cartões, página do evento, divulgação). Nula: capa
