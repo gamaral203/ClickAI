@@ -9,7 +9,7 @@ import {
   iniciarEnvioAcao,
   situacaoDoEnvioAcao,
 } from "@/app/(fotografo)/painel/eventos/acoes";
-import { CirculoProgresso } from "@/components/painel/circulo-progresso";
+import { DiafragmaProgresso } from "@/components/painel/diafragma-progresso";
 import { Button } from "@/components/ui/button";
 import { emParalelo, esperaDaTentativa } from "@/lib/concorrencia";
 import {
@@ -1297,13 +1297,14 @@ export function EnvioFotos({
         </div>
       )}
 
-      {/* Envio em andamento ou terminado: o círculo com a porcentagem. */}
+      {/* Envio em andamento ou terminado: o diafragma com a porcentagem. */}
       {comecou && (
         <div className="flex flex-col items-center gap-4 rounded-xl border p-5 text-center text-sm sm:p-6">
-          <CirculoProgresso
+          <DiafragmaProgresso
             porcentagem={progresso.porcentagem}
             concluidas={progresso.concluidas}
             total={progresso.total}
+            ativo={emAndamento}
             concluido={terminou && progresso.pendentes === 0 && progresso.comErro === 0}
           />
 
