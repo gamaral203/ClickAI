@@ -234,5 +234,7 @@ export async function removerImagemDaLojaAcao(campo: unknown): Promise<Resultado
 
 function revalidarPaginasPublicas(slug: string) {
   revalidatePath("/painel/loja");
+  // A foto de perfil também aparece no cabeçalho do painel e em Perfil e recebimento.
+  revalidatePath("/painel", "layout");
   revalidatePath(`/fotografo/${slug}`);
 }

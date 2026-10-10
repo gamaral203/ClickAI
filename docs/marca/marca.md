@@ -62,7 +62,7 @@ Fonte: Plus Jakarta Sans (via `next/font`), geométrica e arredondada como a log
 
 ## Avatares
 
-Quem não envia foto de perfil aparece com um avatar: 12 ilustrações em SVG, feitas para o ClicouAí, em [`public/avatares/`](../../public/avatares/) (`avatar-01.svg` a `avatar-12.svg`). O catálogo, com o nome de cada um (texto alternativo e rótulo do botão), fica em [`src/lib/avatares.ts`](../../src/lib/avatares.ts). O fotógrafo escolhe em Perfil e recebimento; sem escolha, recebe um padrão tirado do id da conta. A foto enviada sempre tem prioridade.
+Quem não envia foto de perfil aparece com um avatar: 12 ilustrações em SVG, feitas para o ClicouAí, em [`public/avatares/`](../../public/avatares/) (`avatar-01.svg` a `avatar-12.svg`). O catálogo, com o nome de cada um (texto alternativo e rótulo do botão), fica em [`src/lib/avatares.ts`](../../src/lib/avatares.ts). A conta de fotógrafo já nasce com um avatar gravado (o padrão tirado do id da conta), que aparece marcado em Perfil e recebimento; o fotógrafo troca quando quiser. Contas antigas sem avatar gravado recebem o mesmo padrão na hora. A foto enviada sempre tem prioridade: ela é enviada em Perfil e recebimento (botão "Enviar minha foto") ou em Minha loja, pelo mesmo fluxo.
 
 Estilo: ilustração plana, de busto, viewBox `0 0 120 120` com o fundo ocupando o quadrado todo (o site recorta em círculo), sem texto e sem traço fino, para ler bem em 28 a 36 px. Fundos: azul `#2362FE`, azul claro `#E8EFFF`, limão `#B8FF32` (só com desenho escuro), creme `#F5EBDD`, pêssego `#FFDCCB` e lilás `#E9E3FF`.
 
