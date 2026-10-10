@@ -43,7 +43,7 @@ export function AtalhosDoPainel({ itens }: { itens: ItemNavegacao[] }) {
           <Link
             href={item.href}
             aria-current={linkAtivo(caminho, item.href, item.exato) ? "page" : undefined}
-            className="inline-flex items-center border-b-3 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset aria-[current=page]:border-highlight aria-[current=page]:text-primary"
+            className="inline-flex items-center border-b-3 border-transparent px-2.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset aria-[current=page]:border-highlight aria-[current=page]:text-primary"
           >
             {item.rotulo}
           </Link>

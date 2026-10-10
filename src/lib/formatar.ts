@@ -32,6 +32,21 @@ export function formatarDataEHora(iso: string) {
   return dataEHora.format(new Date(iso)).replace(",", " às");
 }
 
+const dataCurta = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: FUSO,
+});
+
+/** "12/12/26 18:00" (ou só "12/12/26" com `hora: false`): para tabelas, onde a data por extenso não cabe. */
+export function formatarDataCurta(iso: string, { hora = true } = {}) {
+  const texto = dataCurta.format(new Date(iso)).replace(",", "");
+  return hora ? texto : texto.slice(0, 8);
+}
+
 /** "2026-10-07" (AAAA-MM-DD), no horário de Brasília. */
 export function diaEmBrasilia(iso: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(new Date(iso));

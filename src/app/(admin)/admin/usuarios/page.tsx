@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { FormularioPapel } from "@/components/admin/formulario-papel";
 import { Celula, ROTULO_PAPEL, Tabela } from "@/components/admin/tabela";
 import { listarUsuariosDoAdmin, type Papel } from "@/dados";
-import { formatarData } from "@/lib/formatar";
+import { formatarDataCurta } from "@/lib/formatar";
 import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Usuários", robots: { index: false, follow: false } };
@@ -67,9 +67,7 @@ async function Conteudo() {
             <Celula>
               {[u.temGoogle && "Google", u.temSenha && "Senha"].filter(Boolean).join(" e ") || "—"}
             </Celula>
-            <Celula>
-              <span className="whitespace-nowrap">{formatarData(u.criadoEm)}</span>
-            </Celula>
+            <Celula>{formatarDataCurta(u.criadoEm, { hora: false })}</Celula>
             <Celula>
               {u.id !== eu.id ? (
                 <FormularioPapel usuarioId={u.id} papel={u.papel} />

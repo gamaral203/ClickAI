@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { SaquesAPagar } from "@/components/admin/saques-a-pagar";
-import { Celula, mascararDocumento, Tabela } from "@/components/admin/tabela";
+import { mascararDocumento } from "@/components/admin/tabela";
+import { ListaTransferencias } from "@/components/painel/lista-transferencias";
 import { BotaoNotificacoes } from "@/components/notificacoes/botao-notificacoes";
 import { listarSaquesDoAdmin, type StatusSaque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
-import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { formatarDataCurta, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { pagarAte, saqueAtrasado } from "@/servicos/avisos-saque";
 import { exigirGestor } from "@/servicos/sessao";
 
@@ -67,47 +68,27 @@ async function Conteudo() {
         Histórico de todos os saques: quem sacou, para qual chave, quanto foi de taxa e o que saiu
         da conta.
       </p>
-      <Tabela
-        colunas={[
-          { rotulo: "Pedido em" },
-          { rotulo: "Vendedor" },
-          { rotulo: "Chave Pix" },
-          { rotulo: "Tipo" },
-          { rotulo: "Status" },
-          { rotulo: "Bruto", direita: true },
-          { rotulo: "Taxas", direita: true },
-          { rotulo: "Saiu", direita: true },
-        ]}
-        vazio="Nenhum saque ainda."
-      >
-        {saques.map((s) => (
-          <tr key={s.id}>
-            <Celula>
-              <span className="whitespace-nowrap">{formatarDataEHora(s.criadoEm)}</span>
-            </Celula>
-            <Celula>{s.fotografoNome}</Celula>
-            <Celula>
-              <span className="font-mono text-xs">{mascararDocumento(s.chavePix)}</span>
-            </Celula>
-            <Celula>{s.antecipado ? "Antecipado" : "Normal"}</Celula>
-            <Celula>
-              <span className="flex flex-col whitespace-nowrap">
-                {STATUS[s.status]}
-                {s.pagoEm && (
-                  <span className="text-xs text-muted-foreground">
-                    {formatarDataEHora(s.pagoEm)}
-                  </span>
-                )}
-              </span>
-            </Celula>
-            <Celula direita>{formatarPreco(s.brutoCentavos)}</Celula>
-            <Celula direita>{formatarPreco(s.taxaCentavos)}</Celula>
-            <Celula direita forte>
-              {formatarPreco(s.liquidoCentavos)}
-            </Celula>
-          </tr>
-        ))}
-      </Tabela>
+      {saques.length === 0 ? (
+        <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
+          Nenhum saque ainda.
+        </p>
+      ) : (
+        <ListaTransferencias
+          itens={saques.map((s) => ({
+            id: s.id,
+            situacao: `${s.fotografoNome} · ${STATUS[s.status]}`,
+            pendente: s.status === "processando",
+            quandoIso: s.pagoEm ?? s.criadoEm,
+            valorCentavos: s.liquidoCentavos,
+            detalhes: [
+              `Pix para ${mascararDocumento(s.chavePix)}`,
+              s.antecipado ? "antecipado" : "normal",
+              `bruto ${formatarPreco(s.brutoCentavos)}`,
+              `taxa ${formatarPreco(s.taxaCentavos)}`,
+            ],
+          }))}
+        />
+      )}
     </>
   );
 }

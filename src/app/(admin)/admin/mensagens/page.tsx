@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Mail, MessageCircle } from "lucide-react";
+import { ChevronDown, Mail, MessageCircle } from "lucide-react";
 
 import { listarMensagens } from "@/dados";
-import { formatarDataEHora } from "@/lib/formatar";
+import { formatarDataCurta } from "@/lib/formatar";
 import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Mensagens", robots: { index: false, follow: false } };
@@ -36,35 +36,45 @@ async function Conteudo() {
     );
   }
   return (
-    <ul className="flex flex-col gap-3">
+    // Cada mensagem começa fechada (só o assunto e para quem foi); clicar abre o texto.
+    <ul className="flex flex-col gap-2">
       {mensagens.map((m) => (
-        <li key={m.id} className="flex flex-col gap-2 rounded-xl border p-4">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            {m.canal === "email" ? (
-              <Mail aria-hidden="true" className="size-4" />
-            ) : (
-              <MessageCircle aria-hidden="true" className="size-4" />
-            )}
-            <span className="font-medium">{m.canal === "email" ? "E-mail" : "WhatsApp"}</span>
-            <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
-              {
-                {
-                  entrega: "Entrega",
-                  lembrete: "Lembrete",
-                  denuncia: "Denúncia",
-                  lembrete_pix: "Lembrete do Pix",
-                  venda: "Aviso de venda",
-                  seguranca: "Segurança da conta",
-                  liberacao: "Fotos liberadas",
-                }[m.tipo]
-              }
-            </span>
-            <span className="text-muted-foreground">
-              para {m.para} · {formatarDataEHora(m.criadoEm)}
-            </span>
-          </div>
-          <p className="font-semibold">{m.assunto}</p>
-          <p className="text-sm break-all text-muted-foreground">{m.texto}</p>
+        <li key={m.id}>
+          <details className="group rounded-lg border">
+            <summary className="flex cursor-pointer list-none flex-col gap-0.5 px-3 py-2 [&::-webkit-details-marker]:hidden">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {m.canal === "email" ? (
+                  <Mail aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                ) : (
+                  <MessageCircle aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                )}
+                <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
+                  {
+                    {
+                      entrega: "Entrega",
+                      lembrete: "Lembrete",
+                      denuncia: "Denúncia",
+                      lembrete_pix: "Lembrete do Pix",
+                      venda: "Aviso de venda",
+                      seguranca: "Segurança da conta",
+                      liberacao: "Fotos liberadas",
+                    }[m.tipo]
+                  }
+                </span>
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {m.para} · {formatarDataCurta(m.criadoEm)}
+                </span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+                />
+              </div>
+              <p className="text-sm font-medium">{m.assunto}</p>
+            </summary>
+            <p className="border-t px-3 py-2 text-sm break-words whitespace-pre-line text-muted-foreground">
+              {m.texto}
+            </p>
+          </details>
         </li>
       ))}
     </ul>
