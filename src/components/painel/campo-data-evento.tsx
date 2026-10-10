@@ -23,7 +23,20 @@ const classeGatilho =
   "inline-flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-input bg-transparent px-3 text-left text-base outline-none transition-colors hover:border-primary/60 hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-ring/30 aria-invalid:border-destructive md:text-sm motion-reduce:transition-none";
 
 const classeHora =
-  "h-11 w-full rounded-lg border border-input bg-transparent pr-2 pl-9 text-base tabular-nums outline-none transition-colors hover:border-primary/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm [&::-webkit-calendar-picker-indicator]:opacity-0";
+  "h-11 w-full rounded-lg border border-input bg-transparent pr-2 pl-9 text-base tabular-nums outline-none transition-colors hover:border-primary/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm relative cursor-pointer [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0";
+
+/**
+ * Abre o seletor de hora do navegador ao tocar no campo. No celular (Chrome/Android), tocar no
+ * texto do <input type="time"> nem sempre abre o relógio: só o ícone abre, e ele está invisível.
+ * O ícone passa a cobrir o campo inteiro (classe acima) e, onde existe, showPicker() garante.
+ */
+function abrirSeletorDeHora(campo: HTMLInputElement) {
+  try {
+    campo.showPicker?.();
+  } catch {
+    // Sem gesto do usuário ou navegador sem suporte: o toque no ícone invisível resolve.
+  }
+}
 
 type Props = {
   /** Nome do campo no formulário (e base dos ids). */
@@ -163,6 +176,7 @@ export function CampoDataEvento({
             aria-invalid={Boolean(erro)}
             aria-describedby={descricao}
             onChange={(e) => mudar(dia, e.target.value)}
+            onClick={(e) => abrirSeletorDeHora(e.currentTarget)}
             className={classeHora}
           />
         </div>
