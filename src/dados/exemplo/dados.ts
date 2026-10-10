@@ -79,11 +79,23 @@ export const fotografos: FotografoConta[] = [
 const [lia, pedro, clique] = fotografos;
 
 export const categorias: Categoria[] = [
-  { id: uuid("ca7e0000", 1), nome: "Corrida", slug: "corrida" },
-  { id: uuid("ca7e0000", 2), nome: "Formatura", slug: "formatura" },
+  { id: uuid("ca7e0000", 1), nome: "Corridas", slug: "corrida" },
+  { id: uuid("ca7e0000", 2), nome: "Formaturas", slug: "formatura" },
   { id: uuid("ca7e0000", 3), nome: "Esportes", slug: "esportes" },
-  { id: uuid("ca7e0000", 4), nome: "Festas", slug: "festas" },
+  { id: uuid("ca7e0000", 4), nome: "Shows e Festas", slug: "festas" },
   { id: uuid("ca7e0000", 5), nome: "Esportes aquáticos", slug: "esportes-aquaticos" },
+  { id: uuid("ca7e0000", 6), nome: "Ciclismo", slug: "ciclismo" },
+  { id: uuid("ca7e0000", 7), nome: "Cavalgadas e Vaquejadas", slug: "cavalgadas-e-vaquejadas" },
+  { id: uuid("ca7e0000", 8), nome: "Casamentos", slug: "casamentos" },
+  { id: uuid("ca7e0000", 9), nome: "Aniversários", slug: "aniversarios" },
+  { id: uuid("ca7e0000", 10), nome: "Eventos Escolares", slug: "eventos-escolares" },
+  { id: uuid("ca7e0000", 11), nome: "Eventos Religiosos", slug: "eventos-religiosos" },
+  { id: uuid("ca7e0000", 12), nome: "Eventos Corporativos", slug: "eventos-corporativos" },
+  { id: uuid("ca7e0000", 13), nome: "Automobilismo", slug: "automobilismo" },
+  { id: uuid("ca7e0000", 14), nome: "Feiras e Exposições", slug: "feiras-e-exposicoes" },
+  { id: uuid("ca7e0000", 15), nome: "Ensaios Fotográficos", slug: "ensaios-fotograficos" },
+  { id: uuid("ca7e0000", 16), nome: "Eventos Sociais", slug: "eventos-sociais" },
+  { id: uuid("ca7e0000", 17), nome: "Outros", slug: "outros" },
 ];
 
 const [corrida, formatura, esportes, festas, aquaticos] = categorias;

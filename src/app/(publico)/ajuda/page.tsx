@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { classeLink } from "@/components/site/pagina-legal";
 
 // Central de ajuda: artigos curtos para quem compra e para quem vende. Conteúdo estático; os
-// números (Pix de 1 hora, comissão de 8%, antecipação com 2% a mais, saque mínimo de R$ 1,00,
+// números (Pix de 1 hora, antecipação de 1,99%; a comissão não é mostrada ao fotógrafo, saque mínimo de R$ 1,00,
 // fotos JPEG, PNG, WebP, TIFF, AVIF ou HEIC até 200 MB, sem limite de quantidade) são os do código (src/servicos/pedidos.ts,
 // src/servicos/saques.ts, src/lib/limites-envio.ts). Se uma regra mudar, o texto muda junto.
 
@@ -262,46 +262,11 @@ const paraQuemVende: Artigo[] = [
     corpo: (
       <>
         <p>
-          Não há mensalidade nem custo para publicar. A comissão do ClicouAí é de{" "}
-          <strong>8% sobre o que você vende</strong>, descontada só na hora do saque. Se você
-          antecipar, as vendas com menos de 30 dias pagam <strong>10%</strong> (8% + 2% de
-          antecipação). Nas vendas no cartão, a taxa do cartão é dividida: metade o cliente paga e
-          metade sai da sua parte.
+          Não há mensalidade nem custo para publicar. A comissão do ClicouAí é descontada só na hora
+          do saque, e o Financeiro já mostra quanto você recebe. Se você antecipar, as vendas com
+          menos de 30 dias pagam <strong>1,99% de antecipação</strong>. Nas vendas no cartão, a taxa
+          do cartão é dividida: metade o cliente paga e metade sai da sua parte.
         </p>
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <caption className="sr-only">Exemplo com uma venda de R$ 20,00</caption>
-            <thead className="bg-muted text-left">
-              <tr>
-                <th scope="col" className="p-2 font-medium">
-                  Venda de R$ 20,00
-                </th>
-                <th scope="col" className="p-2 font-medium">
-                  Taxa
-                </th>
-                <th scope="col" className="p-2 font-medium">
-                  Você recebe
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              <tr>
-                <th scope="row" className="p-2 text-left font-normal">
-                  Saque normal (30 dias)
-                </th>
-                <td className="p-2 whitespace-nowrap">R$ 1,60</td>
-                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 18,40</td>
-              </tr>
-              <tr>
-                <th scope="row" className="p-2 text-left font-normal">
-                  Saque antecipado
-                </th>
-                <td className="p-2 whitespace-nowrap">R$ 2,00</td>
-                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 18,00</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
         <p>
           Em <strong>Financeiro</strong>, cada venda mostra quanto o cliente pagou, a sua parte, a
           taxa e o líquido.
@@ -316,11 +281,11 @@ const paraQuemVende: Artigo[] = [
       <>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Saque normal:</strong> as vendas com 30 dias ou mais, com 8% de comissão.
+            <strong>Saque normal:</strong> as vendas com 30 dias ou mais.
           </li>
           <li>
             <strong>Saque antecipado:</strong> as vendas a partir de 1 dia; o que ainda não tem 30
-            dias paga 10%.
+            dias paga 1,99% de antecipação.
           </li>
           <li>
             Depois do pedido, a equipe do ClicouAí faz o Pix em até <strong>1 dia</strong> e você
