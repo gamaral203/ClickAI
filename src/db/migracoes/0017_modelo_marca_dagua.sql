@@ -1,1 +1,0 @@
-ALTER TABLE "fotografos" ADD COLUMN "modelo_marca" text DEFAULT 'padrao' NOT NULL;

@@ -101,6 +101,8 @@ export type Evento = {
   /** Sigla da UF. */
   estado: string;
   capa: string | null;
+  /** Foto de capa escolhida pelo dono; `null` (ou ausente): capa automática. */
+  capaFotoId?: string | null;
   precoFotoCentavos: number;
   precoVideoCentavos: number;
   status: StatusEvento;
@@ -455,7 +457,12 @@ export type EventoResumo = Evento & {
   totalItens: number;
   totalFotos: number;
   totalVideos: number;
-  capaMiniatura: Pick<Foto, "urlMiniatura" | "largura" | "altura"> | null;
+  /**
+   * Capa do cartão (escolhida pelo dono ou automática; src/dados/capa.ts). `urlPrevia` é a
+   * prévia com marca d'água, para a imagem do link compartilhado; `null` num vídeo.
+   */
+  capaMiniatura:
+    (Pick<Foto, "urlMiniatura" | "largura" | "altura"> & { urlPrevia: string | null }) | null;
   situacaoGaleria: SituacaoGaleria;
 };
 

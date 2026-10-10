@@ -32,6 +32,7 @@ CREATE TABLE "sugestoes" (
 );
 --> statement-breakpoint
 ALTER TABLE "sugestoes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "fotografos" ADD COLUMN "modelo_marca" text DEFAULT 'padrao' NOT NULL;--> statement-breakpoint
 ALTER TABLE "conversas_suporte" ADD CONSTRAINT "conversas_suporte_usuario_id_usuarios_id_fk" FOREIGN KEY ("usuario_id") REFERENCES "public"."usuarios"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mensagens_suporte" ADD CONSTRAINT "mensagens_suporte_conversa_id_conversas_suporte_id_fk" FOREIGN KEY ("conversa_id") REFERENCES "public"."conversas_suporte"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sugestoes" ADD CONSTRAINT "sugestoes_usuario_id_usuarios_id_fk" FOREIGN KEY ("usuario_id") REFERENCES "public"."usuarios"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint

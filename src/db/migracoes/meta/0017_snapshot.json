@@ -1,6 +1,6 @@
 {
-  "id": "7a9b1dc9-f980-4468-98fc-59ad9f8fdfb1",
-  "prevId": "376ce550-19e7-45a8-ae9d-e506d2085086",
+  "id": "2b64bbf1-a50a-4472-b404-b42d43815738",
+  "prevId": "d0cad6a1-c9d2-414b-98e8-bc5654a42be9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1080,6 +1080,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "capa_foto_id": {
+          "name": "capa_foto_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "preco_foto_centavos": {
           "name": "preco_foto_centavos",
           "type": "integer",
@@ -1250,6 +1256,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "eventos_capa_foto_id_fotos_id_fk": {
+          "name": "eventos_capa_foto_id_fotos_id_fk",
+          "tableFrom": "eventos",
+          "tableTo": "fotos",
+          "columnsFrom": [
+            "capa_foto_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
