@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { ArrowLeft, ChartColumn, CheckCircle2, ChevronDown, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
-import { MenuDoEvento } from "@/components/painel/menu-do-evento";
+import { SecoesDoEvento } from "@/components/painel/secoes-do-evento";
 import { BaixarOriginais } from "@/components/painel/baixar-originais";
 import { CapaDoEvento } from "@/components/painel/capa-do-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
@@ -216,21 +216,277 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         />
       </header>
 
-      <MenuDoEvento
-        itens={[
-          { icone: "fotos", rotulo: "Fotos", secao: "fotos" },
+      <SecoesDoEvento
+        secoes={[
+          {
+            id: "fotos",
+            icone: "fotos",
+            rotulo: `Fotos (${itens.length})`,
+            conteudo: (
+              <>
+                <EnvioFotos
+                  eventoId={evento.id}
+                  modo={modoEnvio()}
+                  liberacao={{
+                    modo: evento.liberacao,
+                    em:
+                      evento.liberacao === "agendada" && evento.liberadoEm
+                        ? isoParaCampo(evento.liberadoEm)
+                        : "",
+                    podeEscolher: true,
+                    descricao: "",
+                  }}
+                />
+                <FotosDoEvento
+                  eventoId={evento.id}
+                  podeLiberar
+                  capaFotoId={capaFotoId}
+                  itens={itens.map((i) => ({
+                    id: i.id,
+                    urlMiniatura: i.urlMiniatura,
+                    nomeArquivo: i.nomeArquivo,
+                    tipo: i.tipo,
+                    status: i.status,
+                    erroMensagem: i.erroMensagem,
+                    vendido: i.vendido,
+                    precoCentavos: i.precoCentavos,
+                    precoEventoCentavos:
+                      i.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos,
+                    pastaId: i.pastaId,
+                    estadoLiberacao: estadoDaLiberacao(i.liberarEm, agora),
+                    liberarEm: i.liberarEm,
+                  }))}
+                  pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
+                />
+              </>
+            ),
+          },
           ...(qrCode
-            ? [{ icone: "divulgar" as const, rotulo: "Divulgar o evento", secao: "divulgar" }]
+            ? [
+                {
+                  id: "divulgar",
+                  icone: "divulgar" as const,
+                  rotulo: "Divulgar",
+                  conteudo: (
+                    <>
+                      <CompartilharEvento
+                        url={urlPublica}
+                        titulo={evento.titulo}
+                        slug={evento.slug}
+                        visibilidade={evento.visibilidade}
+                        qrSvg={qrCode.svg}
+                        qrPngDataUrl={qrCode.pngDataUrl}
+                        eventoId={evento.id}
+                      />
+                    </>
+                  ),
+                },
+              ]
             : []),
-          { icone: "ranking", rotulo: "Top Cliques (ranking da equipe)", secao: "ranking" },
-          { icone: "rostos", rotulo: "Busca por selfie", secao: "rostos" },
+          {
+            id: "ranking",
+            icone: "ranking",
+            rotulo: "Top Cliques",
+            conteudo: (
+              <>
+                <TopCliques posicoes={top} destaque={conta.id} convidar="#colaboradores" />
+              </>
+            ),
+          },
+          {
+            id: "rostos",
+            icone: "rostos",
+            rotulo: "Busca por selfie",
+            conteudo: (
+              <>
+                <RostosDoEvento
+                  eventoId={evento.id}
+                  prontas={rostos.prontas}
+                  comRosto={rostos.comRosto}
+                  pendentes={rostos.pendentes}
+                  configurado={provedorFacial() === "rekognition"}
+                />
+              </>
+            ),
+          },
           ...(originais
-            ? [{ icone: "originais" as const, rotulo: "Baixar originais", secao: "originais" }]
+            ? [
+                {
+                  id: "originais",
+                  icone: "originais" as const,
+                  rotulo: "Baixar originais",
+                  conteudo: (
+                    <>
+                      <BaixarOriginais
+                        eventoId={evento.id}
+                        slug={evento.slug}
+                        resumo={originais}
+                        pedeCodigo={usuario.mfaAtivo}
+                      />
+                    </>
+                  ),
+                },
+              ]
             : []),
-          { icone: "descontos", rotulo: "Descontos do evento", secao: "descontos" },
-          { icone: "colaboradores", rotulo: "Colaboradores", secao: "colaboradores" },
-          { icone: "pastas", rotulo: "Pastas", secao: "pastas" },
-          { icone: "configuracoes", rotulo: "Configurações", secao: "configuracoes" },
+          {
+            id: "descontos",
+            icone: "descontos",
+            rotulo: "Descontos",
+            conteudo: (
+              <>
+                <div className="flex flex-col gap-6">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-muted-foreground">
+                      Cupons valem para todos os seus eventos e ficam em{" "}
+                      <Link
+                        href="/painel/descontos"
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Descontos e cupons
+                      </Link>
+                      .
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <h3 className="font-semibold">Desconto progressivo</h3>
+                    <AlternarDescontoProgressivo
+                      eventoId={evento.id}
+                      ligado={evento.descontoProgressivo !== false}
+                    />
+                    <EditorFaixas
+                      eventoId={evento.id}
+                      inicial={(faixasDoEvento ?? []).map((f) => ({
+                        quantidadeMin: f.quantidadeMin,
+                        descontoPct: f.descontoPct,
+                      }))}
+                      semFaixas={
+                        regraPadrao
+                          ? `Sem faixas próprias: vale a sua regra padrão (${regraPadrao}). Adicione faixas para usar outras só neste evento.`
+                          : "Sem faixas: cada foto sai pelo preço cheio. Adicione faixas ou crie uma regra padrão em Descontos e cupons."
+                      }
+                    />
+                  </div>
+                  <div className="flex flex-col gap-3 border-t pt-6">
+                    <h3 className="font-semibold">Pacote “todas as minhas fotos”</h3>
+                    <FormularioPacote
+                      eventoId={evento.id}
+                      precoFoto={formatarPreco(evento.precoFotoCentavos)}
+                      pacote={
+                        pacote && {
+                          ativo: pacote.ativo,
+                          tipoPreco: pacote.tipoPreco,
+                          preco: centavosParaCampo(pacote.precoCentavos),
+                          mostrarAPartirDe:
+                            pacote.mostrarAPartirDe === null ? "" : String(pacote.mostrarAPartirDe),
+                          expiraEm: pacote.expiraEm ? isoParaCampo(pacote.expiraEm) : "",
+                        }
+                      }
+                    />
+                  </div>
+                </div>
+              </>
+            ),
+          },
+          {
+            id: "colaboradores",
+            icone: "colaboradores",
+            rotulo: `Colaboradores${colaboradores?.length ? ` (${colaboradores.length})` : ""}`,
+            conteudo: (
+              <>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-muted-foreground">
+                      Outros fotógrafos que cobrem o evento com você. Cada um recebe pelas fotos que
+                      enviou, menos a sua comissão.
+                    </p>
+                  </div>
+                  <Colaboradores
+                    eventoId={evento.id}
+                    colaboradores={(colaboradores ?? []).map((c) => ({
+                      id: c.id,
+                      nomePublico: c.nomePublico,
+                      comissaoDonoPct: c.comissaoDonoPct,
+                      nota: c.nota,
+                      totalItens: c.totalItens,
+                      aceito: c.aceitoEm !== null,
+                    }))}
+                  />
+                </div>
+              </>
+            ),
+          },
+          {
+            id: "pastas",
+            icone: "pastas",
+            rotulo: `Pastas${pastas?.length ? ` (${pastas.length})` : ""}`,
+            conteudo: (
+              <>
+                <div>
+                  <Pastas
+                    eventoId={evento.id}
+                    pastas={(pastas ?? []).map((p) => ({
+                      id: p.id,
+                      nome: p.nome,
+                      totalItens: p.totalItens,
+                    }))}
+                  />
+                </div>
+              </>
+            ),
+          },
+          {
+            id: "configuracoes",
+            icone: "configuracoes",
+            rotulo: "Configurações",
+            conteudo: (
+              <>
+                <CapaDoEvento
+                  eventoId={evento.id}
+                  escolhidaId={capaFotoId}
+                  atual={
+                    capaAtual && {
+                      urlMiniatura: capaAtual.urlMiniatura,
+                      escolhida: capaAtual.escolhida,
+                    }
+                  }
+                  fotos={itens
+                    .filter(podeSerCapa)
+                    .map((i) => ({
+                      id: i.id,
+                      urlMiniatura: i.urlMiniatura,
+                      nomeArquivo: i.nomeArquivo,
+                    }))}
+                />
+                <FormularioEvento
+                  eventoId={evento.id}
+                  categorias={categorias}
+                  inicial={{
+                    titulo: evento.titulo,
+                    categoriaId: evento.categoriaId,
+                    inicioEm: isoParaCampo(evento.inicioEm),
+                    fimEm: evento.fimEm ? isoParaCampo(evento.fimEm) : "",
+                    local: evento.local,
+                    cidade: evento.cidade,
+                    estado: evento.estado,
+                    pontoNoMapa: pontoDoEvento(evento),
+                    precoFoto: centavosParaCampo(evento.precoFotoCentavos),
+                    precoVideo: centavosParaCampo(evento.precoVideoCentavos),
+                    visibilidade: evento.visibilidade,
+                    temSenha: evento.temSenha,
+                    fotosSoAposBusca: evento.fotosSoAposBusca,
+                    liberacao: evento.liberacao,
+                    liberadoEm: evento.liberadoEm ? isoParaCampo(evento.liberadoEm) : "",
+                    filtroHorario: evento.filtroHorario,
+                    listarNaoIdentificadas: evento.listarNaoIdentificadas,
+                    ordenacao: evento.ordenacao,
+                  }}
+                />
+                <ReaproveitarEvento eventoId={evento.id} titulo={evento.titulo} />
+              </>
+            ),
+          },
+        ]}
+        paginas={[
           {
             icone: "desempenho",
             rotulo: "Desempenho",
@@ -243,242 +499,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           },
         ]}
       />
-
-      <div id="rostos" className="scroll-mt-32">
-        <RostosDoEvento
-          eventoId={evento.id}
-          prontas={rostos.prontas}
-          comRosto={rostos.comRosto}
-          pendentes={rostos.pendentes}
-          configurado={provedorFacial() === "rekognition"}
-        />
-      </div>
-
-      <div id="ranking" className="scroll-mt-32">
-        <TopCliques posicoes={top} destaque={conta.id} convidar="#colaboradores" />
-      </div>
-
-      {qrCode && (
-        <div id="divulgar" className="scroll-mt-32">
-          <CompartilharEvento
-            url={urlPublica}
-            titulo={evento.titulo}
-            slug={evento.slug}
-            visibilidade={evento.visibilidade}
-            qrSvg={qrCode.svg}
-            qrPngDataUrl={qrCode.pngDataUrl}
-            eventoId={evento.id}
-          />
-        </div>
-      )}
-
-      {originais && (
-        <div id="originais" className="scroll-mt-32">
-          <BaixarOriginais
-            eventoId={evento.id}
-            slug={evento.slug}
-            resumo={originais}
-            pedeCodigo={usuario.mfaAtivo}
-          />
-        </div>
-      )}
-
-      <ReaproveitarEvento eventoId={evento.id} titulo={evento.titulo} />
-
-      <details
-        id="descontos"
-        className="group scroll-mt-32 rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden"
-      >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold">Descontos do evento</h2>
-          <ChevronDown
-            aria-hidden="true"
-            className="size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-          />
-        </summary>
-        <div className="mt-4 flex flex-col gap-6">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm text-muted-foreground">
-              Cupons valem para todos os seus eventos e ficam em{" "}
-              <Link href="/painel/descontos" className="font-medium text-primary hover:underline">
-                Descontos e cupons
-              </Link>
-              .
-            </p>
-          </div>
-          <div className="flex flex-col gap-3">
-            <h3 className="font-semibold">Desconto progressivo</h3>
-            <AlternarDescontoProgressivo
-              eventoId={evento.id}
-              ligado={evento.descontoProgressivo !== false}
-            />
-            <EditorFaixas
-              eventoId={evento.id}
-              inicial={(faixasDoEvento ?? []).map((f) => ({
-                quantidadeMin: f.quantidadeMin,
-                descontoPct: f.descontoPct,
-              }))}
-              semFaixas={
-                regraPadrao
-                  ? `Sem faixas próprias: vale a sua regra padrão (${regraPadrao}). Adicione faixas para usar outras só neste evento.`
-                  : "Sem faixas: cada foto sai pelo preço cheio. Adicione faixas ou crie uma regra padrão em Descontos e cupons."
-              }
-            />
-          </div>
-          <div className="flex flex-col gap-3 border-t pt-6">
-            <h3 className="font-semibold">Pacote “todas as minhas fotos”</h3>
-            <FormularioPacote
-              eventoId={evento.id}
-              precoFoto={formatarPreco(evento.precoFotoCentavos)}
-              pacote={
-                pacote && {
-                  ativo: pacote.ativo,
-                  tipoPreco: pacote.tipoPreco,
-                  preco: centavosParaCampo(pacote.precoCentavos),
-                  mostrarAPartirDe:
-                    pacote.mostrarAPartirDe === null ? "" : String(pacote.mostrarAPartirDe),
-                  expiraEm: pacote.expiraEm ? isoParaCampo(pacote.expiraEm) : "",
-                }
-              }
-            />
-          </div>
-        </div>
-      </details>
-
-      <details
-        id="colaboradores"
-        className="group scroll-mt-32 rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden"
-      >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold">
-            Colaboradores{colaboradores?.length ? ` (${colaboradores.length})` : ""}
-          </h2>
-          <ChevronDown
-            aria-hidden="true"
-            className="size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-          />
-        </summary>
-        <div className="mt-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm text-muted-foreground">
-              Outros fotógrafos que cobrem o evento com você. Cada um recebe pelas fotos que enviou,
-              menos a sua comissão.
-            </p>
-          </div>
-          <Colaboradores
-            eventoId={evento.id}
-            colaboradores={(colaboradores ?? []).map((c) => ({
-              id: c.id,
-              nomePublico: c.nomePublico,
-              comissaoDonoPct: c.comissaoDonoPct,
-              nota: c.nota,
-              totalItens: c.totalItens,
-              aceito: c.aceitoEm !== null,
-            }))}
-          />
-        </div>
-      </details>
-
-      <details
-        id="pastas"
-        className="group scroll-mt-32 rounded-xl border p-5 [&_summary::-webkit-details-marker]:hidden"
-      >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold">
-            Pastas{pastas?.length ? ` (${pastas.length})` : ""}
-          </h2>
-          <ChevronDown
-            aria-hidden="true"
-            className="size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-          />
-        </summary>
-        <div className="mt-4">
-          <Pastas
-            eventoId={evento.id}
-            pastas={(pastas ?? []).map((p) => ({
-              id: p.id,
-              nome: p.nome,
-              totalItens: p.totalItens,
-            }))}
-          />
-        </div>
-      </details>
-
-      <section id="fotos" className="flex scroll-mt-32 flex-col gap-4">
-        <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
-        <EnvioFotos
-          eventoId={evento.id}
-          modo={modoEnvio()}
-          liberacao={{
-            modo: evento.liberacao,
-            em:
-              evento.liberacao === "agendada" && evento.liberadoEm
-                ? isoParaCampo(evento.liberadoEm)
-                : "",
-            podeEscolher: true,
-            descricao: "",
-          }}
-        />
-        <FotosDoEvento
-          eventoId={evento.id}
-          podeLiberar
-          capaFotoId={capaFotoId}
-          itens={itens.map((i) => ({
-            id: i.id,
-            urlMiniatura: i.urlMiniatura,
-            nomeArquivo: i.nomeArquivo,
-            tipo: i.tipo,
-            status: i.status,
-            erroMensagem: i.erroMensagem,
-            vendido: i.vendido,
-            precoCentavos: i.precoCentavos,
-            precoEventoCentavos:
-              i.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos,
-            pastaId: i.pastaId,
-            estadoLiberacao: estadoDaLiberacao(i.liberarEm, agora),
-            liberarEm: i.liberarEm,
-          }))}
-          pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
-        />
-      </section>
-
-      <section id="configuracoes" className="flex scroll-mt-32 flex-col gap-4">
-        <h2 className="text-xl font-semibold">Configurações</h2>
-        <CapaDoEvento
-          eventoId={evento.id}
-          escolhidaId={capaFotoId}
-          atual={
-            capaAtual && { urlMiniatura: capaAtual.urlMiniatura, escolhida: capaAtual.escolhida }
-          }
-          fotos={itens
-            .filter(podeSerCapa)
-            .map((i) => ({ id: i.id, urlMiniatura: i.urlMiniatura, nomeArquivo: i.nomeArquivo }))}
-        />
-        <FormularioEvento
-          eventoId={evento.id}
-          categorias={categorias}
-          inicial={{
-            titulo: evento.titulo,
-            categoriaId: evento.categoriaId,
-            inicioEm: isoParaCampo(evento.inicioEm),
-            fimEm: evento.fimEm ? isoParaCampo(evento.fimEm) : "",
-            local: evento.local,
-            cidade: evento.cidade,
-            estado: evento.estado,
-            pontoNoMapa: pontoDoEvento(evento),
-            precoFoto: centavosParaCampo(evento.precoFotoCentavos),
-            precoVideo: centavosParaCampo(evento.precoVideoCentavos),
-            visibilidade: evento.visibilidade,
-            temSenha: evento.temSenha,
-            fotosSoAposBusca: evento.fotosSoAposBusca,
-            liberacao: evento.liberacao,
-            liberadoEm: evento.liberadoEm ? isoParaCampo(evento.liberadoEm) : "",
-            filtroHorario: evento.filtroHorario,
-            listarNaoIdentificadas: evento.listarNaoIdentificadas,
-            ordenacao: evento.ordenacao,
-          }}
-        />
-      </section>
     </>
   );
 }
