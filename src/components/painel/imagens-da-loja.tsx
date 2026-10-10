@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ImageUp, Loader2, Trash2 } from "lucide-react";
 
 import type { ImagemDaLoja } from "@/app/(fotografo)/painel/loja/acoes";
+import { BlocoRecolhivel } from "@/components/painel/bloco-recolhivel";
 import { TIPOS_DE_IMAGEM, useImagemDaLoja } from "@/components/painel/usar-imagem-da-loja";
 import { Button } from "@/components/ui/button";
 
@@ -13,8 +14,7 @@ import { Button } from "@/components/ui/button";
  */
 export function ImagensDaLoja({ capa, logo }: { capa: string | null; logo: string | null }) {
   return (
-    <fieldset className="flex flex-col gap-4">
-      <legend className="mb-2 text-lg font-semibold">Banner e logo</legend>
+    <BlocoRecolhivel titulo="Banner e logo" aberto>
       <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <CampoImagem
           campo="capa"
@@ -31,7 +31,7 @@ export function ImagensDaLoja({ capa, logo }: { capa: string | null; logo: strin
           formato="aspect-square max-w-40 rounded-full"
         />
       </div>
-    </fieldset>
+    </BlocoRecolhivel>
   );
 }
 

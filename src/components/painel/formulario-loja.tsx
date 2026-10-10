@@ -9,6 +9,7 @@ import {
   type EstadoLoja,
 } from "@/app/(fotografo)/painel/loja/acoes";
 import { enviarSemLimpar } from "@/lib/formulario";
+import { BlocoRecolhivel } from "@/components/painel/bloco-recolhivel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { contraste, corDoTexto } from "@/lib/loja";
@@ -65,8 +66,7 @@ export function FormularioLoja({
         </a>
       )}
 
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Nome e descrição</legend>
+      <BlocoRecolhivel titulo="Nome e descrição" aberto={!enderecoAtual}>
         <Campo rotulo="Nome da loja" id="loja-nome" erro={erros.nome}>
           <Input {...campo("nome")} defaultValue={loja.nome} maxLength={80} className="h-11" />
         </Campo>
@@ -104,10 +104,9 @@ export function FormularioLoja({
             className="h-11 sm:w-72"
           />
         </Campo>
-      </fieldset>
+      </BlocoRecolhivel>
 
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Cores</legend>
+      <BlocoRecolhivel titulo="Cores">
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoCor
             rotulo="Cor principal"
@@ -146,10 +145,12 @@ export function FormularioLoja({
             As duas cores estão parecidas: o destaque pode sumir ao lado da cor principal.
           </p>
         )}
-      </fieldset>
+      </BlocoRecolhivel>
 
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Medição de visitas (opcional)</legend>
+      <BlocoRecolhivel
+        titulo="Medição de visitas"
+        descricao="Opcional: Google Analytics e Tag Manager"
+      >
         <p className="text-sm text-muted-foreground">
           Cole só o ID. Por segurança, não aceitamos códigos nem scripts: nós montamos a instalação
           a partir do ID.
@@ -176,7 +177,7 @@ export function FormularioLoja({
             />
           </Campo>
         </div>
-      </fieldset>
+      </BlocoRecolhivel>
 
       <label className="flex items-start gap-3 text-sm">
         <input

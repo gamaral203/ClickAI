@@ -2,14 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import {
-  ArrowLeft,
-  ChartColumn,
-  CheckCircle2,
-  ChevronDown,
-  ExternalLink,
-  FileText,
-} from "lucide-react";
+import { ArrowLeft, ChartColumn, CheckCircle2, ChevronDown, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { MenuDoEvento } from "@/components/painel/menu-do-evento";
@@ -208,13 +201,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
               <ExternalLink aria-hidden="true" className="size-4" />
             </Link>
           )}
-          <Link
-            href={`/painel/eventos/${evento.id}/relatorio`}
-            className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            Relatório do evento (PDF)
-            <FileText aria-hidden="true" className="size-4" />
-          </Link>
           <Link
             href={`/painel/eventos/${evento.id}/desempenho`}
             className={buttonVariants({ variant: "outline", size: "touch" })}
