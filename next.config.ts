@@ -64,6 +64,8 @@ const nextConfig: NextConfig = {
   // painel); sem isto, o arquivo não vai para a função da Vercel.
   outputFileTracingIncludes: {
     "/painel/**": ["./public/logo.png"],
+    // Foto de exemplo das amostras de marca d'água (src/servicos/imagens.ts, amostraDaMarca).
+    "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],
     "/api/envios/**": ["./public/logo.png"],
     "/api/jobs/**": ["./public/logo.png"],
   },

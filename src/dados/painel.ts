@@ -9,6 +9,7 @@ import { connection } from "next/server";
 import { obterBanco } from "@/db";
 import { emProducao } from "@/db/conexao";
 import * as t from "@/db/schema";
+import { ehModeloMarca, MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
 
 import type { EscolhaLiberacao } from "@/lib/liberacao";
 
@@ -611,4 +612,27 @@ export async function listarSaquesProcessando(fotografoId: string): Promise<Saqu
     .from(t.saques)
     .where(and(eq(t.saques.fotografoId, fotografoId), eq(t.saques.status, "processando")));
   return linhas.map(paraSaque);
+}
+
+/** Guarda o modelo de marca d'água do fotógrafo (vale para as fotos enviadas daqui em diante). */
+export async function salvarModeloMarca(fotografoId: string, modelo: ModeloMarca) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotografos)
+    .set({ modeloMarca: modelo })
+    .where(eq(t.fotografos.id, fotografoId));
+}
+
+/**
+ * Modelo de marca d'água das fotos de um evento: o do dono do evento (também nas fotos que um
+ * colaborador envia, para a galeria ficar igual).
+ */
+export async function modeloMarcaDoEvento(eventoId: string): Promise<ModeloMarca> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ modelo: t.fotografos.modeloMarca })
+    .from(t.eventos)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))
+    .where(eq(t.eventos.id, eventoId));
+  return linha && ehModeloMarca(linha.modelo) ? linha.modelo : MODELO_MARCA_PADRAO;
 }
