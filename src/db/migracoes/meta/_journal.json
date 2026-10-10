@@ -99,6 +99,13 @@
       "when": 1791565477989,
       "tag": "0013_confirmacao_por_codigo_e_redefinicao_de_senha",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791598671576,
+      "tag": "0014_taxas_cartao_e_notificacoes",
+      "breakpoints": true
     }
   ]
 }

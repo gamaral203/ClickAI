@@ -15,6 +15,7 @@ import {
 
 import { CartaoNumero } from "@/components/admin/tabela";
 import { GraficoVendas } from "@/components/graficos/grafico-vendas";
+import { BotaoNotificacoes } from "@/components/notificacoes/botao-notificacoes";
 import { LinkDoFotografo } from "@/components/painel/link-do-fotografo";
 import { Recepcao } from "@/components/painel/recepcao";
 import { SeloMeta } from "@/components/metas/selo-meta";
@@ -97,6 +98,8 @@ async function Conteudo() {
       <Recepcao humor={humor} detalhe={detalheRecepcao} />
 
       <LinkDoFotografo url={urlDoSite(`/fotografo/${conta.slug}`)} nome={conta.nomePublico} />
+
+      <BotaoNotificacoes contexto="vendas e saques" />
 
       {!pronto && (
         <section className="flex flex-col gap-4 rounded-xl border p-5">

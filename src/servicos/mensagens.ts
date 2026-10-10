@@ -6,6 +6,7 @@ import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { emailConfigurado, enviarEmail, type Email } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { enviarPush } from "@/lib/push";
 
 // Mensagens ao comprador (docs/arquitetura.md, "Compra e pagamento" e "Carrinho abandonado").
 // O e-mail é sempre o canal principal; o WhatsApp só vai com o consentimento dado no checkout
@@ -147,6 +148,12 @@ export async function avisarVenda(pedidoId: string) {
       texto: [...paragrafos, `${botao.texto}: ${botao.url}`].join(" "),
     });
     await enviarEmail({ para: venda.email, assunto, paragrafos, botao });
+    // Notificação no celular/computador, para quem ativou.
+    await enviarPush([venda.usuarioId], {
+      titulo: "Você vendeu! 📸",
+      corpo: `${formatarPreco(venda.valorCentavos)} em ${venda.eventos.join(", ")}`,
+      url: "/painel/vendas",
+    });
   }
 }
 

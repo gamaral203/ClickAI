@@ -66,6 +66,8 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.stubEnv("MP_ACCESS_TOKEN", "TEST-token");
   vi.stubEnv("MP_AMBIENTE", "teste");
+  // Estes testes são do saque automático pelo gateway (o padrão é o manual).
+  vi.stubEnv("SAQUE_AUTOMATICO", "1");
   vi.stubEnv("SAQUE_SEM_PRAZO_EMAILS", "");
   banco.saques.clear();
   banco.lancamentos = [

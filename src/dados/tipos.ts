@@ -285,6 +285,8 @@ export type Pedido = {
   cupomId: string | null;
   subtotalCentavos: number;
   descontoCentavos: number;
+  /** No cartão, a metade da taxa que o comprador paga (src/lib/taxas.ts); já somada no total. */
+  acrescimoCartaoCentavos?: number;
   totalCentavos: number;
   metodo: MetodoPagamento;
   status: StatusPedido;
@@ -384,7 +386,7 @@ export type Saque = {
   fotografoId: string;
   antecipado: boolean;
   brutoCentavos: number;
-  /** Comissão (10%) mais a antecipação (1%) sobre o que ainda não tinha 30 dias. */
+  /** Comissão (8%) mais a antecipação (2%) sobre o que ainda não tinha 30 dias. */
   taxaCentavos: number;
   liquidoCentavos: number;
   /** CPF ou CNPJ do fotógrafo, só dígitos: o saque só vai para a chave Pix dele mesmo. */

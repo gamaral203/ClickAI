@@ -9,7 +9,7 @@ import {
 } from "@/components/site/pagina-legal";
 
 // Termos de uso. Rascunho que descreve as regras que o código já aplica (preços do servidor,
-// Pix de 1 hora, comissão de 10% no saque, antecipação com 1% a mais, saque só para o próprio
+// Pix de 1 hora, comissão de 8% no saque, antecipação com 2% a mais, saque só para o próprio
 // CPF/CNPJ). Precisa da revisão de um advogado antes do lançamento (docs/tarefas.md, Fase 14).
 // Se uma regra do código mudar, este texto muda junto.
 
@@ -156,10 +156,12 @@ export default function PaginaTermos() {
             pelo painel, por Pix, <strong>somente para a chave do seu próprio CPF ou CNPJ</strong>.
           </li>
           <li>
-            <strong>Taxas.</strong> A comissão do ClicouAí é de <strong>10%</strong>, descontada no
+            <strong>Taxas.</strong> A comissão do ClicouAí é de <strong>8%</strong>, descontada no
             saque. No saque normal, entram as vendas com 30 dias ou mais. No saque antecipado, você
             pode sacar vendas a partir de 1 dia; sobre o valor que ainda não completou 30 dias, a
-            taxa é de <strong>11%</strong> (10% de comissão + 1% de antecipação). O saque mínimo é
+            taxa é de <strong>10%</strong> (8% de comissão + 2% de antecipação). Depois do pedido, o
+            Pix é feito em até 1 dia. Nas vendas no cartão, a taxa do cartão é dividida: metade é
+            somada ao valor pago pelo cliente e metade sai da parte do fotógrafo. O saque mínimo é
             de R$ 1,00 líquido. Não há mensalidade.
           </li>
           <li>
