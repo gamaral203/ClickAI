@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { classeLink } from "@/components/site/pagina-legal";
 
 // Central de ajuda: artigos curtos para quem compra e para quem vende. Conteúdo estático; os
-// números (Pix de 1 hora, comissão de 10%, antecipação com 1% a mais, saque mínimo de R$ 1,00,
+// números (Pix de 1 hora, comissão de 8%, antecipação com 2% a mais, saque mínimo de R$ 1,00,
 // fotos JPEG, PNG, WebP, TIFF, AVIF ou HEIC até 200 MB, sem limite de quantidade) são os do código (src/servicos/pedidos.ts,
 // src/servicos/saques.ts, src/lib/limites-envio.ts). Se uma regra mudar, o texto muda junto.
 
@@ -244,15 +244,29 @@ const paraQuemVende: Artigo[] = [
     ),
   },
   {
+    id: "capa",
+    titulo: "Como escolho a capa do evento?",
+    corpo: (
+      <p>
+        Na lista de fotos do evento, toque em <strong>Usar como capa</strong> na foto que quiser;
+        ela ganha o selo “Capa”. Em <strong>Configurações</strong>, você vê a capa atual e pode
+        trocar ou remover a escolha. A capa aparece nos cartões do evento (página inicial, lista de
+        eventos e seu perfil), sempre com a marca d’água e só depois que a foto for liberada. Se
+        você não escolher, usamos uma foto liberada do evento, sempre a mesma.
+      </p>
+    ),
+  },
+  {
     id: "taxas",
     titulo: "Quais são as taxas?",
     corpo: (
       <>
         <p>
           Não há mensalidade nem custo para publicar. A comissão do ClicouAí é de{" "}
-          <strong>10% sobre o que você vende</strong>, descontada só na hora do saque. Se você
-          antecipar, as vendas com menos de 30 dias pagam <strong>11%</strong> (10% + 1% de
-          antecipação).
+          <strong>8% sobre o que você vende</strong>, descontada só na hora do saque. Se você
+          antecipar, as vendas com menos de 30 dias pagam <strong>10%</strong> (8% + 2% de
+          antecipação). Nas vendas no cartão, a taxa do cartão é dividida: metade o cliente paga e
+          metade sai da sua parte.
         </p>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -275,15 +289,15 @@ const paraQuemVende: Artigo[] = [
                 <th scope="row" className="p-2 text-left font-normal">
                   Saque normal (30 dias)
                 </th>
-                <td className="p-2 whitespace-nowrap">R$ 2,00</td>
-                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 18,00</td>
+                <td className="p-2 whitespace-nowrap">R$ 1,60</td>
+                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 18,40</td>
               </tr>
               <tr>
                 <th scope="row" className="p-2 text-left font-normal">
                   Saque antecipado
                 </th>
-                <td className="p-2 whitespace-nowrap">R$ 2,20</td>
-                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 17,80</td>
+                <td className="p-2 whitespace-nowrap">R$ 2,00</td>
+                <td className="p-2 font-semibold whitespace-nowrap text-foreground">R$ 18,00</td>
               </tr>
             </tbody>
           </table>
@@ -302,11 +316,15 @@ const paraQuemVende: Artigo[] = [
       <>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Saque normal:</strong> as vendas com 30 dias ou mais, com 10% de comissão.
+            <strong>Saque normal:</strong> as vendas com 30 dias ou mais, com 8% de comissão.
           </li>
           <li>
             <strong>Saque antecipado:</strong> as vendas a partir de 1 dia; o que ainda não tem 30
-            dias paga 11%.
+            dias paga 10%.
+          </li>
+          <li>
+            Depois do pedido, a equipe do ClicouAí faz o Pix em até <strong>1 dia</strong> e você
+            recebe um aviso.
           </li>
           <li>
             O dinheiro vai por <strong>Pix, só para a chave do seu próprio CPF ou CNPJ</strong>.

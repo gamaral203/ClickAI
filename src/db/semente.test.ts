@@ -10,14 +10,14 @@ import { senhaConfere } from "@/lib/senha";
 
 import { obterBanco, type Banco } from "./index";
 import * as schema from "./schema";
-import { semear } from "./semente";
+import { semear, type OpcoesSemente } from "./semente";
 
 /** Banco novo e vazio, migrado, com a semente rodada no ambiente atual. */
-async function bancoSemeado() {
+async function bancoSemeado(opcoes?: OpcoesSemente) {
   const pg = new PGlite();
   const banco = drizzle({ client: pg, schema, casing: "snake_case" });
   await migrate(banco, { migrationsFolder: path.join(process.cwd(), "src", "db", "migracoes") });
-  await semear(banco as unknown as Banco);
+  await semear(banco as unknown as Banco, opcoes);
   return { pg, banco };
 }
 
@@ -77,7 +77,8 @@ describe("semente", () => {
   it("na produção com SEMEAR_EXEMPLOS=1, ninguém entra com a senha de exemplo", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("SEMEAR_EXEMPLOS", "1");
-    const { pg } = await bancoSemeado();
+    // Nem se alguém pedir as contas com senha: na produção, nunca.
+    const { pg } = await bancoSemeado({ contasComSenha: true });
     expect(await contar(pg, "eventos")).toBeGreaterThan(0);
     const lista = await usuarios(pg);
     expect(lista.length).toBeGreaterThan(0);
@@ -88,9 +89,21 @@ describe("semente", () => {
     await pg.close();
   });
 
-  it("fora da produção, mantém os dados e as contas de exemplo, inclusive o gestor", async () => {
+  it("db:migrar num Postgres de verdade, sem VERCEL_ENV, não cria contas com a senha pública", async () => {
+    // Ex.: `npm run db:migrar` rodado da máquina local com o .env da produção.
+    vi.stubEnv("VERCEL_ENV", "");
+    const { pg } = await bancoSemeado();
+    expect(await contar(pg, "eventos")).toBeGreaterThan(0);
+    const lista = await usuarios(pg);
+    expect(lista.filter((u) => u.senha_hash !== null)).toEqual([]);
+    expect(lista.filter((u) => u.email.endsWith("@exemplo.com"))).toEqual([]);
+    expect(lista.filter((u) => u.papel !== "fotografo")).toEqual([]);
+    await pg.close();
+  });
+
+  it("no PGlite fora da produção, mantém os dados e as contas de exemplo, inclusive o gestor", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
-    const { pg, banco } = await bancoSemeado();
+    const { pg, banco } = await bancoSemeado({ contasComSenha: true });
     for (const tabela of ["fotografos", "eventos", "fotos", "cupons", "lojas"]) {
       expect(await contar(pg, tabela), tabela).toBeGreaterThan(0);
     }

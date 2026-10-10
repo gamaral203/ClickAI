@@ -3,13 +3,14 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { ImageIcon, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ImageIcon, Loader2, Pencil, Star, Trash2 } from "lucide-react";
 
 import { excluirItemAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { moverParaPastaAcao } from "@/app/(fotografo)/painel/eventos/pastas-acoes";
 import { definirPrecoAcao } from "@/app/(fotografo)/painel/eventos/vendas-acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { podeSerCapa } from "@/lib/capa";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { formatarPreco } from "@/lib/formatar";
 import { rotuloDaLiberacao, type EstadoLiberacao } from "@/lib/liberacao";
@@ -18,6 +19,8 @@ export type ItemDoPainel = {
   id: string;
   urlMiniatura: string;
   nomeArquivo: string;
+  /** Só foto pode ser capa (a prévia do vídeo é o próprio vídeo). Sem o campo, vale foto. */
+  tipo?: "foto" | "video";
   status: "processando" | "pronta" | "erro";
   /** Por que a foto ficou em `erro` (ex.: o arquivo não chegou ao armazenamento). */
   erroMensagem: string | null;
@@ -38,17 +41,28 @@ export type SelecaoDeFotos = {
   alternar: (id: string) => void;
 };
 
+/** Escolha da capa do evento (só o dono do evento). */
+export type EscolhaDeCapa = {
+  /** Foto escolhida como capa, ou `null` (capa automática). */
+  fotoId: string | null;
+  definir: (fotoId: string) => void;
+  /** Foto cuja escolha está sendo gravada agora. */
+  gravando: string | null;
+};
+
 type PastaOpcao = { id: string; nome: string };
 
 export function GradeFotosPainel({
   itens,
   pastas,
   selecao,
+  capa,
   vazio = "Nenhuma foto enviada ainda.",
 }: {
   itens: ItemDoPainel[];
   pastas: PastaOpcao[];
   selecao?: SelecaoDeFotos;
+  capa?: EscolhaDeCapa;
   vazio?: string;
 }) {
   // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
@@ -77,7 +91,7 @@ export function GradeFotosPainel({
     <div className="flex flex-col items-center gap-4">
       <ul className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {itens.slice(0, mostrando).map((item) => (
-          <Cartao key={item.id} item={item} pastas={pastas} selecao={selecao} />
+          <Cartao key={item.id} item={item} pastas={pastas} selecao={selecao} capa={capa} />
         ))}
       </ul>
       {restantes > 0 && (
@@ -97,11 +111,14 @@ function Cartao({
   item,
   pastas,
   selecao,
+  capa,
 }: {
   item: ItemDoPainel;
   pastas: PastaOpcao[];
   selecao?: SelecaoDeFotos;
+  capa?: EscolhaDeCapa;
 }) {
+  const ehCapa = capa?.fotoId === item.id;
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -135,6 +152,12 @@ function Cartao({
           </div>
         )}
         <div className="absolute top-1.5 left-1.5 flex flex-wrap gap-1">
+          {ehCapa && (
+            <span className="flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+              <Star aria-hidden="true" className="size-3 fill-current" />
+              Capa
+            </span>
+          )}
           {item.vendido && (
             <span className="rounded-full bg-highlight px-2 py-0.5 text-xs font-semibold text-highlight-foreground">
               Vendida
@@ -164,6 +187,22 @@ function Cartao({
       )}
       {item.status === "erro" && item.erroMensagem && (
         <p className="text-xs text-destructive">{item.erroMensagem}</p>
+      )}
+      {capa && podeSerCapa(item) && !ehCapa && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={capa.gravando !== null}
+          onClick={() => capa.definir(item.id)}
+          aria-label={`Usar ${item.nomeArquivo} como capa do evento`}
+        >
+          {capa.gravando === item.id ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Star aria-hidden="true" />
+          )}
+          Usar como capa
+        </Button>
       )}
       <Preco item={item} />
       {pastas.length > 0 && <SeletorPasta item={item} pastas={pastas} />}

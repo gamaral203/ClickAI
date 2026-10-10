@@ -1,5 +1,5 @@
 {
-  "id": "cc9025bb-84b0-4a80-b329-39ff6cb11ca6",
+  "id": "c43f18ff-00b7-4501-a96f-a3576aa0c6a2",
   "prevId": "d99a861e-8d42-4ee0-b2de-fe2ea52f09a7",
   "version": "7",
   "dialect": "postgresql",
@@ -143,84 +143,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.codigos_de_login": {
-      "name": "codigos_de_login",
-      "schema": "",
-      "columns": {
-        "usuario_id": {
-          "name": "usuario_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "login_id": {
-          "name": "login_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "codigo_hash": {
-          "name": "codigo_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expira_em": {
-          "name": "expira_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tentativas": {
-          "name": "tentativas",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "reenvios": {
-          "name": "reenvios",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "enviado_em": {
-          "name": "enviado_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "criado_em": {
-          "name": "criado_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "codigos_de_login_usuario_id_usuarios_id_fk": {
-          "name": "codigos_de_login_usuario_id_usuarios_id_fk",
-          "tableFrom": "codigos_de_login",
-          "tableTo": "usuarios",
-          "columnsFrom": [
-            "usuario_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1397,7 +1319,7 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": 10
+          "default": 8
         }
       },
       "indexes": {
@@ -1746,6 +1668,102 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.inscricoes_push": {
+      "name": "inscricoes_push",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inscricoes_push_endpoint_index": {
+          "name": "inscricoes_push_endpoint_index",
+          "columns": [
+            {
+              "expression": "endpoint",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inscricoes_push_usuario_id_index": {
+          "name": "inscricoes_push_usuario_id_index",
+          "columns": [
+            {
+              "expression": "usuario_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inscricoes_push_usuario_id_usuarios_id_fk": {
+          "name": "inscricoes_push_usuario_id_usuarios_id_fk",
+          "tableFrom": "inscricoes_push",
+          "tableTo": "usuarios",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2818,6 +2836,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "acrescimo_cartao_centavos": {
+          "name": "acrescimo_cartao_centavos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "total_centavos": {
           "name": "total_centavos",

@@ -33,7 +33,12 @@ export async function generateMetadata({
   const { slug } = await params;
   const evento = await buscarEventoPublicado(slug);
   if (!evento) return { title: "Evento não encontrado" };
+  // Imagem do link compartilhado: a prévia (com marca d'água) da capa. Nunca no evento com senha.
+  const capa = evento.visibilidade === "senha" ? null : evento.capaMiniatura?.urlPrevia;
   return {
+    ...(capa && {
+      openGraph: { images: [{ url: capa.startsWith("/") ? urlDoSite(capa) : capa }] },
+    }),
     title: evento.titulo,
     description: `${contarItens(evento)} de ${evento.titulo}, ${formatarData(evento.inicioEm)}, ${evento.cidade}.`,
     // Não listado e com senha ficam fora do Google (docs/arquitetura.md, Galeria e busca).

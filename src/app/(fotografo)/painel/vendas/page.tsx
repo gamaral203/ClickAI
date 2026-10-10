@@ -9,6 +9,7 @@ import type { Saque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import {
+  TAXA_ANTECIPACAO_PCT,
   chavePixValida,
   mensagemDeBloqueio,
   SAQUE_MINIMO_CENTAVOS,
@@ -87,7 +88,7 @@ async function Conteudo() {
           icone={<Hourglass aria-hidden="true" className="size-4" />}
           titulo="Antecipável"
           valor={saldo.antecipavelCentavos}
-          texto="Vendas entre 1 e 30 dias: dá para sacar com 1% a mais."
+          texto={`Vendas entre 1 e 30 dias: dá para sacar com ${TAXA_ANTECIPACAO_PCT}% a mais.`}
         />
         <CartaoSaldo
           icone={<Clock aria-hidden="true" className="size-4" />}
@@ -99,6 +100,24 @@ async function Conteudo() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold">Sacar</h2>
+        <div className="flex flex-col gap-1.5 rounded-xl border border-primary/20 bg-accent/60 p-4 text-sm text-accent-foreground">
+          <p className="font-semibold">Como funciona o saque</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              <strong>Saque normal:</strong> cada venda fica disponível <strong>30 dias</strong>{" "}
+              depois de paga, com taxa de <strong>{conta.comissaoPct}%</strong>.
+            </li>
+            <li>
+              <strong>Saque antecipado:</strong> a partir de <strong>1 dia</strong> depois da venda,
+              com taxa de <strong>{conta.comissaoPct + TAXA_ANTECIPACAO_PCT}%</strong> (
+              {TAXA_ANTECIPACAO_PCT}% a mais) sobre o que ainda não tem 30 dias.
+            </li>
+            <li>
+              Depois que você pede, a nossa equipe faz o Pix para a sua chave em até{" "}
+              <strong>1 dia</strong> e você recebe um aviso.
+            </li>
+          </ul>
+        </div>
         {temChave ? (
           <p className="text-sm text-muted-foreground">
             O Pix vai para a sua chave {formatarCpfCnpj(conta.chavePix ?? "")}. Os valores abaixo
@@ -133,6 +152,8 @@ async function Conteudo() {
           podeSacar={temChave && !emAndamento && !bloqueadoAte}
           minimoCentavos={SAQUE_MINIMO_CENTAVOS}
           pedeCodigo={usuario.mfaAtivo}
+          comissaoPct={conta.comissaoPct}
+          antecipacaoPct={TAXA_ANTECIPACAO_PCT}
         />
       </section>
 
@@ -223,8 +244,9 @@ async function Conteudo() {
         <p className="text-sm text-muted-foreground">
           Cada linha é um item vendido: o que o cliente pagou, a sua parte (todo o valor, ou a sua
           comissão quando a foto é de um colaborador no seu evento), a taxa da plataforma e o que
-          você recebe no saque normal. No saque antecipado, o que ainda não tem 30 dias paga 1% a
-          mais.
+          você recebe no saque normal. No saque antecipado, o que ainda não tem 30 dias paga{" "}
+          {TAXA_ANTECIPACAO_PCT}% a mais. Nas vendas no cartão, metade da taxa do cartão já sai da
+          sua parte (a outra metade o cliente paga).
         </p>
       </section>
     </>

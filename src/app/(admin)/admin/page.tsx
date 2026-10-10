@@ -116,8 +116,7 @@ async function Conteudo() {
           ))}
         </Tabela>
         <p className="text-sm text-muted-foreground">
-          Vendido e a pagar são brutos; a comissão sai no saque. Os dados de exemplo ficam na
-          memória do servidor até o banco entrar (Fase 11).
+          Vendido e a pagar são brutos; a comissão sai no saque.
         </p>
       </section>
     </>

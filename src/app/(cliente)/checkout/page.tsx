@@ -3,8 +3,8 @@ import { Suspense } from "react";
 
 import { AvisoContaDeFotografo } from "@/components/carrinho/aviso-conta-de-fotografo";
 import { FormularioCheckout } from "@/components/carrinho/formulario-checkout";
-import { exigeCpfDoComprador } from "@/lib/gateway";
 import { podeComprar } from "@/lib/navegacao";
+import { taxaCartaoPct } from "@/lib/taxas";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -40,7 +40,7 @@ async function Checkout() {
       <h1 className="text-3xl font-bold tracking-tight">Finalizar compra</h1>
       <FormularioCheckout
         inicial={usuario ? { nome: usuario.nome, email: usuario.email } : undefined}
-        pedirCpf={exigeCpfDoComprador()}
+        taxaCartaoPct={taxaCartaoPct()}
       />
     </div>
   );
