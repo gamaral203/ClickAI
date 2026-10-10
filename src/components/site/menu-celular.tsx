@@ -6,20 +6,24 @@ import { useEffect, useRef, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
+import { linkAtivo } from "@/lib/navegacao";
 import { comRetorno } from "@/lib/redirecionamento";
 
 /**
- * Menu do cabeçalho no celular: um botão que abre a lista de links (Eventos, painel, compras,
- * entrar/sair). Fecha ao trocar de página, ao tocar fora ou com Esc.
+ * Menu do cabeçalho no celular: um botão que abre a lista de links (os do site de compra ou os do
+ * painel, conforme `linksDoCabecalho`) e o Sair. Fecha ao trocar de página, ao tocar fora ou com Esc.
  */
 export function MenuCelular({
   itens,
   logado,
   nome,
+  esconderEm = "sm:hidden",
 }: {
   itens: { href: string; rotulo: string }[];
   logado: boolean;
   nome?: string;
+  /** A partir de qual tela o menu some (os links passam para o cabeçalho). */
+  esconderEm?: "sm:hidden" | "lg:hidden";
 }) {
   const caminho = usePathname();
   // Guarda em qual página o menu foi aberto: ao trocar de página, ele fecha sozinho.
@@ -42,7 +46,7 @@ export function MenuCelular({
   }, [aberto]);
 
   return (
-    <div ref={caixa} className="relative sm:hidden">
+    <div ref={caixa} className={`relative ${esconderEm}`}>
       <button
         type="button"
         onClick={() => setAbertoEm(aberto ? null : caminho)}
@@ -72,7 +76,7 @@ export function MenuCelular({
                       ? comRetorno(item.href, caminho)
                       : item.href
                   }
-                  aria-current={caminho === item.href ? "page" : undefined}
+                  aria-current={linkAtivo(caminho, item.href) ? "page" : undefined}
                   className="flex h-11 items-center rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary"
                 >
                   {item.rotulo}
