@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarPlus, ChartColumn, Images } from "lucide-react";
+import { Calendar, CalendarPlus, Camera, ChartColumn, Images, MapPin } from "lucide-react";
 
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { buttonVariants } from "@/components/ui/button";
@@ -47,57 +48,83 @@ async function Lista() {
   }
 
   return (
-    <ul className="flex flex-col divide-y rounded-xl border">
+    // Cartões com a capa, como numa vitrine: 1 por linha no celular, 2 no tablet, 3 no computador.
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {eventos.map((evento) => (
-        // No celular, uma coluna (título, dados, contagem e botão um embaixo do outro).
         <li
           key={evento.id}
-          className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4"
+          className="flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
         >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/painel/eventos/${evento.id}`}
+            aria-label={`Gerenciar ${evento.titulo}`}
+            className="relative block aspect-[3/2] bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            {evento.capaMiniatura ? (
+              <Image
+                src={evento.capaMiniatura.urlMiniatura}
+                alt=""
+                fill
+                sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+                className="object-cover"
+              />
+            ) : (
+              <span className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Camera aria-hidden="true" className="size-8" />
+                <span className="text-sm font-medium">
+                  {evento.processando > 0 ? "Processando as fotos…" : "Sem fotos ainda"}
+                </span>
+              </span>
+            )}
+            <span className="absolute top-3 left-3">
+              <StatusEventoSelo status={evento.status} />
+            </span>
+          </Link>
+          <div className="flex flex-1 flex-col gap-3 p-4">
+            <div className="flex flex-col gap-1.5">
               <Link
                 href={`/painel/eventos/${evento.id}`}
-                className="-my-2 py-2 font-semibold hover:underline"
+                className="text-lg leading-tight font-semibold hover:underline"
               >
                 {evento.titulo}
               </Link>
-              <StatusEventoSelo status={evento.status} />
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                <span className="truncate">
+                  {evento.local ? `${evento.local} · ` : ""}
+                  {evento.cidade}, {evento.estado}
+                </span>
+              </p>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar aria-hidden="true" className="size-4 shrink-0" />
+                {formatarPeriodo(evento.inicioEm, evento.fimEm)}
+              </p>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Images aria-hidden="true" className="size-4 shrink-0" />
+                {evento.totalItens} {evento.totalItens === 1 ? "foto" : "fotos"} · {evento.vendidos}{" "}
+                {evento.vendidos === 1 ? "vendida" : "vendidas"} · {evento.categoria.nome}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.cidade}, {evento.estado} ·{" "}
-              {evento.categoria.nome}
-            </p>
-          </div>
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Images aria-hidden="true" className="size-4" />
-            {evento.totalItens} {evento.totalItens === 1 ? "foto" : "fotos"} · {evento.vendidos}{" "}
-            {evento.vendidos === 1 ? "vendida" : "vendidas"}
-          </p>
-          {/* No celular, os dois botões dividem a linha (em 320 px, um embaixo do outro). */}
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/painel/eventos/${evento.id}/desempenho`}
-              aria-label={`Desempenho de ${evento.titulo}`}
-              className={buttonVariants({
-                variant: "outline",
-                size: "touch",
-                className: "flex-1 sm:flex-none",
-              })}
-            >
-              <ChartColumn aria-hidden="true" data-icon="inline-start" />
-              Desempenho
-            </Link>
-            <Link
-              href={`/painel/eventos/${evento.id}`}
-              className={buttonVariants({
-                variant: "outline",
-                size: "touch",
-                className: "flex-1 sm:flex-none",
-              })}
-            >
-              Gerenciar
-            </Link>
+            <div className="mt-auto flex flex-wrap gap-2">
+              <Link
+                href={`/painel/eventos/${evento.id}/desempenho`}
+                aria-label={`Desempenho de ${evento.titulo}`}
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "touch",
+                  className: "flex-1",
+                })}
+              >
+                <ChartColumn aria-hidden="true" data-icon="inline-start" />
+                Desempenho
+              </Link>
+              <Link
+                href={`/painel/eventos/${evento.id}`}
+                className={buttonVariants({ size: "touch", className: "min-w-[8.5rem] flex-1" })}
+              >
+                Gerenciar
+              </Link>
+            </div>
           </div>
         </li>
       ))}

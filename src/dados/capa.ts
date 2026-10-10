@@ -91,6 +91,54 @@ export async function capasDosEventos(
 }
 
 /**
+ * Capa de cada evento para a lista "Meus eventos" do dono. Mesma ordem da pública (escolhida,
+ * fotos antes de vídeos, sorteio fixo), mas sem exigir a liberação: o dono vê a capa do rascunho
+ * e do evento agendado. Evento sem foto pronta fica fora do mapa.
+ */
+export async function capasParaODono(eventoIds: string[]): Promise<Map<string, CapaDoEvento>> {
+  const mapa = new Map<string, CapaDoEvento>();
+  if (eventoIds.length === 0) return mapa;
+  const banco = await obterBanco();
+  const linhas = await banco
+    .selectDistinctOn([t.fotos.eventoId], {
+      eventoId: t.fotos.eventoId,
+      fotoId: t.fotos.id,
+      tipo: t.fotos.tipo,
+      escolhida: ehEscolhida,
+      urlMiniatura: t.fotos.urlMiniatura,
+      urlPrevia: t.fotos.urlPrevia,
+      largura: t.fotos.largura,
+      altura: t.fotos.altura,
+    })
+    .from(t.fotos)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .where(
+      and(
+        inArray(t.fotos.eventoId, eventoIds),
+        eq(t.fotos.status, "pronta"),
+        isNull(t.fotos.excluidaEm),
+      ),
+    )
+    .orderBy(
+      t.fotos.eventoId,
+      sql`${ehEscolhida} desc`,
+      sql`(${t.fotos.tipo} = 'foto') desc`,
+      sorteioFixo,
+    );
+  for (const l of linhas) {
+    mapa.set(l.eventoId, {
+      fotoId: l.fotoId,
+      escolhida: l.escolhida,
+      urlMiniatura: urlPublica(l.urlMiniatura),
+      urlPrevia: l.tipo === "foto" ? urlPublica(l.urlPrevia) : null,
+      largura: l.largura,
+      altura: l.altura,
+    });
+  }
+  return mapa;
+}
+
+/**
  * Fundo do material de divulgação (painel do dono): a escolhida, se pronta e não excluída;
  * senão a capa antiga gravada em `eventos.capa`; senão uma foto pronta pelo mesmo sorteio fixo,
  * preferindo as já liberadas. Devolve o que está gravado (chave do R2 da prévia com marca
