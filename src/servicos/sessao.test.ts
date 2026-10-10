@@ -18,7 +18,7 @@ import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco, schema } from "@/db";
 import { eq } from "drizzle-orm";
 
-import { contaDoPainel, podeUsarPainel } from "./sessao";
+import { contaDoPainel, inicioDoPapel, podeUsarPainel } from "./sessao";
 
 async function novoUsuario(papel: Papel, nome = "Gestora Teste") {
   return criarUsuario({
@@ -28,6 +28,14 @@ async function novoUsuario(papel: Papel, nome = "Gestora Teste") {
     papel,
   });
 }
+
+describe("inicioDoPapel (destino depois do login, sem ?proximo=)", () => {
+  it("cliente vai para as compras, fotógrafo para o painel e gestor para a gestão", () => {
+    expect(inicioDoPapel("cliente")).toBe("/minhas-compras");
+    expect(inicioDoPapel("fotografo")).toBe("/painel");
+    expect(inicioDoPapel("admin")).toBe("/admin");
+  });
+});
 
 describe("acesso ao painel de fotógrafo", () => {
   it("fotógrafo e gestor usam o painel; cliente não", () => {
