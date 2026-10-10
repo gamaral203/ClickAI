@@ -48,10 +48,12 @@ import { centavosParaCampo } from "@/lib/dinheiro";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
 import { estadoDaLiberacao, formatarAgendamento } from "@/lib/liberacao";
+import { pontoDoEvento } from "@/lib/mapa";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
 import { provedorFacial } from "@/lib/reconhecimento";
+import { configDoMapa } from "@/servicos/mapa";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -410,6 +412,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         <FormularioEvento
           eventoId={evento.id}
           categorias={categorias}
+          mapa={await configDoMapa()}
           inicial={{
             titulo: evento.titulo,
             categoriaId: evento.categoriaId,
@@ -418,6 +421,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             local: evento.local,
             cidade: evento.cidade,
             estado: evento.estado,
+            pontoNoMapa: pontoDoEvento(evento),
             precoFoto: centavosParaCampo(evento.precoFotoCentavos),
             precoVideo: centavosParaCampo(evento.precoVideoCentavos),
             visibilidade: evento.visibilidade,
