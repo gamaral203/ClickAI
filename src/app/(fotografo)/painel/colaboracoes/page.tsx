@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ExternalLink } from "lucide-react";
+import { ChartColumn, ExternalLink } from "lucide-react";
 
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { ResponderConvite } from "@/components/painel/responder-convite";
@@ -73,15 +73,26 @@ async function Conteudo() {
               {formatarData(c.evento.inicioEm)} · de {c.donoNome} · comissão do dono{" "}
               {c.comissaoDonoPct}% · {c.meusItens} {c.meusItens === 1 ? "foto sua" : "fotos suas"}
             </p>
-            {c.evento.status === "publicado" && (
-              <Link
-                href={`/eventos/${c.evento.slug}`}
-                className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-              >
-                Ver a página pública
-                <ExternalLink aria-hidden="true" className="size-4" />
-              </Link>
-            )}
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {c.evento.status === "publicado" && (
+                <Link
+                  href={`/eventos/${c.evento.slug}`}
+                  className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  Ver a página pública
+                  <ExternalLink aria-hidden="true" className="size-4" />
+                </Link>
+              )}
+              {c.aceitoEm && (
+                <Link
+                  href={`/painel/eventos/${c.evento.id}/desempenho`}
+                  className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  <ChartColumn aria-hidden="true" className="size-4" />
+                  Meu desempenho neste evento
+                </Link>
+              )}
+            </div>
           </div>
           {c.aceitoEm ? (
             <>

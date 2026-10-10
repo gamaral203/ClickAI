@@ -15,6 +15,7 @@ import {
   registrarDownload,
   registrarMetrica,
   relatorioDoEvento,
+  totaisDoEvento,
 } from "@/dados";
 // Os ids vêm dos dados de exemplo: são os mesmos que a semente grava no banco (PGlite).
 import { eventos, fotografos, fotos } from "@/dados/exemplo/dados";
@@ -145,6 +146,13 @@ describe("desempenho do evento", () => {
       porMetodo: dono.porMetodo,
     });
     expect(await relatorioDoEvento(ibirapuera.id, pedro.id)).toBeNull();
+
+    // O resumo do cabeçalho do evento é só do dono.
+    expect(await totaisDoEvento(ibirapuera.id, lia.id)).toEqual({
+      pedidos: dono.pedidos,
+      faturamentoCentavos: dono.faturamentoCentavos,
+    });
+    expect(await totaisDoEvento(ibirapuera.id, pedro.id)).toBeNull();
   });
 
   it("conta as visitas do evento e os downloads só dos itens do escopo", async () => {

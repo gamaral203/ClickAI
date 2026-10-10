@@ -2,7 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, CheckCircle2, ChevronDown, ExternalLink, FileText } from "lucide-react";
+import {
+  ArrowLeft,
+  ChartColumn,
+  CheckCircle2,
+  ChevronDown,
+  ExternalLink,
+  FileText,
+} from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
@@ -18,6 +25,7 @@ import { RostosDoEvento } from "@/components/painel/rostos-do-evento";
 import { TopCliques } from "@/components/painel/top-cliques";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
+import { buttonVariants } from "@/components/ui/button";
 import {
   buscarEventoDoFotografo,
   buscarPacoteDoEvento,
@@ -28,6 +36,7 @@ import {
   listarPastasDoPainel,
   situacaoDosRostos,
   topCliquesDoEvento,
+  totaisDoEvento,
 } from "@/dados";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
@@ -74,17 +83,27 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   const { criado, publicado, copiado } = await searchParams;
   const categorias = await listarCategorias();
   const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
-  const [itensDoPainel, faixasDoEvento, faixasPadrao, pacote, colaboradores, pastas, rostos, top] =
-    await Promise.all([
-      listarItensDoPainel(evento.id, conta.id),
-      listarFaixas(conta.id, evento.id),
-      listarFaixas(conta.id, null),
-      buscarPacoteDoEvento(evento.id, conta.id),
-      listarColaboradores(evento.id, conta.id),
-      listarPastasDoPainel(evento.id, conta.id),
-      situacaoDosRostos(evento.id),
-      topCliquesDoEvento(evento.id),
-    ]);
+  const [
+    itensDoPainel,
+    faixasDoEvento,
+    faixasPadrao,
+    pacote,
+    colaboradores,
+    pastas,
+    rostos,
+    top,
+    totais,
+  ] = await Promise.all([
+    listarItensDoPainel(evento.id, conta.id),
+    listarFaixas(conta.id, evento.id),
+    listarFaixas(conta.id, null),
+    buscarPacoteDoEvento(evento.id, conta.id),
+    listarColaboradores(evento.id, conta.id),
+    listarPastasDoPainel(evento.id, conta.id),
+    situacaoDosRostos(evento.id),
+    topCliquesDoEvento(evento.id),
+    totaisDoEvento(evento.id, conta.id),
+  ]);
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
     .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
@@ -136,7 +155,15 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             ` · liberação em ${formatarDataEHora(evento.liberadoEm)}`}
           {liberacaoManualPendente && " · fotos ainda não liberadas"}
         </p>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
+        {totais && totais.pedidos > 0 && (
+          <p className="text-sm">
+            <strong className="tabular-nums">{formatarPreco(totais.faturamentoCentavos)}</strong>{" "}
+            <span className="text-muted-foreground">
+              em {totais.pedidos} {totais.pedidos === 1 ? "pedido pago" : "pedidos pagos"}
+            </span>
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {evento.status === "publicado" && (
             <Link
               href={`/eventos/${evento.slug}`}
@@ -152,6 +179,13 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           >
             Relatório do evento (PDF)
             <FileText aria-hidden="true" className="size-4" />
+          </Link>
+          <Link
+            href={`/painel/eventos/${evento.id}/desempenho`}
+            className={buttonVariants({ variant: "outline", size: "touch" })}
+          >
+            <ChartColumn aria-hidden="true" data-icon="inline-start" />
+            Desempenho
           </Link>
         </div>
         <AcoesEvento

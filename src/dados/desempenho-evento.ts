@@ -191,6 +191,32 @@ export async function desempenhoDoEvento(
 }
 
 /**
+ * Total pago pelos clientes e pedidos pagos do evento inteiro, para o resumo no cabeçalho do
+ * evento. Só para o dono: `null` para qualquer outra pessoa.
+ */
+export async function totaisDoEvento(
+  eventoId: string,
+  fotografoId: string,
+): Promise<{ pedidos: number; faturamentoCentavos: number } | null> {
+  const banco = await obterBanco();
+  const [evento] = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
+  if (!evento) return null;
+  const [linha] = await banco
+    .select({
+      pedidos: sql<number>`count(distinct ${t.pedidos.id})::int`,
+      faturamento: sql<number>`coalesce(sum(${t.itensPedido.precoCentavos} - ${t.itensPedido.descontoCentavos}), 0)::int`,
+    })
+    .from(t.itensPedido)
+    .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
+    .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+    .where(and(eq(t.pedidos.status, "pago"), eq(t.fotos.eventoId, eventoId)));
+  return { pedidos: linha?.pedidos ?? 0, faturamentoCentavos: linha?.faturamento ?? 0 };
+}
+
+/**
  * Fração das fotos carregadas que já vendeu (0 a 1), ou `null` sem fotos carregadas. Fica em no
  * máximo 1: uma foto excluída depois da venda continua nas vendidas, mas sai das carregadas.
  */
