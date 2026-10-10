@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Search } from "lucide-react";
 
@@ -8,14 +9,23 @@ import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listarEventosPublicados, listarOpcoesFiltroEventos } from "@/dados";
+import { destinoDaVitrine } from "@/lib/navegacao";
 import { lerFiltroEventos } from "@/lib/validacao";
+import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
   title: "Eventos",
   description: "Encontre o evento em que você estava e veja as fotos.",
 };
 
-export default function PaginaEventos({ searchParams }: PageProps<"/eventos">) {
+// A página espera a sessão antes de qualquer conteúdo (para o redirecionamento sair como 307),
+// então bloqueia no servidor em vez de gerar uma casca instantânea.
+export const instant = false;
+
+export default async function PaginaEventos({ searchParams }: PageProps<"/eventos">) {
+  // A lista de eventos é a vitrine de quem compra: quem vende vai para os próprios eventos.
+  const destino = destinoDaVitrine(await usuarioAtual(), "/eventos");
+  if (destino) redirect(destino);
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
       <h1 className="text-3xl font-bold tracking-tight">Eventos</h1>

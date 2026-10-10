@@ -1,3 +1,7 @@
+import type { Papel } from "@/dados/tipos";
+
+import { inicioDoPapel } from "./navegacao";
+
 /**
  * Caminho interno seguro para onde voltar depois do login, ou o padrão. Recusa endereços de
  * outros sites ("https://…", "//site", "/\site"), para o parâmetro ?proximo= não virar um
@@ -12,9 +16,29 @@ export function comRetorno(href: "/entrar" | "/cadastro", caminho: string | null
   return `${href}?proximo=${encodeURIComponent(caminho)}`;
 }
 
-/** Destino depois de criar a conta: a tela principal (o painel, para fotógrafos) ou o ?proximo=. */
-export function destinoDoCadastro(proximo: unknown, papel: string) {
-  return caminhoSeguro(proximo, papel === "fotografo" ? "/painel" : "/");
+/**
+ * Destino depois de criar a conta: a tela principal (o painel, para fotógrafos; a gestão, para
+ * gestores) ou o ?proximo=.
+ */
+export function destinoDoCadastro(proximo: unknown, papel: Papel) {
+  return caminhoSeguro(proximo, papel === "cliente" ? "/" : inicioDoPapel(papel));
+}
+
+/**
+ * Quem já está logado e abre /entrar ou /cadastro: para onde vai, ou `null` para ficar na página.
+ * Vai ao ?proximo= seguro ou à área do papel (painel, gestão ou compras). O cliente fica no
+ * /cadastro, onde pode ativar a conta de fotógrafo. Um ?proximo= que aponta de volta para
+ * /entrar ou /cadastro vira a área do papel, para não entrar em laço.
+ */
+export function destinoDeQuemJaEntrou(
+  papel: Papel,
+  proximo: unknown,
+  tela: "entrar" | "cadastro",
+): string | null {
+  if (tela === "cadastro" && papel === "cliente") return null;
+  const padrao = inicioDoPapel(papel);
+  const destino = caminhoSeguro(proximo, padrao);
+  return /^\/(entrar|cadastro)(?:[/?#]|$)/.test(destino) ? padrao : destino;
 }
 
 export function caminhoSeguro(valor: unknown, padrao = "/minhas-compras") {

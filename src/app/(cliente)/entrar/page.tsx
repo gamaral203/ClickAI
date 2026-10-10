@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CheckCircle2 } from "lucide-react";
 
 import { BotaoGoogle, ERROS_GOOGLE } from "@/components/conta/botao-google";
 import { FormularioEntrar } from "@/components/conta/formularios";
 import { googleConfigurado } from "@/lib/google";
-import { caminhoSeguro } from "@/lib/redirecionamento";
+import { caminhoSeguro, destinoDeQuemJaEntrou } from "@/lib/redirecionamento";
+import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Entrar", robots: { index: false } };
 
@@ -14,7 +16,22 @@ const ERROS: Record<string, string> = {
     "Este e-mail já tem uma conta (por exemplo, criada com o Google). Entre com ela ou use outro e-mail.",
 };
 
-export default function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
+// A página espera a sessão antes de qualquer conteúdo (para o redirecionamento sair como 307),
+// então bloqueia no servidor em vez de gerar uma casca instantânea.
+export const instant = false;
+
+export default async function PaginaEntrar({ searchParams }: PageProps<"/entrar">) {
+  // Quem já entrou vai para a sua área (painel, gestão ou compras) ou para o ?proximo= seguro.
+  const usuario = await usuarioAtual();
+  if (usuario) {
+    const { proximo } = await searchParams;
+    const destino = destinoDeQuemJaEntrou(
+      usuario.papel,
+      Array.isArray(proximo) ? proximo[0] : proximo,
+      "entrar",
+    );
+    if (destino) redirect(destino);
+  }
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 px-4 py-12">
       <h1 className="text-2xl font-bold tracking-tight">Entrar</h1>

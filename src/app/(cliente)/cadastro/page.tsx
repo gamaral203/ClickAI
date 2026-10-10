@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { comecarAVenderAcao } from "@/app/(cliente)/conta/acoes";
@@ -7,12 +8,28 @@ import { BotaoGoogle } from "@/components/conta/botao-google";
 import { FormularioCadastro } from "@/components/conta/formularios";
 import { Button } from "@/components/ui/button";
 import { googleConfigurado } from "@/lib/google";
-import { caminhoSeguro } from "@/lib/redirecionamento";
+import { caminhoSeguro, destinoDeQuemJaEntrou } from "@/lib/redirecionamento";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Criar conta" };
 
-export default function PaginaCadastro({ searchParams }: PageProps<"/cadastro">) {
+// A página espera a sessão antes de qualquer conteúdo (para o redirecionamento sair como 307),
+// então bloqueia no servidor em vez de gerar uma casca instantânea.
+export const instant = false;
+
+export default async function PaginaCadastro({ searchParams }: PageProps<"/cadastro">) {
+  // Fotógrafo e gestor logados vão para a sua área (ou o ?proximo= seguro); o cliente fica, para
+  // poder ativar a conta de fotógrafo.
+  const usuario = await usuarioAtual();
+  if (usuario) {
+    const { proximo } = await searchParams;
+    const destino = destinoDeQuemJaEntrou(
+      usuario.papel,
+      Array.isArray(proximo) ? proximo[0] : proximo,
+      "cadastro",
+    );
+    if (destino) redirect(destino);
+  }
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-12">
       <h1 className="text-2xl font-bold tracking-tight">Criar conta</h1>
