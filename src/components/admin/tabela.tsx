@@ -83,7 +83,8 @@ export function Tabela({
             ))}
           </tr>
         </thead>
-        <tbody className="flex flex-col gap-3 md:table-row-group md:divide-y">
+        {/* No celular, os cartões são compactos: pouco espaço entre linhas e entre cartões. */}
+        <tbody className="flex flex-col gap-2 md:table-row-group md:divide-y">
           {linhas.map((linha) => {
             const tr = linha as ReactElement<{ children?: React.ReactNode; className?: string }>;
             let indice = 0;
@@ -103,7 +104,7 @@ export function Tabela({
               tr,
               {
                 className:
-                  "flex flex-col rounded-xl border p-3 md:table-row md:rounded-none md:border-0 md:p-0",
+                  "flex flex-col rounded-lg border px-3 py-2 md:table-row md:rounded-none md:border-0 md:p-0",
               },
               celulas,
             );
@@ -122,9 +123,9 @@ export function Celula({ children, direita, forte, rotulo, principal }: PropsCel
       className={[
         "md:table-cell md:px-4 md:py-3",
         principal
-          ? "pb-2 text-base md:text-sm"
-          : // No celular: "Rótulo ........ valor" numa linha só.
-            "flex items-baseline justify-between gap-4 py-1 before:shrink-0 before:text-muted-foreground before:content-[attr(data-rotulo)] md:before:content-none",
+          ? "pb-1 font-medium md:font-normal"
+          : // No celular: "Rótulo ........ valor" numa linha só, com o rótulo em cinza e menor.
+            "flex items-baseline justify-between gap-3 py-px before:shrink-0 before:text-xs before:text-muted-foreground before:content-[attr(data-rotulo)] md:before:content-none",
         // No celular o valor fica à direita do rótulo; no computador, só os valores em dinheiro.
         direita
           ? "text-right tabular-nums md:whitespace-nowrap"

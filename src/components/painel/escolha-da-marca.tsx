@@ -73,7 +73,7 @@ export function EscolhaDaMarca({ atual }: { atual: ModeloMarca }) {
         </p>
       )}
 
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" role="radiogroup">
+      <ul className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-3" role="radiogroup">
         {MODELOS_MARCA.map((modelo) => {
           const info = INFO_MODELOS_MARCA[modelo];
           const ativo = modelo === escolhido;
@@ -112,12 +112,12 @@ export function EscolhaDaMarca({ atual }: { atual: ModeloMarca }) {
                     )}
                   </motion.span>
                 )}
-                <span className="flex flex-col gap-2 p-4">
+                <span className="flex flex-col gap-1.5 p-3 sm:gap-2 sm:p-4">
                   <span className="flex items-baseline justify-between gap-2">
-                    <span className="font-semibold">{info.nome}</span>
+                    <span className="text-sm font-semibold sm:text-base">{info.nome}</span>
                     {ativo && <span className="text-xs font-medium text-primary">Em uso</span>}
                   </span>
-                  <span className="text-sm text-muted-foreground">{info.descricao}</span>
+                  <span className="text-xs text-muted-foreground sm:text-sm">{info.descricao}</span>
                   <Escala rotulo="Visibilidade" nota={info.visibilidade} cor="bg-sky-500" />
                   <Escala rotulo="Proteção" nota={info.protecao} cor="bg-rose-500" />
                 </span>

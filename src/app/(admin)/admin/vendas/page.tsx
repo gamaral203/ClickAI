@@ -9,7 +9,7 @@ import {
   type EstornoDoAdmin,
   type StatusPedido,
 } from "@/dados";
-import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { formatarDataCurta, formatarPreco } from "@/lib/formatar";
 import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Financeiro", robots: { index: false, follow: false } };
@@ -57,8 +57,8 @@ async function Conteudo() {
         {pedidos.map((p) => (
           <tr key={p.id}>
             <Celula>
-              <span className="flex flex-col whitespace-nowrap">
-                {formatarDataEHora(p.criadoEm)}
+              <span className="flex flex-col">
+                {formatarDataCurta(p.criadoEm)}
                 <span className="text-xs text-muted-foreground">
                   {p.itens} {p.itens === 1 ? "item" : "itens"}
                 </span>
@@ -72,19 +72,17 @@ async function Conteudo() {
             </Celula>
             <Celula>{p.fotografos.join(", ")}</Celula>
             <Celula>
-              <span className="flex flex-col whitespace-nowrap">
+              <span className="flex flex-col">
                 {p.metodo === "pix" ? "Pix" : "Cartão"}
-                {p.gatewayId && (
-                  <span className="font-mono text-xs text-muted-foreground">{p.gatewayId}</span>
-                )}
+                {p.gatewayId && <Codigo valor={p.gatewayId} />}
               </span>
             </Celula>
             <Celula>
-              <span className="flex flex-col whitespace-nowrap">
+              <span className="flex flex-col">
                 {STATUS[p.status]}
                 {p.pagoEm && (
                   <span className="text-xs text-muted-foreground">
-                    {formatarDataEHora(p.pagoEm)}
+                    {formatarDataCurta(p.pagoEm)}
                   </span>
                 )}
               </span>
@@ -95,7 +93,7 @@ async function Conteudo() {
             <Celula>
               {p.status === "pago" && p.reembolsoSolicitadoEm ? (
                 <span className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
-                  Reembolso pedido em {formatarDataEHora(p.reembolsoSolicitadoEm)}
+                  Reembolso pedido em {formatarDataCurta(p.reembolsoSolicitadoEm)}
                   <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
                 </span>
               ) : p.status === "pago" ? (
@@ -108,6 +106,15 @@ async function Conteudo() {
         ))}
       </Tabela>
     </>
+  );
+}
+
+/** Id da cobrança no gateway: curto na tela, inteiro ao passar o mouse (e dá para copiar). */
+function Codigo({ valor }: { valor: string }) {
+  return (
+    <span title={valor} className="max-w-[12ch] truncate font-mono text-xs text-muted-foreground">
+      {valor}
+    </span>
   );
 }
 
@@ -138,11 +145,9 @@ function Estornos({ estornos }: { estornos: EstornoDoAdmin[] }) {
         {estornos.map((e) => (
           <tr key={e.id}>
             <Celula>
-              <span className="flex flex-col whitespace-nowrap">
+              <span className="flex flex-col">
                 {e.metodo === "pix" ? "Pix" : "Cartão"}
-                {e.gatewayId && (
-                  <span className="font-mono text-xs text-muted-foreground">{e.gatewayId}</span>
-                )}
+                {e.gatewayId && <Codigo valor={e.gatewayId} />}
               </span>
             </Celula>
             <Celula>
@@ -162,13 +167,13 @@ function Estornos({ estornos }: { estornos: EstornoDoAdmin[] }) {
               </span>
             </Celula>
             <Celula>
-              <span className="flex flex-col text-xs whitespace-nowrap text-muted-foreground">
-                {e.pagoEm && <span>Pago em {formatarDataEHora(e.pagoEm)}</span>}
+              <span className="flex flex-col text-xs text-muted-foreground">
+                {e.pagoEm && <span>Pago {formatarDataCurta(e.pagoEm)}</span>}
                 {e.reembolsoSolicitadoEm && (
-                  <span>Reembolso pedido em {formatarDataEHora(e.reembolsoSolicitadoEm)}</span>
+                  <span>Pedido {formatarDataCurta(e.reembolsoSolicitadoEm)}</span>
                 )}
-                {e.contestadoEm && <span>Contestado em {formatarDataEHora(e.contestadoEm)}</span>}
-                {e.estornadoEm && <span>Estornado em {formatarDataEHora(e.estornadoEm)}</span>}
+                {e.contestadoEm && <span>Contestado {formatarDataCurta(e.contestadoEm)}</span>}
+                {e.estornadoEm && <span>Estornado {formatarDataCurta(e.estornadoEm)}</span>}
               </span>
             </Celula>
             <Celula direita forte>

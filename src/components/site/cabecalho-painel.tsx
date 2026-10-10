@@ -2,10 +2,12 @@ import { Suspense } from "react";
 import { LogOut } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
+import { BotaoAprenda } from "@/components/suporte/botao-aprenda";
 import { BotaoSugestao } from "@/components/suporte/botao-sugestao";
 import type { Usuario } from "@/dados/tipos";
 import type { Navegacao } from "@/lib/navegacao";
 
+import { BotaoTema } from "./botao-tema";
 import { MenuCelular } from "./menu-celular";
 import { MetaDoCabecalho } from "./meta-do-cabecalho";
 import { AtalhosDoPainel, LogoDoPainel } from "./nav-painel";
@@ -30,8 +32,9 @@ export function CabecalhoPainel({
   return (
     <header className="border-b bg-background print:hidden">
       <div aria-hidden="true" className="h-1 bg-linear-to-r from-primary from-55% to-highlight" />
-      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-4 px-4">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-3 px-4">
+        {/* O logo nunca encolhe: se faltar espaço, é o lado direito que aperta. */}
+        <div className="flex shrink-0 items-center gap-3">
           <LogoDoPainel papel={usuario.papel} />
           {/* No computador, os atalhos já dizem onde a pessoa está: o rótulo dá lugar a eles. */}
           <span className="hidden border-l pl-3 text-xs font-semibold tracking-wider whitespace-nowrap text-muted-foreground uppercase sm:inline lg:hidden">
@@ -44,6 +47,8 @@ export function CabecalhoPainel({
         </nav>
 
         <div className="flex items-center gap-1">
+          <BotaoAprenda />
+          <BotaoTema />
           <BotaoSugestao />
           {/* Em tela larga, quem tem conta de fotógrafo (o gestor que também vende, inclusive) vê o
               cartão da meta com a foto ou o avatar no lugar do nome (entre lg e xl, o avatar e o

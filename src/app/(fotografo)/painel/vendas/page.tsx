@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Clock, Hourglass, Wallet } from "lucide-react";
+import { ChevronDown, Clock, Hourglass, Send, Wallet } from "lucide-react";
 
-import { Celula, Tabela } from "@/components/admin/tabela";
+import { Celula, mascararDocumento, Tabela } from "@/components/admin/tabela";
+import { ListaTransferencias } from "@/components/painel/lista-transferencias";
 import { BotoesSaque } from "@/components/painel/botoes-saque";
 import type { Saque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
@@ -30,10 +31,10 @@ export default function PaginaVendas() {
   );
 }
 
-const STATUS_SAQUE: Record<Saque["status"], string> = {
-  processando: "Processando",
-  pago: "Pago",
-  falhou: "Não realizado",
+const SITUACAO_SAQUE: Record<Saque["status"], string> = {
+  processando: "Aguardando o Pix da equipe",
+  pago: "Transferência efetuada",
+  falhou: "Não realizada: o valor voltou ao saldo",
 };
 
 function CartaoSaldo({
@@ -41,20 +42,28 @@ function CartaoSaldo({
   titulo,
   valor,
   texto,
+  destaque = false,
 }: {
   icone: React.ReactNode;
   titulo: string;
   valor: number;
   texto: string;
+  /** Saque pedido e ainda não pago: o cartão fica em evidência. */
+  destaque?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border p-5">
-      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+    // No celular os cartões ficam dois por linha: menos espaço e número menor.
+    <div
+      className={`flex min-w-0 flex-col gap-0.5 rounded-xl border p-3 sm:gap-1 sm:p-5 ${
+        destaque ? "border-primary/40 bg-accent/50" : ""
+      }`}
+    >
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground sm:gap-2 sm:text-sm">
         {icone}
         {titulo}
       </span>
-      <span className="text-3xl font-bold tabular-nums">{formatarPreco(valor)}</span>
-      <span className="text-sm text-muted-foreground">{texto}</span>
+      <span className="text-xl font-bold tabular-nums sm:text-3xl">{formatarPreco(valor)}</span>
+      <span className="text-xs text-muted-foreground sm:text-sm">{texto}</span>
     </div>
   );
 }
@@ -65,6 +74,10 @@ async function Conteudo() {
     await situacaoFinanceira(conta, usuario);
   const temChave = chavePixValida(conta);
   const emAndamento = saques.some((s) => s.status === "processando");
+  // O que já foi pedido e ainda não caiu: sai dos saldos acima e aparece aqui até a equipe pagar.
+  const solicitadoCentavos = saques
+    .filter((s) => s.status === "processando")
+    .reduce((total, s) => total + s.liquidoCentavos, 0);
 
   return (
     <>
@@ -77,7 +90,8 @@ async function Conteudo() {
           SAQUE_SEM_PRAZO_EMAILS depois do teste.
         </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* No celular, 2 por linha; no computador, os 4 lado a lado. */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <CartaoSaldo
           icone={<Wallet aria-hidden="true" className="size-4" />}
           titulo="Disponível"
@@ -96,13 +110,31 @@ async function Conteudo() {
           valor={saldo.aLiberarCentavos}
           texto="Vendas de hoje: liberam amanhã."
         />
+        <CartaoSaldo
+          icone={<Send aria-hidden="true" className="size-4" />}
+          titulo="Saque solicitado"
+          valor={solicitadoCentavos}
+          texto={
+            solicitadoCentavos > 0
+              ? "Aguardando o Pix da equipe (até 1 dia)."
+              : "Nenhum saque em andamento."
+          }
+          destaque={solicitadoCentavos > 0}
+        />
       </div>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold">Sacar</h2>
-        <div className="flex flex-col gap-1.5 rounded-xl border border-primary/20 bg-accent/60 p-4 text-sm text-accent-foreground">
-          <p className="font-semibold">Como funciona o saque</p>
-          <ul className="list-disc space-y-1 pl-5">
+        {/* Fechado por padrão: quem já sabe não precisa ler de novo a cada visita. */}
+        <details className="group rounded-xl border border-primary/20 bg-accent/60 text-sm text-accent-foreground">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 font-semibold [&::-webkit-details-marker]:hidden">
+            Como funciona o saque
+            <ChevronDown
+              aria-hidden="true"
+              className="size-4 transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <ul className="list-disc space-y-1 px-4 pb-3 pl-9">
             <li>
               <strong>Saque normal:</strong> cada venda fica disponível <strong>30 dias</strong>{" "}
               depois de paga, com taxa de <strong>{conta.comissaoPct}%</strong>.
@@ -117,7 +149,7 @@ async function Conteudo() {
               <strong>1 dia</strong> e você recebe um aviso.
             </li>
           </ul>
-        </div>
+        </details>
         {temChave ? (
           <p className="text-sm text-muted-foreground">
             O Pix vai para a sua chave {formatarCpfCnpj(conta.chavePix ?? "")}. Os valores abaixo
@@ -160,31 +192,21 @@ async function Conteudo() {
       {saques.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold">Saques</h2>
-          <Tabela
-            colunas={[
-              { rotulo: "Pedido em" },
-              { rotulo: "Tipo" },
-              { rotulo: "Status" },
-              { rotulo: "Bruto", direita: true },
-              { rotulo: "Taxas", direita: true },
-              { rotulo: "Recebido", direita: true },
-            ]}
-          >
-            {saques.map((s) => (
-              <tr key={s.id}>
-                <Celula>
-                  <span className="whitespace-nowrap">{formatarDataEHora(s.criadoEm)}</span>
-                </Celula>
-                <Celula>{s.antecipado ? "Antecipado" : "Normal"}</Celula>
-                <Celula>{STATUS_SAQUE[s.status]}</Celula>
-                <Celula direita>{formatarPreco(s.brutoCentavos)}</Celula>
-                <Celula direita>− {formatarPreco(s.taxaCentavos)}</Celula>
-                <Celula direita forte>
-                  {formatarPreco(s.liquidoCentavos)}
-                </Celula>
-              </tr>
-            ))}
-          </Tabela>
+          <ListaTransferencias
+            itens={saques.map((s) => ({
+              id: s.id,
+              situacao: SITUACAO_SAQUE[s.status],
+              pendente: s.status === "processando",
+              quandoIso: s.pagoEm ?? s.criadoEm,
+              valorCentavos: s.liquidoCentavos,
+              detalhes: [
+                `Pix para ${mascararDocumento(s.chavePix)}`,
+                s.antecipado ? "antecipado" : "normal",
+                `bruto ${formatarPreco(s.brutoCentavos)}`,
+                `taxa ${formatarPreco(s.taxaCentavos)}`,
+              ],
+            }))}
+          />
         </section>
       )}
 
@@ -241,13 +263,18 @@ async function Conteudo() {
             })}
           </Tabela>
         )}
-        <p className="text-sm text-muted-foreground">
-          Cada linha é um item vendido: o que o cliente pagou, a sua parte (todo o valor, ou a sua
-          comissão quando a foto é de um colaborador no seu evento), a taxa da plataforma e o que
-          você recebe no saque normal. No saque antecipado, o que ainda não tem 30 dias paga{" "}
-          {TAXA_ANTECIPACAO_PCT}% a mais. Nas vendas no cartão, metade da taxa do cartão já sai da
-          sua parte (a outra metade o cliente paga).
-        </p>
+        <details className="text-sm text-muted-foreground">
+          <summary className="cursor-pointer font-medium hover:text-foreground">
+            Entenda as colunas
+          </summary>
+          <p className="mt-1">
+            Cada linha é um item vendido: o que o cliente pagou, a sua parte (todo o valor, ou a sua
+            comissão quando a foto é de um colaborador no seu evento), a taxa da plataforma e o que
+            você recebe no saque normal. No saque antecipado, o que ainda não tem 30 dias paga{" "}
+            {TAXA_ANTECIPACAO_PCT}% a mais. Nas vendas no cartão, metade da taxa do cartão já sai da
+            sua parte (a outra metade o cliente paga).
+          </p>
+        </details>
       </section>
     </>
   );
