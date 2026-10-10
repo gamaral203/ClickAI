@@ -173,17 +173,16 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Fotos presas em `processando` depois do envio (10/10/2026): o envio terminava muito antes do processamento (~300 fotos enviadas por minuto contra ~100 processadas, 6 de cada vez pelo navegador) e, ao fechar a página, a fila ficava para o job de revisão, que esperava 30 minutos, revisava 30 fotos por vez e, na prática, rodava a cada 2 a 5 horas (1.314 fotos presas em produção). Agora a tela entrega ao servidor as fotos que já subiram quando os uploads terminam (e por `sendBeacon` ao fechar a página), a rota as processa depois da resposta (`after`), cada foto é reservada num UPDATE atômico antes de processar (sem processar duas vezes) e o job pega fotos paradas há 5 minutos, centenas por execução, sem marcar erro em arquivo que ainda pode estar subindo
 - [x] Processamento mais rápido: resposta de cada foto sem esperar o Rekognition (rostos depois da resposta, com `after`), coleção do evento criada uma vez por instância (uma ida a menos à AWS por foto), prévia, miniatura e cópia do original gravadas no R2 ao mesmo tempo e 10 processamentos simultâneos (eram 6). Medido local com latência simulada de R2 e AWS: resposta mediana de 2,2 s para 1,4 s e de 166 para 355 fotos por minuto
 - [x] Círculo de progresso no envio de fotos (10/10/2026): arco azul que se preenche com a porcentagem no meio e "12 de 32 fotos" embaixo, chegando a 100% só quando as fotos estão prontas (70% do peso de cada foto é a subida ao R2, pelos bytes, e 30% ficar pronta; as entregues ao servidor são acompanhadas por `situacaoDoEnvioAcao`, só leitura e só das fotos de quem enviou); no fim, check e "N fotos prontas" ou "N prontas · M com erro" com a lista e o "Tentar de novo", e volta sozinho para a área de escolher fotos. Sem o texto de formato e tamanho na área de arrastar e sem "processando" na tela de envio e na grade do painel (a foto ainda não pronta aparece esmaecida, sem rótulo). Cálculo em `src/lib/progresso-envio.ts`, com testes
+- [x] Resend configurado e funcionando em produção: domínio `clicouai.com` verificado, `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel (código do cadastro, "Esqueci a senha" e e-mails de pedido)
+- [x] Correção: a caixa "Ambiente de exemplo" com as contas `@exemplo.com` e a senha `clicouai123` aparecia em `/entrar` na produção (era fixa, sem condição). Agora ela, o Pix e o pagamento de exemplo da página do pedido só aparecem no banco de exemplo (PGlite, sem `DATABASE_URL`) e nunca com `VERCEL_ENV=production` (`mostrarDadosDeExemplo`, `src/lib/dados-de-exemplo.ts`); a semente só cria contas com a senha pública no PGlite, nunca pelo `db:migrar` (que pode rodar da máquina local contra o banco de produção, sem `VERCEL_ENV`). Conferido no banco de produção (10/10/2026): nenhuma conta `@exemplo.com` e nenhuma conta com a senha `clicouai123` `[R-alta]`
 
 ## Em andamento
 
-- [ ] **E-mail do domínio `clicouai.com`** (o domínio já foi comprado; ver **Concluído**). Falta:
-  - verificar `clicouai.com` no Resend (região São Paulo, registros DNS na Vercel) e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel; sem isso não há envio de e-mail em produção (e o cadastro com senha não funciona: a conta só nasce com o código enviado por e-mail);
-  - a caixa do encarregado de dados e o `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14).
-  - Teste local sem domínio: `EMAIL_REMETENTE=ClicouAí <onboarding@resend.dev>` só entrega ao e-mail da conta do Resend; não usar em produção.
+- [ ] **E-mail do encarregado de dados** em `clicouai.com`: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14). O Resend já está configurado e funcionando (ver **Concluído**).
 - [ ] **Colocar a produção em uso real** (`clickai-hazel.vercel.app`). O banco e o deploy já estão no ar; falta conferir e configurar:
   1. Conferir no site o login de um gestor e uma compra com Pix paga. A página do pedido Pix já foi conferida por mais de 10 segundos (ver **Concluído**).
   2. Cadastrar e confirmar o webhook do Mercado Pago ([deploy.md](deploy.md), item 6; o prazo de liberação do cartão fica na Fase 13).
-  3. Resend e e-mail do encarregado: dependem de verificar o domínio no Resend (primeiro item desta seção).
+  3. ~~Resend~~: feito (domínio verificado, `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel). Falta só o e-mail do encarregado (primeiro item desta seção).
   4. Google OAuth: cadastrar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
   5. Sentry: cadastrar `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN`.
   6. ~~Testar a busca por selfie com fotos reais~~: feito em 09/10/2026 (ver **Concluído**).
@@ -296,7 +295,6 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Primeiro saque real de R$ 1,00 em produção para validar `[R-alta]`
 - [ ] Conferir no Mercado Pago o prazo de liberação do dinheiro do cartão (afeta o saque antecipado); o cadastro do webhook está em **Em andamento**
 - [x] E-mails pelo Resend: confirmação de conta, entrega com o link de downloads, lembrete do Pix e aviso de venda ao fotógrafo
-- [ ] Verificar o domínio no Resend e cadastrar `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel: o domínio `clicouai.com` já existe; falta só verificá-lo no Resend (ver **Em andamento**)
 - [ ] Entrega por WhatsApp e lembrete de carrinho abandonado pela API real (hoje simulados em `src/servicos/mensagens.ts`)
 - [ ] Convite de colaborador por e-mail para quem ainda não tem conta
 - [ ] Aviso de lote liberado por WhatsApp e a quem segue o evento (não há seguidores de evento nem WhatsApp para fotógrafos; hoje só o e-mail ao dono e aos colaboradores)

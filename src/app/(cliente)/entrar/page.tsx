@@ -5,6 +5,7 @@ import { CheckCircle2 } from "lucide-react";
 
 import { BotaoGoogle, ERROS_GOOGLE } from "@/components/conta/botao-google";
 import { FormularioEntrar } from "@/components/conta/formularios";
+import { mostrarDadosDeExemplo } from "@/lib/dados-de-exemplo";
 import { googleConfigurado } from "@/lib/google";
 import { caminhoSeguro, destinoDeQuemJaEntrou } from "@/lib/redirecionamento";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -38,11 +39,14 @@ export default async function PaginaEntrar({ searchParams }: PageProps<"/entrar"
       <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-muted" />}>
         <Formulario searchParams={searchParams} />
       </Suspense>
-      <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-        Ambiente de exemplo: entre com <strong>ana@exemplo.com</strong> (cliente),{" "}
-        <strong>lia@exemplo.com</strong> (fotógrafa) ou <strong>admin@exemplo.com</strong> (gestão),
-        senha <strong>clicouai123</strong>.
-      </p>
+      {/* Só no banco de exemplo (PGlite), nunca na produção: lá essas contas não existem. */}
+      {mostrarDadosDeExemplo() && (
+        <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+          Ambiente de exemplo: entre com <strong>ana@exemplo.com</strong> (cliente),{" "}
+          <strong>lia@exemplo.com</strong> (fotógrafa) ou <strong>admin@exemplo.com</strong>{" "}
+          (gestão), senha <strong>clicouai123</strong>.
+        </p>
+      )}
     </div>
   );
 }

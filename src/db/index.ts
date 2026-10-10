@@ -35,7 +35,8 @@ async function conectarPglite(): Promise<Banco> {
   await migrate(banco, { migrationsFolder: PASTA_MIGRACOES });
   // Os dois drivers são o mesmo Postgres pelo Drizzle; o tipo do node-postgres serve para os dois.
   const comoPostgres = banco as unknown as Banco;
-  await semear(comoPostgres);
+  // Só aqui, no banco de exemplo, as contas de exemplo ganham a senha pública.
+  await semear(comoPostgres, { contasComSenha: true });
   return comoPostgres;
 }
 
