@@ -142,7 +142,8 @@ export async function criarPedido(
     clienteId: comprador.clienteId,
     emailComprador: comprador.email,
     nomeComprador: comprador.nome,
-    whatsapp: comprador.aceitaWhatsapp ? comprador.whatsapp : null,
+    // O número fica no pedido (contato); mensagens só com o aceite, que hoje o checkout não pede.
+    whatsapp: comprador.whatsapp,
     aceitaWhatsapp: comprador.aceitaWhatsapp && comprador.whatsapp !== null,
     cupomId: descontos.cupom.situacao === "aplicado" ? descontos.cupom.cupomId : null,
     subtotalCentavos: subtotal,

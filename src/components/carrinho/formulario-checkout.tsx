@@ -94,7 +94,8 @@ export function FormularioCheckout({
           nome: String(formulario.get("nome") ?? ""),
           email: String(formulario.get("email") ?? ""),
           whatsapp: String(formulario.get("whatsapp") ?? ""),
-          aceitaWhatsapp: formulario.get("aceitaWhatsapp") === "on",
+          // Por enquanto o link não vai por WhatsApp: o número fica só para contato.
+          aceitaWhatsapp: false,
           metodo: formulario.get("metodo"),
           // Só manda o cupom que o servidor aceitou no resumo; o pedido confere de novo.
           opcoes: { pacotes: tokensPacote, cupom: cupomAplicado },
@@ -165,7 +166,7 @@ export function FormularioCheckout({
           <Campo
             id="whatsapp"
             rotulo="WhatsApp (opcional)"
-            ajuda="Com DDD. Só enviamos o link das fotos se você marcar a opção abaixo."
+            ajuda="Com DDD. Só para a gente falar com você sobre o pedido, se precisar."
             erro={erros.whatsapp}
           >
             <Input
@@ -181,14 +182,6 @@ export function FormularioCheckout({
               className="h-11"
             />
           </Campo>
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              name="aceitaWhatsapp"
-              className="mt-0.5 size-5 shrink-0 accent-primary"
-            />
-            Quero receber o link das fotos também pelo WhatsApp.
-          </label>
         </fieldset>
 
         <fieldset className="flex flex-col gap-3">
