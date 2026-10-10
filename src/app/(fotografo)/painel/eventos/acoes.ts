@@ -21,6 +21,7 @@ import {
   mudarStatusDoEvento,
   registrarHashes,
   salvarModeloDoEvento,
+  situacaoDasFotos,
   slugDeEventoEmUso,
   type DadosDoEvento,
 } from "@/dados";
@@ -342,6 +343,37 @@ export async function iniciarEnvioAcao(
     return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
   }
   return iniciarEnvio(conta.id, eventoId, lista, liberacao);
+}
+
+/** Fotos por consulta da situação do envio (a tela divide as que acompanha). */
+const FOTOS_POR_CONSULTA = 500;
+const idsDasFotos = z.array(z.uuid()).min(1).max(FOTOS_POR_CONSULTA);
+
+export type SituacaoDaFotoEnviada = {
+  id: string;
+  status: "processando" | "pronta" | "erro";
+  erro: string | null;
+};
+
+/**
+ * Situação das fotos que a tela de envio entregou ao servidor (src/components/painel/
+ * envio-fotos.tsx), para o círculo de progresso só chegar a 100% quando elas estiverem prontas.
+ * Só leitura, e só das fotos enviadas por quem está logado.
+ */
+export async function situacaoDoEnvioAcao(
+  lista: unknown,
+): Promise<{ erro: string } | { fotos: SituacaoDaFotoEnviada[] }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  const ids = idsDasFotos.safeParse(lista);
+  if (!ids.success) return { erro: "Pedido inválido." };
+  const linhas = await situacaoDasFotos(ids.data, conta.id);
+  return {
+    fotos: linhas.map((f) => ({
+      id: f.id,
+      status: f.status,
+      erro: f.status === "erro" ? f.erroMensagem : null,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------- Reaproveitar configuração

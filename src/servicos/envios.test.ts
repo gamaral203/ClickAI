@@ -36,7 +36,7 @@ vi.mock("@/servicos/sessao", () => ({
   contaDoPainel: async () => ({ id: sessao.fotografoId }),
 }));
 
-import { enviarFotosAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import { enviarFotosAcao, situacaoDoEnvioAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { POST as partesRota } from "@/app/api/envios/partes/route";
 import { POST as processarRota } from "@/app/api/envios/processar/route";
 import { adicionarItensSimulados, listarItensDoPainel, reservarFotoParaProcessar } from "@/dados";
@@ -1122,5 +1122,40 @@ describe("rota do envio em partes (/api/envios/partes)", () => {
       }),
     );
     expect(concluir.status).toBe(409);
+  });
+});
+
+describe("situação das fotos entregues ao servidor (situacaoDoEnvioAcao)", () => {
+  it("devolve só as fotos de quem enviou, com a mensagem do erro, e recusa pedido inválido", async () => {
+    const [pronta, comErro] = (await adicionarItensSimulados(evento.id, lia.id, [
+      { nome: "IMG_SITUACAO_1.jpg", tamanhoBytes: 1000 },
+      { nome: "IMG_SITUACAO_2.jpg", tamanhoBytes: 1000 },
+    ]))!;
+    const banco = await obterBanco();
+    await banco
+      .update(t.fotos)
+      .set({ status: "erro", erroMensagem: "O arquivo não chegou." })
+      .where(eq(t.fotos.id, comErro.id));
+
+    sessao.fotografoId = lia.id;
+    const resposta = await situacaoDoEnvioAcao([pronta.id, comErro.id]);
+    expect(
+      "fotos" in resposta && [...resposta.fotos].sort((a, b) => (a.id < b.id ? -1 : 1)),
+    ).toEqual(
+      [
+        { id: pronta.id, status: "pronta", erro: null },
+        { id: comErro.id, status: "erro", erro: "O arquivo não chegou." },
+      ].sort((a, b) => (a.id < b.id ? -1 : 1)),
+    );
+
+    // Outro fotógrafo não vê a situação das fotos da Lia.
+    sessao.fotografoId = pedro.id;
+    expect(await situacaoDoEnvioAcao([pronta.id])).toEqual({ fotos: [] });
+
+    expect(await situacaoDoEnvioAcao([])).toEqual({ erro: "Pedido inválido." });
+    expect(await situacaoDoEnvioAcao(["nao-e-um-id"])).toEqual({ erro: "Pedido inválido." });
+    expect(await situacaoDoEnvioAcao(Array.from({ length: 501 }, () => pronta.id))).toEqual({
+      erro: "Pedido inválido.",
+    });
   });
 });
