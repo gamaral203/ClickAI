@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowRight, CreditCard, Images, Search } from "lucide-react";
 
@@ -8,6 +9,8 @@ import { TopDaSemana } from "@/components/site/top-da-semana";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { listarEventosPublicados, vendasDaSemanaPorEvento } from "@/dados";
+import { destinoDaVitrine } from "@/lib/navegacao";
+import { usuarioAtual } from "@/servicos/sessao";
 
 /** Quantos eventos aparecem na página inicial; o resto fica em /eventos. */
 const EVENTOS_NA_INICIAL = 9;
@@ -64,7 +67,14 @@ const passos = [
   },
 ];
 
-export default function Home() {
+// A página espera a sessão antes de qualquer conteúdo (para o redirecionamento sair como 307),
+// então bloqueia no servidor em vez de gerar uma casca instantânea.
+export const instant = false;
+
+export default async function Home() {
+  // A vitrine é de quem compra: fotógrafo e gestor logados vão para o painel (ou a gestão).
+  const destino = destinoDaVitrine(await usuarioAtual(), "/");
+  if (destino) redirect(destino);
   return (
     <>
       <CarrosselInicio slides={slides}>

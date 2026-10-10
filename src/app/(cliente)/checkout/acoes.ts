@@ -5,6 +5,7 @@ import { z } from "zod";
 import { opcoesCompra } from "@/app/(cliente)/carrinho/validacao";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import { exigeCpfDoComprador, gatewayConfigurado } from "@/lib/gateway";
+import { podeComprar } from "@/lib/navegacao";
 import { limiteDoIpAtingido } from "@/servicos/limites";
 import { iniciarCobrancaPix } from "@/servicos/pagamentos";
 import { criarPedido } from "@/servicos/pedidos";
@@ -38,7 +39,17 @@ export type ResultadoCheckout =
   | { ok: true; url: string }
   | { ok: false; erros: Partial<Record<CampoCheckout, string>>; mensagem?: string };
 
+/** Conta de fotógrafo ou de gestor não compra: para comprar, a pessoa sai da conta. */
+const MENSAGEM_CONTA_SEM_COMPRA =
+  "Conta de fotógrafo não compra fotos. Para comprar, saia da sua conta (ou use uma conta de cliente).";
+
 export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout> {
+  // A regra vale no servidor: o botão some para quem vende, mas a ação é pública.
+  const usuario = await usuarioAtual();
+  if (!podeComprar(usuario)) {
+    return { ok: false, erros: {}, mensagem: MENSAGEM_CONTA_SEM_COMPRA };
+  }
+
   const validacao = entrada.safeParse(dados);
   if (!validacao.success) {
     const erros: Partial<Record<CampoCheckout, string>> = {};
@@ -74,7 +85,6 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
   }
 
   // Cliente logado: o pedido fica na conta dele (Minhas compras), além do link com token.
-  const usuario = await usuarioAtual();
   const resultado = await criarPedido(
     ids,
     {
@@ -96,6 +106,7 @@ export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout
       itens_indisponiveis:
         "Algum item do carrinho não está mais à venda. Volte ao carrinho e confira.",
       pacote_recusado: "Um pacote do carrinho não vale mais. Volte ao carrinho e confira o total.",
+      conta_sem_compra: MENSAGEM_CONTA_SEM_COMPRA,
     } as const;
     return { ok: false, erros: {}, mensagem: mensagens[resultado.motivo] };
   }
