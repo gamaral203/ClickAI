@@ -1461,6 +1461,7 @@ export * from "./crescimento";
 export * from "./rostos";
 export * from "./notificacoes";
 export * from "./relatorio";
+export * from "./desempenho-evento";
 export * from "./estornos";
 export * from "./exclusao";
 export * from "./mfa";

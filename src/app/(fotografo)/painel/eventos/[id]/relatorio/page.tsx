@@ -53,7 +53,6 @@ async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/relatorio">)
   const relatorio = ehIdValido(id) ? await relatorioDoEvento(id, conta.id) : null;
   if (!relatorio) notFound();
   const { evento } = relatorio;
-  const ticket = relatorio.pedidos ? relatorio.faturamentoCentavos / relatorio.pedidos : 0;
 
   return (
     <article className="flex flex-col gap-8">
@@ -95,7 +94,7 @@ async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/relatorio">)
           />
           <Numero
             rotulo="Ticket médio"
-            valor={formatarPreco(Math.round(ticket))}
+            valor={formatarPreco(relatorio.ticketMedioCentavos)}
             detalhe={`${relatorio.itensVendidos} itens vendidos`}
           />
         </div>
