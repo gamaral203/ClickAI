@@ -26,7 +26,7 @@ import {
   vendasPorDiaDoFotografo,
 } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarPreco } from "@/lib/formatar";
+import { formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { situacaoDasMetas } from "@/lib/metas";
 import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
 import { situacaoFinanceira } from "@/servicos/saques";
@@ -41,11 +41,6 @@ export default function PaginaPainel() {
     </Suspense>
   );
 }
-
-const porcentagem = new Intl.NumberFormat("pt-BR", {
-  style: "percent",
-  maximumFractionDigits: 1,
-});
 
 function plural(n: number, um: string, varios: string) {
   return `${n} ${n === 1 ? um : varios}`;
@@ -170,7 +165,7 @@ async function Conteudo() {
           <CartaoNumero
             icone={<Percent aria-hidden="true" className="size-4" />}
             titulo="Conversão"
-            valor={painel.conversao === null ? "—" : porcentagem.format(painel.conversao)}
+            valor={formatarPorcentagem(painel.conversao)}
             texto={`${plural(painel.pedidos30d, "pedido", "pedidos")} em ${plural(painel.visitas30d, "visita", "visitas")} (30 dias)`}
           />
         </div>

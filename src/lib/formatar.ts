@@ -31,3 +31,10 @@ export function formatarData(iso: string) {
 export function formatarDataEHora(iso: string) {
   return dataEHora.format(new Date(iso)).replace(",", " às");
 }
+
+const porcentagem = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
+
+/** 0.125 → "12,5%". `null` (sem base para calcular, como conversão sem visitas) vira "—". */
+export function formatarPorcentagem(fracao: number | null) {
+  return fracao === null ? "—" : porcentagem.format(fracao);
+}

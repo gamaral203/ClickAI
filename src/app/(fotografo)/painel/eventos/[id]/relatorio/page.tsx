@@ -7,7 +7,12 @@ import { ArrowLeft } from "lucide-react";
 
 import { BotaoImprimir } from "@/components/painel/botao-imprimir";
 import { relatorioDoEvento } from "@/dados";
-import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import {
+  formatarData,
+  formatarDataEHora,
+  formatarPorcentagem,
+  formatarPreco,
+} from "@/lib/formatar";
 import { ehIdValido } from "@/lib/validacao";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -37,9 +42,9 @@ function Numero({ rotulo, valor, detalhe }: { rotulo: string; valor: string; det
   );
 }
 
+/** Parte ÷ todo em porcentagem; "—" quando não há base (todo zero). */
 function porcento(parte: number, todo: number) {
-  if (!todo) return "—";
-  return `${((parte / todo) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  return formatarPorcentagem(todo ? parte / todo : null);
 }
 
 async function Conteudo({ params }: PageProps<"/painel/eventos/[id]/relatorio">) {
