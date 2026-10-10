@@ -20,6 +20,7 @@ describe("linksDoCabecalho", () => {
     expect(nav.variante).toBe("publico");
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil).toBeNull();
+    expect(nav.meta).toBe(false);
     expect(nav.rodape).toBe("completo");
     expect(hrefs(nav.desktop)).toEqual(["/", "/eventos"]);
     expect(hrefs(nav.celular)).toEqual([
@@ -37,6 +38,7 @@ describe("linksDoCabecalho", () => {
     expect(nav.variante).toBe("publico");
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil?.href).toBe("/minhas-compras");
+    expect(nav.meta).toBe(false);
     expect(nav.rodape).toBe("completo");
     expect(hrefs(nav.celular)).toEqual([
       "/",
@@ -48,23 +50,28 @@ describe("linksDoCabecalho", () => {
     expect(hrefs(nav.celular).some((h) => h.startsWith("/painel") || h === "/admin")).toBe(false);
   });
 
-  it("fotógrafo: cabeçalho do painel, sem carrinho, vitrine nem compras", () => {
+  it("fotógrafo: cabeçalho do painel com Início e meta, sem carrinho, vitrine nem compras", () => {
     const nav = linksDoCabecalho(usuario("fotografo"));
     expect(nav.variante).toBe("painel");
     expect(nav.carrinho).toBe(false);
+    expect(nav.meta).toBe(true);
     expect(nav.rodape).toBe("curto");
     expect(nav.perfil?.href).toBe("/painel/perfil");
+    expect(nav.desktop[0]).toEqual({ href: "/painel", rotulo: "Início", exato: true });
     expect(hrefs(nav.desktop)).toEqual([
+      "/painel",
       "/painel/eventos",
       "/painel/vendas",
       "/painel/desempenho",
       "/painel/loja",
     ]);
     expect(hrefs(nav.celular)).toEqual([
+      "/painel",
       "/painel/eventos",
       "/painel/vendas",
       "/painel/desempenho",
       "/painel/loja",
+      "/painel/metas",
       "/painel/perfil",
       "/conta/seguranca",
       "/ajuda",
@@ -74,12 +81,14 @@ describe("linksDoCabecalho", () => {
     }
   });
 
-  it("gestor: cabeçalho do painel com o atalho da Gestão", () => {
+  it("gestor: cabeçalho do painel com o atalho da Gestão e sem selo de meta", () => {
     const nav = linksDoCabecalho(usuario("admin"));
     expect(nav.variante).toBe("painel");
     expect(nav.carrinho).toBe(false);
+    expect(nav.meta).toBe(false);
     expect(nav.rodape).toBe("curto");
     expect(hrefs(nav.desktop)).toEqual([
+      "/painel",
       "/painel/eventos",
       "/painel/vendas",
       "/painel/desempenho",
@@ -87,6 +96,8 @@ describe("linksDoCabecalho", () => {
       "/admin",
     ]);
     expect(hrefs(nav.celular)).toContain("/admin");
+    expect(hrefs(nav.celular).slice(0, 1)).toEqual(["/painel"]);
+    expect(hrefs(nav.celular)).toContain("/painel/metas");
     expect(hrefs(nav.celular)).not.toContain("/minhas-compras");
   });
 });
@@ -117,6 +128,24 @@ describe("linkAtivo", () => {
     expect(linkAtivo("/eventos", "/")).toBe(false);
     expect(linkAtivo("/", "/")).toBe(true);
     expect(linkAtivo(null, "/")).toBe(false);
+  });
+
+  it("com `exato`, marca o Início do painel só em /painel", () => {
+    expect(linkAtivo("/painel", "/painel", true)).toBe(true);
+    expect(linkAtivo("/painel/eventos", "/painel", true)).toBe(false);
+    expect(linkAtivo("/painel/metas", "/painel", true)).toBe(false);
+    // Sem `exato`, a Gestão segue marcada nas páginas da gestão.
+    expect(linkAtivo("/admin/usuarios", "/admin")).toBe(true);
+  });
+
+  it("em cada página do painel, só um atalho fica marcado", () => {
+    const { desktop } = linksDoCabecalho(usuario("fotografo"));
+    const marcados = (caminho: string) =>
+      desktop.filter((i) => linkAtivo(caminho, i.href, i.exato)).map((i) => i.rotulo);
+    expect(marcados("/painel")).toEqual(["Início"]);
+    expect(marcados("/painel/eventos/123")).toEqual(["Meus eventos"]);
+    expect(marcados("/painel/vendas")).toEqual(["Financeiro"]);
+    expect(marcados("/painel/perfil")).toEqual([]);
   });
 });
 

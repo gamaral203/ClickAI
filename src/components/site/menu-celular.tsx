@@ -19,7 +19,7 @@ export function MenuCelular({
   nome,
   esconderEm = "sm:hidden",
 }: {
-  itens: { href: string; rotulo: string }[];
+  itens: { href: string; rotulo: string; exato?: boolean }[];
   logado: boolean;
   nome?: string;
   /** A partir de qual tela o menu some (os links passam para o cabeçalho). */
@@ -76,7 +76,7 @@ export function MenuCelular({
                       ? comRetorno(item.href, caminho)
                       : item.href
                   }
-                  aria-current={linkAtivo(caminho, item.href) ? "page" : undefined}
+                  aria-current={linkAtivo(caminho, item.href, item.exato) ? "page" : undefined}
                   className="flex h-11 items-center rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary"
                 >
                   {item.rotulo}

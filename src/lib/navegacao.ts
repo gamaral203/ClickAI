@@ -7,7 +7,12 @@ import type { Papel, Usuario } from "@/dados/tipos";
 // e gestor veem o cabeçalho do painel: atalhos de trabalho, sem carrinho nem vitrine, porque
 // conta de fotógrafo não compra fotos (a regra vale no servidor, em `podeComprar`).
 
-export type ItemNavegacao = { href: string; rotulo: string };
+export type ItemNavegacao = {
+  href: string;
+  rotulo: string;
+  /** Marcado só no endereço exato (o início de uma área, como /painel). */
+  exato?: boolean;
+};
 
 export type Navegacao = {
   variante: "publico" | "painel";
@@ -19,6 +24,8 @@ export type Navegacao = {
   perfil: ItemNavegacao | null;
   /** Mostra o carrinho no cabeçalho. */
   carrinho: boolean;
+  /** Mostra o selo da meta de vendas (só o fotógrafo: a conta de gestão não tem meta). */
+  meta: boolean;
   /** Rodapé completo do site ou o curto do painel. */
   rodape: "completo" | "curto";
 };
@@ -57,10 +64,14 @@ export function destinoDoLogo(papel: Papel | null, caminho: string | null): stri
   return "/";
 }
 
-/** O link aponta para a página atual (ou para uma seção dela)? */
-export function linkAtivo(caminho: string | null, href: string): boolean {
+/**
+ * O link aponta para a página atual (ou para uma seção dela)? Com `exato`, só a própria página:
+ * o "Início" do painel não fica marcado em /painel/eventos.
+ */
+export function linkAtivo(caminho: string | null, href: string, exato = false): boolean {
   if (!caminho) return false;
-  return caminho === href || caminho.startsWith(`${href}/`);
+  if (caminho === href) return true;
+  return !exato && caminho.startsWith(`${href}/`);
 }
 
 const PUBLICO: ItemNavegacao[] = [
@@ -69,6 +80,7 @@ const PUBLICO: ItemNavegacao[] = [
 ];
 
 const ATALHOS_PAINEL: ItemNavegacao[] = [
+  { href: "/painel", rotulo: "Início", exato: true },
   { href: "/painel/eventos", rotulo: "Meus eventos" },
   { href: "/painel/vendas", rotulo: "Financeiro" },
   { href: "/painel/desempenho", rotulo: "Desempenho" },
@@ -76,6 +88,7 @@ const ATALHOS_PAINEL: ItemNavegacao[] = [
 ];
 
 const GESTAO: ItemNavegacao = { href: "/admin", rotulo: "Gestão" };
+const METAS: ItemNavegacao = { href: "/painel/metas", rotulo: "Metas" };
 const PERFIL_PAINEL: ItemNavegacao = { href: "/painel/perfil", rotulo: "Perfil e recebimento" };
 const SEGURANCA: ItemNavegacao = { href: "/conta/seguranca", rotulo: "Senha e segurança" };
 const AJUDA: ItemNavegacao = { href: "/ajuda", rotulo: "Ajuda" };
@@ -95,6 +108,7 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
       ],
       perfil: null,
       carrinho: true,
+      meta: false,
       rodape: "completo",
     };
   }
@@ -104,9 +118,10 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
     return {
       variante: "painel",
       desktop: atalhos,
-      celular: [...atalhos, PERFIL_PAINEL, SEGURANCA, AJUDA],
+      celular: [...atalhos, METAS, PERFIL_PAINEL, SEGURANCA, AJUDA],
       perfil: PERFIL_PAINEL,
       carrinho: false,
+      meta: usuario.papel === "fotografo",
       rodape: "curto",
     };
   }
@@ -118,6 +133,7 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
     celular: [...PUBLICO, compras, SEGURANCA, AJUDA],
     perfil: compras,
     carrinho: true,
+    meta: false,
     rodape: "completo",
   };
 }
