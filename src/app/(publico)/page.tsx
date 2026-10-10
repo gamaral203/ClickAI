@@ -23,22 +23,42 @@ const EVENTOS_NA_INICIAL = 9;
 // Fotos de vitrine da página inicial (public/inicio/), já reduzidas e sem metadados.
 const slides: Slide[] = [
   {
-    src: "/inicio/corrida-rua.webp",
-    alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
+    src: "/inicio/corrida.webp",
+    alt: "Corredor sorridente de óculos escuros e camiseta amarela, com o número de peito 10, numa corrida de rua",
     rotulo: "Corridas",
+    vertical: true,
+    computador: {
+      src: "/inicio/corrida-rua.webp",
+      alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
+      rotulo: "Corridas",
+      foco: "50% 40%",
+    },
+  },
+  {
+    src: "/inicio/torcida.webp",
+    alt: "Torcedora de camisa do Brasil e óculos, com apito na boca e o braço erguido, numa festa de torcida",
+    rotulo: "Festas e eventos",
+    vertical: true,
     foco: "50% 40%",
+    computador: {
+      src: "/inicio/cavalgada.webp",
+      alt: "Silhuetas de dois cavaleiros ao pôr do sol, com o céu dourado ao fundo",
+      rotulo: "Cavalgadas",
+      foco: "65% 40%",
+    },
   },
   {
-    src: "/inicio/cavalgada.webp",
-    alt: "Silhuetas de dois cavaleiros ao pôr do sol, com o céu dourado ao fundo",
-    rotulo: "Cavalgadas",
-    foco: "65% 40%",
-  },
-  {
-    src: "/inicio/salto.webp",
-    alt: "Cavaleiro de boné saltando uma barra vermelha com o cavalo, numa prova noturna com público na cerca",
+    src: "/inicio/salto-vertical.webp",
+    alt: "Cavalo com a faixa vaquejada saltando a barra vermelha numa prova noturna, com público na cerca",
     rotulo: "Provas e vaquejadas",
-    foco: "50% 18%",
+    vertical: true,
+    foco: "50% 35%",
+    computador: {
+      src: "/inicio/salto.webp",
+      alt: "Cavaleiro de boné saltando uma barra vermelha com o cavalo, numa prova noturna com público na cerca",
+      rotulo: "Provas e vaquejadas",
+      foco: "50% 18%",
+    },
   },
 ];
 
