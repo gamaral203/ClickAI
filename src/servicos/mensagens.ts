@@ -226,6 +226,26 @@ export async function enviarCodigoDeConfirmacao(para: string, nome: string, codi
   );
 }
 
+/**
+ * Código de 6 dígitos da segunda etapa do login do gestor (src/servicos/codigo-login.ts). Como
+ * todo segredo, não vai para a caixa de saída. Devolve se o e-mail saiu.
+ */
+export async function enviarCodigoDeAcessoDoGestor(para: string, nome: string, codigo: string) {
+  return enviarComSegredo(
+    {
+      para,
+      assunto: "Seu código de acesso à gestão do ClicouAí",
+      paragrafos: [
+        `Olá, ${primeiroNome(nome)}! Para terminar de entrar na gestão do ClicouAí, digite este código na tela de verificação. Ele vale por 10 minutos e funciona uma vez só.`,
+        "Não passe o código para ninguém: a equipe do ClicouAí nunca pede.",
+        "Se não foi você que tentou entrar, alguém sabe a sua senha: troque sua senha agora e avise a equipe.",
+      ],
+      destaque: codigo,
+    },
+    `código ${codigo}`,
+  );
+}
+
 /** Link de "Esqueci a senha". O token vai depois do #: não chega ao servidor nem aos logs. */
 export async function enviarLinkDeRedefinicao(para: string, nome: string, token: string) {
   const url = urlDoSite(`/entrar/nova-senha#token=${token}`);

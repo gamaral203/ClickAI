@@ -222,6 +222,7 @@ export async function anonimizarConta(usuarioId: string): Promise<RostoRemovido[
       .delete(t.codigosEmail)
       .where(or(eq(t.codigosEmail.usuarioId, usuarioId), eq(t.codigosEmail.email, usuario.email)));
     await tx.delete(t.redefinicoesSenha).where(eq(t.redefinicoesSenha.usuarioId, usuarioId));
+    await tx.delete(t.codigosDeLogin).where(eq(t.codigosDeLogin.usuarioId, usuarioId));
     await tx.delete(t.codigosRecuperacao).where(eq(t.codigosRecuperacao.usuarioId, usuarioId));
     // Chat de ajuda (as mensagens saem junto) e o nome e e-mail das sugestões, que ficam sem dono.
     await tx.delete(t.conversasSuporte).where(eq(t.conversasSuporte.usuarioId, usuarioId));

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { COOKIE_GOOGLE, concluirLoginGoogle } from "@/lib/google";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
-import { entrarComGoogle, inicioDoPapel } from "@/servicos/sessao";
+import { entrarComGoogle, inicioDoPapel, telaDoCodigoDeLogin } from "@/servicos/sessao";
 
 const desafio = z.object({
   state: z.string().min(20),
@@ -48,8 +48,12 @@ export async function GET(request: NextRequest) {
     if (!perfil) return erro("google");
     const resultado = await entrarComGoogle(perfil, salvo.vender, salvo.proximo);
     if (!resultado.ok) return erro("google_outra_conta");
-    // Verificação em duas etapas ligada: o Google não basta, a sessão abre depois do código.
-    if (resultado.pedeCodigo) return Response.redirect(new URL("/entrar/codigo", request.url), 303);
+    // Gestor (código por e-mail) ou verificação em duas etapas ligada: o Google não basta, a
+    // sessão abre depois do código.
+    if (resultado.pedeCodigo) {
+      const tela = telaDoCodigoDeLogin(resultado.envioCodigo);
+      return Response.redirect(new URL(tela, request.url), 303);
+    }
     // Conta nova vai para a tela principal (ou volta ao fotógrafo); login segue para a sua área.
     const destino = resultado.novo
       ? destinoDoCadastro(salvo.proximo, resultado.usuario.papel)

@@ -21,12 +21,14 @@ vi.mock("next/headers", () => ({
       delete: (nome: string) => pote.delete(nome),
     };
   },
+  headers: async () => new Headers({ "x-forwarded-for": "203.0.113.77" }),
 }));
 
 import { apagarSessoesRevogadasVencidas, criarUsuario } from "@/dados";
 import { gerarHashSenha } from "@/lib/senha";
 
 import {
+  concluirLoginComCodigo,
   DURACAO_SESSAO_GESTOR_MS,
   encerrarOutrasSessoes,
   entrar,
@@ -147,7 +149,19 @@ describe("expiração da sessão de gestor", () => {
     em("cliente");
     await entrar(emailCliente, SENHA);
     em("gestor");
-    await entrar(gestor.email, SENHA);
+    // O gestor só entra com o código que vai para o e-mail (sem o Resend, fora da produção, ele
+    // aparece no log).
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("VERCEL_ENV", "");
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await entrar(gestor.email, SENHA);
+      const codigo = /código (\d{6})/.exec(String(log.mock.calls.at(-1)?.[0]))?.[1];
+      expect(await concluirLoginComCodigo(codigo ?? "")).toMatchObject({ ok: true });
+    } finally {
+      log.mockRestore();
+      vi.unstubAllEnvs();
+    }
     expect((await usuarioAtual())?.papel).toBe("admin");
 
     vi.useFakeTimers({ toFake: ["Date"] });

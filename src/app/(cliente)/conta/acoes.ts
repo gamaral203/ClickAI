@@ -24,9 +24,12 @@ import {
   emailAguardandoConfirmacao,
   entrar,
   inicioDoPapel,
+  reenviarCodigoDoLoginPendente,
   sair,
   sairDeTodosOsDispositivos,
+  telaDoCodigoDeLogin,
   usuarioAtual,
+  type ResultadoCodigoLogin,
 } from "@/servicos/sessao";
 
 export type EstadoFormulario = {
@@ -64,29 +67,83 @@ export async function entrarAcao(
   await loginDeuCerto(dados.data.email);
   // E-mail ainda não confirmado: a sessão só abre depois do código mandado por e-mail.
   if (resultado.pedeConfirmacao) redirect(telaDoCodigo(resultado.envio));
-  // Verificação em duas etapas ligada: a sessão só abre depois do código.
-  if (resultado.pedeCodigo) redirect("/entrar/codigo");
+  // Gestor (código por e-mail) ou verificação em duas etapas ligada: a sessão só abre depois do
+  // código.
+  if (resultado.pedeCodigo) redirect(telaDoCodigoDeLogin(resultado.envioCodigo));
   // Sem ?proximo=, cada papel vai para a sua área (gestão, painel ou compras).
   redirect(caminhoSeguro(proximo, inicioDoPapel(resultado.usuario.papel)));
 }
 
-export type EstadoCodigoLogin = { erro?: string };
+export type EstadoCodigoLogin = { erro?: string; aviso?: string; espera?: number };
 
 const codigoLogin = z.object({ codigo: z.string().trim().min(6).max(40) });
 
-/** Segunda etapa do login, com a verificação em duas etapas ligada (/entrar/codigo). */
+type FalhaCodigoLogin = Exclude<ResultadoCodigoLogin, { ok: true }>;
+
+function mensagemDoCodigoLogin(falha: FalhaCodigoLogin): string {
+  switch (falha.motivo) {
+    case "invalido_email":
+      return `Código incorreto. ${falha.restantes === 1 ? "Resta 1 tentativa" : `Restam ${falha.restantes} tentativas`} para este código.`;
+    case "invalido_email_ou_app":
+      return "Código incorreto ou já usado. Confira o último e-mail que enviamos ou o app autenticador.";
+    case "codigo_bloqueado":
+      return "Muitas tentativas erradas com este código. Peça um código novo abaixo.";
+    case "codigo_vencido":
+      return "Este código venceu ou foi trocado por um mais novo. Peça um código novo abaixo.";
+    case "invalido":
+    case "bloqueado":
+      return MENSAGENS_CODIGO[falha.motivo];
+    default:
+      return MENSAGENS_CODIGO.invalido;
+  }
+}
+
+/**
+ * Segunda etapa do login (/entrar/codigo): código enviado por e-mail ao gestor ou código do app
+ * autenticador (verificação em duas etapas ligada).
+ */
 export async function confirmarCodigoLoginAcao(
   _anterior: EstadoCodigoLogin,
   formulario: FormData,
 ): Promise<EstadoCodigoLogin> {
   const dados = codigoLogin.safeParse({ codigo: formulario.get("codigo") });
-  if (!dados.success) return { erro: MENSAGENS_CODIGO.faltando };
+  if (!dados.success) return { erro: "Digite o código de verificação." };
+  if (await limiteDoIpAtingido("codigo_login_conferencia_ip")) {
+    return { erro: "Muitas tentativas seguidas daqui. Espere 15 minutos e tente de novo." };
+  }
   const resultado = await concluirLoginComCodigo(dados.data.codigo);
   if (!resultado.ok) {
     if (resultado.motivo === "expirado") redirect("/entrar?erro=codigo_expirado");
-    return { erro: MENSAGENS_CODIGO[resultado.motivo] };
+    return { erro: mensagemDoCodigoLogin(resultado) };
   }
   redirect(caminhoSeguro(resultado.proximo, inicioDoPapel(resultado.usuario.papel)));
+}
+
+/** "Reenviar código" de /entrar/codigo (código por e-mail do gestor). */
+export async function reenviarCodigoLoginAcao(): Promise<EstadoCodigoLogin> {
+  const resultado = await reenviarCodigoDoLoginPendente();
+  if (resultado.ok) return { aviso: "Enviamos um código novo. Confira também o spam.", espera: 60 };
+  switch (resultado.motivo) {
+    case "espera":
+      return {
+        erro: `Espere ${resultado.segundos} segundos para pedir outro código.`,
+        espera: resultado.segundos,
+      };
+    case "reenvios":
+      return {
+        erro: "Você já pediu 3 códigos novos neste acesso. Use o último que chegou ou entre de novo com a senha.",
+      };
+    case "limite":
+      return {
+        erro: "Muitos códigos pedidos seguidos. Use o último que chegou ou espere um pouco para pedir outro.",
+      };
+    case "indisponivel":
+      return {
+        erro: "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.",
+      };
+    default:
+      redirect("/entrar?erro=codigo_expirado");
+  }
 }
 
 const cadastro = z.object({

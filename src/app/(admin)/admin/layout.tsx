@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { AvisoVerificacaoEmail } from "@/components/admin/aviso-verificacao-email";
 import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
 
 const itens: ItemMenu[] = [
@@ -16,7 +19,12 @@ export default function LayoutGestao({ children }: LayoutProps<"/admin">) {
   return (
     <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10">
       <MenuPainel titulo="Gestão" itens={itens} raiz="/admin" />
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0">
+        <Suspense fallback={null}>
+          <AvisoVerificacaoEmail />
+        </Suspense>
+        {children}
+      </div>
     </div>
   );
 }
