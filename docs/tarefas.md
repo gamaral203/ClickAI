@@ -179,6 +179,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Capa do evento escolhida pelo fotógrafo: "Usar como capa" na grade de fotos do painel (selo "Capa") e bloco em Configurações com a capa atual, "Trocar" e "Remover (usar automática)"; só o dono, validado no servidor com Zod, foto do mesmo evento, pronta e não excluída (`eventos.capa_foto_id`, migração 0015). A capa usa a miniatura ou a prévia com marca d'água e só aparece com a foto liberada e não excluída; senão, e sem escolha, vale a automática, sorteada por hash fixo de `foto.id || evento.id` (estável entre carregamentos). Uma consulta para todos os cartões (sem N+1); também na imagem do link da página do evento e na divulgação
 - [x] Diafragma de câmera no lugar do anel de progresso do envio (pedido do dono): anel grosso e 6 lâminas curvas em azul que abrem e fecham num ciclo de 1,8 s enquanto as fotos sobem, com a abertura crescendo com a porcentagem e o número sempre legível no centro; no fim, abre de vez e entra o check. Sem ciclo com "reduzir movimento"
 - [x] Avatares de perfil do fotógrafo: 12 avatares em SVG (`public/avatares/`, catálogo em `src/lib/avatares.ts`) para escolher em Perfil e recebimento (grade com prévia do que está em uso; Server Action aceita só id do catálogo). Sem foto enviada, aparece o avatar escolhido ou, sem escolha, um padrão tirado do id da conta, no lugar da inicial: cartão da meta, cabeçalho do painel, aba Metas, página pública do fotógrafo e loja. A foto enviada em Minha loja continua com prioridade (`fotografos.avatar`, migração 0019)
+- [x] Local do evento no Google Maps (pedido do dono): "Escolher no mapa" ao lado do campo Local, em Novo evento e em Configurações, com busca de lugares (Places API New, só Brasil, cobrada como sessão), mapa com marcador arrastável e endereço formatado; "Usar este local" preenche local, cidade e UF e guarda o ponto (`eventos.latitude`, `longitude`, `place_id`, `endereco_mapa`, migração 0020), validado com Zod no servidor; resumo com "Alterar" e "Remover". Página pública com o bloco "Onde" (endereço, "Como chegar" e "Ver no Google Maps") e mapa pequeno carregado só perto da tela. Sem `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, nada muda; a CSP só libera o Google Maps com a chave ([arquitetura.md](arquitetura.md), "Local no mapa")
 
 ## Em andamento
 
@@ -265,6 +266,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [x] Variáveis de produção do Mercado Pago, do R2 e da AWS já cadastradas na Vercel
 - [ ] Variáveis de produção do Google (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) e do Sentry (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`)
 - [ ] Alertas de erro no Sentry
+- [ ] Criar a chave do Google Maps (Maps JavaScript API, Places API (New) e Geocoding API), restringir por site e por API e cadastrar `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (e o Map ID, opcional) na Vercel ([deploy.md](deploy.md), item 9). Depois, conferir o "Escolher no mapa" e o mapa da página do evento com a chave real (ainda não testados com uma chave de verdade)
 
 ## Fase 11 — Banco e autenticação
 
