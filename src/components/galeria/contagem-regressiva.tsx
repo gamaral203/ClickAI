@@ -57,3 +57,22 @@ export function ContagemRegressiva({ alvo }: { alvo: string }) {
     </div>
   );
 }
+
+/** Maior espera do setTimeout (~24,8 dias); depois disso, o navegador dispara na hora. */
+const ESPERA_MAXIMA_MS = 2 ** 31 - 1;
+
+/**
+ * Pede a página de novo ao servidor quando chega o horário `alvo` (a próxima liberação
+ * agendada), para as fotos novas aparecerem sem a pessoa recarregar. Não desenha nada.
+ */
+export function AtualizarNaHora({ alvo }: { alvo: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    const espera = Date.parse(alvo) - Date.now();
+    if (Number.isNaN(espera) || espera > ESPERA_MAXIMA_MS) return;
+    // Um segundo de folga: o relógio do aparelho pode estar um pouco adiantado.
+    const id = setTimeout(() => router.refresh(), Math.max(0, espera) + 1000);
+    return () => clearTimeout(id);
+  }, [alvo, router]);
+  return null;
+}

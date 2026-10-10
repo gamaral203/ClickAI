@@ -10,3 +10,5 @@ Regras do Next.js para agentes (versão nova, com mudanças em relação ao que 
 
 Nunca execute um trabalho sozinho. sempre delegue as tarefas a um sub agente
 use o opus 5.5 no que for complexo, deixe as tarefas simples para modelos mais leves
+
+Nunca fazer um PR e deploy sem autorização a não ser que seja pedido

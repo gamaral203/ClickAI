@@ -1,6 +1,11 @@
 import "server-only";
 
-import { registrarMensagem, vendasDoPedidoPorFotografo, type PedidoInterno } from "@/dados";
+import {
+  marcarLotesLiberadosParaAviso,
+  registrarMensagem,
+  vendasDoPedidoPorFotografo,
+  type PedidoInterno,
+} from "@/dados";
 import { emProducao } from "@/db/conexao";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { emailConfigurado, enviarEmail, type Email } from "@/lib/email";
@@ -155,6 +160,38 @@ export async function avisarVenda(pedidoId: string) {
       url: "/painel/vendas",
     });
   }
+}
+
+/**
+ * Aviso de lote agendado liberado, ao dono e aos colaboradores do evento: uma mensagem por evento
+ * e por pessoa, de cada lote. A marcação (`fotos.aviso_liberacao_em`) é feita antes do envio, no
+ * mesmo UPDATE que escolhe os lotes: repetir o job não repete o aviso. Devolve quantos e-mails
+ * foram registrados.
+ */
+export async function avisarLotesLiberados(agora = Date.now()) {
+  let enviados = 0;
+  for (const aviso of await marcarLotesLiberadosParaAviso(agora)) {
+    const assunto = `Suas fotos de ${aviso.titulo} foram liberadas`;
+    const fotos = `${aviso.fotos} ${aviso.fotos === 1 ? "foto agendada já está" : "fotos agendadas já estão"}`;
+    const botao = { texto: "Ver o evento", url: urlDoSite(`/eventos/${aviso.slug}`) };
+    for (const pessoa of aviso.destinatarios) {
+      const paragrafos = [
+        `Olá, ${primeiroNome(pessoa.nome)}! Chegou o horário agendado: ${fotos} à venda em ${aviso.titulo}.`,
+        "É uma boa hora para divulgar o link do evento.",
+      ];
+      await registrarMensagem({
+        pedidoId: null,
+        canal: "email",
+        tipo: "liberacao",
+        para: pessoa.email,
+        assunto,
+        texto: [...paragrafos, `${botao.texto}: ${botao.url}`].join(" "),
+      });
+      await enviarEmail({ para: pessoa.email, assunto, paragrafos, botao });
+      enviados++;
+    }
+  }
+  return enviados;
 }
 
 /**

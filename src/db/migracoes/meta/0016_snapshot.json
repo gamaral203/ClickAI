@@ -1,6 +1,6 @@
 {
-  "id": "11244d28-b5fa-47d7-a79e-1923b87cb72d",
-  "prevId": "c3a0a239-c848-428f-9979-94396aa3d512",
+  "id": "376ce550-19e7-45a8-ae9d-e506d2085086",
+  "prevId": "c43f18ff-00b7-4501-a96f-a3576aa0c6a2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1431,13 +1431,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 8
-        },
-        "modelo_marca": {
-          "name": "modelo_marca",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'padrao'"
         }
       },
       "indexes": {
@@ -1640,6 +1633,26 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "liberacao": {
+          "name": "liberacao",
+          "type": "liberacao",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'automatica'"
+        },
+        "liberar_em": {
+          "name": "liberar_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aviso_liberacao_em": {
+          "name": "aviso_liberacao_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1696,6 +1709,27 @@
             },
             {
               "expression": "hash_conteudo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fotos_evento_id_liberar_em_index": {
+          "name": "fotos_evento_id_liberar_em_index",
+          "columns": [
+            {
+              "expression": "evento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "liberar_em",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3965,7 +3999,8 @@
         "denuncia",
         "lembrete_pix",
         "venda",
-        "seguranca"
+        "seguranca",
+        "liberacao"
       ]
     },
     "public.tipo_metrica": {

@@ -15,10 +15,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 type Props = {
   eventoId: string;
   status: "rascunho" | "publicado" | "revisao" | "arquivado";
-  liberacaoManualPendente: boolean;
+  /** Fotos prontas ainda não liberadas (agendadas ou aguardando). */
+  pendentesDeLiberacao: number;
 };
 
-export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props) {
+export function AcoesEvento({ eventoId, status, pendentesDeLiberacao }: Props) {
   const router = useRouter();
   const [erro, setErro] = useState<string | null>(null);
   const [irParaPerfil, setIrParaPerfil] = useState(false);
@@ -72,10 +73,19 @@ export function AcoesEvento({ eventoId, status, liberacaoManualPendente }: Props
             Publicar
           </Button>
         )}
-        {status === "publicado" && liberacaoManualPendente && (
-          <Button size="touch" disabled={pendente} onClick={() => executar(liberarAgoraAcao)}>
+        {pendentesDeLiberacao > 0 && (
+          <Button
+            size="touch"
+            variant={status === "publicado" ? "default" : "outline"}
+            disabled={pendente}
+            onClick={() => executar(liberarAgoraAcao)}
+          >
             <Unlock aria-hidden="true" />
-            Liberar as fotos agora
+            Liberar{" "}
+            {pendentesDeLiberacao === 1
+              ? "a foto pendente"
+              : `as ${pendentesDeLiberacao} fotos pendentes`}{" "}
+            agora
           </Button>
         )}
         {status === "publicado" && (

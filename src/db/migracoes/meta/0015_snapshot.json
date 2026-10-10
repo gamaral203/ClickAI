@@ -1,6 +1,6 @@
 {
-  "id": "c3a0a239-c848-428f-9979-94396aa3d512",
-  "prevId": "35c028ab-8b22-4f8d-8a0b-e1f3140a60c2",
+  "id": "c43f18ff-00b7-4501-a96f-a3576aa0c6a2",
+  "prevId": "d99a861e-8d42-4ee0-b2de-fe2ea52f09a7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -443,117 +443,6 @@
             "id"
           ],
           "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.conversas_suporte": {
-      "name": "conversas_suporte",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "usuario_id": {
-          "name": "usuario_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nome": {
-          "name": "nome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nao_lida_pela_equipe": {
-          "name": "nao_lida_pela_equipe",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "nao_lida_pelo_usuario": {
-          "name": "nao_lida_pelo_usuario",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "criado_em": {
-          "name": "criado_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "atualizado_em": {
-          "name": "atualizado_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "conversas_suporte_usuario_id_index": {
-          "name": "conversas_suporte_usuario_id_index",
-          "columns": [
-            {
-              "expression": "usuario_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "conversas_suporte_atualizado_em_index": {
-          "name": "conversas_suporte_atualizado_em_index",
-          "columns": [
-            {
-              "expression": "atualizado_em",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "conversas_suporte_usuario_id_usuarios_id_fk": {
-          "name": "conversas_suporte_usuario_id_usuarios_id_fk",
-          "tableFrom": "conversas_suporte",
-          "tableTo": "usuarios",
-          "columnsFrom": [
-            "usuario_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1633,6 +1522,26 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "liberacao": {
+          "name": "liberacao",
+          "type": "liberacao",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'automatica'"
+        },
+        "liberar_em": {
+          "name": "liberar_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aviso_liberacao_em": {
+          "name": "aviso_liberacao_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1689,6 +1598,27 @@
             },
             {
               "expression": "hash_conteudo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fotos_evento_id_liberar_em_index": {
+          "name": "fotos_evento_id_liberar_em_index",
+          "columns": [
+            {
+              "expression": "evento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "liberar_em",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2390,88 +2320,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.mensagens_suporte": {
-      "name": "mensagens_suporte",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "conversa_id": {
-          "name": "conversa_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "autor": {
-          "name": "autor",
-          "type": "autor_mensagem_suporte",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "texto": {
-          "name": "texto",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "criado_em": {
-          "name": "criado_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "mensagens_suporte_conversa_id_criado_em_index": {
-          "name": "mensagens_suporte_conversa_id_criado_em_index",
-          "columns": [
-            {
-              "expression": "conversa_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "criado_em",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "mensagens_suporte_conversa_id_conversas_suporte_id_fk": {
-          "name": "mensagens_suporte_conversa_id_conversas_suporte_id_fk",
-          "tableFrom": "mensagens_suporte",
-          "tableTo": "conversas_suporte",
-          "columnsFrom": [
-            "conversa_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -3517,95 +3365,6 @@
       "checkConstraints": {},
       "isRLSEnabled": true
     },
-    "public.sugestoes": {
-      "name": "sugestoes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "usuario_id": {
-          "name": "usuario_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nome": {
-          "name": "nome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "texto": {
-          "name": "texto",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "status_sugestao",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'nova'"
-        },
-        "criado_em": {
-          "name": "criado_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sugestoes_criado_em_index": {
-          "name": "sugestoes_criado_em_index",
-          "columns": [
-            {
-              "expression": "criado_em",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sugestoes_usuario_id_usuarios_id_fk": {
-          "name": "sugestoes_usuario_id_usuarios_id_fk",
-          "tableFrom": "sugestoes",
-          "tableTo": "usuarios",
-          "columnsFrom": [
-            "usuario_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
     "public.tentativas": {
       "name": "tentativas",
       "schema": "",
@@ -3803,14 +3562,6 @@
         "foto"
       ]
     },
-    "public.autor_mensagem_suporte": {
-      "name": "autor_mensagem_suporte",
-      "schema": "public",
-      "values": [
-        "usuario",
-        "equipe"
-      ]
-    },
     "public.canal_mensagem": {
       "name": "canal_mensagem",
       "schema": "public",
@@ -3922,16 +3673,6 @@
         "falhou"
       ]
     },
-    "public.status_sugestao": {
-      "name": "status_sugestao",
-      "schema": "public",
-      "values": [
-        "nova",
-        "em_analise",
-        "feita",
-        "descartada"
-      ]
-    },
     "public.tipo_cupom": {
       "name": "tipo_cupom",
       "schema": "public",
@@ -3958,7 +3699,8 @@
         "denuncia",
         "lembrete_pix",
         "venda",
-        "seguranca"
+        "seguranca",
+        "liberacao"
       ]
     },
     "public.tipo_metrica": {
