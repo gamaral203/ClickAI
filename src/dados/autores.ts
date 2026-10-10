@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -46,6 +46,8 @@ export type PosicaoTopCliques = {
   vendidas: number;
   /** O que os clientes pagaram pelas fotos dele neste evento (preço menos desconto). */
   faturadoCentavos: number;
+  /** Fotos prontas que ele enviou neste evento (base do "X de Y vendidas"). */
+  enviadas: number;
 };
 
 /**
@@ -60,7 +62,7 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
     .from(t.eventos)
     .where(eq(t.eventos.id, eventoId));
   if (!evento) return [];
-  const [equipe, vendas] = await Promise.all([
+  const [equipe, vendas, enviadas] = await Promise.all([
     banco
       .select({ id: t.colaboradores.fotografoId })
       .from(t.colaboradores)
@@ -76,6 +78,17 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
       .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
       .where(and(eq(t.pedidos.status, "pago"), eq(t.fotos.eventoId, eventoId)))
       .groupBy(t.itensPedido.fotografoId),
+    banco
+      .select({ fotografoId: t.fotos.enviadaPor, total: sql<number>`count(*)::int` })
+      .from(t.fotos)
+      .where(
+        and(
+          eq(t.fotos.eventoId, eventoId),
+          eq(t.fotos.status, "pronta"),
+          isNull(t.fotos.excluidaEm),
+        ),
+      )
+      .groupBy(t.fotos.enviadaPor),
   ]);
   const ids = [evento.dono, ...equipe.map((e) => e.id), ...vendas.map((v) => v.fotografoId)];
   const nomes = await autoresPorId(ids);
@@ -86,6 +99,7 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
       foto: nomes.get(id)?.foto ?? null,
       vendidas: vendas.find((v) => v.fotografoId === id)?.vendidas ?? 0,
       faturadoCentavos: vendas.find((v) => v.fotografoId === id)?.faturado ?? 0,
+      enviadas: enviadas.find((e) => e.fotografoId === id)?.total ?? 0,
     }))
     .sort((a, b) => b.vendidas - a.vendidas || a.nome.localeCompare(b.nome, "pt-BR"));
 }

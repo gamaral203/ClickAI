@@ -222,7 +222,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           ...(qrCode
             ? [{ icone: "divulgar" as const, rotulo: "Divulgar o evento", secao: "divulgar" }]
             : []),
-          { icone: "ranking", rotulo: "Ranking de cliques", secao: "ranking" },
+          { icone: "ranking", rotulo: "Top Cliques (ranking da equipe)", secao: "ranking" },
           { icone: "rostos", rotulo: "Busca por selfie", secao: "rostos" },
           ...(originais
             ? [{ icone: "originais" as const, rotulo: "Baixar originais", secao: "originais" }]
@@ -255,7 +255,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
       </div>
 
       <div id="ranking" className="scroll-mt-32">
-        <TopCliques posicoes={top} destaque={conta.id} />
+        <TopCliques posicoes={top} destaque={conta.id} convidar="#colaboradores" />
       </div>
 
       {qrCode && (

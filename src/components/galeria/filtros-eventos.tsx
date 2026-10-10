@@ -75,7 +75,8 @@ export function FiltrosEventos({
           <span className="sr-only sm:not-sr-only">Filtrar</span>
         </button>
       </div>
-      <div className="grid grid-cols-3 gap-2 lg:contents">
+      {/* A data ganha mais espaço: no iPhone o campo mostra "10 de out. de 2026" e precisa caber. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.35fr)] gap-2 lg:contents">
         <div className="flex min-w-0 flex-col gap-1">
           <Label htmlFor={id("categoria")} className={rotulo}>
             Categoria
@@ -121,7 +122,7 @@ export function FiltrosEventos({
             name="data"
             type="date"
             defaultValue={filtro.data}
-            className="h-10 min-w-0 px-2 lg:h-11 lg:px-3"
+            className="h-10 w-full min-w-0 appearance-none px-2 text-sm lg:h-11 lg:px-3 [&::-webkit-date-and-time-value]:text-left"
           />
         </div>
       </div>
