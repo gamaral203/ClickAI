@@ -8,3 +8,9 @@ export const COOKIE_TEMA = "tema";
 export function temaDoCookie(valor: string | undefined): Tema {
   return valor === "escuro" ? "escuro" : "claro";
 }
+
+/** Só o painel do fotógrafo e a gestão têm modo noturno; o site de compra é sempre dia. */
+export function caminhoTemTemaNoturno(caminho: string | null | undefined) {
+  const primeiro = (caminho ?? "").split("/")[1];
+  return primeiro === "painel" || primeiro === "admin";
+}

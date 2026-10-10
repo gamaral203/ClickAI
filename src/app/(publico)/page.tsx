@@ -23,22 +23,29 @@ const EVENTOS_NA_INICIAL = 9;
 // Fotos de vitrine da página inicial (public/inicio/), já reduzidas e sem metadados.
 const slides: Slide[] = [
   {
-    src: "/inicio/corrida-rua.webp",
-    alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
-    rotulo: "Corridas",
+    src: "/inicio/torcida.webp",
+    alt: "Torcedora de camisa do Brasil e óculos, com apito na boca e o braço erguido, numa festa de torcida",
+    rotulo: "Festas e eventos",
+    vertical: true,
     foco: "50% 40%",
-  },
-  {
-    src: "/inicio/cavalgada.webp",
-    alt: "Silhuetas de dois cavaleiros ao pôr do sol, com o céu dourado ao fundo",
-    rotulo: "Cavalgadas",
-    foco: "65% 40%",
+    computador: {
+      src: "/inicio/igreja.webp",
+      alt: "Altar de igreja em azul e dourado iluminado por velas, com a imagem no centro e fiéis na penumbra",
+      rotulo: "Casamentos e cerimônias",
+      foco: "50% 45%",
+    },
   },
   {
     src: "/inicio/salto.webp",
     alt: "Cavaleiro de boné saltando uma barra vermelha com o cavalo, numa prova noturna com público na cerca",
     rotulo: "Provas e vaquejadas",
     foco: "50% 18%",
+  },
+  {
+    src: "/inicio/corrida-rua.webp",
+    alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
+    rotulo: "Corridas",
+    foco: "50% 40%",
   },
 ];
 

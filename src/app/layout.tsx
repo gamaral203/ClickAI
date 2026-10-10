@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import "./globals.css";
 
-import { COOKIE_TEMA, temaDoCookie } from "@/lib/tema";
+import { caminhoTemTemaNoturno, COOKIE_TEMA, temaDoCookie } from "@/lib/tema";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -33,8 +33,12 @@ export const instant = false;
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
-  // Modo noturno só quando a pessoa escolheu (cookie); o padrão é o dia (src/lib/tema.ts).
-  const escuro = temaDoCookie((await cookies()).get(COOKIE_TEMA)?.value) === "escuro";
+  // Modo noturno só no painel e na gestão, e só quando a pessoa escolheu (cookie); o site de
+  // compra é sempre dia (src/lib/tema.ts). O caminho vem do proxy (x-caminho).
+  const [guardados, cabecalhos] = await Promise.all([cookies(), headers()]);
+  const escuro =
+    caminhoTemTemaNoturno(cabecalhos.get("x-caminho")) &&
+    temaDoCookie(guardados.get(COOKIE_TEMA)?.value) === "escuro";
   const classes = [jakarta.variable, geistMono.variable, "h-full antialiased", escuro && "dark"]
     .filter(Boolean)
     .join(" ");
