@@ -169,6 +169,13 @@
       "when": 1791644238254,
       "tag": "0023_originais_do_dono",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791652837712,
+      "tag": "0024_categorias_novas",
+      "breakpoints": true
     }
   ]
 }

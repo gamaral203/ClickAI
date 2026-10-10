@@ -37,13 +37,13 @@ describe("calcularSaque", () => {
     expect(saque.liquidoCentavos).toBe(9_000);
   });
 
-  it("saque antecipado: inclui vendas de 1 a 30 dias com 2% a mais", () => {
+  it("saque antecipado: inclui vendas de 1 a 30 dias com 1,99% a mais", () => {
     const saque = calcularSaque(lancamentos.slice(0, 3), agora, 8, true);
     expect(saque.lancamentoIds).toEqual(["madura", "antecipavel"]);
     expect(saque.antecipadoCentavos).toBe(5_000);
-    // 8% de 10.000 + 10% de 5.000
-    expect(saque.taxaCentavos).toBe(800 + 500);
-    expect(saque.liquidoCentavos).toBe(15_000 - 1_300);
+    // 8% de 10.000 + 9,99% de 5.000 (499,5, arredondado para baixo)
+    expect(saque.taxaCentavos).toBe(800 + 499);
+    expect(saque.liquidoCentavos).toBe(15_000 - 1_299);
   });
 
   it("arredonda a taxa para baixo: o centavo fica com o fotógrafo", () => {

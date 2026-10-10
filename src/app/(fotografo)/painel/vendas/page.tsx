@@ -10,7 +10,7 @@ import type { Saque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { formatarData, formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import {
-  TAXA_ANTECIPACAO_PCT,
+  TAXA_ANTECIPACAO_TEXTO,
   chavePixValida,
   mensagemDeBloqueio,
   SAQUE_MINIMO_CENTAVOS,
@@ -96,13 +96,13 @@ async function Conteudo() {
           icone={<Wallet aria-hidden="true" className="size-4" />}
           titulo="Disponível"
           valor={saldo.disponivelCentavos}
-          texto={`Vendas com 30 dias ou mais: saque normal, taxa de ${conta.comissaoPct}%.`}
+          texto="Vendas com 30 dias ou mais."
         />
         <CartaoSaldo
           icone={<Hourglass aria-hidden="true" className="size-4" />}
           titulo="Antecipável"
           valor={saldo.antecipavelCentavos}
-          texto={`Vendas de 1 a 29 dias: saque antecipado, taxa de ${conta.comissaoPct + TAXA_ANTECIPACAO_PCT}%.`}
+          texto={`Vendas de 1 a 29 dias: saque antecipado, taxa de ${TAXA_ANTECIPACAO_TEXTO}.`}
         />
         <CartaoSaldo
           icone={<Clock aria-hidden="true" className="size-4" />}
@@ -137,12 +137,12 @@ async function Conteudo() {
           <ul className="list-disc space-y-1 px-4 pb-3 pl-9">
             <li>
               <strong>Saque normal:</strong> cada venda fica disponível <strong>30 dias</strong>{" "}
-              depois de paga, com taxa de <strong>{conta.comissaoPct}%</strong>.
+              depois de paga.
             </li>
             <li>
               <strong>Saque antecipado:</strong> a partir de <strong>1 dia</strong> depois da venda,
-              com taxa de <strong>{conta.comissaoPct + TAXA_ANTECIPACAO_PCT}%</strong> (
-              {TAXA_ANTECIPACAO_PCT}% a mais) sobre o que ainda não tem 30 dias.
+              com taxa de <strong>{TAXA_ANTECIPACAO_TEXTO}</strong> sobre o que ainda não tem 30
+              dias.
             </li>
             <li>
               Depois que você pede, a nossa equipe faz o Pix para a sua chave em até{" "}
@@ -184,8 +184,7 @@ async function Conteudo() {
           podeSacar={temChave && !emAndamento && !bloqueadoAte}
           minimoCentavos={SAQUE_MINIMO_CENTAVOS}
           pedeCodigo={usuario.mfaAtivo}
-          comissaoPct={conta.comissaoPct}
-          antecipacaoPct={TAXA_ANTECIPACAO_PCT}
+          antecipacaoTexto={TAXA_ANTECIPACAO_TEXTO}
         />
       </section>
 
@@ -222,7 +221,7 @@ async function Conteudo() {
               { rotulo: "Venda" },
               { rotulo: "Cliente pagou", direita: true },
               { rotulo: "Sua parte", direita: true },
-              { rotulo: `Taxa (${conta.comissaoPct}%)`, direita: true },
+              { rotulo: "Taxa", direita: true },
               { rotulo: "Líquido", direita: true },
               { rotulo: "Previsão de repasse" },
             ]}
@@ -271,8 +270,8 @@ async function Conteudo() {
             Cada linha é um item vendido: o que o cliente pagou, a sua parte (todo o valor, ou a sua
             comissão quando a foto é de um colaborador no seu evento), a taxa da plataforma e o que
             você recebe no saque normal. No saque antecipado, o que ainda não tem 30 dias paga{" "}
-            {TAXA_ANTECIPACAO_PCT}% a mais. Nas vendas no cartão, metade da taxa do cartão já sai da
-            sua parte (a outra metade o cliente paga).
+            {TAXA_ANTECIPACAO_TEXTO} de antecipação. Nas vendas no cartão, metade da taxa do cartão
+            já sai da sua parte (a outra metade o cliente paga).
           </p>
         </details>
       </section>

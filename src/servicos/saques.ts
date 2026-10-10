@@ -38,7 +38,10 @@ import {
 // Payouts liberado no gateway), o saque volta a sair sozinho pelo gateway.
 
 /** Taxa extra do saque antecipado, em pontos percentuais. */
-export const TAXA_ANTECIPACAO_PCT = 2;
+export const TAXA_ANTECIPACAO_PCT = 1.99;
+
+/** "1,99%": a única taxa que o fotógrafo vê (a comissão não aparece para ele). */
+export const TAXA_ANTECIPACAO_TEXTO = `${TAXA_ANTECIPACAO_PCT.toLocaleString("pt-BR")}%`;
 
 /** O saque sai sozinho pelo gateway? Só com SAQUE_AUTOMATICO=1; sem ele, a gestão paga à mão. */
 export function saqueAutomatico() {
