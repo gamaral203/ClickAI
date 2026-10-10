@@ -11,7 +11,7 @@
 
 import "server-only";
 
-import { and, asc, eq, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -69,6 +69,30 @@ export async function situacaoDaFoto(fotoId: string, fotografoId: string) {
       and(eq(t.fotos.id, fotoId), eq(t.fotos.enviadaPor, fotografoId), isNull(t.fotos.excluidaEm)),
     );
   return linha ?? null;
+}
+
+/**
+ * Situação de várias fotos do fotógrafo, para a tela de envio acompanhar as que entregou ao
+ * servidor até ficarem prontas. Fotos de outra conta ou excluídas não voltam.
+ */
+export async function situacaoDasFotos(
+  fotoIds: string[],
+  fotografoId: string,
+): Promise<
+  { id: string; status: "processando" | "pronta" | "erro"; erroMensagem: string | null }[]
+> {
+  if (fotoIds.length === 0) return [];
+  const banco = await obterBanco();
+  return banco
+    .select({ id: t.fotos.id, status: t.fotos.status, erroMensagem: t.fotos.erroMensagem })
+    .from(t.fotos)
+    .where(
+      and(
+        inArray(t.fotos.id, fotoIds),
+        eq(t.fotos.enviadaPor, fotografoId),
+        isNull(t.fotos.excluidaEm),
+      ),
+    );
 }
 
 /**
