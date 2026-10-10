@@ -185,6 +185,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Limão da marca atualizado para `#B8FF32` e usado como detalhe (pedido do dono: "está muito azul e branco"): link ativo do cabeçalho e do painel, faixa do topo do painel, selos positivos, barra da meta, passo concluído, fim do envio de fotos, botão da inicial, hover dos botões de contorno e rodapé ([marca/marca.md](marca/marca.md), "Onde o limão aparece")
 - [x] Avatar inicial e foto de perfil em destaque (pedido do dono): a conta de fotógrafo já nasce com o avatar padrão gravado em `fotografos.avatar` (sem migração; contas antigas caem no mesmo padrão), marcado na grade com "Este é o seu avatar atual"; em Perfil e recebimento, botão "Enviar minha foto" e "Remover foto" ali mesmo, com o mesmo fluxo e a mesma Server Action de Minha loja (`useImagemDaLoja`), e prévia de 112 px com a legenda "Foto enviada" ou "Avatar"
 - [x] Tira o selo "Em construção" do carrossel da página inicial
+- [x] Voltar da foto para a galeria no mesmo ponto: o botão "Voltar" volta no histórico quando a pessoa veio da galeria (link direto ainda abre a galeria), "Anterior"/"Próxima" não empilham no histórico (o voltar do navegador e o gesto do celular levam à galeria) e a galeria montada do zero recupera as fotos do "Carregar mais" e rola até a foto tocada (`src/lib/volta-da-galeria.ts`)
 
 ## Em andamento
 

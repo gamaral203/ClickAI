@@ -15,6 +15,7 @@ import {
 
 import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
+import { LinkOutraFoto, VoltarParaGaleria } from "@/components/galeria/navegacao-da-foto";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -67,13 +68,15 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   return (
     <div className="flex flex-col gap-6">
       <RegistrarVisita fotoId={foto.id} />
-      <Link
-        href={`/eventos/${evento.slug}`}
+      {/* Veio da galeria: volta no histórico, no mesmo ponto; link direto: abre a galeria. */}
+      <VoltarParaGaleria
+        slug={evento.slug}
+        fotoId={foto.id}
         className="inline-flex h-11 w-fit items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />
         Voltar para {evento.titulo}
-      </Link>
+      </VoltarParaGaleria>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <figure className="flex flex-col gap-3">
@@ -147,24 +150,28 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
           {posicao && (
             <nav aria-label="Navegar entre as fotos do evento" className="flex gap-3">
               {anteriorId ? (
-                <Link
-                  href={`/fotos/${anteriorId}`}
+                <LinkOutraFoto
+                  slug={evento.slug}
+                  de={foto.id}
+                  para={anteriorId}
                   className={cn(buttonVariants({ variant: "outline", size: "touch" }), "flex-1")}
                 >
                   <ChevronLeft aria-hidden="true" data-icon="inline-start" />
                   Anterior
-                </Link>
+                </LinkOutraFoto>
               ) : (
                 <span className="flex-1" />
               )}
               {proximaId && (
-                <Link
-                  href={`/fotos/${proximaId}`}
+                <LinkOutraFoto
+                  slug={evento.slug}
+                  de={foto.id}
+                  para={proximaId}
                   className={cn(buttonVariants({ variant: "outline", size: "touch" }), "flex-1")}
                 >
                   Próxima
                   <ChevronRight aria-hidden="true" data-icon="inline-end" />
-                </Link>
+                </LinkOutraFoto>
               )}
             </nav>
           )}
