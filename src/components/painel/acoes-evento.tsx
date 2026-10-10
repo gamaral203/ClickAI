@@ -132,7 +132,7 @@ export function AcoesEvento({ eventoId, status, pendentesDeLiberacao }: Props) {
           {maisAberto && (
             <ul
               role="menu"
-              className="absolute left-0 z-20 mt-1 w-56 rounded-xl border bg-background p-1.5 shadow-xl"
+              className="absolute left-0 z-40 mt-1 w-56 rounded-xl border bg-background p-1.5 shadow-xl"
             >
               <li role="none">
                 <Link
