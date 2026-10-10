@@ -1,0 +1,1 @@
+ALTER TABLE "fotografos" ADD COLUMN "avatar" text;

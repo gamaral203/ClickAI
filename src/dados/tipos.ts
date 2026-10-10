@@ -53,6 +53,8 @@ export type Fotografo = {
   slug: string;
   bio: string | null;
   fotoPerfil: string | null;
+  /** Avatar escolhido (src/lib/avatares.ts); `null` usa o padrão. A foto tem prioridade. */
+  avatar: string | null;
   capa: string | null;
   redesSociais: RedesSociais;
 };

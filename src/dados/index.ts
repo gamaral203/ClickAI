@@ -154,6 +154,7 @@ function perfilPublico(conta: FotografoConta): Fotografo {
     slug: conta.slug,
     bio: conta.bio,
     fotoPerfil: conta.fotoPerfil,
+    avatar: conta.avatar,
     capa: conta.capa,
     redesSociais: conta.redesSociais,
   };

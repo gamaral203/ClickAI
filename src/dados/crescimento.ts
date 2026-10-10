@@ -9,6 +9,7 @@ import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
+import { avatarValido } from "@/lib/avatares";
 import { urlPublica } from "@/lib/url-publica";
 
 import { iso, omitir } from "./mapas";
@@ -421,6 +422,7 @@ export async function buscarFotografoPublico(slug: string): Promise<Fotografo | 
       slug: t.fotografos.slug,
       bio: t.fotografos.bio,
       fotoPerfil: t.fotografos.fotoPerfil,
+      avatar: t.fotografos.avatar,
       capa: t.fotografos.capa,
       redesSociais: t.fotografos.redesSociais,
     })
@@ -510,4 +512,18 @@ export async function definirImagemDoFotografo(
     .update(t.fotografos)
     .set({ [campo]: valor })
     .where(eq(t.fotografos.id, fotografoId));
+}
+
+/**
+ * Avatar escolhido em Perfil e recebimento; `null` volta ao padrão. Só aceita um id do catálogo
+ * (src/lib/avatares.ts): devolve `false` e não grava nada se vier outra coisa.
+ */
+export async function definirAvatarDoFotografo(
+  fotografoId: string,
+  avatar: string | null,
+): Promise<boolean> {
+  if (avatar !== null && !avatarValido(avatar)) return false;
+  const banco = await obterBanco();
+  await banco.update(t.fotografos).set({ avatar }).where(eq(t.fotografos.id, fotografoId));
+  return true;
 }

@@ -106,6 +106,13 @@
       "when": 1791601435360,
       "tag": "0014_liberacao_por_foto",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791605819772,
+      "tag": "0015_avatar_do_fotografo",
+      "breakpoints": true
     }
   ]
 }
