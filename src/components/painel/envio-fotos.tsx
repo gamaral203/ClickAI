@@ -49,8 +49,12 @@ import {
 // desenha uma linha por foto: mostra o progresso somado, só as fotos com problema e, em
 // "Detalhes técnicos", os tempos médios de cada etapa (para medir o envio em produção).
 
-/** Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). */
-const PROCESSAMENTOS_SIMULTANEOS = 6;
+/**
+ * Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). O
+ * processamento de cada foto é quase todo espera (R2, banco), não processador: com 6, o envio
+ * terminava muito antes do processamento (~100 fotos por minuto contra ~300 enviadas).
+ */
+const PROCESSAMENTOS_SIMULTANEOS = 10;
 /** Fotos por entrega ao servidor (o mesmo limite da rota /api/envios/processar). */
 const FOTOS_POR_ENTREGA = 100;
 /** Impressões calculadas ao mesmo tempo (cada uma lê só ~3 MB do arquivo). */
@@ -888,7 +892,7 @@ export function EnvioFotos({
       await preparar;
       await Promise.all(subidas);
       // Todos os uploads terminaram: o que ainda espera processamento vai para o servidor de uma
-      // vez, em vez de a tela processar de poucas em poucas com a página aberta.
+      // vez, em vez de a tela processar de 10 em 10 com a página aberta.
       naoEntregues = await entregarAoServidor(paraProcessar.retirarTodos());
     } finally {
       clearInterval(relogio);

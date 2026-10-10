@@ -17,7 +17,8 @@ import { contaDoPainel, usuarioAtual } from "@/servicos/sessao";
 // próximas. O arquivo não passa por aqui: só o id da foto.
 //
 // Dois jeitos de chamar:
-//   { fotoId }   processa agora e responde quando a foto está pronta;
+//   { fotoId }   processa agora e responde quando a foto está pronta (os rostos são cadastrados
+//                depois da resposta, com `after`);
 //   { fotoIds }  entrega ao servidor as fotos que já subiram e responde 202 na hora: elas são
 //                processadas depois da resposta, mesmo que a página feche (a tela de envio usa
 //                quando os uploads terminam e ao fechar a página, por sendBeacon).
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
   // Confere dono e status: só processa foto em `processando` enviada por esta conta.
   // Tempos de cada etapa (só números), para a telemetria da tela de envio.
   const tempos: TemposDoProcessamento = {};
-  const resultado = await confirmarEnvio(conta.id, dados.data.fotoId, { tempos });
+  const resultado = await confirmarEnvio(conta.id, dados.data.fotoId, { tempos, depois: after });
   if ("erro" in resultado) return resposta({ erro: resultado.erro, tempos }, 422);
   return resposta({ ok: true, emAndamento: "emAndamento" in resultado, tempos });
 }

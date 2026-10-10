@@ -112,6 +112,23 @@ export type CaixaDoRosto = { esquerda: number; topo: number; largura: number; al
 export type RostoIndexado = { rostoId: string; caixa: CaixaDoRosto | null };
 
 /**
+ * Coleções que esta instância já sabe que existem. Criar a coleção antes de cada foto custava
+ * uma ida a mais à AWS por foto (o CreateCollection respondia "já existe" em quase todas).
+ */
+const colecoesCriadas = new Set<string>();
+const MAXIMO_DE_COLECOES_LEMBRADAS = 500;
+
+async function criarColecao(rk: RekognitionClient, CollectionId: string) {
+  try {
+    await rk.send(new CreateCollectionCommand({ CollectionId }));
+  } catch (erro) {
+    if (!(erro instanceof ResourceAlreadyExistsException)) throw erro;
+  }
+  if (colecoesCriadas.size >= MAXIMO_DE_COLECOES_LEMBRADAS) colecoesCriadas.clear();
+  colecoesCriadas.add(CollectionId);
+}
+
+/**
  * Indexa os rostos de uma foto do evento. Chamado quando a foto fica pronta, no fim do
  * processamento do envio (src/servicos/envios.ts); o `ExternalImageId` é o id da foto, que
  * volta na busca. Devolve o id e a posição de cada rosto, para gravar na tabela `rostos`.
@@ -125,23 +142,33 @@ export async function indexarRostos(
   if (!config) return [];
   const rk = rekognition(config);
   const CollectionId = colecao(config, eventoId);
-  try {
-    await rk.send(new CreateCollectionCommand({ CollectionId }));
-  } catch (erro) {
-    if (!(erro instanceof ResourceAlreadyExistsException)) throw erro;
+  const indexar = () =>
+    rk.send(
+      new IndexFacesCommand({
+        CollectionId,
+        Image: { Bytes: imagem },
+        ExternalImageId: fotoId,
+        DetectionAttributes: [],
+        MaxFaces: 100,
+        // "LOW" guarda também rostos menores, de lado ou tremidos, comuns em corrida e festa; o
+        // filtro "AUTO" descartava boa parte deles e a pessoa não se achava.
+        QualityFilter: "LOW",
+      }),
+    );
+  let resposta;
+  if (colecoesCriadas.has(CollectionId)) {
+    try {
+      resposta = await indexar();
+    } catch (erro) {
+      // A coleção sumiu (evento limpo em outra instância): cria de novo e tenta outra vez.
+      if (!(erro instanceof ResourceNotFoundException)) throw erro;
+      colecoesCriadas.delete(CollectionId);
+    }
   }
-  const resposta = await rk.send(
-    new IndexFacesCommand({
-      CollectionId,
-      Image: { Bytes: imagem },
-      ExternalImageId: fotoId,
-      DetectionAttributes: [],
-      MaxFaces: 100,
-      // "LOW" guarda também rostos menores, de lado ou tremidos, comuns em corrida e festa; o
-      // filtro "AUTO" descartava boa parte deles e a pessoa não se achava.
-      QualityFilter: "LOW",
-    }),
-  );
+  if (!resposta) {
+    await criarColecao(rk, CollectionId);
+    resposta = await indexar();
+  }
   return (resposta.FaceRecords ?? []).flatMap((r) => {
     if (!r.Face?.FaceId) return [];
     const b = r.Face.BoundingBox;

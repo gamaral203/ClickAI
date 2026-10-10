@@ -372,6 +372,11 @@ export type OpcoesDoProcessamento = {
   /** Recebe a duração de cada etapa (telemetria da tela de envio). */
   tempos?: TemposDoProcessamento;
   /**
+   * Agenda o cadastro dos rostos para depois da resposta (a rota passa o `after` do Next): a
+   * foto fica pronta e a chamada termina sem esperar o Rekognition. Sem isto, cadastra aqui.
+   */
+  depois?: (tarefa: () => Promise<unknown>) => void;
+  /**
    * Início do envio, quando quem chama é o job (a foto parada na fila). Arquivo ausente com o
    * envio ainda recente não vira erro: o upload pode estar terminando.
    */
@@ -497,11 +502,12 @@ export async function confirmarEnvio(
     }
     const { previa, miniatura, paraRostos } = versoes;
     medir("versoesMs");
+    // As três gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
     await Promise.all([
       gravarPublico(chaves.previa, previa.buffer, "image/webp"),
       gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
+      moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
     ]);
-    await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime);
 
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
@@ -514,8 +520,13 @@ export async function confirmarEnvio(
     if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
-    await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
-    medir("rostosMs");
+    // A foto já está pronta (à venda); os rostos só servem à busca por selfie.
+    if (opcoes.depois) {
+      opcoes.depois(() => indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos));
+    } else {
+      await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
+      medir("rostosMs");
+    }
     return { eventoId: foto.eventoId };
   } catch (erro) {
     if (erro instanceof ArquivoRecusado) {
