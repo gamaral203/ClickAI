@@ -28,6 +28,7 @@ import {
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { situacaoDasMetas } from "@/lib/metas";
+import { mostraCartaoMeta } from "@/lib/navegacao";
 import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
 import { urlPublica } from "@/lib/url-publica";
 import { situacaoFinanceira } from "@/servicos/saques";
@@ -90,9 +91,9 @@ async function Conteudo() {
         </Link>
       </div>
 
-      {/* Em tela larga (xl), o cartão da meta fica no cabeçalho, no lugar do nome. A conta de
-          gestão não tem meta de vendas. */}
-      {usuario.papel !== "admin" && (
+      {/* Em tela larga (xl), o cartão da meta fica no cabeçalho, no lugar do nome. Aparece para
+          quem tem conta de fotógrafo, como o gestor que também vende (aqui a conta sempre existe). */}
+      {mostraCartaoMeta(usuario, conta) && (
         <div className="xl:hidden">
           <CartaoMeta
             metas={situacaoDasMetas(await totalVendidoComoAutor(conta.id))}

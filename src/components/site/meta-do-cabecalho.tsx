@@ -2,19 +2,31 @@ import { CartaoMeta } from "@/components/metas/cartao-meta";
 import { buscarContaDoFotografo, totalVendidoComoAutor } from "@/dados";
 import type { Usuario } from "@/dados/tipos";
 import { situacaoDasMetas } from "@/lib/metas";
+import { mostraCartaoMeta, usaPainel, type ItemNavegacao } from "@/lib/navegacao";
 import { urlPublica } from "@/lib/url-publica";
-import { podeUsarPainel } from "@/servicos/sessao";
+
+import { LinkDoPerfil } from "./link-do-perfil";
 
 /**
- * Cartão da meta de vendas no cabeçalho do painel, com a foto de perfil no lugar do nome. Só para
- * o fotógrafo (a conta de gestão não tem meta) e só em tela larga (xl), onde cabe ao lado dos
- * atalhos; em telas menores, o cartão fica no topo do painel. Recebe o usuário já lido pelo
- * cabeçalho; consulta o banco: usar dentro de <Suspense>.
+ * Parte do perfil no cabeçalho do painel em tela larga (xl). Quem tem conta de fotógrafo, qualquer
+ * que seja o papel (o gestor que também vende, inclusive), vê o cartão da meta com a foto de
+ * perfil no lugar do nome; quem não tem, a inicial e o nome. Em telas menores, o cartão fica no
+ * topo do painel. Recebe o usuário já lido pelo cabeçalho; consulta o banco: usar dentro de
+ * <Suspense>.
  */
-export async function MetaDoCabecalho({ usuario }: { usuario: Usuario }) {
-  if (usuario.papel === "admin" || !podeUsarPainel(usuario)) return null;
-  const conta = await buscarContaDoFotografo(usuario.id);
-  if (!conta) return null;
+export async function MetaDoCabecalho({
+  usuario,
+  perfil,
+}: {
+  usuario: Usuario;
+  perfil: ItemNavegacao | null;
+}) {
+  const conta = usaPainel(usuario) ? await buscarContaDoFotografo(usuario.id) : null;
+  if (!conta || !mostraCartaoMeta(usuario, conta)) {
+    return perfil ? (
+      <LinkDoPerfil perfil={perfil} primeiroNome={usuario.nome.split(" ")[0]} faixa="xl" />
+    ) : null;
+  }
   const metas = situacaoDasMetas(await totalVendidoComoAutor(conta.id));
   return (
     <div className="hidden xl:flex">

@@ -24,8 +24,6 @@ export type Navegacao = {
   perfil: ItemNavegacao | null;
   /** Mostra o carrinho no cabeçalho. */
   carrinho: boolean;
-  /** Mostra o selo da meta de vendas (só o fotógrafo: a conta de gestão não tem meta). */
-  meta: boolean;
   /** Rodapé completo do site ou o curto do painel. */
   rodape: "completo" | "curto";
 };
@@ -74,6 +72,18 @@ export function linkAtivo(caminho: string | null, href: string, exato = false): 
   return !exato && caminho.startsWith(`${href}/`);
 }
 
+/**
+ * Mostra o cartão da meta de vendas? Para quem usa o painel e tem conta de fotógrafo, qualquer
+ * que seja o papel: o gestor que também vende vê a meta dele; sem conta de fotógrafo, ninguém vê.
+ * A conta vem do banco (o cabeçalho a lê dentro do <Suspense>).
+ */
+export function mostraCartaoMeta(
+  usuario: Pick<Usuario, "papel"> | null,
+  conta: { id: string } | null,
+): boolean {
+  return usaPainel(usuario) && conta !== null;
+}
+
 const PUBLICO: ItemNavegacao[] = [
   { href: "/", rotulo: "Início" },
   { href: "/eventos", rotulo: "Eventos" },
@@ -108,7 +118,6 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
       ],
       perfil: null,
       carrinho: true,
-      meta: false,
       rodape: "completo",
     };
   }
@@ -121,7 +130,6 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
       celular: [...atalhos, METAS, PERFIL_PAINEL, SEGURANCA, AJUDA],
       perfil: PERFIL_PAINEL,
       carrinho: false,
-      meta: usuario.papel === "fotografo",
       rodape: "curto",
     };
   }
@@ -133,7 +141,6 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
     celular: [...PUBLICO, compras, SEGURANCA, AJUDA],
     perfil: compras,
     carrinho: true,
-    meta: false,
     rodape: "completo",
   };
 }
