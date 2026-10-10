@@ -360,6 +360,13 @@ function gerarFotos(): Foto[] {
         // Envio estável e posterior ao evento.
         criadoEm: new Date(Date.UTC(2026, 9, 1, 0, 0, contador)).toISOString(),
         excluidaEm: null,
+        // Cada foto herda a liberação do evento: automática desde o envio; manual ou agendada
+        // no horário do evento (nulo: aguardando o "Liberar agora").
+        liberacao: evento.liberacao,
+        liberarEm:
+          evento.liberacao === "automatica"
+            ? new Date(Date.UTC(2026, 9, 1, 0, 0, contador)).toISOString()
+            : evento.liberadoEm,
       });
     }
   });

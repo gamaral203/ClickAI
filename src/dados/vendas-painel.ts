@@ -377,7 +377,10 @@ export type ColaboracaoDoPainel = {
   colaboradorId: string;
   /** `null`: convite ainda não aceito (ou comissão mudou e precisa de novo aceite). */
   aceitoEm: string | null;
-  evento: Pick<Evento, "id" | "titulo" | "slug" | "inicioEm" | "status">;
+  evento: Pick<
+    Evento,
+    "id" | "titulo" | "slug" | "inicioEm" | "status" | "liberacao" | "liberadoEm"
+  >;
   donoNome: string;
   comissaoDonoPct: number;
   nota: string | null;
@@ -407,6 +410,8 @@ export async function listarColaboracoes(fotografoId: string): Promise<Colaborac
         slug: l.evento.slug,
         inicioEm: iso(l.evento.inicioEm),
         status: l.evento.status,
+        liberacao: l.evento.liberacao,
+        liberadoEm: iso(l.evento.liberadoEm),
       },
       donoNome: l.donoNome,
       comissaoDonoPct: l.colaborador.comissaoDonoPct,

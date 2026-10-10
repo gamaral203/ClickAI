@@ -55,6 +55,7 @@ async function Conteudo() {
                   lembrete_pix: "Lembrete do Pix",
                   venda: "Aviso de venda",
                   seguranca: "Segurança da conta",
+                  liberacao: "Fotos liberadas",
                 }[m.tipo]
               }
             </span>

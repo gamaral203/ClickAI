@@ -276,7 +276,12 @@ export function FormularioEvento({
           </Secao>
 
           <Secao titulo="Quando as fotos aparecem">
-            <Campo rotulo="Liberação" id="liberacao" erro={erros.liberacao}>
+            <p className="text-sm text-muted-foreground">
+              É o padrão de cada envio: na hora de enviar, você pode escolher outro para aquele
+              lote, e depois liberar, agendar ou cancelar o agendamento na lista de fotos. As fotos
+              só aparecem com o evento publicado.
+            </p>
+            <Campo rotulo="Liberação padrão" id="liberacao" erro={erros.liberacao}>
               <select
                 {...props("liberacao")}
                 value={liberacao}
@@ -286,7 +291,9 @@ export function FormularioEvento({
                 <option value="automatica">
                   Automática: cada foto aparece assim que fica pronta
                 </option>
-                <option value="manual">Manual: eu libero quando quiser</option>
+                <option value="manual">
+                  Manual: ficam guardadas até eu clicar em Liberar agora
+                </option>
                 <option value="agendada">Agendada: numa data e hora</option>
               </select>
             </Campo>

@@ -75,6 +75,8 @@ export const tipoMensagem = pgEnum("tipo_mensagem", [
   "venda",
   /** Aviso de segurança da conta (ex.: CPF/CNPJ de recebimento trocado). */
   "seguranca",
+  /** Aviso ao dono e aos colaboradores de que um lote agendado foi liberado. */
+  "liberacao",
 ]);
 export const tipoMetrica = pgEnum("tipo_metrica", ["visita_evento", "visita_foto", "carrinho"]);
 
@@ -327,11 +329,25 @@ export const fotos = pgTable(
     envioIniciadoEm: data(),
     /** Por que a foto ficou em `erro`, para o fotógrafo ver no painel. */
     erroMensagem: text(),
+    /**
+     * Modo escolhido para o lote desta foto (o padrão do evento ou o do envio). Só registra a
+     * escolha: quem decide a visibilidade é `liberar_em`.
+     */
+    liberacao: liberacao().notNull().default("automatica"),
+    /**
+     * A partir de quando a foto aparece para o público (galeria, busca, página da foto,
+     * carrinho e checkout): toda consulta pública filtra `liberar_em <= agora`. Nulo: aguarda o
+     * "Liberar agora" do dono (manual). No automático, é o momento do envio.
+     */
+    liberarEm: data(),
+    /** Quando saiu o aviso de lote agendado liberado (job de pedidos): o aviso não se repete. */
+    avisoLiberacaoEm: data(),
   },
   (t) => [
     index().on(t.eventoId, t.ordem),
     index().on(t.eventoId, t.capturadaEm),
     index().on(t.eventoId, t.hashConteudo),
+    index().on(t.eventoId, t.liberarEm),
   ],
 ).enableRLS();
 
