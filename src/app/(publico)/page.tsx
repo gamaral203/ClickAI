@@ -29,10 +29,10 @@ const slides: Slide[] = [
     vertical: true,
     foco: "50% 40%",
     computador: {
-      src: "/inicio/cavalgada.webp",
-      alt: "Silhuetas de dois cavaleiros ao pôr do sol, com o céu dourado ao fundo",
-      rotulo: "Cavalgadas",
-      foco: "65% 40%",
+      src: "/inicio/igreja.webp",
+      alt: "Altar de igreja em azul e dourado iluminado por velas, com a imagem no centro e fiéis na penumbra",
+      rotulo: "Casamentos e cerimônias",
+      foco: "50% 45%",
     },
   },
   {

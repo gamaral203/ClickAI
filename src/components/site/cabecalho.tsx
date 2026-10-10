@@ -8,7 +8,6 @@ import { usuarioAtual } from "@/servicos/sessao";
 import type { Usuario } from "@/dados/tipos";
 
 import { AreaUsuario } from "./area-usuario";
-import { BotaoTema } from "./botao-tema";
 import { CabecalhoPainel } from "./cabecalho-painel";
 import { LinkDoCabecalho } from "./link-do-cabecalho";
 
@@ -82,9 +81,6 @@ function CabecalhoPublico({
                 <LinkDoCabecalho {...link} />
               </li>
             ))}
-            <li>
-              <BotaoTema />
-            </li>
             {navegacao.carrinho && (
               <li>
                 <LinkCarrinho />

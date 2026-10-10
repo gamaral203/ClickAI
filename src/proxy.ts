@@ -74,6 +74,8 @@ export function proxy(request: NextRequest) {
   });
   const cabecalhos = new Headers(request.headers);
   cabecalhos.set("x-nonce", nonce);
+  // O layout decide o modo noturno pelo caminho (só painel e gestão; src/lib/tema.ts).
+  cabecalhos.set("x-caminho", request.nextUrl.pathname);
   cabecalhos.set("content-security-policy", csp);
 
   const loja = request.nextUrl.pathname === "/" ? lojaDoHost(request) : null;
