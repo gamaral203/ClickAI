@@ -8,19 +8,32 @@ import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 
+import { urlDoAvatar } from "@/lib/avatares";
+
 import { previaDeCapaParaDivulgacao } from "./capa";
 
-export type Autor = { nome: string; slug: string };
+export type Autor = {
+  nome: string;
+  slug: string;
+  /** Imagem do perfil (foto enviada, avatar escolhido ou o padrão). */
+  foto: string;
+};
 
 export async function autoresPorId(fotografoIds: string[]): Promise<Map<string, Autor>> {
   const ids = [...new Set(fotografoIds)];
   if (ids.length === 0) return new Map();
   const banco = await obterBanco();
   const linhas = await banco
-    .select({ id: t.fotografos.id, nome: t.fotografos.nomePublico, slug: t.fotografos.slug })
+    .select({
+      id: t.fotografos.id,
+      nome: t.fotografos.nomePublico,
+      slug: t.fotografos.slug,
+      fotoPerfil: t.fotografos.fotoPerfil,
+      avatar: t.fotografos.avatar,
+    })
     .from(t.fotografos)
     .where(inArray(t.fotografos.id, ids));
-  return new Map(linhas.map((l) => [l.id, { nome: l.nome, slug: l.slug }]));
+  return new Map(linhas.map((l) => [l.id, { nome: l.nome, slug: l.slug, foto: urlDoAvatar(l) }]));
 }
 
 // ---------------------------------------------------------------- Top Cliques
@@ -28,6 +41,8 @@ export async function autoresPorId(fotografoIds: string[]): Promise<Map<string, 
 export type PosicaoTopCliques = {
   fotografoId: string;
   nome: string;
+  /** Imagem do perfil, para o ranking. */
+  foto: string | null;
   vendidas: number;
   /** O que os clientes pagaram pelas fotos dele neste evento (preço menos desconto). */
   faturadoCentavos: number;
@@ -68,6 +83,7 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
     .map((id) => ({
       fotografoId: id,
       nome: nomes.get(id)?.nome ?? "Fotógrafo",
+      foto: nomes.get(id)?.foto ?? null,
       vendidas: vendas.find((v) => v.fotografoId === id)?.vendidas ?? 0,
       faturadoCentavos: vendas.find((v) => v.fotografoId === id)?.faturado ?? 0,
     }))
