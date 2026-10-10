@@ -5,7 +5,9 @@
 // Na produção da Vercel, só as categorias: os dados de exemplo entram só com SEMEAR_EXEMPLOS=1,
 // e mesmo assim sem contas de exemplo com a senha pública (README). Lá os fotógrafos de exemplo
 // ficam sem senha e com e-mail em `.invalid` (domínio reservado, que ninguém recebe nem confirma
-// no Google), então ninguém entra neles; a cliente e o gestor de exemplo não são criados.
+// no Google), então ninguém entra neles; a cliente e o gestor de exemplo não são criados. O mesmo
+// vale para qualquer Postgres de verdade (`db:migrar`): as contas com a senha pública só nascem
+// no PGlite, que pede `contasComSenha`.
 
 import { sql } from "drizzle-orm";
 
@@ -36,18 +38,30 @@ function semearExemplos() {
   return !emProducao() || process.env.SEMEAR_EXEMPLOS === "1";
 }
 
-/** Usuários de exemplo. Na produção, só os donos dos fotógrafos, sem login possível. */
-function usuariosDaSemente() {
-  const producao = emProducao();
-  const usuarios = usuariosDeExemplo(!producao);
-  if (!producao) return usuarios;
+/**
+ * Usuários de exemplo. Com a senha pública, só no banco de exemplo (PGlite) e fora da produção;
+ * em qualquer outro caso, só os donos dos fotógrafos, sem login possível.
+ */
+function usuariosDaSemente(contasComSenha: boolean) {
+  const usuarios = usuariosDeExemplo(contasComSenha);
+  if (contasComSenha) return usuarios;
   const donos = new Set(exemplo.fotografos.map((f) => f.usuarioId));
   return usuarios
     .filter((u) => donos.has(u.id))
     .map((u) => ({ ...u, email: u.email.replace(/@.*$/, "@exemplo.invalid"), senhaHash: null }));
 }
 
-export async function semear(banco: Banco) {
+export type OpcoesSemente = {
+  /**
+   * Cria as contas de exemplo com a senha pública (ana@, lia@, admin@exemplo.com). Só o PGlite
+   * (src/db/index.ts) pede; o `db:migrar` nunca, porque roda num Postgres de verdade e pode ser
+   * rodado de uma máquina local contra o banco de produção, onde VERCEL_ENV não existe. Na
+   * produção da Vercel é ignorado.
+   */
+  contasComSenha?: boolean;
+};
+
+export async function semear(banco: Banco, { contasComSenha = false }: OpcoesSemente = {}) {
   if (!(await bancoVazio(banco))) return;
 
   if (!semearExemplos()) {
@@ -56,7 +70,7 @@ export async function semear(banco: Banco) {
   }
 
   await banco.insert(t.usuarios).values(
-    usuariosDaSemente().map((u) => ({
+    usuariosDaSemente(contasComSenha && !emProducao()).map((u) => ({
       ...u,
       emailConfirmadoEm: data(u.emailConfirmadoEm),
       criadoEm: new Date(u.criadoEm),

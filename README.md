@@ -23,7 +23,7 @@ O que já funciona:
 
 O andamento completo, fase por fase, está em [docs/tarefas.md](docs/tarefas.md).
 
-**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); todas só fora da produção; lá a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, fora da produção, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` ou `POSTGRES_URL` (Supabase), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio (na produção, só as categorias; ver [deploy.md](docs/deploy.md)).
+**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); todas só fora da produção; lá a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, fora da produção, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` ou `POSTGRES_URL` (Supabase), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio, sem as contas com a senha de exemplo, que só existem no PGlite (na produção, só as categorias; ver [deploy.md](docs/deploy.md)). A dica dessas contas em `/entrar` só aparece no PGlite e nunca na produção.
 
 ## Como rodar
 

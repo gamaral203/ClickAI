@@ -14,6 +14,7 @@ import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/p
 import { buttonVariants } from "@/components/ui/button";
 import { autoresPorId, contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { emProducao } from "@/db/conexao";
 import { provedorDePagamento } from "@/lib/gateway";
 import { buscarPedidoAtualizado } from "@/servicos/pagamentos";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -102,6 +103,15 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                 />
               )}
             </>
+          ) : emProducao() ? (
+            // Sem gateway na produção o build já falha (scripts/migrar.ts); se ainda assim chegar
+            // aqui, nada de Pix ou pagamento de exemplo: só o aviso.
+            <p
+              role="alert"
+              className="rounded-lg border border-destructive/30 p-3 text-destructive"
+            >
+              O pagamento está indisponível no momento. Tente de novo em alguns minutos.
+            </p>
           ) : (
             <>
               {pedido.metodo === "pix" && (
