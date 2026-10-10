@@ -43,7 +43,7 @@ export const fotografos: FotografoConta[] = [
     redesSociais: { instagram: "liaramos.foto" },
     cpfCnpj: "00.000.000/0001-00",
     chavePix: "00000000000100",
-    comissaoPct: 10,
+    comissaoPct: 8,
   },
   {
     id: uuid("f1a7c0de", 2),
@@ -57,7 +57,7 @@ export const fotografos: FotografoConta[] = [
     redesSociais: { site: "https://exemplo.com.br" },
     cpfCnpj: "000.000.000-00",
     chavePix: "00000000000",
-    comissaoPct: 10,
+    comissaoPct: 8,
   },
   {
     id: uuid("f1a7c0de", 3),
@@ -72,7 +72,7 @@ export const fotografos: FotografoConta[] = [
     cpfCnpj: "00.000.000/0002-00",
     // Sem chave Pix confirmada: não pode publicar evento novo nem sacar (docs/riscos.md).
     chavePix: null,
-    comissaoPct: 10,
+    comissaoPct: 8,
   },
 ];
 

@@ -9,6 +9,7 @@ import { connection } from "next/server";
 import { obterBanco } from "@/db";
 import { emProducao } from "@/db/conexao";
 import * as t from "@/db/schema";
+import { ehModeloMarca, MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
 
 import type { EscolhaLiberacao } from "@/lib/liberacao";
 
@@ -124,7 +125,7 @@ export async function slugDeEventoEmUso(slug: string, excetoId?: string) {
   return linha !== undefined;
 }
 
-export type DadosDoEvento = Omit<Evento, "id" | "fotografoId" | "status" | "capa">;
+export type DadosDoEvento = Omit<Evento, "id" | "fotografoId" | "status" | "capa" | "capaFotoId">;
 
 /** Dados do evento como o banco grava: as datas viram Date. */
 function linhaDoEvento(dados: Partial<DadosDoEvento>): Partial<typeof t.eventos.$inferInsert> {
@@ -201,6 +202,53 @@ export async function mudarStatusDoEvento(
     )
     .returning({ id: t.eventos.id });
   return atualizados.length > 0;
+}
+
+export type ResultadoExclusaoEvento =
+  | { ok: true; chavesOriginais: string[] }
+  | { ok: false; motivo: "nao_encontrado" | "revisao" | "tem_pedidos" | "tem_denuncias" };
+
+/**
+ * Apaga de vez um evento do fotógrafo que nunca teve pedido (pago ou não): fotos, pastas e o
+ * resto que depende dele. Evento com pedido não sai daqui (quem comprou precisa continuar
+ * baixando): esse se arquiva. Devolve as chaves dos originais, para apagar os arquivos.
+ */
+export async function excluirEventoSemPedidos(
+  eventoId: string,
+  fotografoId: string,
+): Promise<ResultadoExclusaoEvento> {
+  const banco = await obterBanco();
+  return banco.transaction(async (tx): Promise<ResultadoExclusaoEvento> => {
+    const [evento] = await tx
+      .select({ status: t.eventos.status })
+      .from(t.eventos)
+      .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)))
+      .for("update");
+    if (!evento) return { ok: false, motivo: "nao_encontrado" };
+    if (evento.status === "revisao") return { ok: false, motivo: "revisao" };
+    const fotosDoEvento = tx
+      .select({ id: t.fotos.id })
+      .from(t.fotos)
+      .where(eq(t.fotos.eventoId, eventoId));
+    const [pedido] = await tx
+      .select({ id: t.itensPedido.id })
+      .from(t.itensPedido)
+      .where(inArray(t.itensPedido.fotoId, fotosDoEvento))
+      .limit(1);
+    if (pedido) return { ok: false, motivo: "tem_pedidos" };
+    const [denuncia] = await tx
+      .select({ id: t.denuncias.id })
+      .from(t.denuncias)
+      .where(eq(t.denuncias.eventoId, eventoId))
+      .limit(1);
+    if (denuncia) return { ok: false, motivo: "tem_denuncias" };
+    const apagadas = await tx
+      .delete(t.fotos)
+      .where(eq(t.fotos.eventoId, eventoId))
+      .returning({ chave: t.fotos.chaveOriginal });
+    await tx.delete(t.eventos).where(eq(t.eventos.id, eventoId));
+    return { ok: true, chavesOriginais: apagadas.flatMap((f) => (f.chave ? [f.chave] : [])) };
+  });
 }
 
 // ---------------------------------------------------------------- Fotos do evento
@@ -460,7 +508,11 @@ export async function excluirItem(fotoId: string, fotografoId: string): Promise<
       ),
     )
     .returning({ id: t.fotos.id });
-  return atualizados.length > 0;
+  if (atualizados.length === 0) return false;
+  // Era a capa: volta para a automática. A consulta da capa já ignora a excluída; isto só deixa
+  // o painel sem uma escolha que não vale mais (exclusão lógica não dispara o "on delete").
+  await banco.update(t.eventos).set({ capaFotoId: null }).where(eq(t.eventos.capaFotoId, fotoId));
+  return true;
 }
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
@@ -568,43 +620,6 @@ export async function mudarStatusSaque(
   return atualizados.length > 0;
 }
 
-/** O saque ligado a uma transferência no gateway (pelo id dela). */
-export async function buscarSaquePorGatewayId(gatewayId: string): Promise<Saque | null> {
-  const banco = await obterBanco();
-  const [linha] = await banco.select().from(t.saques).where(eq(t.saques.gatewayId, gatewayId));
-  return linha ? paraSaque(linha) : null;
-}
-
-/**
- * Asaas: o webhook de validação pergunta se a transferência pode sair. Liga a transferência ao
- * saque em `processando` com o mesmo valor e a mesma chave Pix, só se o saque ainda não tiver
- * outra transferência (`UPDATE … WHERE gateway_id IS NULL OR gateway_id = id`). Devolve se ligou:
- * é o que impede pagar o mesmo saque duas vezes.
- */
-export async function reivindicarSaqueParaTransferencia(dados: {
-  transferenciaId: string;
-  liquidoCentavos: number;
-  chavesPix: string[];
-}): Promise<boolean> {
-  if (dados.chavesPix.length === 0) return false;
-  const banco = await obterBanco();
-  const atualizados = await banco
-    .update(t.saques)
-    .set({ gatewayId: dados.transferenciaId })
-    .where(
-      and(
-        eq(t.saques.status, "processando"),
-        eq(t.saques.liquidoCentavos, dados.liquidoCentavos),
-        inArray(t.saques.chavePix, dados.chavesPix),
-        sql`(${t.saques.gatewayId} is null or ${t.saques.gatewayId} = ${dados.transferenciaId})`,
-      ),
-    )
-    .returning({ id: t.saques.id });
-  // Mais de um saque igual (mesma chave e valor) em processamento não acontece: um saque por
-  // vez por fotógrafo, e a chave é o CPF/CNPJ dele.
-  return atualizados.length === 1;
-}
-
 /** Saque que falhou devolve os lançamentos ao saldo, para o fotógrafo tentar de novo. */
 export async function soltarLancamentosDoSaque(saqueId: string) {
   const banco = await obterBanco();
@@ -648,4 +663,27 @@ export async function listarSaquesProcessando(fotografoId: string): Promise<Saqu
     .from(t.saques)
     .where(and(eq(t.saques.fotografoId, fotografoId), eq(t.saques.status, "processando")));
   return linhas.map(paraSaque);
+}
+
+/** Guarda o modelo de marca d'água do fotógrafo (vale para as fotos enviadas daqui em diante). */
+export async function salvarModeloMarca(fotografoId: string, modelo: ModeloMarca) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotografos)
+    .set({ modeloMarca: modelo })
+    .where(eq(t.fotografos.id, fotografoId));
+}
+
+/**
+ * Modelo de marca d'água das fotos de um evento: o do dono do evento (também nas fotos que um
+ * colaborador envia, para a galeria ficar igual).
+ */
+export async function modeloMarcaDoEvento(eventoId: string): Promise<ModeloMarca> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ modelo: t.fotografos.modeloMarca })
+    .from(t.eventos)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))
+    .where(eq(t.eventos.id, eventoId));
+  return linha && ehModeloMarca(linha.modelo) ? linha.modelo : MODELO_MARCA_PADRAO;
 }

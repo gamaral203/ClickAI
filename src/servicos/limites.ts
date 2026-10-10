@@ -39,6 +39,19 @@ const REGRAS = {
    * segura quem tenta adivinhar códigos de muitos e-mails do mesmo lugar.
    */
   codigo_email_conferencia_ip: { limite: 30, janelaMs: 15 * MINUTO },
+  /**
+   * Códigos de acesso do gestor enviados por conta (login e reenvios; cada um manda um e-mail).
+   * Além disso, cada login pendente aceita só 3 reenvios, com 60 segundos de espera entre eles
+   * (src/servicos/codigo-login.ts).
+   */
+  codigo_login_envio_usuario: { limite: 10, janelaMs: 60 * MINUTO },
+  /** Códigos de acesso do gestor enviados por IP. */
+  codigo_login_envio_ip: { limite: 20, janelaMs: 60 * MINUTO },
+  /**
+   * Códigos digitados na segunda etapa do login (/entrar/codigo), por IP: do e-mail do gestor ou
+   * do app autenticador. Cada código do e-mail já aceita só 5 tentativas.
+   */
+  codigo_login_conferencia_ip: { limite: 30, janelaMs: 15 * MINUTO },
   /** "Esqueci a senha" por e-mail de destino (cada pedido pode mandar um e-mail). */
   esqueci_senha_email: { limite: 3, janelaMs: 60 * MINUTO },
   /** "Esqueci a senha" por IP. */
@@ -88,6 +101,10 @@ const REGRAS = {
    * inflando o painel de um fotógrafo.
    */
   metricas_ip: { limite: 300, janelaMs: 10 * MINUTO },
+  /** Mensagens do chat de ajuda por usuário (cada uma avisa a gestão por e-mail e notificação). */
+  suporte_usuario: { limite: 30, janelaMs: 60 * MINUTO },
+  /** Sugestões de melhoria por usuário. */
+  sugestao_usuario: { limite: 10, janelaMs: 60 * MINUTO },
 } as const;
 
 export type Regra = keyof typeof REGRAS;

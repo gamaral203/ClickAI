@@ -19,6 +19,7 @@ import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlPublica } from "@/lib/url-publica";
 
+import { capasDosEventos } from "./capa";
 import { eventosDosCupons } from "./comum";
 import {
   deIso,
@@ -324,34 +325,42 @@ async function resumir(
       instante,
     ),
   ]);
-  return Promise.all(
-    eventosLista.map(async (evento, i) => {
-      const conta = contas.find((f) => f.id === evento.fotografoId);
-      const categoria = cats.find((c) => c.id === evento.categoriaId);
-      if (!conta || !categoria) {
-        throw new Error(`Evento ${evento.id} com fotógrafo ou categoria inválidos`);
-      }
-      const situacao = situacaoGaleria(evento, liberacoes.get(evento.id), senhasAceitas[i]);
-      const contagem = contagens.find((c) => c.eventoId === evento.id);
-      // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
-      const capa =
-        situacao.tipo === "aberta"
-          ? (await chavesVisiveisDoEvento(evento, instante))[0]
-          : undefined;
-      return {
-        ...evento,
-        fotografo: perfilPublico(paraFotografo(conta)),
-        categoria,
-        totalItens: (contagem?.fotos ?? 0) + (contagem?.videos ?? 0),
-        totalFotos: contagem?.fotos ?? 0,
-        totalVideos: contagem?.videos ?? 0,
-        capaMiniatura: capa
-          ? { urlMiniatura: capa.urlMiniatura, largura: capa.largura, altura: capa.altura }
-          : null,
-        situacaoGaleria: situacao,
-      };
-    }),
+  const situacoes = eventosLista.map((evento, i) =>
+    situacaoGaleria(evento, liberacoes.get(evento.id), senhasAceitas[i]),
   );
+  // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
+  // Uma consulta para todos os eventos (src/dados/capa.ts).
+  const capas = await capasDosEventos(
+    eventosLista.filter((_, i) => situacoes[i].tipo === "aberta").map((e) => e.id),
+    instante,
+  );
+  return eventosLista.map((evento, i) => {
+    const conta = contas.find((f) => f.id === evento.fotografoId);
+    const categoria = cats.find((c) => c.id === evento.categoriaId);
+    if (!conta || !categoria) {
+      throw new Error(`Evento ${evento.id} com fotógrafo ou categoria inválidos`);
+    }
+    const situacao = situacoes[i];
+    const contagem = contagens.find((c) => c.eventoId === evento.id);
+    const capa = capas.get(evento.id);
+    return {
+      ...evento,
+      fotografo: perfilPublico(paraFotografo(conta)),
+      categoria,
+      totalItens: (contagem?.fotos ?? 0) + (contagem?.videos ?? 0),
+      totalFotos: contagem?.fotos ?? 0,
+      totalVideos: contagem?.videos ?? 0,
+      capaMiniatura: capa
+        ? {
+            urlMiniatura: capa.urlMiniatura,
+            urlPrevia: capa.urlPrevia,
+            largura: capa.largura,
+            altura: capa.altura,
+          }
+        : null,
+      situacaoGaleria: situacao,
+    };
+  });
 }
 
 export type FiltroEventos = {
@@ -419,10 +428,17 @@ export type OpcoesFiltroEventos = {
   cidades: { nome: string; estado: string }[];
 };
 
-/** Categorias e cidades que têm evento na lista pública, para os filtros (sem opção vazia). */
-export async function listarOpcoesFiltroEventos(): Promise<OpcoesFiltroEventos> {
+/**
+ * Categorias e cidades que têm evento na lista pública, para os filtros (sem opção vazia). Com
+ * `fotografoId`, só as dos eventos desse fotógrafo (página do fotógrafo).
+ */
+export async function listarOpcoesFiltroEventos(
+  fotografoId?: string,
+): Promise<OpcoesFiltroEventos> {
   const banco = await obterBanco();
-  const listados = await eventosListados();
+  const listados = (await eventosListados()).filter(
+    (e) => !fotografoId || e.fotografoId === fotografoId,
+  );
   const categoriaIds = new Set(listados.map((e) => e.categoriaId));
   const cidades = new Map(listados.map((e) => [normalizar(e.cidade), e]));
   const cats = await banco.select().from(t.categorias);
@@ -1542,3 +1558,6 @@ export * from "./autenticacao";
 export * from "./autores";
 export * from "./rankings";
 export * from "./liberacao";
+export * from "./push";
+export * from "./capa";
+export * from "./suporte";

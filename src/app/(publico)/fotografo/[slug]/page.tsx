@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { filtrandoEventos } from "@/components/galeria/filtros-eventos";
 import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
 import { numerosDoFotografo, VitrineDoFotografo } from "@/components/loja/vitrine-do-fotografo";
 import {
   buscarFotografoPublico,
   buscarLojaDoFotografo,
   listarEventosPublicados,
+  listarOpcoesFiltroEventos,
   totalVendidoComoAutor,
 } from "@/dados";
 import { logoDoFotografo } from "@/lib/avatares";
@@ -15,6 +17,7 @@ import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto } from "@/lib/loja";
 import { situacaoDasMetas } from "@/lib/metas";
 import { FORMATO_SLUG } from "@/lib/slug";
+import { lerFiltroEventos } from "@/lib/validacao";
 
 // Link do fotógrafo: /fotografo/<endereço>. Todo fotógrafo tem o seu, sem configurar nada, para
 // divulgar o trabalho: quem entra vê só os eventos dele. (A loja própria, com nome, cores e
@@ -47,11 +50,13 @@ export default function PaginaFotografo({ params, searchParams }: PageProps<"/fo
 async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">) {
   const fotografo = await carregar(params);
   if (!fotografo) notFound();
-  const { busca } = await searchParams;
-  const termo = typeof busca === "string" ? busca.trim().slice(0, 100) : "";
-  const [todos, encontrados, salva, vendido] = await Promise.all([
+  const filtro = lerFiltroEventos(await searchParams);
+  const [todos, encontrados, opcoes, salva, vendido] = await Promise.all([
     listarEventosPublicados({ fotografoId: fotografo.id }),
-    termo ? listarEventosPublicados({ fotografoId: fotografo.id, busca: termo }) : null,
+    filtrandoEventos(filtro)
+      ? listarEventosPublicados({ ...filtro, fotografoId: fotografo.id })
+      : null,
+    listarOpcoesFiltroEventos(fotografo.id),
     buscarLojaDoFotografo(fotografo.id),
     totalVendidoComoAutor(fotografo.id),
   ]);
@@ -89,9 +94,10 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
       />
       <VitrineDoFotografo
         eventos={encontrados ?? todos}
-        busca={{
-          termo,
-          limpar: `/fotografo/${fotografo.slug}`,
+        filtros={{
+          filtro,
+          opcoes,
+          pagina: `/fotografo/${fotografo.slug}`,
           rotulo: `Buscar nos eventos de ${fotografo.nomePublico}`,
         }}
       />

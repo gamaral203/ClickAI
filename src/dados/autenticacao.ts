@@ -1,5 +1,6 @@
-// Dados da confirmação do e-mail por código e do "Esqueci a senha" (src/servicos/confirmacao-email.ts
-// e src/servicos/redefinicao-senha.ts). Código e token chegam aqui só como hash.
+// Dados da confirmação do e-mail por código, do "Esqueci a senha" e do código de acesso do gestor
+// (src/servicos/confirmacao-email.ts, src/servicos/redefinicao-senha.ts e
+// src/servicos/codigo-login.ts). Código e token chegam aqui só como hash.
 
 import "server-only";
 
@@ -166,6 +167,166 @@ export async function apagarCodigoEmail(email: string) {
 export async function apagarCodigosEmailAntigos(limite: number) {
   const banco = await obterBanco();
   await banco.delete(t.codigosEmail).where(lt(t.codigosEmail.criadoEm, new Date(limite)));
+}
+
+// ---------------------------------------------------------------- Código de acesso do gestor
+
+export type CodigoDeLogin = {
+  usuarioId: string;
+  /** Login pendente que pediu o código (o mesmo id vai no cookie da segunda etapa). */
+  loginId: string;
+  codigoHash: string;
+  expiraEm: number;
+  tentativas: number;
+  reenvios: number;
+  enviadoEm: number;
+};
+
+function paraCodigoDeLogin(r: typeof t.codigosDeLogin.$inferSelect): CodigoDeLogin {
+  return {
+    usuarioId: r.usuarioId,
+    loginId: r.loginId,
+    codigoHash: r.codigoHash,
+    expiraEm: r.expiraEm.getTime(),
+    tentativas: r.tentativas,
+    reenvios: r.reenvios,
+    enviadoEm: r.enviadoEm.getTime(),
+  };
+}
+
+export async function buscarCodigoDeLogin(usuarioId: string): Promise<CodigoDeLogin | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select()
+    .from(t.codigosDeLogin)
+    .where(eq(t.codigosDeLogin.usuarioId, usuarioId));
+  return linha ? paraCodigoDeLogin(linha) : null;
+}
+
+/**
+ * Grava o código de um login novo: troca o de um login anterior do mesmo usuário e zera as
+ * tentativas. `reenvios` é 1 quando o primeiro código não chegou a ser gravado (limite no login).
+ */
+export async function gravarCodigoDeLogin(dados: {
+  usuarioId: string;
+  loginId: string;
+  codigoHash: string;
+  expiraEm: number;
+  agora: number;
+  reenvios: number;
+}) {
+  const banco = await obterBanco();
+  const valores = {
+    loginId: dados.loginId,
+    codigoHash: dados.codigoHash,
+    expiraEm: new Date(dados.expiraEm),
+    tentativas: 0,
+    reenvios: dados.reenvios,
+    enviadoEm: new Date(dados.agora),
+    criadoEm: new Date(dados.agora),
+  };
+  await banco
+    .insert(t.codigosDeLogin)
+    .values({ usuarioId: dados.usuarioId, ...valores })
+    .onConflictDoUpdate({ target: t.codigosDeLogin.usuarioId, set: valores });
+}
+
+/**
+ * Reenvio: troca o código do mesmo login (o anterior deixa de valer e as tentativas zeram), só se
+ * já passou a espera desde o último envio e ainda há reenvios. Devolve se trocou: dois reenvios
+ * ao mesmo tempo trocam um só, e só quem trocou manda o e-mail.
+ */
+export async function trocarCodigoDeLogin(dados: {
+  usuarioId: string;
+  loginId: string;
+  codigoHash: string;
+  expiraEm: number;
+  agora: number;
+  esperaMs: number;
+  maximoReenvios: number;
+}): Promise<boolean> {
+  const banco = await obterBanco();
+  const trocados = await banco
+    .update(t.codigosDeLogin)
+    .set({
+      codigoHash: dados.codigoHash,
+      expiraEm: new Date(dados.expiraEm),
+      tentativas: 0,
+      reenvios: sql`${t.codigosDeLogin.reenvios} + 1`,
+      enviadoEm: new Date(dados.agora),
+    })
+    .where(
+      and(
+        eq(t.codigosDeLogin.usuarioId, dados.usuarioId),
+        eq(t.codigosDeLogin.loginId, dados.loginId),
+        lt(t.codigosDeLogin.reenvios, dados.maximoReenvios),
+        lte(t.codigosDeLogin.enviadoEm, new Date(dados.agora - dados.esperaMs)),
+      ),
+    )
+    .returning({ usuarioId: t.codigosDeLogin.usuarioId });
+  return trocados.length > 0;
+}
+
+/** O e-mail não saiu: libera o reenvio na hora, sem esperar os 60 segundos. */
+export async function liberarReenvioDoCodigoDeLogin(usuarioId: string, loginId: string) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.codigosDeLogin)
+    .set({ enviadoEm: new Date(0) })
+    .where(and(eq(t.codigosDeLogin.usuarioId, usuarioId), eq(t.codigosDeLogin.loginId, loginId)));
+}
+
+/**
+ * Conta uma tentativa de digitar o código do login, se ainda houver tentativas. Devolve o hash e
+ * quantas tentativas já foram (com esta), ou `null` se acabaram. Uma operação só no banco:
+ * tentativas ao mesmo tempo não passam do máximo.
+ */
+export async function contarTentativaDoCodigoDeLogin(
+  usuarioId: string,
+  loginId: string,
+  maximo: number,
+): Promise<{ codigoHash: string; tentativas: number } | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .update(t.codigosDeLogin)
+    .set({ tentativas: sql`${t.codigosDeLogin.tentativas} + 1` })
+    .where(
+      and(
+        eq(t.codigosDeLogin.usuarioId, usuarioId),
+        eq(t.codigosDeLogin.loginId, loginId),
+        lt(t.codigosDeLogin.tentativas, maximo),
+      ),
+    )
+    .returning({
+      codigoHash: t.codigosDeLogin.codigoHash,
+      tentativas: t.codigosDeLogin.tentativas,
+    });
+  return linha ?? null;
+}
+
+/** Usa o código (uma vez só): apaga a linha se o hash ainda for o mesmo. Devolve se apagou. */
+export async function consumirCodigoDeLogin(
+  usuarioId: string,
+  loginId: string,
+  codigoHash: string,
+): Promise<boolean> {
+  const banco = await obterBanco();
+  const apagados = await banco
+    .delete(t.codigosDeLogin)
+    .where(
+      and(
+        eq(t.codigosDeLogin.usuarioId, usuarioId),
+        eq(t.codigosDeLogin.loginId, loginId),
+        eq(t.codigosDeLogin.codigoHash, codigoHash),
+      ),
+    )
+    .returning({ usuarioId: t.codigosDeLogin.usuarioId });
+  return apagados.length > 0;
+}
+
+export async function apagarCodigoDeLogin(usuarioId: string) {
+  const banco = await obterBanco();
+  await banco.delete(t.codigosDeLogin).where(eq(t.codigosDeLogin.usuarioId, usuarioId));
 }
 
 /** Marca o e-mail como confirmado (a hora fica a primeira). */

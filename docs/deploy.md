@@ -8,8 +8,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 |---|---|---|---|
 | Vercel | Hospedar o site | Agora | Funções na região `gru1` (São Paulo), já em `vercel.json` |
 | Sentry | Avisar de erros | Agora | Plano gratuito basta no começo |
-| Asaas | Pix, cartão e saque (gateway principal) | Agora (comece pelo sandbox) | Passo a passo em "Asaas" (item 3). Com `ASAAS_API_KEY`, vale no lugar do Mercado Pago |
-| Mercado Pago | Pix, cartão e saque (alternativa) | Só se o Asaas não estiver configurado | Saque em produção só com a chave pública cadastrada no Mercado Pago e `MP_PAYOUTS_HABILITADO=1` (item 3) |
+| Mercado Pago | Pix e cartão | Agora | Saque em produção só com a chave pública cadastrada no Mercado Pago e `MP_PAYOUTS_HABILITADO=1` (item 3) |
 | Google Cloud | Login com Google | Agora | Tela de consentimento OAuth publicada |
 | Banco (Supabase) | Dados | Agora | Região São Paulo. A produção usa `DATABASE_URL` (pooler, porta 6543) e `DATABASE_URL_DIRETA` (direta, porta 5432), cadastradas à mão na Vercel; `POSTGRES_URL` e `POSTGRES_URL_NON_POOLING` são a alternativa, criadas pela integração do Marketplace (Storage → Supabase). O plano gratuito pausa o projeto depois de 7 dias sem uso. O build roda as migrações (`npm run db:migrar`); num banco vazio, a produção grava só as categorias (ver item 3) |
 | Cloudflare R2 | Fotos (e vídeos, depois) | Agora, para enviar fotos | Dois buckets: público (prévias) e privado (originais). Passo a passo no item 7 |
@@ -31,8 +30,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `APP_URL` | Endereço do site; em produção, `https://www.clicouai.com` (sem barra no fim). Usado nos links, no QR Code, no login com Google e nas lojas |
 | `APP_SECRET` | Segredo de 32+ caracteres que assina os pacotes e os links das mensagens. Sem ele, o site não gera esses links |
 | `CRON_SECRET` | Protege `/api/jobs/pedidos` e `/api/jobs/revisao` |
-| `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`, `ASAAS_AMBIENTE` | Asaas (gateway principal). Com `ASAAS_API_KEY`, as variáveis do Mercado Pago deixam de ser exigidas; sem `ASAAS_WEBHOOK_TOKEN`, o build de produção falha de propósito |
-| `MP_ACCESS_TOKEN`, `NEXT_PUBLIC_MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`, `MP_AMBIENTE` | Mercado Pago, só sem o Asaas. Sem `MP_ACCESS_TOKEN` ou `MP_WEBHOOK_SECRET`, o build de produção falha de propósito (`scripts/migrar.ts`, com o nome do que falta) e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`) |
+| `MP_ACCESS_TOKEN`, `NEXT_PUBLIC_MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`, `MP_AMBIENTE` | Mercado Pago. Sem `MP_ACCESS_TOKEN` ou `MP_WEBHOOK_SECRET`, o build de produção falha de propósito (`scripts/migrar.ts`, com o nome do que falta) e o servidor recusa cair no pagamento simulado (`src/lib/ambiente-producao.ts`) |
 | `MP_PAYOUTS_PRIVATE_KEY`, `MP_PAYOUTS_HABILITADO` | Saque real pelo Payouts (ver "Saque em produção" abaixo). Sem as duas, o saque em produção é recusado sem chamar a API |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_EMAILS` | Login com Google e quem entra como gestor |
 | `GESTORES` | Contas de gestor da equipe com e-mail e senha (só o hash, gerado por `npm run senha:hash`). Em produção, a conta de exemplo de gestor não existe |
@@ -58,18 +56,7 @@ Trocar o `APP_SECRET` invalida os links de pedido já enviados por e-mail e What
 
 `SAQUE_SEM_PRAZO_EMAILS` (e-mails separados por vírgula) faz o **gestor** (papel `admin`) com esse e-mail sacar as próprias vendas sem esperar 1/30 dias, com a comissão normal de 10%. Fotógrafos comuns não são afetados, mesmo que o e-mail esteja na lista. A tela Financeiro mostra um aviso enquanto está ativa e cada saque liberado fica registrado no log. Serve só para validar o saque: cadastre em *Production*, faça **Redeploy**, teste e depois apague a variável e faça outro Redeploy. Lembre que, com `MP_AMBIENTE=producao`, o saque só sai depois de ligar o Payouts (abaixo).
 
-### Asaas
-
-1. **Conta:** crie em [sandbox.asaas.com](https://sandbox.asaas.com) para testar e em [asaas.com](https://www.asaas.com) para valer (pode ser CPF; o Asaas pede documentos para aprovar).
-2. **Chave da API:** Integrações > Chave de API. Cadastre na Vercel `ASAAS_API_KEY` e `ASAAS_AMBIENTE` (`sandbox` ou `producao`). Nunca cole a chave em chat ou no código.
-3. **Token dos webhooks:** gere um com `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` e cadastre como `ASAAS_WEBHOOK_TOKEN` na Vercel.
-4. **Webhook de cobranças e transferências:** Integrações > Webhooks > novo, URL `https://<domínio>/api/webhooks/asaas`, o mesmo token, eventos de **cobranças** e de **transferências**.
-5. **Validação de saque:** Integrações > Mecanismos de segurança > *Validação de saque via webhook*, URL `https://<domínio>/api/webhooks/asaas/saque`, o mesmo token. Marque também a validação de reembolsos Pix. Com isso, o Asaas pergunta ao site antes de cada saída: o site aprova só a transferência que bate com um saque do ClicouAí (valor e chave Pix) e só uma por saque, o que impede pagar duas vezes e protege contra quem roubar a chave da API. **Transferência manual pelo app do Asaas é recusada**; para pagar alguém à mão, desligue a validação antes e ligue de novo depois.
-6. **Redeploy** e um teste: compre R$ 1,00 no Pix, confira que o pedido virou pago; depois um saque de R$ 1,00.
-
-Como funciona: o checkout pede o CPF (o Asaas exige). Pix mostra o QR Code na página do pedido; o cartão é pago na página segura do Asaas (o número do cartão não passa pelo ClicouAí). O Pix do Asaas vale até o fim do dia, mas o pedido vence em 1 hora: o job cancela a cobrança e expira o pedido. **O dinheiro do cartão no Asaas só fica disponível perto de 30 dias depois**, por isso venda no cartão não entra no saque antecipado (só Pix entra).
-
-### Saque em produção (Payouts com `X-signature`, só Mercado Pago)
+### Saque em produção (Payouts com `X-signature`)
 
 Em produção, o Mercado Pago exige em cada `POST /v1/payouts` o header `X-signature`: assinatura **Ed25519** dos bytes exatos do corpo JSON enviado, em base64. O app assina com a chave privada de `MP_PAYOUTS_PRIVATE_KEY` e manda `X-enforce-signature: true` (sem `X-test-token`). A chave pública fica cadastrada no Mercado Pago.
 
@@ -115,8 +102,7 @@ O Sentry recebe os erros sem tokens de pedido, cookies, corpo das requisições 
 
 ## 6. Depois do deploy
 
-- **Asaas:** webhooks e validação de saque, itens 4 e 5 de "Asaas" acima.
-- **Mercado Pago (só sem o Asaas):** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` nos eventos "Order (Mercado Pago)" e "Chargebacks" (reembolso e chargeback de order chegam como `type: "order"`).
+- **Mercado Pago:** cadastre o webhook `https://<domínio>/api/webhooks/mercadopago` nos eventos "Order (Mercado Pago)" e "Chargebacks" (reembolso e chargeback de order chegam como `type: "order"`).
 - **Google Cloud:** acrescente `https://<domínio>/api/auth/google/callback` às URIs de redirecionamento.
 - **Busca por selfie:** as fotos enviadas antes de configurar o Rekognition (ou em que a indexação falhou) não aparecem na busca. Em cada evento do painel, o quadro "Busca por selfie" mostra quantas fotos têm rosto cadastrado e quantas ainda não passaram pelo reconhecimento, com o botão "Cadastrar rostos que faltam" (só as que não passaram; foto sem rosto não volta) e "Refazer o cadastro de todas" (apaga os rostos do evento e cadastra de novo; para apagar também da coleção, o usuário IAM precisa de `rekognition:DeleteFaces`).
 - **Job de pedidos:** `GET /api/jobs/pedidos` (expira o Pix vencido, manda o lembrete do Pix 20 minutos depois do pedido e o de carrinho) roda a cada 10 minutos pelo GitHub Actions ([`.github/workflows/jobs.yml`](../.github/workflows/jobs.yml)). Cadastre no repositório, em **Settings → Secrets and variables → Actions**, os segredos `APP_URL` e `CRON_SECRET` (o mesmo da Vercel). Na prática o agendamento do GitHub atrasa ou pula execuções (em produção, intervalos de 2 a 5 horas): vale chamar as duas rotas de um agendador confiável (docs/tarefas.md, Fase 12). O cron da Vercel em `vercel.json` roda uma vez por dia, só como reserva (no plano Hobby não dá para rodar mais vezes). Para testar na hora: **Actions → Job de pedidos → Run workflow**. O mesmo workflow chama em seguida `GET /api/jobs/revisao`, que confere no Mercado Pago os saques em `processando` (casos ambíguos continuam em revisão manual, sem devolver saldo) e revisa as fotos paradas em `processando` há mais de 5 minutos (centenas por execução, até 80 s); sem Mercado Pago ou R2 configurados, a parte correspondente não faz nada.

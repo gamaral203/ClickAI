@@ -11,6 +11,7 @@ import {
   buscarUsuarioParaLogin,
   buscarUsuarioPorGoogle,
   buscarContaDoFotografo,
+  apagarCodigoDeLogin,
   apagarCodigoEmail,
   criarContaDeFotografo,
   criarContaDeFotografoSeNaoExistir,
@@ -33,6 +34,15 @@ import { inicioDoPapel } from "@/lib/navegacao";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 
+import {
+  conferirCodigoDeLogin,
+  enviarCodigoDeLogin,
+  exigeCodigoPorEmail,
+  reenviarCodigoDeLogin,
+  segundosParaReenviarCodigoDeLogin,
+  verificacaoPorEmailAtiva,
+  type ResultadoEnvioCodigoLogin,
+} from "./codigo-login";
 import {
   codigoPendente,
   conferirCodigo,
@@ -137,36 +147,94 @@ async function iniciarSessao(
   });
 }
 
-// ---------------------------------------------------------------- Verificação em duas etapas
+// ---------------------------------------------------------------- Segunda etapa do login
 //
-// Com a verificação ligada (src/servicos/mfa.ts), a senha certa (ou a volta do Google) não abre a
-// sessão: grava um cookie assinado de 5 minutos dizendo quem passou pela primeira etapa, e a
-// sessão só nasce em /entrar/codigo, com o código do app ou um código de recuperação. O cookie
-// leva a versão da sessão: trocar a senha ou sair de todos os aparelhos também o invalida.
+// A senha certa (ou a volta do Google) não abre a sessão quando:
+//   - a conta é de gestor: um código de 6 dígitos vai para o e-mail da conta
+//     (src/servicos/codigo-login.ts), obrigatório;
+//   - a verificação em duas etapas está ligada (src/servicos/mfa.ts): código do app autenticador
+//     ou de recuperação.
+// Um cookie assinado diz quem passou pela primeira etapa (10 minutos com o código por e-mail, 5 só
+// com o app), e a sessão só nasce em /entrar/codigo. O gestor com o app ligado pode usar qualquer
+// um dos dois códigos. O cookie leva a versão da sessão: trocar a senha ou sair de todos os
+// aparelhos também o invalida. Com o código por e-mail, leva ainda o id deste login (`e`), que o
+// código no banco também guarda: o código de um login não serve para outro.
 
 const COOKIE_MFA = "clicouai_mfa";
 const PROPOSITO_MFA = "mfa_pendente";
 const DURACAO_MFA_MS = 5 * 60 * 1000;
+const DURACAO_CODIGO_EMAIL_MS = 10 * 60 * 1000;
 
-type DadosMfaPendente = { u: string; v: string; m: MetodoLogin; p: string | null };
+type DadosMfaPendente = {
+  u: string;
+  v: string;
+  m: MetodoLogin;
+  p: string | null;
+  /** Id do login que recebeu o código por e-mail (gestor), ou `null`. */
+  e?: string | null;
+};
 
-async function pedirCodigoMfa(usuarioId: string, metodo: MetodoLogin, proximo: string | null) {
+async function pedirCodigoMfa(
+  usuarioId: string,
+  metodo: MetodoLogin,
+  proximo: string | null,
+  loginId: string | null = null,
+) {
   const versao = await versaoDaSessao(usuarioId);
   if (!versao) return;
-  const dados: DadosMfaPendente = { u: usuarioId, v: versao, m: metodo, p: proximo };
-  (await cookies()).set(COOKIE_MFA, assinar(PROPOSITO_MFA, dados, DURACAO_MFA_MS), {
+  const dados: DadosMfaPendente = { u: usuarioId, v: versao, m: metodo, p: proximo, e: loginId };
+  const duracao = loginId ? DURACAO_CODIGO_EMAIL_MS : DURACAO_MFA_MS;
+  (await cookies()).set(COOKIE_MFA, assinar(PROPOSITO_MFA, dados, duracao), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: DURACAO_MFA_MS / 1000,
+    maxAge: duracao / 1000,
   });
 }
 
-export type LoginPendente = { usuario: Usuario; metodo: MetodoLogin; proximo: string | null };
+type SegundaEtapa =
+  | { pedeCodigo: false }
+  | {
+      pedeCodigo: true;
+      /** O que houve com o envio do código por e-mail (`null`: só o app autenticador). */
+      envio: ResultadoEnvioCodigoLogin | null;
+    };
 
-/** Quem passou pela senha (ou pelo Google) e ainda precisa digitar o código, ou `null`. */
-export async function loginPendente(): Promise<LoginPendente | null> {
+/**
+ * Depois da primeira etapa (senha ou Google): decide se o login pede código e, se pedir, manda o
+ * código por e-mail (gestor) e grava o cookie da segunda etapa. Na produção sem o Resend, o
+ * gestor segue sem o código por e-mail (só com o app, se ligado), com um aviso no log.
+ */
+async function iniciarSegundaEtapa(
+  usuario: Usuario,
+  metodo: MetodoLogin,
+  proximo: string | null,
+): Promise<SegundaEtapa> {
+  let loginId: string | null = null;
+  let envio: ResultadoEnvioCodigoLogin | null = null;
+  if (exigeCodigoPorEmail(usuario)) {
+    if (verificacaoPorEmailAtiva()) {
+      loginId = randomUUID();
+      envio = await enviarCodigoDeLogin(usuario, loginId);
+    } else {
+      console.warn(
+        "[auth] verificação por e-mail dos gestores inativa: configure RESEND_API_KEY e EMAIL_REMETENTE. Gestor entrou sem o código por e-mail.",
+      );
+    }
+  }
+  if (!loginId && !usuario.mfaAtivo) return { pedeCodigo: false };
+  await pedirCodigoMfa(usuario.id, metodo, proximo, loginId);
+  return { pedeCodigo: true, envio };
+}
+
+/** Tela do código, com o aviso do que houve com o envio por e-mail (se não saiu). */
+export function telaDoCodigoDeLogin(envio: ResultadoEnvioCodigoLogin | null | undefined) {
+  if (!envio || envio.ok || envio.motivo === "espera") return "/entrar/codigo";
+  return `/entrar/codigo?envio=${envio.motivo === "limite" ? "limite" : "indisponivel"}`;
+}
+
+async function lerLoginPendente(): Promise<DadosMfaPendente | null> {
   const token = (await cookies()).get(COOKIE_MFA)?.value;
   if (!token || token.length > 1000) return null;
   await connection();
@@ -175,39 +243,129 @@ export async function loginPendente(): Promise<LoginPendente | null> {
     typeof d?.u !== "string" ||
     typeof d.v !== "string" ||
     (d.m !== "senha" && d.m !== "google") ||
-    (d.p !== null && typeof d.p !== "string")
+    (d.p !== null && typeof d.p !== "string") ||
+    (d.e !== undefined && d.e !== null && typeof d.e !== "string")
   ) {
     return null;
   }
+  return { u: d.u, v: d.v, m: d.m, p: d.p ?? null, e: d.e ?? null };
+}
+
+export type LoginPendente = {
+  usuario: Usuario;
+  metodo: MetodoLogin;
+  proximo: string | null;
+  /** Id do login que recebeu o código por e-mail (gestor), ou `null` (só o app autenticador). */
+  loginId: string | null;
+};
+
+/** Quem passou pela senha (ou pelo Google) e ainda precisa digitar o código, ou `null`. */
+export async function loginPendente(): Promise<LoginPendente | null> {
+  const d = await lerLoginPendente();
+  if (!d) return null;
   if ((await versaoDaSessao(d.u)) !== d.v) return null;
   const usuario = await buscarUsuario(d.u);
-  if (!usuario?.mfaAtivo) return null;
-  return { usuario, metodo: d.m, proximo: d.p ?? null };
+  if (!usuario) return null;
+  const loginId = d.e ?? null;
+  if (!loginId && !usuario.mfaAtivo) return null;
+  return { usuario, metodo: d.m, proximo: d.p, loginId };
+}
+
+/** Segundos até poder pedir outro código por e-mail neste login (0: já pode). */
+export async function esperaParaReenviarCodigoDeLogin(pendente: LoginPendente): Promise<number> {
+  if (!pendente.loginId) return 0;
+  return segundosParaReenviarCodigoDeLogin(pendente.usuario.id, pendente.loginId);
 }
 
 export type ResultadoCodigoLogin =
   | { ok: true; usuario: Usuario; proximo: string | null }
-  | { ok: false; motivo: "expirado" | "invalido" | "bloqueado" };
+  | {
+      ok: false;
+      /**
+       * `codigo_vencido`: o código do e-mail venceu (ou foi trocado por um novo);
+       * `codigo_bloqueado`: as 5 tentativas do código do e-mail acabaram;
+       * `invalido_email_ou_app`: gestor com o app ligado, e nenhum dos dois códigos confere.
+       */
+      motivo:
+        | "expirado"
+        | "invalido"
+        | "bloqueado"
+        | "codigo_vencido"
+        | "codigo_bloqueado"
+        | "invalido_email_ou_app";
+    }
+  | { ok: false; motivo: "invalido_email"; restantes: number };
 
 /**
- * Segunda etapa do login: confere o código (com limite de tentativas por usuário) e, se
- * certo, abre a sessão e apaga o cookie da primeira etapa.
+ * Segunda etapa do login: confere o código (do e-mail do gestor ou do app autenticador, com os
+ * limites de tentativas) e, se certo, abre a sessão e apaga o cookie da primeira etapa.
  */
 export async function concluirLoginComCodigo(codigo: string): Promise<ResultadoCodigoLogin> {
   const pendente = await loginPendente();
   if (!pendente) return { ok: false, motivo: "expirado" };
-  const resultado = await conferirCodigoMfa(pendente.usuario.id, codigo);
-  if (resultado !== "ok") return { ok: false, motivo: resultado };
-  (await cookies()).delete(COOKIE_MFA);
-  await iniciarSessao(pendente.usuario.id, pendente.metodo);
-  return { ok: true, usuario: pendente.usuario, proximo: pendente.proximo };
+  const { usuario, loginId } = pendente;
+  const texto = codigo.trim().slice(0, 40);
+
+  const abrir = async (): Promise<ResultadoCodigoLogin> => {
+    (await cookies()).delete(COOKIE_MFA);
+    await iniciarSessao(usuario.id, pendente.metodo);
+    return { ok: true, usuario, proximo: pendente.proximo };
+  };
+
+  // Código do e-mail: 6 números. Com o app também ligado, um código de recuperação (com letras)
+  // vai direto para o app, sem gastar uma tentativa do código do e-mail.
+  let porEmail: Awaited<ReturnType<typeof conferirCodigoDeLogin>> | null = null;
+  if (loginId && (!usuario.mfaAtivo || /^\d{6}$/.test(texto.replace(/\s/g, "")))) {
+    porEmail = await conferirCodigoDeLogin(usuario.id, loginId, texto);
+    if (porEmail.ok) return abrir();
+  }
+
+  if (usuario.mfaAtivo) {
+    const resultado = await conferirCodigoMfa(usuario.id, texto);
+    if (resultado === "ok") {
+      // O código do e-mail deste login não serve mais.
+      if (loginId) await apagarCodigoDeLogin(usuario.id);
+      return abrir();
+    }
+    if (!loginId || resultado === "bloqueado") return { ok: false, motivo: resultado };
+    return { ok: false, motivo: "invalido_email_ou_app" };
+  }
+
+  if (!porEmail || porEmail.ok) return { ok: false, motivo: "expirado" };
+  switch (porEmail.motivo) {
+    case "invalido":
+      return { ok: false, motivo: "invalido_email", restantes: porEmail.restantes };
+    case "bloqueado":
+      return { ok: false, motivo: "codigo_bloqueado" };
+    default:
+      return { ok: false, motivo: "codigo_vencido" };
+  }
+}
+
+/**
+ * "Reenviar código" de /entrar/codigo: código novo por e-mail para o mesmo login (o anterior
+ * deixa de valer). Com o código novo, o cookie da primeira etapa ganha mais 10 minutos.
+ */
+export async function reenviarCodigoDoLoginPendente(): Promise<ResultadoEnvioCodigoLogin> {
+  const pendente = await loginPendente();
+  if (!pendente?.loginId) return { ok: false, motivo: "sem_login" };
+  const resultado = await reenviarCodigoDeLogin(pendente.usuario, pendente.loginId);
+  if (resultado.ok) {
+    await pedirCodigoMfa(pendente.usuario.id, pendente.metodo, pendente.proximo, pendente.loginId);
+  }
+  return resultado;
 }
 
 export type ResultadoEntrar =
   | {
       usuario: Usuario;
-      /** A verificação em duas etapas está ligada: a sessão só abre em /entrar/codigo. */
+      /**
+       * A sessão só abre em /entrar/codigo: conta de gestor (código por e-mail) ou verificação em
+       * duas etapas ligada.
+       */
       pedeCodigo: boolean;
+      /** O que houve com o envio do código por e-mail do gestor (`null`: não houve envio). */
+      envioCodigo?: ResultadoEnvioCodigoLogin | null;
       pedeConfirmacao?: false;
     }
   | {
@@ -220,8 +378,8 @@ export type ResultadoEntrar =
     };
 
 /**
- * Confere e-mail e senha e abre a sessão (ou, com a verificação em duas etapas ligada, pede o
- * código do app). E-mail inexistente e senha errada dão o mesmo resultado e levam o mesmo tempo
+ * Confere e-mail e senha e abre a sessão (ou pede o código: por e-mail, para o gestor; do app, com
+ * a verificação em duas etapas ligada). E-mail inexistente e senha errada dão o mesmo resultado e levam o mesmo tempo
  * (compara com um hash falso), para não revelar quem tem conta. Com a senha certa e o e-mail ainda
  * não confirmado (cadastro pendente ou conta antiga), manda o código de confirmação e leva à tela
  * dele: só quem sabe a senha descobre que a conta existe.
@@ -253,10 +411,8 @@ export async function entrar(
     await pedirConfirmacaoDoEmail(publico.email, proximo);
     return { pedeCodigo: false, pedeConfirmacao: true, envio };
   }
-  if (publico.mfaAtivo) {
-    await pedirCodigoMfa(usuario.id, "senha", proximo);
-    return { usuario: publico, pedeCodigo: true };
-  }
+  const etapa = await iniciarSegundaEtapa(publico, "senha", proximo);
+  if (etapa.pedeCodigo) return { usuario: publico, pedeCodigo: true, envioCodigo: etapa.envio };
   await iniciarSessao(usuario.id, "senha");
   return { usuario: publico, pedeCodigo: false };
 }
@@ -393,6 +549,8 @@ export async function confirmarEmailComCodigo(codigo: string): Promise<Resultado
   // O perfil de vendedor nasce com o nome da pessoa; ela completa em /painel/perfil.
   if (resultado.novo && usuario.papel === "fotografo") await garantirContaDeFotografo(usuario);
   (await cookies()).delete(COOKIE_CONFIRMACAO);
+  // Gestor com o e-mail ainda não confirmado: o código que acabou de digitar já veio do e-mail da
+  // conta, depois da senha certa, então vale como a etapa do e-mail.
   if (usuario.mfaAtivo) {
     await pedirCodigoMfa(usuario.id, "senha", dados.p);
     return { ...resultado, proximo: dados.p, pedeCodigo: true };
@@ -402,7 +560,14 @@ export async function confirmarEmailComCodigo(codigo: string): Promise<Resultado
 }
 
 export type ResultadoGoogle =
-  | { ok: true; usuario: Usuario; novo: boolean; pedeCodigo: boolean }
+  | {
+      ok: true;
+      usuario: Usuario;
+      novo: boolean;
+      pedeCodigo: boolean;
+      /** O que houve com o envio do código por e-mail do gestor (`null`: não houve envio). */
+      envioCodigo?: ResultadoEnvioCodigoLogin | null;
+    }
   | { ok: false; motivo: "conta_google_diferente" };
 
 /**
@@ -457,10 +622,11 @@ export async function entrarComGoogle(
   const atualizado = await buscarUsuario(usuario.id);
   if (!atualizado) return { ok: false, motivo: "conta_google_diferente" };
   // O Google confirma o e-mail, não substitui o segundo fator: com a verificação em duas etapas
-  // ligada, quem tem acesso só ao Gmail da pessoa ainda precisa do app autenticador.
-  if (atualizado.mfaAtivo) {
-    await pedirCodigoMfa(usuario.id, "google", proximo);
-    return { ok: true, usuario: atualizado, novo, pedeCodigo: true };
+  // ligada, quem tem acesso só ao Gmail da pessoa ainda precisa do app autenticador; e o gestor
+  // passa pelo código por e-mail, como no login com senha.
+  const etapa = await iniciarSegundaEtapa(atualizado, "google", proximo);
+  if (etapa.pedeCodigo) {
+    return { ok: true, usuario: atualizado, novo, pedeCodigo: true, envioCodigo: etapa.envio };
   }
   await iniciarSessao(usuario.id, "google");
   return { ok: true, usuario: atualizado, novo, pedeCodigo: false };

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { LogOut } from "lucide-react";
 
 import { sairAcao } from "@/app/(cliente)/conta/acoes";
+import { BotaoSugestao } from "@/components/suporte/botao-sugestao";
 import type { Usuario } from "@/dados/tipos";
 import type { Navegacao } from "@/lib/navegacao";
 
@@ -43,6 +44,7 @@ export function CabecalhoPainel({
         </nav>
 
         <div className="flex items-center gap-1">
+          <BotaoSugestao />
           {/* Em tela larga, quem tem conta de fotógrafo (o gestor que também vende, inclusive) vê o
               cartão da meta com a foto ou o avatar no lugar do nome (entre lg e xl, o avatar e o
               nome); quem não tem, o avatar e o nome. Enquanto carrega, um bloco do mesmo tamanho,

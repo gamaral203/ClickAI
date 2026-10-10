@@ -110,8 +110,36 @@
     {
       "idx": 15,
       "version": "7",
-      "when": 1791605819772,
-      "tag": "0015_avatar_do_fotografo",
+      "when": 1791605545227,
+      "tag": "0015_taxas_cartao_e_notificacoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791607584676,
+      "tag": "0016_capa_do_evento",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791608124809,
+      "tag": "0017_suporte_sugestoes_e_marca_dagua",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791608767429,
+      "tag": "0018_codigo_de_login_do_gestor",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791609240459,
+      "tag": "0019_avatar_do_fotografo",
       "breakpoints": true
     }
   ]

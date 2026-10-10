@@ -4,6 +4,8 @@
 // Campos sensíveis (senha do evento, CPF/CNPJ, chave Pix) ficam em tipos
 // separados e nunca entram nos tipos públicos, que podem ir para o navegador.
 
+import type { ModeloMarca } from "@/lib/marca-dagua";
+
 // ---------------------------------------------------------------- Núcleo
 
 /** Papéis: cliente compra; fotógrafo (vendedor) publica e vende; admin (gestor) vê tudo e muda papéis. */
@@ -72,6 +74,8 @@ export type FotografoConta = Fotografo & {
   documentoTrocadoEm?: string | null;
   /** Comissão da plataforma, descontada no saque. */
   comissaoPct: number;
+  /** Modelo de marca d'água das prévias (padrão quando ausente). */
+  modeloMarca?: ModeloMarca;
 };
 
 export type Categoria = {
@@ -99,6 +103,8 @@ export type Evento = {
   /** Sigla da UF. */
   estado: string;
   capa: string | null;
+  /** Foto de capa escolhida pelo dono; `null` (ou ausente): capa automática. */
+  capaFotoId?: string | null;
   precoFotoCentavos: number;
   precoVideoCentavos: number;
   status: StatusEvento;
@@ -292,6 +298,8 @@ export type Pedido = {
   cupomId: string | null;
   subtotalCentavos: number;
   descontoCentavos: number;
+  /** No cartão, a metade da taxa que o comprador paga (src/lib/taxas.ts); já somada no total. */
+  acrescimoCartaoCentavos?: number;
   totalCentavos: number;
   metodo: MetodoPagamento;
   status: StatusPedido;
@@ -309,11 +317,11 @@ export type CobrancaPix = {
 
 /** Dados privados do pedido: acesso do convidado e ligação com o gateway. */
 export type PedidoInterno = Pedido & {
-  /** CPF/CNPJ do comprador, só dígitos (exigido pelo Asaas); nulo com o Mercado Pago. */
+  /** CPF/CNPJ do comprador, só dígitos. Não é mais pedido (era do Asaas); fica nulo. */
   cpfComprador?: string | null;
   tokenAcessoHash: string | null;
   acessoExpiraEm: string | null;
-  /** Id da cobrança no gateway: order do Mercado Pago (`ORD…`) ou cobrança do Asaas (`pay_…`). */
+  /** Id da order no Mercado Pago (`ORD…`). */
   gatewayId: string | null;
   pix: CobrancaPix | null;
   lembreteEnviadoEm: string | null;
@@ -391,7 +399,7 @@ export type Saque = {
   fotografoId: string;
   antecipado: boolean;
   brutoCentavos: number;
-  /** Comissão (10%) mais a antecipação (1%) sobre o que ainda não tinha 30 dias. */
+  /** Comissão (8%) mais a antecipação (2%) sobre o que ainda não tinha 30 dias. */
   taxaCentavos: number;
   liquidoCentavos: number;
   /** CPF ou CNPJ do fotógrafo, só dígitos: o saque só vai para a chave Pix dele mesmo. */
@@ -451,7 +459,12 @@ export type EventoResumo = Evento & {
   totalItens: number;
   totalFotos: number;
   totalVideos: number;
-  capaMiniatura: Pick<Foto, "urlMiniatura" | "largura" | "altura"> | null;
+  /**
+   * Capa do cartão (escolhida pelo dono ou automática; src/dados/capa.ts). `urlPrevia` é a
+   * prévia com marca d'água, para a imagem do link compartilhado; `null` num vídeo.
+   */
+  capaMiniatura:
+    (Pick<Foto, "urlMiniatura" | "largura" | "altura"> & { urlPrevia: string | null }) | null;
   situacaoGaleria: SituacaoGaleria;
 };
 

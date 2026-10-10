@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Archive, ArrowRight, KeyRound, Loader2, Rocket, Unlock } from "lucide-react";
+import { Archive, ArrowRight, KeyRound, Loader2, Rocket, Trash2, Unlock } from "lucide-react";
 
 import {
   arquivarEventoAcao,
+  excluirEventoAcao,
   liberarAgoraAcao,
   publicarEventoAcao,
 } from "@/app/(fotografo)/painel/eventos/acoes";
@@ -99,6 +100,23 @@ export function AcoesEvento({ eventoId, status, pendentesDeLiberacao }: Props) {
             Arquivar
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="touch"
+          disabled={pendente}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => {
+            if (
+              window.confirm(
+                "Excluir este evento de vez? As fotos e os arquivos enviados são apagados e não dá para desfazer. (Evento com pedido não pode ser excluído: use Arquivar.)",
+              )
+            )
+              executar(excluirEventoAcao, () => router.replace("/painel/eventos"));
+          }}
+        >
+          <Trash2 aria-hidden="true" />
+          Excluir evento
+        </Button>
       </div>
       {erro &&
         (irParaPerfil ? (

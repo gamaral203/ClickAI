@@ -15,6 +15,7 @@ import {
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { situacaoDaOrder } from "@/lib/mercadopago";
+import { parteDoVendedorNaTaxa, taxaCartaoPct } from "@/lib/taxas";
 
 import { autorizarDownload } from "./downloads";
 import { reembolsarPedido, restaurarContestacao } from "./estornos";
@@ -23,6 +24,9 @@ import { confirmarPagamento } from "./pedidos";
 import { calcularSaque } from "./saques";
 
 const GESTOR = { id: "05e70000-0000-4000-8000-000000000005" };
+// Pedido de teste no cartão, dois itens de R$ 10,00: cada fotógrafo deixa metade da taxa do
+// cartão sobre a sua parte (src/lib/taxas.ts).
+const LIQUIDO_NO_CARTAO = 2 * (1000 - parteDoVendedorNaTaxa(1000, taxaCartaoPct()));
 
 /** Duas fotos prontas de exemplo (com original de exemplo, que baixa fora da produção). */
 async function fotosDeExemplo() {
@@ -303,7 +307,7 @@ describe("reembolso pelo gestor (Mercado Pago)", () => {
     expect(pedido?.status).toBe("pago");
     expect(pedido?.reembolsoSolicitadoEm).not.toBeNull();
     expect(await autorizarDownload(itens[0].id, { token }, null)).toBeNull();
-    expect(soma(await lancamentosDoPedido(id))).toBe(2000);
+    expect(soma(await lancamentosDoPedido(id))).toBe(LIQUIDO_NO_CARTAO);
   });
 
   it("falha do Mercado Pago não estorna e o gestor pode tentar de novo com a mesma chave", async () => {
@@ -380,7 +384,7 @@ describe("webhook: reembolso e chargeback lidos na order", () => {
     expect(await autorizarDownload(itens[0].id, { token }, null)).not.toBeNull();
     const lancamentos = await lancamentosDoPedido(id);
     expect(lancamentos).toHaveLength(6);
-    expect(soma(lancamentos)).toBe(2000);
+    expect(soma(lancamentos)).toBe(LIQUIDO_NO_CARTAO);
 
     // Nova contestação depois da restauração: estorna de novo os lançamentos vivos.
     orders.set(orderId, { pedidoId: id, status: "charged_back", status_detail: "in_process" });

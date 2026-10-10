@@ -92,6 +92,8 @@ export function BotoesSaque({
   podeSacar,
   minimoCentavos,
   pedeCodigo = false,
+  comissaoPct,
+  antecipacaoPct,
 }: {
   normal: Previa;
   antecipado: Previa;
@@ -100,6 +102,10 @@ export function BotoesSaque({
   minimoCentavos: number;
   /** Verificação em duas etapas ligada: cada saque pede o código do app. */
   pedeCodigo?: boolean;
+  /** Taxa da plataforma no saque normal, em %. */
+  comissaoPct: number;
+  /** O que o antecipado paga a mais, em pontos percentuais. */
+  antecipacaoPct: number;
 }) {
   const [estado, acao, enviando] = useActionState(solicitarSaqueAcao, inicial);
   // O antecipado só faz sentido quando antecipa algo além do que o saque normal já paga.
@@ -111,7 +117,7 @@ export function BotoesSaque({
         <CartaoSaque
           tipo="normal"
           titulo="Saque normal"
-          descricao="Vendas com 30 dias ou mais. Taxa de 10%."
+          descricao={`Vendas com 30 dias ou mais. Taxa de ${comissaoPct}%.`}
           previa={normal}
           liberado={podeSacar && normal.liquidoCentavos >= minimoCentavos}
           acao={acao}
@@ -121,7 +127,7 @@ export function BotoesSaque({
         <CartaoSaque
           tipo="antecipado"
           titulo="Saque antecipado"
-          descricao="Vendas a partir de 1 dia. O que ainda não tem 30 dias paga 10% + 1% de antecipação."
+          descricao={`Vendas a partir de 1 dia. O que ainda não tem 30 dias paga ${comissaoPct + antecipacaoPct}% (${antecipacaoPct}% de antecipação).`}
           previa={antecipado}
           liberado={podeSacar && temAntecipacao && antecipado.liquidoCentavos >= minimoCentavos}
           acao={acao}

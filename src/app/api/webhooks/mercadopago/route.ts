@@ -25,7 +25,6 @@ function resposta(status: number) {
 }
 
 export async function POST(request: NextRequest) {
-  // Com o Asaas em uso, este webhook não vale (o do Asaas é /api/webhooks/asaas).
   if (provedorDePagamento() !== "mercadopago") return resposta(404);
 
   // O id assinado é o da query string (?data.id=…), não o do corpo.

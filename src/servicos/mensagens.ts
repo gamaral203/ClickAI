@@ -11,6 +11,7 @@ import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { emailConfigurado, enviarEmail, type Email } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { enviarPush } from "@/lib/push";
 
 // Mensagens ao comprador (docs/arquitetura.md, "Compra e pagamento" e "Carrinho abandonado").
 // O e-mail é sempre o canal principal; o WhatsApp só vai com o consentimento dado no checkout
@@ -152,6 +153,12 @@ export async function avisarVenda(pedidoId: string) {
       texto: [...paragrafos, `${botao.texto}: ${botao.url}`].join(" "),
     });
     await enviarEmail({ para: venda.email, assunto, paragrafos, botao });
+    // Notificação no celular/computador, para quem ativou.
+    await enviarPush([venda.usuarioId], {
+      titulo: "Você vendeu! 📸",
+      corpo: `${formatarPreco(venda.valorCentavos)} em ${venda.eventos.join(", ")}`,
+      url: "/painel/vendas",
+    });
   }
 }
 
@@ -212,6 +219,26 @@ export async function enviarCodigoDeConfirmacao(para: string, nome: string, codi
       paragrafos: [
         `Olá, ${primeiroNome(nome)}! Para confirmar seu e-mail e liberar sua conta, digite este código na tela do ClicouAí. Ele vale por 15 minutos.`,
         "Não passe o código para ninguém: a equipe do ClicouAí nunca pede. Se você não tentou criar ou acessar uma conta, ignore este e-mail.",
+      ],
+      destaque: codigo,
+    },
+    `código ${codigo}`,
+  );
+}
+
+/**
+ * Código de 6 dígitos da segunda etapa do login do gestor (src/servicos/codigo-login.ts). Como
+ * todo segredo, não vai para a caixa de saída. Devolve se o e-mail saiu.
+ */
+export async function enviarCodigoDeAcessoDoGestor(para: string, nome: string, codigo: string) {
+  return enviarComSegredo(
+    {
+      para,
+      assunto: "Seu código de acesso à gestão do ClicouAí",
+      paragrafos: [
+        `Olá, ${primeiroNome(nome)}! Para terminar de entrar na gestão do ClicouAí, digite este código na tela de verificação. Ele vale por 10 minutos e funciona uma vez só.`,
+        "Não passe o código para ninguém: a equipe do ClicouAí nunca pede.",
+        "Se não foi você que tentou entrar, alguém sabe a sua senha: troque sua senha agora e avise a equipe.",
       ],
       destaque: codigo,
     },

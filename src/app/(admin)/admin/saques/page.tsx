@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { SaquesAPagar } from "@/components/admin/saques-a-pagar";
 import { Celula, mascararDocumento, Tabela } from "@/components/admin/tabela";
+import { BotaoNotificacoes } from "@/components/notificacoes/botao-notificacoes";
 import { listarSaquesDoAdmin, type StatusSaque } from "@/dados";
+import { formatarCpfCnpj } from "@/lib/documentos";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { pagarAte, saqueAtrasado } from "@/servicos/avisos-saque";
 import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Saques", robots: { index: false, follow: false } };
 
 const STATUS: Record<StatusSaque, string> = {
-  processando: "Processando",
+  processando: "Aguardando Pix",
   pago: "Pago",
   falhou: "Não realizado",
 };
@@ -28,9 +32,37 @@ export default function PaginaSaquesGestao() {
 async function Conteudo() {
   await exigirGestor("/admin/saques");
   const saques = await listarSaquesDoAdmin();
+  // Os mais antigos primeiro: quem pediu antes é pago antes.
+  const aPagar = saques
+    .filter((s) => s.status === "processando")
+    .reverse()
+    .map((s) => ({
+      id: s.id,
+      fotografoNome: s.fotografoNome,
+      chavePix: formatarCpfCnpj(s.chavePix),
+      valor: formatarPreco(s.liquidoCentavos),
+      antecipado: s.antecipado,
+      pedidoEm: formatarDataEHora(s.criadoEm),
+      pagarAte: formatarDataEHora(pagarAte(s)),
+      atrasado: saqueAtrasado(s),
+    }));
 
   return (
     <>
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-xl font-semibold">Para pagar ({aPagar.length})</h2>
+            <p className="text-sm text-muted-foreground">
+              Saques pedidos pelos fotógrafos. Faça o Pix pelo app do banco em até 1 dia e marque
+              como pago: o fotógrafo é avisado.
+            </p>
+          </div>
+          <BotaoNotificacoes contexto="pedidos de saque" />
+        </div>
+        <SaquesAPagar saques={aPagar} />
+      </section>
+      <h2 className="mt-4 text-xl font-semibold">Histórico</h2>
       <p className="text-muted-foreground">
         Histórico de todos os saques: quem sacou, para qual chave, quanto foi de taxa e o que saiu
         da conta.

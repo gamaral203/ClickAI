@@ -88,7 +88,7 @@ export function FormularioCodigoEmail({ esperaInicial }: { esperaInicial: number
   );
 }
 
-function BotaoReenviar({ espera, reenviando }: { espera: number; reenviando: boolean }) {
+export function BotaoReenviar({ espera, reenviando }: { espera: number; reenviando: boolean }) {
   const [restante, setRestante] = useState(espera);
   useEffect(() => {
     if (restante <= 0) return;

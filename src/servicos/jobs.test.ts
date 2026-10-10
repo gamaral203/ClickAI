@@ -169,6 +169,8 @@ describe("job de revisão: saques em processamento", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubEnv("MP_ACCESS_TOKEN", "TEST-token");
     vi.stubEnv("MP_AMBIENTE", "teste");
+    // Conferência no gateway só vale no saque automático.
+    vi.stubEnv("SAQUE_AUTOMATICO", "1");
     const pago = await saqueProcessando(fotografos[0].id, "po-job-pago");
     const semResposta = await saqueProcessando(fotografos[1].id, null);
     vi.stubGlobal(

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
+import { CapaDoEvento } from "@/components/painel/capa-do-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
 import { AlternarDescontoProgressivo } from "@/components/painel/alternar-desconto-progressivo";
 import { EditorFaixas } from "@/components/painel/editor-faixas";
@@ -29,6 +30,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   buscarEventoDoFotografo,
   buscarPacoteDoEvento,
+  capasDosEventos,
   listarCategorias,
   listarColaboradores,
   listarFaixas,
@@ -40,6 +42,7 @@ import {
   topCliquesDoEvento,
   totaisDoEvento,
 } from "@/dados";
+import { podeSerCapa } from "@/lib/capa";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { urlDoSite } from "@/lib/endereco";
@@ -98,6 +101,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     top,
     totais,
     liberacao,
+    capas,
   ] = await Promise.all([
     listarItensDoPainel(evento.id, conta.id),
     listarFaixas(conta.id, evento.id),
@@ -109,7 +113,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     topCliquesDoEvento(evento.id),
     totaisDoEvento(evento.id, conta.id),
     resumoDaLiberacao(evento.id, agora),
+    // A capa que os cartões mostram agora (escolhida, se valer; senão a automática).
+    capasDosEventos([evento.id], agora),
   ]);
+  const capaAtual = capas.get(evento.id) ?? null;
+  const capaFotoId = evento.capaFotoId ?? null;
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
     .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
@@ -367,10 +375,12 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         <FotosDoEvento
           eventoId={evento.id}
           podeLiberar
+          capaFotoId={capaFotoId}
           itens={itens.map((i) => ({
             id: i.id,
             urlMiniatura: i.urlMiniatura,
             nomeArquivo: i.nomeArquivo,
+            tipo: i.tipo,
             status: i.status,
             erroMensagem: i.erroMensagem,
             vendido: i.vendido,
@@ -387,6 +397,16 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Configurações</h2>
+        <CapaDoEvento
+          eventoId={evento.id}
+          escolhidaId={capaFotoId}
+          atual={
+            capaAtual && { urlMiniatura: capaAtual.urlMiniatura, escolhida: capaAtual.escolhida }
+          }
+          fotos={itens
+            .filter(podeSerCapa)
+            .map((i) => ({ id: i.id, urlMiniatura: i.urlMiniatura, nomeArquivo: i.nomeArquivo }))}
+        />
         <FormularioEvento
           eventoId={evento.id}
           categorias={categorias}
