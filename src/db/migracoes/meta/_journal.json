@@ -134,6 +134,13 @@
       "when": 1791608767429,
       "tag": "0018_codigo_de_login_do_gestor",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791609240459,
+      "tag": "0019_avatar_do_fotografo",
+      "breakpoints": true
     }
   ]
 }

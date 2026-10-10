@@ -6,9 +6,9 @@ import { FotoComSelo } from "@/components/metas/foto-com-selo";
 import { QuadroMeta } from "@/components/metas/quadro-meta";
 import { SeloMeta } from "@/components/metas/selo-meta";
 import { totalVendidoComoAutor } from "@/dados";
+import { avatarDoFotografo, urlDoAvatar } from "@/lib/avatares";
 import { formatarPreco } from "@/lib/formatar";
 import { METAS, situacaoDasMetas } from "@/lib/metas";
-import { urlPublica } from "@/lib/url-publica";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Metas", robots: { index: false, follow: false } };
@@ -48,8 +48,8 @@ async function Conteudo() {
       </p>
       <section className="flex flex-col items-center gap-4 rounded-xl border p-6 text-center sm:flex-row sm:text-left">
         <FotoComSelo
-          nome={conta.nomePublico}
-          foto={conta.fotoPerfil ? urlPublica(conta.fotoPerfil) : null}
+          foto={urlDoAvatar(conta)}
+          alt={conta.fotoPerfil ? `Foto de ${conta.nomePublico}` : avatarDoFotografo(conta).nome}
           rotulo={seloDaPrevia}
         />
         <div className="flex flex-col gap-1">

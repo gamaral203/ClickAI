@@ -12,6 +12,7 @@ import {
   listarOpcoesFiltroEventos,
   totalVendidoComoAutor,
 } from "@/dados";
+import { logoDoFotografo } from "@/lib/avatares";
 import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto } from "@/lib/loja";
 import { situacaoDasMetas } from "@/lib/metas";
@@ -83,7 +84,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/fotografo/[slug]">
         nome={loja?.nome ?? fotografo.nomePublico}
         descricao={loja?.descricao ?? fotografo.bio}
         capa={fotografo.capa}
-        logo={fotografo.fotoPerfil}
+        logo={logoDoFotografo(fotografo)}
         corPrimaria={corPrimaria}
         corSecundaria={corSecundaria}
         redes={fotografo.redesSociais}

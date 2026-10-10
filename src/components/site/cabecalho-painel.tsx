@@ -6,7 +6,6 @@ import { BotaoSugestao } from "@/components/suporte/botao-sugestao";
 import type { Usuario } from "@/dados/tipos";
 import type { Navegacao } from "@/lib/navegacao";
 
-import { LinkDoPerfil } from "./link-do-perfil";
 import { MenuCelular } from "./menu-celular";
 import { MetaDoCabecalho } from "./meta-do-cabecalho";
 import { AtalhosDoPainel, LogoDoPainel } from "./nav-painel";
@@ -47,20 +46,25 @@ export function CabecalhoPainel({
         <div className="flex items-center gap-1">
           <BotaoSugestao />
           {/* Em tela larga, quem tem conta de fotógrafo (o gestor que também vende, inclusive) vê o
-              cartão da meta com a foto no lugar do nome; quem não tem, o nome. Enquanto carrega,
-              um bloco do mesmo tamanho, para os atalhos não pularem. */}
+              cartão da meta com a foto ou o avatar no lugar do nome (entre lg e xl, o avatar e o
+              nome); quem não tem, o avatar e o nome. Enquanto carrega, um bloco do mesmo tamanho,
+              para os atalhos não pularem. */}
           <Suspense
             fallback={
-              <div
-                aria-hidden="true"
-                className="hidden h-11 w-64 animate-pulse rounded-xl bg-muted xl:block"
-              />
+              <>
+                <div
+                  aria-hidden="true"
+                  className="hidden h-11 w-28 animate-pulse rounded-lg bg-muted lg:block xl:hidden"
+                />
+                <div
+                  aria-hidden="true"
+                  className="hidden h-11 w-64 animate-pulse rounded-xl bg-muted xl:block"
+                />
+              </>
             }
           >
             <MetaDoCabecalho usuario={usuario} perfil={perfil} />
           </Suspense>
-          {/* Entre lg e xl não cabe o cartão: inicial e nome levando ao perfil. */}
-          {perfil && <LinkDoPerfil perfil={perfil} primeiroNome={primeiroNome} faixa="lg" />}
           <form action={sairAcao} className="hidden lg:block">
             <button
               type="submit"

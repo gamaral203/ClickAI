@@ -4,11 +4,14 @@ import { Suspense } from "react";
 import { CheckCircle2, Landmark } from "lucide-react";
 
 import { CartaoSeguranca } from "@/components/conta/cartao-seguranca";
+import { EscolherAvatar } from "@/components/painel/escolher-avatar";
 import { FormularioPerfil } from "@/components/painel/formulario-perfil";
 import { VerificacaoDuasEtapas } from "@/components/painel/verificacao-duas-etapas";
 import { Button } from "@/components/ui/button";
 import { estadoMfa } from "@/dados";
+import { avatarDoFotografo } from "@/lib/avatares";
 import { formatarCpfCnpj } from "@/lib/documentos";
+import { urlPublica } from "@/lib/url-publica";
 import { contaTemSenha } from "@/servicos/exclusao-conta";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -36,6 +39,11 @@ async function Conteudo() {
 
   return (
     <>
+      <EscolherAvatar
+        escolhido={avatarDoFotografo(conta).id}
+        foto={conta.fotoPerfil ? urlPublica(conta.fotoPerfil) : null}
+      />
+
       <FormularioPerfil
         inicial={{
           nomePublico: conta.nomePublico,

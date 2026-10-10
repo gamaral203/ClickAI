@@ -63,7 +63,7 @@ export type LojaPublica = Pick<
 > & {
   fotografo: Pick<
     Fotografo,
-    "id" | "nomePublico" | "slug" | "bio" | "redesSociais" | "capa" | "fotoPerfil"
+    "id" | "nomePublico" | "slug" | "bio" | "redesSociais" | "capa" | "fotoPerfil" | "avatar"
   >;
 };
 
@@ -95,6 +95,7 @@ async function lojaPublica(condicao: ReturnType<typeof and>): Promise<LojaPublic
       redesSociais: fotografo.redesSociais,
       capa: fotografo.capa ? urlPublica(fotografo.capa) : null,
       fotoPerfil: fotografo.fotoPerfil ? urlPublica(fotografo.fotoPerfil) : null,
+      avatar: fotografo.avatar,
     },
   };
 }

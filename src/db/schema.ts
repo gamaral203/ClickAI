@@ -223,6 +223,11 @@ export const fotografos = pgTable(
     slug: text().notNull(),
     bio: text(),
     fotoPerfil: text(),
+    /**
+     * Avatar escolhido (id do catálogo em src/lib/avatares.ts, ex. "avatar-03"). Nulo: o padrão,
+     * tirado do id da conta. A foto de perfil enviada tem prioridade sobre ele.
+     */
+    avatar: text(),
     capa: text(),
     redesSociais: jsonb().$type<{ instagram?: string; site?: string }>().notNull().default({}),
     cpfCnpj: text().notNull().default(""),

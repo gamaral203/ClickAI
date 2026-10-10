@@ -4,6 +4,7 @@ import Script from "next/script";
 import { CabecalhoLoja } from "@/components/loja/cabecalho-loja";
 import { numerosDoFotografo, VitrineDoFotografo } from "@/components/loja/vitrine-do-fotografo";
 import { listarEventosPublicados, totalVendidoComoAutor, type LojaPublica } from "@/dados";
+import { logoDoFotografo } from "@/lib/avatares";
 import { urlDoSite } from "@/lib/endereco";
 import { corDoTexto, idGaSeguro, idGtmSeguro } from "@/lib/loja";
 import { situacaoDasMetas } from "@/lib/metas";
@@ -39,7 +40,7 @@ export async function PaginaDaLoja({ loja }: { loja: LojaPublica }) {
         nome={loja.nome}
         descricao={loja.descricao}
         capa={loja.fotografo.capa}
-        logo={loja.fotografo.fotoPerfil}
+        logo={logoDoFotografo(loja.fotografo, loja.nome)}
         corPrimaria={loja.corPrimaria}
         corSecundaria={loja.corSecundaria}
         redes={loja.fotografo.redesSociais}

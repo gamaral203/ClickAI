@@ -26,12 +26,12 @@ import {
   totalVendidoComoAutor,
   vendasPorDiaDoFotografo,
 } from "@/dados";
+import { urlDoAvatar } from "@/lib/avatares";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPorcentagem, formatarPreco } from "@/lib/formatar";
 import { situacaoDasMetas } from "@/lib/metas";
 import { mostraCartaoMeta } from "@/lib/navegacao";
 import { humorDoPainel, pedidosPorSemana } from "@/lib/recepcao";
-import { urlPublica } from "@/lib/url-publica";
 import { situacaoFinanceira } from "@/servicos/saques";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -98,8 +98,7 @@ async function Conteudo() {
         <div className="xl:hidden">
           <CartaoMeta
             metas={situacaoDasMetas(await totalVendidoComoAutor(conta.id))}
-            nome={conta.nomePublico}
-            foto={conta.fotoPerfil ? urlPublica(conta.fotoPerfil) : null}
+            foto={urlDoAvatar(conta)}
             larguraTotal
           />
         </div>

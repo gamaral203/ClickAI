@@ -7,7 +7,7 @@ import type { SituacaoMetas } from "@/lib/metas";
 import { cn } from "@/lib/utils";
 
 /**
- * Cartão compacto da meta de vendas: ícone do nível | nível, barra e valor | foto de perfil. A
+ * Cartão compacto da meta de vendas: ícone do nível | nível, barra e valor | foto ou avatar. A
  * parte da meta leva à aba Metas; a foto, ao perfil (dois links irmãos, nunca um dentro do
  * outro). No cabeçalho do painel (tela larga) tem largura fixa; no topo do painel, ocupa a
  * largura toda no celular (`larguraTotal`) e vai até 384 px a partir do tablet. Altura de 44 px,
@@ -15,15 +15,12 @@ import { cn } from "@/lib/utils";
  */
 export function CartaoMeta({
   metas,
-  nome,
   foto,
   larguraTotal = false,
 }: {
   metas: SituacaoMetas;
-  /** Nome público do fotógrafo: texto alternativo da foto e inicial quando não há foto. */
-  nome: string;
-  /** URL pública da foto de perfil, ou `null` para mostrar a inicial. */
-  foto: string | null;
+  /** Foto de perfil ou, sem ela, o avatar (`urlDoAvatar`, src/lib/avatares.ts). */
+  foto: string;
   larguraTotal?: boolean;
 }) {
   const nivel = metas.nivel === "Iniciante" ? "Iniciante" : `Nível ${metas.nivel}`;
@@ -76,13 +73,9 @@ export function CartaoMeta({
       <Link
         href="/painel/perfil"
         aria-label="Perfil e recebimento"
-        className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-sm font-bold text-accent-foreground uppercase ring-offset-1 hover:ring-2 hover:ring-primary/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="relative size-9 shrink-0 overflow-hidden rounded-full bg-accent ring-offset-1 hover:ring-2 hover:ring-primary/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
-        {foto ? (
-          <Image src={foto} alt="" fill sizes="36px" className="object-cover" />
-        ) : (
-          <span aria-hidden="true">{nome.trim().charAt(0)}</span>
-        )}
+        <Image src={foto} alt="" fill sizes="36px" className="object-cover" />
       </Link>
     </div>
   );
