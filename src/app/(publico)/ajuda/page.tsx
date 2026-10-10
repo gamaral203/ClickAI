@@ -7,7 +7,7 @@ import { classeLink } from "@/components/site/pagina-legal";
 
 // Central de ajuda: artigos curtos para quem compra e para quem vende. Conteúdo estático; os
 // números (Pix de 1 hora, comissão de 10%, antecipação com 1% a mais, saque mínimo de R$ 1,00,
-// fotos JPEG até 30 MB, sem limite de quantidade) são os do código (src/servicos/pedidos.ts,
+// fotos JPEG, PNG, WebP, TIFF, AVIF ou HEIC até 200 MB, sem limite de quantidade) são os do código (src/servicos/pedidos.ts,
 // src/servicos/saques.ts, src/lib/limites-envio.ts). Se uma regra mudar, o texto muda junto.
 
 export const metadata: Metadata = {
@@ -181,10 +181,14 @@ const paraQuemVende: Artigo[] = [
     corpo: (
       <p>
         Na página do evento no painel, arraste as fotos ou escolha os arquivos. Aceitamos{" "}
-        <strong>JPEG de até 30 MB</strong>, quantas fotos quiser de uma vez. O envio vai em partes,
-        várias fotos ao mesmo tempo, com barra de progresso e tempo restante; se a conexão cair ou
-        um arquivo falhar, use “Tentar de novo”, e fotos repetidas são puladas sozinhas. A marca
-        d&apos;água das prévias é colocada automaticamente: você envia o original.
+        <strong>JPEG, PNG, WebP, TIFF, AVIF e HEIC</strong>, do tamanho que você exportar (até 200
+        MB por foto), quantas fotos quiser de uma vez. O comprador recebe o original no mesmo
+        formato; a foto HEIC (do iPhone) é convertida para JPEG de alta qualidade no seu navegador
+        antes do envio. Arquivo RAW não é aceito: exporte em JPEG (ou PNG/TIFF) no Lightroom ou no
+        Capture One antes. O envio vai várias fotos ao mesmo tempo, com barra de progresso e tempo
+        restante; arquivos grandes sobem em partes, e se a conexão cair ou um arquivo falhar, use
+        “Tentar de novo”. Fotos repetidas são puladas sozinhas. A marca d&apos;água das prévias é
+        colocada automaticamente: você envia o original.
       </p>
     ),
   },

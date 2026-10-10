@@ -1,74 +1,174 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { TriangleAlert, Camera, ImageUp, Loader2, RotateCw, XCircle } from "lucide-react";
 
 import { enviarFotosAcao, iniciarEnvioAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { Button } from "@/components/ui/button";
-import { emLotes, emParalelo, esperaDaTentativa } from "@/lib/concorrencia";
-import { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
+import { emParalelo, esperaDaTentativa } from "@/lib/concorrencia";
+import {
+  AjusteDeConcorrencia,
+  faixaDeConcorrencia,
+  Vagas,
+  type FaixaDeConcorrencia,
+} from "@/lib/concorrencia-adaptativa";
+import { impressaoDoBlob } from "@/lib/impressao-arquivo";
+import {
+  FOTOS_POR_LOTE,
+  LIMITE_FOTO_BYTES,
+  LIMITE_FOTO_TEXTO,
+  quantasPartes,
+  TAMANHO_PARTE,
+} from "@/lib/limites-envio";
+import {
+  BYTES_PARA_DETECTAR,
+  DADOS_DO_FORMATO,
+  detectarFormato,
+  MENSAGEM_FORMATO,
+  MENSAGEM_RAW,
+  type FormatoAceito,
+} from "@/lib/tipos-imagem";
 
 // Envio de fotos do evento (docs/arquitetura.md, "Upload"). Sem limite de quantidade: o
 // fotógrafo escolhe quantas quiser (3.000 de uma vez) e o envio vai em três etapas que correm
 // juntas, como uma linha de montagem:
-//   1. lotes de FOTOS_POR_LOTE: calcula o SHA-256 e pede as URLs assinadas ao servidor;
-//   2. ENVIOS_SIMULTANEOS arquivos subindo direto ao R2 (o arquivo nunca passa pelo Next);
+//   1. lotes de FOTOS_POR_LOTE (o primeiro menor, para começar logo): converte HEIC para JPEG,
+//      calcula a impressão de cada arquivo (src/lib/impressao-arquivo.ts, ~3 MB lidos por foto)
+//      e pede as URLs assinadas ao servidor, à frente do envio;
+//   2. envios direto ao R2 (o arquivo nunca passa pelo Next), com a quantidade ao mesmo tempo
+//      ajustada pela vazão medida (src/lib/concorrencia-adaptativa.ts); arquivos grandes sobem
+//      em partes, e uma parte que falha é reenviada sozinha;
 //   3. PROCESSAMENTOS_SIMULTANEOS fotos sendo processadas no servidor (prévia com marca d'água,
 //      miniatura, rostos) pela rota /api/envios/processar, enquanto as próximas sobem.
 // Cada arquivo tem novas tentativas com espera crescente; um erro não para a fila. A tela não
-// desenha uma linha por foto: mostra o progresso somado e só as fotos com problema.
+// desenha uma linha por foto: mostra o progresso somado, só as fotos com problema e, em
+// "Detalhes técnicos", os tempos médios de cada etapa (para medir o envio em produção).
 
-/** Arquivos subindo ao R2 ao mesmo tempo. */
-const ENVIOS_SIMULTANEOS = 6;
 /** Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). */
-const PROCESSAMENTOS_SIMULTANEOS = 4;
-/** Arquivos lidos para o SHA-256 ao mesmo tempo (cada um ocupa a memória do arquivo inteiro). */
-const HASHES_SIMULTANEOS = 4;
+const PROCESSAMENTOS_SIMULTANEOS = 6;
+/** Impressões calculadas ao mesmo tempo (cada uma lê só ~3 MB do arquivo). */
+const IMPRESSOES_SIMULTANEAS = 8;
+/** Partes de um mesmo arquivo grande subindo ao mesmo tempo (dentro das vagas gerais). */
+const PARTES_SIMULTANEAS = 4;
 /** Tentativas de cada etapa (envio ao R2 e processamento) antes de desistir da foto. */
 const TENTATIVAS = 4;
-/** URL assinada vale 15 min; depois de 12, pede outra antes de começar o envio do arquivo. */
+/** Tentativas de cada parte de um arquivo grande, antes de desistir da rodada. */
+const TENTATIVAS_PARTE = 5;
+/** URL assinada vale 15 min; depois de 12, pede outra antes de começar o envio. */
 const URL_VALE_MS = 12 * 60 * 1000;
+/** O primeiro lote é pequeno: o envio começa sem esperar 50 impressões e 50 URLs. */
+const PRIMEIRO_LOTE = 10;
 /** Fotos já com URL esperando para subir: a etapa 1 não corre muito à frente das outras. */
 const FOLGA_DA_FILA = FOTOS_POR_LOTE * 2;
 /** Fotos com problema listadas na tela (o resto aparece só na contagem). */
 const PROBLEMAS_NA_TELA = 200;
 /** Janela da velocidade média. */
 const JANELA_VELOCIDADE_MS = 8000;
+/** Janela do ajuste de concorrência. */
+const JANELA_AJUSTE_MS = 5000;
+/** Qualidade do JPEG gerado a partir do HEIC (vira o original vendido). */
+const QUALIDADE_HEIC = 0.95;
 
 export type ModoEnvio = "r2" | "simulado" | "indisponivel";
 
 type Estado =
   "recusada" | "repetida" | "aguardando" | "enviando" | "processando" | "pronta" | "erro";
 
+type Partes = {
+  uploadId: string;
+  urls: string[];
+  /** ETag de cada parte já enviada (null: falta enviar). */
+  etags: (string | null)[];
+};
+
 type Item = {
   arquivo: File;
-  /** SHA-256 do arquivo (calculado na hora de enviar): a mesma foto tem o mesmo hash. */
+  /** Formato real, pelos primeiros bytes; HEIC vira JPEG antes do envio. */
+  formato: FormatoAceito | "heic" | null;
+  /** Veio de um HEIC convertido no navegador. */
+  convertida: boolean;
+  /** Impressão do arquivo (calculada na hora de enviar): a mesma foto tem a mesma impressão. */
   hash: string | null;
   estado: Estado;
   /** Motivo da recusa ou do erro. */
   problema: string | null;
   /** Bytes já enviados ao R2. */
   enviados: number;
-  /** Destino do envio (id da foto no servidor e URL assinada) e quando a URL foi pedida. */
-  destino: { fotoId: string; url: string; em: number } | null;
+  /** Destino do envio (id da foto no servidor e URL assinada ou partes) e quando foi pedido. */
+  destino: { fotoId: string; url?: string; partes?: Partes; em: number } | null;
 };
 
-/** JPEG de verdade começa com FF D8 FF, não importa a extensão (docs/riscos.md, Upload). */
-async function ehJpeg(arquivo: File) {
-  const inicio = new Uint8Array(await arquivo.slice(0, 3).arrayBuffer());
-  return inicio[0] === 0xff && inicio[1] === 0xd8 && inicio[2] === 0xff;
+/** Somas para a telemetria ("Detalhes técnicos"). Só números: nada de nomes ou conteúdo. */
+type Telemetria = {
+  impressao: { n: number; ms: number };
+  conversao: { n: number; ms: number };
+  urls: { lotes: number; fotos: number; ms: number };
+  envio: {
+    n: number;
+    bytes: number;
+    ms: number;
+    reenvios: number;
+    partes: number;
+    partesReenviadas: number;
+  };
+  processamento: { n: number; ms: number };
+  servidor: { n: number } & Record<EtapaDoServidor, number>;
+  concorrencia: { atual: number; faixa: FaixaDeConcorrencia | null; pico: number };
+  vazaoMedia: number;
+};
+
+const ETAPAS_DO_SERVIDOR = [
+  ["esperaMs", "espera de memória"],
+  ["leituraMs", "leitura do R2"],
+  ["conferenciaMs", "conferência"],
+  ["versoesMs", "prévias"],
+  ["gravacaoMs", "gravação"],
+  ["rostosMs", "rostos"],
+] as const;
+type EtapaDoServidor = (typeof ETAPAS_DO_SERVIDOR)[number][0];
+
+function telemetriaVazia(): Telemetria {
+  return {
+    impressao: { n: 0, ms: 0 },
+    conversao: { n: 0, ms: 0 },
+    urls: { lotes: 0, fotos: 0, ms: 0 },
+    envio: { n: 0, bytes: 0, ms: 0, reenvios: 0, partes: 0, partesReenviadas: 0 },
+    processamento: { n: 0, ms: 0 },
+    servidor: {
+      n: 0,
+      esperaMs: 0,
+      leituraMs: 0,
+      conferenciaMs: 0,
+      versoesMs: 0,
+      gravacaoMs: 0,
+      rostosMs: 0,
+    },
+    concorrencia: { atual: 0, faixa: null, pico: 0 },
+    vazaoMedia: 0,
+  };
 }
 
-async function calcularHash(arquivo: File) {
-  const resumo = await crypto.subtle.digest("SHA-256", await arquivo.arrayBuffer());
-  return [...new Uint8Array(resumo)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const EXTENSOES_ACEITAS = ".jpg,.jpeg,.png,.webp,.tif,.tiff,.avif";
+const TIPOS_ACEITOS = "image/jpeg,image/png,image/webp,image/tiff,image/avif";
+const HEIC_ACEITO = ",image/heic,image/heif,.heic,.heif";
+
+const semAssinatura = () => () => {};
+
+/** iPhone e iPad convertem HEIC em JPEG sozinhos quando a página não pede HEIC. */
+function ehIos() {
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
 }
 
-/** Conferência rápida (sem ler o arquivo todo): tipo, tamanho e os primeiros bytes. */
+/** Conferência rápida (sem ler o arquivo todo): tamanho e tipo real pelos primeiros bytes. */
 async function conferir(arquivo: File): Promise<Item> {
   const item: Item = {
     arquivo,
+    formato: null,
+    convertida: false,
     hash: null,
     enviados: 0,
     destino: null,
@@ -82,17 +182,32 @@ async function conferir(arquivo: File): Promise<Item> {
       problema: "O envio de vídeos ainda não está disponível.",
     };
   }
-  if (arquivo.size > LIMITE_FOTO_BYTES) {
-    return { ...item, estado: "recusada", problema: "Maior que 30 MB." };
-  }
-  if (!/\.jpe?g$/i.test(arquivo.name) || !(await ehJpeg(arquivo).catch(() => false))) {
+  const inicio = new Uint8Array(await arquivo.slice(0, BYTES_PARA_DETECTAR).arrayBuffer());
+  const formato = detectarFormato(inicio, arquivo.name);
+  if (formato === "raw") return { ...item, estado: "recusada", problema: MENSAGEM_RAW };
+  if (!formato) return { ...item, estado: "recusada", problema: MENSAGEM_FORMATO };
+  // O HEIC é conferido depois de convertido (o JPEG costuma ficar maior).
+  if (formato !== "heic" && arquivo.size > LIMITE_FOTO_BYTES) {
     return {
       ...item,
       estado: "recusada",
-      problema: "Não é JPEG. Exporte a foto em JPEG antes de enviar.",
+      problema: `Maior que ${LIMITE_FOTO_TEXTO}. Exporte em JPEG ou com compressão e envie.`,
     };
   }
-  return item;
+  return { ...item, formato };
+}
+
+/**
+ * Converte um HEIC/HEIF em JPEG de alta qualidade, no navegador: o Sharp do servidor não lê HEVC
+ * (patentes). Usa a heic-to (libheif compilada para JavaScript puro, sem eval nem WebAssembly,
+ * compatível com a CSP do site), carregada só quando aparece um HEIC. A rotação já sai aplicada;
+ * os metadados (EXIF, como a data de captura) não passam para o JPEG.
+ */
+async function heicParaJpeg(arquivo: File): Promise<File> {
+  const { heicTo } = await import("heic-to/csp");
+  const jpeg = await heicTo({ blob: arquivo, type: "image/jpeg", quality: QUALIDADE_HEIC });
+  const nome = arquivo.name.replace(/\.(heic|heif)$/i, "") + ".jpg";
+  return new File([jpeg], nome, { type: "image/jpeg", lastModified: arquivo.lastModified });
 }
 
 function tamanho(bytes: number) {
@@ -114,35 +229,48 @@ function duracao(segundos: number) {
 
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
-/** PUT do arquivo direto no R2, com o progresso em bytes. Resolve com o status HTTP (0 = rede). */
-function enviarAoR2(url: string, arquivo: File, progresso: (bytes: number) => void) {
-  return new Promise<number>((resolve) => {
+/**
+ * PUT direto no R2, com o progresso em bytes. Resolve com o status HTTP (0 = rede) e o ETag da
+ * resposta (o R2 o expõe pelo CORS; o envio em partes precisa dele para fechar o upload).
+ */
+function putNoR2(
+  url: string,
+  corpo: Blob,
+  tipo: string | null,
+  progresso: (bytes: number) => void,
+) {
+  return new Promise<{ status: number; etag: string | null }>((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    // Tem de ser igual ao assinado no servidor; o tamanho o navegador manda sozinho.
-    xhr.setRequestHeader("Content-Type", "image/jpeg");
+    // Tem de ser igual ao assinado no servidor; o tamanho o navegador manda sozinho. A parte de
+    // um envio em partes vai sem tipo (é um Blob sem tipo).
+    if (tipo) xhr.setRequestHeader("Content-Type", tipo);
     xhr.upload.onprogress = (e) => progresso(e.loaded);
-    xhr.onload = () => resolve(xhr.status);
-    xhr.onerror = () => resolve(0);
-    xhr.ontimeout = () => resolve(0);
-    xhr.send(arquivo);
+    xhr.onload = () => resolve({ status: xhr.status, etag: xhr.getResponseHeader("ETag") });
+    xhr.onerror = () => resolve({ status: 0, etag: null });
+    xhr.ontimeout = () => resolve({ status: 0, etag: null });
+    xhr.send(corpo);
   });
 }
 
-/** Pede ao servidor o processamento de uma foto que já está no R2. */
-async function processar(fotoId: string): Promise<{ status: number; erro?: string }> {
+async function postJson<T>(url: string, corpo: object): Promise<{ status: number; dados: T }> {
   try {
-    const resposta = await fetch("/api/envios/processar", {
+    const resposta = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fotoId }),
+      body: JSON.stringify(corpo),
     });
-    const corpo = (await resposta.json().catch(() => ({}))) as { erro?: string };
-    return { status: resposta.status, erro: corpo.erro };
+    const dados = (await resposta.json().catch(() => ({}))) as T;
+    return { status: resposta.status, dados };
   } catch {
-    return { status: 0 };
+    return { status: 0, dados: {} as T };
   }
 }
+
+type RespostaDoProcessamento = {
+  erro?: string;
+  tempos?: Partial<Record<EtapaDoServidor, number>>;
+};
 
 /** Fila simples entre as etapas: quem consome espera até chegar item ou a fila fechar. */
 class Fila {
@@ -184,6 +312,15 @@ class Fila {
   }
 }
 
+/** Lotes da seleção: o primeiro pequeno (o envio começa logo), os outros de FOTOS_POR_LOTE. */
+function lotesDoEnvio(indices: number[]) {
+  const lotes = [indices.slice(0, PRIMEIRO_LOTE)];
+  for (let i = PRIMEIRO_LOTE; i < indices.length; i += FOTOS_POR_LOTE) {
+    lotes.push(indices.slice(i, i + FOTOS_POR_LOTE));
+  }
+  return lotes.filter((l) => l.length > 0);
+}
+
 const ENVIAVEL: Estado[] = ["aguardando", "erro"];
 
 export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnvio }) {
@@ -201,8 +338,28 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
   const [arrastando, setArrastando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const telemetria = useRef<Telemetria>(telemetriaVazia());
+  const [numeros, setNumeros] = useState<Telemetria>(telemetriaVazia());
+  const [copiado, setCopiado] = useState(false);
+  /** Tipos do seletor: sem HEIC no iPhone/iPad (o próprio sistema entrega o JPEG). */
+  const ios = useSyncExternalStore(semAssinatura, ehIos, () => false);
+  const aceita = TIPOS_ACEITOS + "," + EXTENSOES_ACEITAS + (ios ? "" : HEIC_ACEITO);
 
   const indisponivel = modo === "indisponivel";
+
+  /** Bytes já enviados ao R2, somando os arquivos que já subiram e o progresso dos que sobem. */
+  function bytesNoR2() {
+    return itens.current.reduce(
+      (s, item) =>
+        s +
+        (item.estado === "processando" || item.estado === "pronta"
+          ? item.arquivo.size
+          : item.estado === "enviando"
+            ? item.enviados
+            : 0),
+      0,
+    );
+  }
 
   function redesenhar() {
     if (agendado.current) return;
@@ -212,16 +369,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       setLista([...itens.current]);
       // Velocidade média dos últimos segundos, pelos bytes já enviados.
       const agora = Date.now();
-      const bytes = itens.current.reduce(
-        (s, item) =>
-          s +
-          (item.estado === "processando" || item.estado === "pronta"
-            ? item.arquivo.size
-            : item.estado === "enviando"
-              ? item.enviados
-              : 0),
-        0,
-      );
+      const bytes = bytesNoR2();
       const serie = amostras.current;
       if (!serie.at(-1) || agora - serie.at(-1)!.em >= 500) serie.push({ em: agora, bytes });
       while (serie.length > 2 && agora - serie[0].em > JANELA_VELOCIDADE_MS) serie.shift();
@@ -231,6 +379,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           ? Math.max(0, ((ultima.bytes - primeira.bytes) * 1000) / (ultima.em - primeira.em))
           : 0,
       );
+      setNumeros(structuredClone(telemetria.current));
     }, 250);
   }
 
@@ -258,6 +407,8 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         ? r.valor
         : {
             arquivo: lista[i],
+            formato: null,
+            convertida: false,
             hash: null,
             enviados: 0,
             destino: null,
@@ -266,17 +417,45 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           },
     );
     amostras.current = [];
+    telemetria.current = telemetriaVazia();
     setConferindo(false);
     redesenhar();
   }
 
-  /** Calcula o SHA-256 das fotos do lote que ainda não têm e marca as repetidas na seleção. */
-  async function calcularHashes(lote: number[]) {
-    await emParalelo(lote, HASHES_SIMULTANEOS, async (i) => {
+  /** Converte os HEIC do lote para JPEG (um por vez: a conversão é pesada). */
+  async function converterHeics(lote: number[]) {
+    for (const i of lote) {
       const item = itens.current[i];
-      if (item.hash) return;
+      if (item.formato !== "heic") continue;
+      const inicio = performance.now();
       try {
-        item.hash = await calcularHash(item.arquivo);
+        const jpeg = await heicParaJpeg(item.arquivo);
+        telemetria.current.conversao.n++;
+        telemetria.current.conversao.ms += performance.now() - inicio;
+        if (jpeg.size > LIMITE_FOTO_BYTES) {
+          atualizar(i, { estado: "recusada", problema: `Maior que ${LIMITE_FOTO_TEXTO}.` });
+          continue;
+        }
+        atualizar(i, { arquivo: jpeg, formato: "jpeg", convertida: true });
+      } catch {
+        atualizar(i, {
+          estado: "erro",
+          problema: "Não foi possível converter o HEIC. Exporte a foto em JPEG e envie.",
+        });
+      }
+    }
+  }
+
+  /** Calcula a impressão das fotos do lote que ainda não têm e marca as repetidas na seleção. */
+  async function calcularHashes(lote: number[]) {
+    await emParalelo(lote, IMPRESSOES_SIMULTANEAS, async (i) => {
+      const item = itens.current[i];
+      if (item.hash || item.estado !== "aguardando") return;
+      const inicio = performance.now();
+      try {
+        item.hash = await impressaoDoBlob(item.arquivo);
+        telemetria.current.impressao.n++;
+        telemetria.current.impressao.ms += performance.now() - inicio;
       } catch {
         atualizar(i, { estado: "erro", problema: "Não foi possível ler o arquivo." });
       }
@@ -287,8 +466,8 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       if (item.hash && !primeira.has(item.hash)) primeira.set(item.hash, i);
     });
     return lote.filter((i) => {
-      const { hash, estado } = itens.current[i];
-      if (!hash || estado !== "aguardando") return false;
+      const { hash, estado, formato } = itens.current[i];
+      if (!hash || estado !== "aguardando" || !formato || formato === "heic") return false;
       if (primeira.get(hash) !== i) {
         atualizar(i, { estado: "repetida", problema: "Repetida nesta seleção." });
         return false;
@@ -299,32 +478,178 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
 
   /** Pede as URLs assinadas de um lote. Devolve a mensagem de erro geral, se houver. */
   async function pedirUrls(lote: number[]): Promise<string | null> {
+    const inicio = performance.now();
     const resultado = await iniciarEnvioAcao(
       eventoId,
       lote.map((i) => ({
         nome: itens.current[i].arquivo.name,
         tamanhoBytes: itens.current[i].arquivo.size,
         hash: itens.current[i].hash,
+        formato: itens.current[i].formato,
       })),
     ).catch(() => ({ erro: "A conexão caiu. Tente de novo." }));
+    telemetria.current.urls.lotes++;
+    telemetria.current.urls.fotos += lote.length;
+    telemetria.current.urls.ms += performance.now() - inicio;
     if ("erro" in resultado) return resultado.erro;
     const agora = Date.now();
     resultado.itens.forEach((r, j) => {
       if ("repetida" in r) {
         atualizar(lote[j], { estado: "repetida", problema: "Já estava no evento." });
+      } else if ("partes" in r) {
+        const partes: Partes = {
+          ...r.partes,
+          etags: r.partes.urls.map(() => null),
+        };
+        atualizar(lote[j], { destino: { fotoId: r.fotoId, partes, em: agora } });
       } else {
-        atualizar(lote[j], { destino: { ...r, em: agora } });
+        atualizar(lote[j], { destino: { fotoId: r.fotoId, url: r.url, em: agora } });
       }
     });
     return null;
   }
 
-  /** Sobe um arquivo ao R2, com novas tentativas. `true` se chegou. */
-  async function subir(i: number): Promise<boolean> {
+  /** Um PUT de cada vez por vaga; registra a duração e os bytes na telemetria. */
+  async function comVaga<T>(vagas: Vagas, fazer: () => Promise<T>) {
+    await vagas.pegar();
+    const t = telemetria.current.concorrencia;
+    t.pico = Math.max(t.pico, vagas.emUso);
+    try {
+      return await fazer();
+    } finally {
+      vagas.soltar();
+    }
+  }
+
+  /** Sobe um arquivo pequeno num PUT só. Devolve o status HTTP (0 = rede). */
+  async function subirInteiro(i: number, vagas: Vagas) {
     const item = itens.current[i];
+    return comVaga(vagas, async () => {
+      const destino = item.destino!;
+      atualizar(i, { estado: "enviando", problema: null, enviados: 0 });
+      const { status } = await putNoR2(
+        destino.url!,
+        item.arquivo,
+        DADOS_DO_FORMATO[item.formato as FormatoAceito].mime,
+        (bytes) => {
+          item.enviados = bytes;
+          redesenhar();
+        },
+      );
+      return status;
+    });
+  }
+
+  /**
+   * Sobe um arquivo grande em partes, PARTES_SIMULTANEAS de cada vez dentro das vagas gerais.
+   * Cada parte tem as próprias tentativas; as partes que já subiram ficam guardadas (uma nova
+   * rodada só manda as que faltam). No fim, pede ao servidor para fechar o upload.
+   * `reiniciar`: o upload não vale mais e precisa de um novo (outra URL).
+   */
+  async function subirEmPartes(i: number, vagas: Vagas): Promise<"ok" | "falhou" | "reiniciar"> {
+    const item = itens.current[i];
+    const destino = item.destino!;
+    const partes = destino.partes!;
+    const total = quantasPartes(item.arquivo.size);
+    const progresso = partes.etags.map((e, n) =>
+      e ? Math.min(TAMANHO_PARTE, item.arquivo.size - n * TAMANHO_PARTE) : 0,
+    );
+    const somar = () => {
+      item.enviados = progresso.reduce((s, b) => s + b, 0);
+      redesenhar();
+    };
+    atualizar(i, { estado: "enviando", problema: null });
+    somar();
+
+    let renovacao: Promise<boolean> | null = null;
+    /** Assina de novo as partes que faltam (a URL venceu), uma renovação por vez. */
+    const renovar = () =>
+      (renovacao ??= (async () => {
+        const numeros = partes.etags.flatMap((e, n) => (e ? [] : [n + 1]));
+        const { status, dados } = await postJson<{ urls?: { numero: number; url: string }[] }>(
+          "/api/envios/partes",
+          { acao: "assinar", fotoId: destino.fotoId, uploadId: partes.uploadId, numeros },
+        );
+        if (status !== 200 || !dados.urls) return false;
+        for (const { numero, url } of dados.urls) partes.urls[numero - 1] = url;
+        destino.em = Date.now();
+        return true;
+      })().finally(() => (renovacao = null)));
+
+    let resultado: "ok" | "falhou" | "reiniciar" = "ok";
+    const pendentes = partes.etags.flatMap((e, n) => (e ? [] : [n + 1]));
+    await emParalelo(pendentes, PARTES_SIMULTANEAS, async (numero) => {
+      for (let tentativa = 1; tentativa <= TENTATIVAS_PARTE; tentativa++) {
+        if (resultado !== "ok") return;
+        const inicio = (numero - 1) * TAMANHO_PARTE;
+        const pedaco = item.arquivo.slice(
+          inicio,
+          Math.min(item.arquivo.size, inicio + TAMANHO_PARTE),
+        );
+        const { status, etag } = await comVaga(vagas, async () => {
+          if (Date.now() - destino.em > URL_VALE_MS && !(await renovar())) {
+            return { status: -1, etag: null };
+          }
+          return putNoR2(partes.urls[numero - 1], pedaco, null, (bytes) => {
+            progresso[numero - 1] = bytes;
+            somar();
+          });
+        });
+        if (status >= 200 && status < 300 && etag) {
+          partes.etags[numero - 1] = etag;
+          progresso[numero - 1] = pedaco.size;
+          telemetria.current.envio.partes++;
+          somar();
+          return;
+        }
+        progresso[numero - 1] = 0;
+        somar();
+        if (status === -1) {
+          resultado = "falhou";
+          return;
+        }
+        telemetria.current.envio.partesReenviadas++;
+        // 403: assinatura vencida ou recusada; 404: o upload não existe mais.
+        if (status === 403) destino.em = 0;
+        else if (status === 404) {
+          resultado = "reiniciar";
+          return;
+        } else if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+          resultado = "falhou";
+          return;
+        }
+        if (tentativa < TENTATIVAS_PARTE) await dormir(esperaDaTentativa(tentativa));
+      }
+      if (resultado === "ok") resultado = "falhou";
+    });
+    if (resultado !== "ok") return resultado;
+    if (partes.etags.slice(0, total).some((e) => !e)) return "falhou";
+
     for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-      // URL velha (fila longa numa conexão lenta) ou recusada pelo R2: pede outra para a foto.
-      if (!item.destino || Date.now() - item.destino.em > URL_VALE_MS) {
+      const { status } = await postJson("/api/envios/partes", {
+        acao: "concluir",
+        fotoId: destino.fotoId,
+        uploadId: partes.uploadId,
+        partes: partes.etags.map((etag, n) => ({ numero: n + 1, etag })),
+      });
+      if (status === 200) return "ok";
+      if (status === 409) return "reiniciar";
+      if (status !== 0 && status !== 503 && status !== 429 && status < 500) return "falhou";
+      if (tentativa < TENTATIVAS) await dormir(esperaDaTentativa(tentativa));
+    }
+    return "falhou";
+  }
+
+  /** Sobe um arquivo ao R2 (inteiro ou em partes), com novas tentativas. `true` se chegou. */
+  async function subir(i: number, vagas: Vagas): Promise<boolean> {
+    const item = itens.current[i];
+    const comeco = performance.now();
+    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+      // Sem destino ou URL velha (fila longa numa conexão lenta): pede outra para a foto. No
+      // envio em partes, a URL velha é renovada parte a parte, sem perder o que já subiu.
+      const velha =
+        item.destino && !item.destino.partes && Date.now() - item.destino.em > URL_VALE_MS;
+      if (!item.destino || velha) {
         const erro = await pedirUrls([i]);
         if (erro) {
           atualizar(i, { estado: "erro", enviados: 0, problema: erro });
@@ -333,24 +658,37 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         if (item.estado === "repetida") return false;
       }
       if (!item.destino) break;
-      atualizar(i, { estado: "enviando", problema: null, enviados: 0 });
-      const status = await enviarAoR2(item.destino.url, item.arquivo, (bytes) => {
-        item.enviados = bytes;
-        redesenhar();
-      });
-      if (status >= 200 && status < 300) {
+
+      let chegou = false;
+      if (item.destino.partes) {
+        const r = await subirEmPartes(i, vagas);
+        chegou = r === "ok";
+        if (r === "reiniciar") item.destino = null;
+      } else {
+        const status = await subirInteiro(i, vagas);
+        chegou = status >= 200 && status < 300;
+        // 403: assinatura vencida ou recusada; a próxima volta pede uma URL nova.
+        if (status === 403) item.destino = null;
+        else if (!chegou && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+          break;
+        }
+      }
+      if (chegou) {
+        const t = telemetria.current.envio;
+        t.n++;
+        t.bytes += item.arquivo.size;
+        t.ms += performance.now() - comeco;
         atualizar(i, { estado: "processando", enviados: item.arquivo.size });
         return true;
       }
+      telemetria.current.envio.reenvios++;
       atualizar(i, { estado: "aguardando", enviados: 0 });
-      // 403: assinatura vencida ou recusada; a próxima volta pede uma URL nova.
-      if (status === 403) item.destino = null;
-      else if (status >= 400 && status < 500 && status !== 408 && status !== 429) break;
       if (tentativa < TENTATIVAS) await dormir(esperaDaTentativa(tentativa));
     }
     atualizar(i, {
       estado: "erro",
       enviados: 0,
+      destino: null,
       problema: "Não foi possível enviar o arquivo (conexão instável). Tente de novo.",
     });
     return false;
@@ -361,8 +699,18 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
     const fotoId = itens.current[i].destino?.fotoId;
     if (!fotoId) return;
     for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-      const { status, erro } = await processar(fotoId);
+      const inicio = performance.now();
+      const { status, dados } = await postJson<RespostaDoProcessamento>("/api/envios/processar", {
+        fotoId,
+      });
       if (status === 200) {
+        const t = telemetria.current;
+        t.processamento.n++;
+        t.processamento.ms += performance.now() - inicio;
+        if (dados.tempos) {
+          t.servidor.n++;
+          for (const [etapa] of ETAPAS_DO_SERVIDOR) t.servidor[etapa] += dados.tempos[etapa] ?? 0;
+        }
         atualizar(i, { estado: "pronta", problema: null });
         return;
       }
@@ -371,7 +719,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         atualizar(i, {
           estado: "erro",
           destino: null,
-          problema: erro ?? "Não foi possível processar a foto. Tente de novo.",
+          problema: dados.erro ?? "Não foi possível processar a foto. Tente de novo.",
         });
         return;
       }
@@ -393,11 +741,34 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
     let erroGeral: string | null = null;
     let primeiroLote = true;
 
+    // Quantos envios ao mesmo tempo: começa pela faixa do tamanho médio e se ajusta à vazão.
+    const tamanhoMedio =
+      indices.reduce((s, i) => s + itens.current[i].arquivo.size, 0) / Math.max(1, indices.length);
+    const faixa = faixaDeConcorrencia(tamanhoMedio);
+    const ajuste = new AjusteDeConcorrencia(faixa);
+    const vagas = new Vagas(ajuste.atual);
+    telemetria.current.concorrencia = { atual: ajuste.atual, faixa, pico: 0 };
+    let ultimaJanela = { em: Date.now(), bytes: bytesNoR2() };
+    const inicioDoEnvio = { em: Date.now(), bytes: ultimaJanela.bytes };
+    const relogio = setInterval(() => {
+      const agora = { em: Date.now(), bytes: bytesNoR2() };
+      const vazao = ((agora.bytes - ultimaJanela.bytes) * 1000) / (agora.em - ultimaJanela.em);
+      ultimaJanela = agora;
+      const saturado = vagas.esperando > 0 || paraSubir.tamanho > 0;
+      vagas.definirLimite(ajuste.registrar(vazao, saturado));
+      const t = telemetria.current;
+      t.concorrencia.atual = ajuste.atual;
+      t.vazaoMedia =
+        ((agora.bytes - inicioDoEnvio.bytes) * 1000) / Math.max(1, agora.em - inicioDoEnvio.em);
+      redesenhar();
+    }, JANELA_AJUSTE_MS);
+
     const preparar = (async () => {
-      for (const lote of emLotes(indices, FOTOS_POR_LOTE)) {
+      for (const lote of lotesDoEnvio(indices)) {
         if (erroGeral) break;
         await paraSubir.abaixoDaFolga();
         for (const i of lote) atualizar(i, { estado: "aguardando", destino: null, problema: null });
+        await converterHeics(lote);
         const validos = await calcularHashes(lote);
         if (validos.length === 0) continue;
         const erro = await pedirUrls(validos);
@@ -413,9 +784,10 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       paraSubir.fechar();
     })();
 
-    const subidas = Array.from({ length: ENVIOS_SIMULTANEOS }, async () => {
+    // Um trabalhador por envio possível; quem sobe de fato é limitado pelas vagas.
+    const subidas = Array.from({ length: faixa.maximo }, async () => {
       for (let i = await paraSubir.proximo(); i !== null; i = await paraSubir.proximo()) {
-        if (await subir(i)) paraProcessar.colocar(i);
+        if (await subir(i, vagas)) paraProcessar.colocar(i);
       }
     });
 
@@ -425,8 +797,12 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       }
     });
 
-    await preparar;
-    await Promise.all(subidas);
+    try {
+      await preparar;
+      await Promise.all(subidas);
+    } finally {
+      clearInterval(relogio);
+    }
     paraProcessar.fechar();
     await Promise.all(processamentos);
     // O que não teve URL (lote interrompido) volta para a fila do "tentar de novo".
@@ -440,8 +816,9 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
 
   /** Envio simulado (fora da produção, sem R2): cria itens com imagens de exemplo. */
   async function enviarSimulado(indices: number[]) {
-    for (const lote of emLotes(indices, FOTOS_POR_LOTE)) {
+    for (const lote of lotesDoEnvio(indices)) {
       for (const i of lote) atualizar(i, { estado: "aguardando", problema: null });
+      await converterHeics(lote);
       const validos = await calcularHashes(lote);
       if (validos.length === 0) continue;
       const resultado: { erro?: string } = await enviarFotosAcao(
@@ -449,6 +826,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         validos.map((i) => ({
           nome: itens.current[i].arquivo.name,
           tamanhoBytes: itens.current[i].arquivo.size,
+          formato: itens.current[i].formato,
           ...(itens.current[i].hash && { hash: itens.current[i].hash }),
         })),
       ).catch(() => ({ erro: "A conexão caiu." }));
@@ -482,6 +860,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
   let subiram = 0;
   let prontas = 0;
   let comErro = 0;
+  let heics = 0;
   let totalBytes = 0;
   let bytesEnviados = 0;
   let comecou = false;
@@ -498,6 +877,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       return;
     }
     validas++;
+    if (item.formato === "heic" || item.convertida) heics++;
     totalBytes += item.arquivo.size;
     if (item.estado === "erro") {
       comErro++;
@@ -517,6 +897,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
 
   const porcento = totalBytes ? Math.round((bytesEnviados / totalBytes) * 100) : 0;
   const terminou = comecou && !enviando && paraEnviar.length === 0;
+  const detalhes = textoDosDetalhes(numeros);
 
   return (
     <div className="flex flex-col gap-4">
@@ -552,11 +933,12 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
             <span className="hidden sm:inline">Arraste as fotos aqui ou clique para escolher</span>
           </span>
           <span className="text-sm text-muted-foreground">
-            JPEG de até 30 MB cada, quantas quiser. Fotos repetidas são puladas sozinhas.
+            JPEG, PNG, WebP, TIFF, AVIF ou HEIC, de qualquer tamanho até {LIMITE_FOTO_TEXTO},
+            quantas quiser. RAW não: exporte antes. Fotos repetidas são puladas sozinhas.
           </span>
           <input
             type="file"
-            accept="image/jpeg"
+            accept={aceita}
             multiple
             className="sr-only"
             disabled={enviando}
@@ -645,6 +1027,14 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
             </div>
           )}
 
+          {heics > 0 && (
+            <p className="text-muted-foreground">
+              {heics} {heics === 1 ? "foto HEIC é convertida" : "fotos HEIC são convertidas"} para
+              JPEG de alta qualidade aqui no navegador antes do envio, e o JPEG é o original
+              vendido. A data de captura do HEIC não passa para o JPEG.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             {!comecou && (
               <Button
@@ -693,6 +1083,30 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
               )}
             </ul>
           )}
+
+          {comecou && detalhes.length > 0 && (
+            <details className="rounded-md border px-3 py-2">
+              <summary className="cursor-pointer text-muted-foreground">Detalhes técnicos</summary>
+              <ul className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground tabular-nums">
+                {detalhes.map((linha) => (
+                  <li key={linha}>{linha}</li>
+                ))}
+              </ul>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(detalhes.join("\n"))
+                    .then(() => setCopiado(true))
+                    .catch(() => {});
+                }}
+              >
+                {copiado ? "Copiado" : "Copiar números"}
+              </Button>
+            </details>
+          )}
         </div>
       )}
 
@@ -714,4 +1128,63 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       )}
     </div>
   );
+}
+
+const ms = (total: number, n: number) => `${Math.round(total / Math.max(1, n))} ms`;
+const s = (total: number, n: number) =>
+  `${(total / Math.max(1, n) / 1000).toFixed(1).replace(".", ",")} s`;
+const mbs = (bytes: number, msTotal: number) =>
+  `${(bytes / 1024 / 1024 / Math.max(0.001, msTotal / 1000)).toFixed(1).replace(".", ",")} MB/s`;
+
+/**
+ * Linhas dos "Detalhes técnicos": médias por foto de cada etapa, só números (nada de nomes de
+ * arquivo nem dados pessoais), para o fotógrafo ou o gestor mandarem ao suporte.
+ */
+function textoDosDetalhes(t: Telemetria): string[] {
+  const linhas: string[] = [];
+  if (t.conversao.n) {
+    linhas.push(
+      `Conversão HEIC→JPEG: ${s(t.conversao.ms, t.conversao.n)} por foto (${t.conversao.n})`,
+    );
+  }
+  if (t.impressao.n) {
+    linhas.push(
+      `Impressão (detectar repetidas): ${ms(t.impressao.ms, t.impressao.n)} por foto (${t.impressao.n})`,
+    );
+  }
+  if (t.urls.lotes) {
+    linhas.push(
+      `URLs assinadas: ${ms(t.urls.ms, t.urls.lotes)} por pedido, ${ms(t.urls.ms, t.urls.fotos)} por foto (${t.urls.lotes} pedidos)`,
+    );
+  }
+  if (t.envio.n) {
+    linhas.push(
+      `Envio ao R2: ${s(t.envio.ms, t.envio.n)} por foto, ${mbs(t.envio.bytes, t.envio.ms)} por arquivo, ${(t.vazaoMedia / 1024 / 1024).toFixed(1).replace(".", ",")} MB/s no total (${t.envio.n} fotos)`,
+    );
+  }
+  if (t.concorrencia.faixa) {
+    const f = t.concorrencia.faixa;
+    linhas.push(
+      `Envios simultâneos: ${t.concorrencia.atual} agora (faixa ${f.minimo}-${f.maximo}, pico ${t.concorrencia.pico})`,
+    );
+  }
+  if (t.envio.reenvios || t.envio.partes) {
+    linhas.push(
+      `Reenvios: ${t.envio.reenvios} arquivos; partes de arquivos grandes: ${t.envio.partes} enviadas, ${t.envio.partesReenviadas} reenviadas`,
+    );
+  }
+  if (t.processamento.n) {
+    linhas.push(
+      `Processamento: ${s(t.processamento.ms, t.processamento.n)} por foto, ida e volta (${t.processamento.n})`,
+    );
+  }
+  if (t.servidor.n) {
+    linhas.push(
+      "No servidor, por foto: " +
+        ETAPAS_DO_SERVIDOR.map(
+          ([etapa, nome]) => `${nome} ${ms(t.servidor[etapa], t.servidor.n)}`,
+        ).join(", "),
+    );
+  }
+  return linhas;
 }

@@ -5,6 +5,8 @@ import path from "node:path";
 
 import sharp from "sharp";
 
+import { LIMITE_PIXELS } from "@/lib/limites-envio";
+
 // Gera as versões públicas de uma foto (docs/arquitetura.md, "Armazenamento").
 // A marca d'água é gravada nos pixels: quem salva a prévia leva a marca junto. Junto com a
 // baixa resolução, é a proteção real do original (docs/riscos.md, Segurança).
@@ -13,6 +15,12 @@ import sharp from "sharp";
 // Desempenho (uma foto de 24 MP por vez numa função de 1 vCPU): o original é decodificado uma
 // vez só, já reduzido; as versões saem dessa base em pixels crus (sem PNG no meio); e o padrão
 // de marcas, igual para todas as fotos do mesmo tamanho, fica em memória entre as fotos.
+//
+// Formatos: JPEG, PNG, WebP, TIFF e AVIF (src/lib/tipos-imagem.ts). Arquivos grandes não estouram
+// a memória: a leitura é sequencial e a redução acontece durante a decodificação (no JPEG e no
+// WebP, o decodificador já lê em 1/2, 1/4 ou 1/8; nos outros, linha a linha, sem guardar a
+// imagem inteira). Medido com 1 thread: JPEG de 100 MP em ~0,6 s e ~140 MB de memória; TIFF de
+// 16 bits de 60 MP (260 MB) em ~1,4 s e ~430 MB, quase todo o arquivo em si.
 
 export const LARGURA_PREVIA = 1600;
 export const LARGURA_MINIATURA = 400;
@@ -156,16 +164,28 @@ async function desenharCamada(
   return { pixels, largura, altura };
 }
 
-/** A foto decodificada, já girada e em sRGB, em pixels crus. */
+/** A foto decodificada, já girada e em sRGB, em pixels crus de 8 bits. */
 type Base = { pixels: Buffer; largura: number; altura: number; canais: 1 | 2 | 3 | 4 };
 
 /**
- * Decodifica o original uma vez: gira pelo EXIF, reduz ao maior tamanho que alguma versão usa e
- * converte para sRGB (pelo perfil de cor embutido). O libjpeg lê o JPEG grande já reduzido
- * (1/2, 1/4 ou 1/8) quando o destino é bem menor, o que corta a maior parte do tempo.
+ * Abre o original no Sharp com os limites do envio: no máximo LIMITE_PIXELS (barra a "bomba de
+ * descompressão") e leitura sequencial (a imagem passa pela redução em faixas, sem ficar
+ * inteira na memória). Arquivo com várias páginas (TIFF, WebP animado): só a primeira.
+ */
+export function abrirOriginal(original: Buffer) {
+  return sharp(original, { limitInputPixels: LIMITE_PIXELS, sequentialRead: true });
+}
+
+/**
+ * Decodifica o original uma vez: gira pelo EXIF, reduz ao maior tamanho que alguma versão usa,
+ * achata a transparência sobre branco (PNG, WebP, TIFF ou AVIF com alfa: sem isso, o fundo
+ * transparente sairia preto ou com a cor escondida nos pixels invisíveis) e converte para sRGB
+ * de 8 bits (pelo perfil de cor embutido; TIFF e PNG de 16 bits também). O libjpeg lê o JPEG
+ * grande já reduzido (1/2, 1/4 ou 1/8) quando o destino é bem menor, o que corta a maior parte
+ * do tempo.
  */
 async function decodificar(original: Buffer, larguraMaxima: number): Promise<Base> {
-  const { data, info } = await sharp(original)
+  const { data, info } = await abrirOriginal(original)
     .rotate()
     .resize({
       width: larguraMaxima,
@@ -173,9 +193,10 @@ async function decodificar(original: Buffer, larguraMaxima: number): Promise<Bas
       fit: "inside",
       withoutEnlargement: true,
     })
+    .flatten({ background: "#ffffff" })
     .toColourspace("srgb")
     .removeAlpha()
-    .raw()
+    .raw({ depth: "uchar" })
     .toBuffer({ resolveWithObject: true });
   return { pixels: data, largura: info.width, altura: info.height, canais: info.channels };
 }
@@ -250,4 +271,11 @@ export async function gerarPrevia(original: Buffer): Promise<ImagemGerada> {
 /** Miniatura com marca d'água para a grade da galeria (~400 px no lado maior). */
 export async function gerarMiniatura(original: Buffer): Promise<ImagemGerada> {
   return versao(await decodificar(original, LARGURA_MINIATURA), LARGURA_MINIATURA, 120, 70);
+}
+
+/** Cópia reduzida e já girada para o reconhecimento facial (JPEG, até LARGURA_ROSTOS). */
+export async function copiaParaRostos(original: Buffer): Promise<Buffer> {
+  return daBase(await decodificar(original, LARGURA_ROSTOS))
+    .jpeg({ quality: 85 })
+    .toBuffer();
 }

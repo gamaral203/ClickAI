@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CopyObjectCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -27,16 +30,22 @@ vi.mock("@/servicos/sessao", () => ({
 }));
 
 import { enviarFotosAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import { POST as partesRota } from "@/app/api/envios/partes/route";
 import { POST as processarRota } from "@/app/api/envios/processar/route";
 import { adicionarItensSimulados, listarItensDoPainel } from "@/dados";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { dataDeCaptura } from "@/lib/exif";
+import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
+import { LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
+import { MENSAGEM_RAW, type FormatoAceito } from "@/lib/tipos-imagem";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, reiniciarClienteR2 } from "@/lib/r2";
 import { autorizarDownload } from "@/servicos/downloads";
 import {
+  assinarPartes,
   chavesDaFoto,
+  concluirPartes,
   confirmarEnvio,
   FOTOS_POR_LOTE,
   FOTOS_PRESAS_POR_VEZ,
@@ -63,6 +72,10 @@ const R2 = {
 // ---------------------------------------------------------------- S3 falso, em memória
 
 const objetos = new Map<string, { corpo: Buffer; tipo?: string }>();
+/** Uploads em partes abertos no S3 falso: chave e tipo de cada um. */
+const multipart = new Map<string, { chave: string; tipo?: string }>();
+/** Partes enviadas pelo "navegador" num upload em partes: `uploadId:numero` -> bytes. */
+const partesEnviadas = new Map<string, Buffer>();
 const nome = (bucket?: string, chave?: string) => `${bucket}/${chave}`;
 
 function naoEncontrado() {
@@ -87,16 +100,52 @@ beforeAll(() => {
     if (comando instanceof GetObjectCommand) {
       const objeto = objetos.get(nome(comando.input.Bucket, comando.input.Key));
       if (!objeto) throw naoEncontrado();
-      return { Body: { transformToByteArray: async () => new Uint8Array(objeto.corpo) } };
+      return {
+        ContentLength: objeto.corpo.length,
+        Body: { transformToByteArray: async () => new Uint8Array(objeto.corpo) },
+      };
     }
     if (comando instanceof CopyObjectCommand) {
       const origem = objetos.get(decodeURIComponent(comando.input.CopySource!));
       if (!origem) throw naoEncontrado();
-      objetos.set(nome(comando.input.Bucket, comando.input.Key), { ...origem });
+      objetos.set(nome(comando.input.Bucket, comando.input.Key), {
+        ...origem,
+        tipo: comando.input.ContentType,
+      });
       return {};
     }
     if (comando instanceof DeleteObjectCommand) {
       objetos.delete(nome(comando.input.Bucket, comando.input.Key));
+      return {};
+    }
+    if (comando instanceof CreateMultipartUploadCommand) {
+      const UploadId = `upload-${multipart.size + 1}-${Date.now()}`;
+      multipart.set(UploadId, {
+        chave: nome(comando.input.Bucket, comando.input.Key),
+        tipo: comando.input.ContentType,
+      });
+      return { UploadId };
+    }
+    if (comando instanceof CompleteMultipartUploadCommand) {
+      const aberto = multipart.get(comando.input.UploadId!);
+      if (!aberto) {
+        throw Object.assign(new Error("NoSuchUpload"), {
+          name: "NoSuchUpload",
+          $metadata: { httpStatusCode: 404 },
+        });
+      }
+      // Junta as partes "enviadas" pelo teste, na ordem dos números.
+      const corpo = Buffer.concat(
+        comando.input.MultipartUpload!.Parts!.map((p) =>
+          partesEnviadas.get(`${comando.input.UploadId}:${p.PartNumber}`)!,
+        ),
+      );
+      objetos.set(aberto.chave, { corpo, tipo: aberto.tipo });
+      multipart.delete(comando.input.UploadId!);
+      return {};
+    }
+    if (comando instanceof AbortMultipartUploadCommand) {
+      multipart.delete(comando.input.UploadId!);
       return {};
     }
     throw new Error("Comando inesperado no S3 falso");
@@ -131,22 +180,39 @@ async function jpeg(largura = 640, altura = 480) {
     .toBuffer();
 }
 
-const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+/** A impressão que o navegador calcula (src/lib/impressao-arquivo.ts). */
+const impressao = (b: Buffer) => impressaoDoArquivo(b.length, (a, c) => b.subarray(a, c));
 
-/** Inicia o envio de um arquivo e devolve o item (com a URL). */
-async function iniciarUm(fotografoId: string, eventoId: string, corpo: Buffer, tamanho?: number) {
+/** Inicia o envio de um arquivo e devolve o item (com a URL ou as partes). */
+async function iniciarUm(
+  fotografoId: string,
+  eventoId: string,
+  corpo: Buffer,
+  formato: FormatoAceito = "jpeg",
+) {
   const resultado = await iniciarEnvio(fotografoId, eventoId, [
-    { nome: `IMG_${semente}.jpg`, tamanhoBytes: tamanho ?? corpo.length, hash: sha256(corpo) },
+    {
+      nome: `IMG_${semente}.${formato === "jpeg" ? "jpg" : formato}`,
+      tamanhoBytes: corpo.length,
+      hash: await impressao(corpo),
+      formato,
+    },
   ]);
   if ("erro" in resultado) throw new Error(resultado.erro);
   const [item] = resultado.itens;
   if ("repetida" in item) throw new Error("repetida");
-  return item;
+  return item as { fotoId: string; url?: string; partes?: { uploadId: string; urls: string[] } };
 }
 
 /** O que o navegador faz com a URL assinada: grava o arquivo na chave temporária. */
-function simularPut(fotografoId: string, eventoId: string, fotoId: string, corpo: Buffer) {
-  const chave = chavesDaFoto(fotografoId, eventoId, fotoId).temporaria;
+function simularPut(
+  fotografoId: string,
+  eventoId: string,
+  fotoId: string,
+  corpo: Buffer,
+  formato: FormatoAceito = "jpeg",
+) {
+  const chave = chavesDaFoto(fotografoId, eventoId, fotoId, formato).temporaria;
   objetos.set(nome(R2.R2_BUCKET_ORIGINAIS, chave), { corpo, tipo: "image/jpeg" });
 }
 
@@ -163,7 +229,7 @@ describe("envio de fotos ao R2", () => {
     const corpo = await jpeg();
     const { fotoId, url } = await iniciarUm(lia.id, evento.id, corpo);
 
-    const endereco = new URL(url);
+    const endereco = new URL(url!);
     expect(endereco.hostname).toBe("fotos-originais.conta-teste.r2.cloudflarestorage.com");
     expect(endereco.pathname).toBe(`/envios/${lia.id}/${evento.id}/${fotoId}.jpg`);
     expect(endereco.searchParams.get("X-Amz-Expires")).toBe("900");
@@ -178,25 +244,67 @@ describe("envio de fotos ao R2", () => {
     const linha = await linhaDaFoto(fotoId);
     expect(linha.status).toBe("processando");
     expect(linha.enviadaPor).toBe(lia.id);
-    expect(linha.hashConteudo).toBe(sha256(corpo));
+    expect(linha.hashConteudo).toBe(await impressao(corpo));
     expect(linha.chaveOriginal).toBe(`envios/${lia.id}/${evento.id}/${fotoId}.jpg`);
   });
 
-  it("recusa lote inválido (não JPEG, maior que 30 MB, sem hash, maior que o lote)", async () => {
+  it("recusa lote inválido (formato fora da lista, acima do teto, sem impressão, maior que o lote)", async () => {
     const hash = "a".repeat(64);
     const casos = [
-      [{ nome: "foto.png", tamanhoBytes: 10, hash }],
-      [{ nome: "foto.jpg", tamanhoBytes: 30 * 1024 * 1024 + 1, hash }],
-      [{ nome: "foto.jpg", tamanhoBytes: 10 }],
+      [{ nome: "foto.heic", tamanhoBytes: 10, hash, formato: "heic" }],
+      [{ nome: "foto.gif", tamanhoBytes: 10, hash, formato: "gif" }],
+      [{ nome: "foto.jpg", tamanhoBytes: 10, hash }],
+      [{ nome: "foto.jpg", tamanhoBytes: LIMITE_FOTO_BYTES + 1, hash, formato: "jpeg" }],
+      [{ nome: "foto.jpg", tamanhoBytes: 10, formato: "jpeg" }],
       Array.from({ length: FOTOS_POR_LOTE + 1 }, (_, i) => ({
         nome: `f${i}.jpg`,
         tamanhoBytes: 10,
         hash,
+        formato: "jpeg",
       })),
     ];
     for (const lista of casos) {
       expect(await iniciarEnvio(lia.id, evento.id, lista)).toHaveProperty("erro");
     }
+    // RAW pelo nome: a mensagem pede para exportar.
+    expect(
+      await iniciarEnvio(lia.id, evento.id, [
+        { nome: "IMG_0001.CR3", tamanhoBytes: 10, hash, formato: "jpeg" },
+      ]),
+    ).toEqual({
+      erro: "Arquivo RAW: exporte em JPEG (ou PNG/TIFF) no Lightroom/Capture One antes de enviar.",
+    });
+  });
+
+  it("não há mais o limite de 30 MB: só o teto anti-abuso de 200 MB", async () => {
+    expect(LIMITE_FOTO_BYTES).toBe(200 * 1024 * 1024);
+    // 31 MB passa (antes era recusado); abaixo de 50 MB, num PUT só.
+    const r31 = await iniciarEnvio(lia.id, evento.id, [
+      { nome: "grande.jpg", tamanhoBytes: 31 * 1024 * 1024, hash: "d".repeat(64), formato: "jpeg" },
+    ]);
+    expect((r31 as { itens: { url?: string }[] }).itens[0].url).toBeTruthy();
+    // 200 MB exatos passam, em 20 partes de 10 MB.
+    const r200 = await iniciarEnvio(lia.id, evento.id, [
+      {
+        nome: "enorme.tif",
+        tamanhoBytes: LIMITE_FOTO_BYTES,
+        hash: "e".repeat(64),
+        formato: "tiff",
+      },
+    ]);
+    const item = (r200 as { itens: { partes?: { urls: string[] } }[] }).itens[0];
+    expect(item.partes?.urls).toHaveLength(20);
+    // 1 byte a mais, não.
+    expect(
+      await iniciarEnvio(lia.id, evento.id, [
+        {
+          nome: "x.jpg",
+          tamanhoBytes: LIMITE_FOTO_BYTES + 1,
+          hash: "f".repeat(64),
+          formato: "jpeg",
+        },
+      ]),
+    ).toHaveProperty("erro");
   });
 
   it("confirmarEnvio com JPEG válido gera prévia e miniatura, move o original e marca pronta", async () => {
@@ -234,14 +342,19 @@ describe("envio de fotos ao R2", () => {
 
     // A mesma foto de novo é pulada.
     const deNovo = await iniciarEnvio(lia.id, evento.id, [
-      { nome: "copia.jpg", tamanhoBytes: corpo.length, hash: sha256(corpo) },
+      {
+        nome: "copia.jpg",
+        tamanhoBytes: corpo.length,
+        hash: await impressao(corpo),
+        formato: "jpeg",
+      },
     ]);
     expect(deNovo).toEqual({ itens: [{ repetida: true }] });
     // E confirmar outra vez não processa de novo.
     expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ erro: "Foto não encontrada." });
   });
 
-  it("arquivo que não é JPEG de verdade vira erro, mesmo com o hash certo", async () => {
+  it("arquivo que não é do formato informado vira erro, mesmo com a impressão certa", async () => {
     const png = await sharp({
       create: { width: 50, height: 50, channels: 3, background: "#2362FE" },
     })
@@ -252,7 +365,7 @@ describe("envio de fotos ao R2", () => {
 
     const resultado = await confirmarEnvio(lia.id, fotoId);
     expect(resultado).toHaveProperty("erro");
-    expect((resultado as { erro: string }).erro).toMatch(/JPEG/);
+    expect((resultado as { erro: string }).erro).toMatch(/diferente/);
     expect((await linhaDaFoto(fotoId)).status).toBe("erro");
     // O arquivo recusado é apagado.
     const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
@@ -278,15 +391,20 @@ describe("envio de fotos ao R2", () => {
     expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ eventoId: evento.id });
   });
 
-  it("arquivo maior que 30 MB no armazenamento vira erro", async () => {
+  it("arquivo acima do teto no armazenamento vira erro; de tamanho diferente do informado também", async () => {
     const corpo = await jpeg();
     const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
-    const grande = Buffer.concat([corpo, Buffer.alloc(30 * 1024 * 1024)]);
+    const grande = Buffer.concat([corpo, Buffer.alloc(LIMITE_FOTO_BYTES)]);
     simularPut(lia.id, evento.id, fotoId, grande);
-
-    const resultado = await confirmarEnvio(lia.id, fotoId);
-    expect(resultado).toEqual({ erro: "Maior que 30 MB." });
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ erro: "Maior que 200 MB." });
     expect((await linhaDaFoto(fotoId)).status).toBe("erro");
+
+    const outro = await jpeg();
+    const segunda = await iniciarUm(lia.id, evento.id, outro);
+    simularPut(lia.id, evento.id, segunda.fotoId, Buffer.concat([outro, Buffer.alloc(10)]));
+    expect(await confirmarEnvio(lia.id, segunda.fotoId)).toEqual({
+      erro: "O arquivo chegou diferente do escolhido. Envie de novo.",
+    });
   });
 
   it("arquivo que não chegou ao armazenamento vira erro", async () => {
@@ -299,7 +417,12 @@ describe("envio de fotos ao R2", () => {
     const corpo = await jpeg();
     expect(
       await iniciarEnvio(pedro.id, evento.id, [
-        { nome: "x.jpg", tamanhoBytes: corpo.length, hash: sha256(corpo) },
+        {
+          nome: "x.jpg",
+          tamanhoBytes: corpo.length,
+          hash: await impressao(corpo),
+          formato: "jpeg",
+        },
       ]),
     ).toEqual({ erro: "Evento não encontrado." });
 
@@ -364,9 +487,12 @@ describe("sem limite de quantidade de fotos", () => {
       const r = await iniciarEnvio(
         lia.id,
         evento.id,
-        hashes
-          .slice(i, i + FOTOS_POR_LOTE)
-          .map((hash, j) => ({ nome: `LOTE_${i + j}.jpg`, tamanhoBytes: 1000, hash })),
+        hashes.slice(i, i + FOTOS_POR_LOTE).map((hash, j) => ({
+          nome: `LOTE_${i + j}.jpg`,
+          tamanhoBytes: 1000,
+          hash,
+          formato: "jpeg",
+        })),
       );
       if ("erro" in r) throw new Error(r.erro);
       for (const item of r.itens) if ("fotoId" in item) ids.push(item.fotoId);
@@ -604,5 +730,285 @@ describe("data de captura do EXIF", () => {
     expect(dataDeCaptura(exif)?.toISOString()).toBe("2026-05-10T10:32:15.000Z");
     expect(dataDeCaptura(undefined)).toBeNull();
     expect(dataDeCaptura(Buffer.from("Exif\0\0lixo"))).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------- Formatos e arquivos grandes
+
+/** Envia (no S3 falso) e processa uma foto; devolve o id e as chaves. */
+async function enviarEProcessar(corpo: Buffer, formato: FormatoAceito) {
+  const { fotoId } = await iniciarUm(lia.id, evento.id, corpo, formato);
+  simularPut(lia.id, evento.id, fotoId, corpo, formato);
+  const resultado = await confirmarEnvio(lia.id, fotoId);
+  return { fotoId, resultado, chaves: chavesDaFoto(lia.id, evento.id, fotoId, formato) };
+}
+
+/** Pixel (r, g, b) da prévia no ponto (x, y). */
+async function pixel(imagem: Buffer, x: number, y: number) {
+  const { data, info } = await sharp(imagem).raw().toBuffer({ resolveWithObject: true });
+  const i = (y * info.width + x) * info.channels;
+  return [data[i], data[i + 1], data[i + 2]];
+}
+
+describe("formatos aceitos (JPEG, PNG, WebP, TIFF, AVIF)", () => {
+  it("PNG com transparência: prévia achatada sobre branco e original entregue em PNG", async () => {
+    // Metade esquerda transparente (com a cor escondida em vermelho), metade direita azul.
+    const largura = 800;
+    const altura = 600;
+    const pixels = Buffer.alloc(largura * altura * 4);
+    for (let y = 0; y < altura; y++) {
+      for (let x = 0; x < largura; x++) {
+        const i = (y * largura + x) * 4;
+        if (x < largura / 2) pixels.set([255, 0, 0, 0], i);
+        else pixels.set([35, 98, 254, 255], i);
+      }
+    }
+    const png = await sharp(pixels, { raw: { width: largura, height: altura, channels: 4 } })
+      .png()
+      .toBuffer();
+    const { fotoId, resultado, chaves } = await enviarEProcessar(png, "png");
+    expect(resultado).toEqual({ eventoId: evento.id });
+    expect(chaves.original.endsWith(".png")).toBe(true);
+
+    const previa = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previa))!.corpo;
+    const info = await sharp(previa).metadata();
+    expect(info.hasAlpha).toBe(false);
+    // Longe da marca d'água não dá para garantir; o canto transparente tem de estar claro, não
+    // preto nem vermelho (a cor escondida).
+    const [r, g, b] = await pixel(previa, 2, 2);
+    expect(Math.min(r, g, b)).toBeGreaterThan(150);
+    expect(r - b).toBeLessThan(60);
+
+    // O original fica em PNG, com o tipo certo, e é entregue assim no download.
+    const original = objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))!;
+    expect(original.tipo).toBe("image/png");
+    expect(original.corpo.equals(png)).toBe(true);
+
+    const pedido = await criarPedido([fotoId], {
+      clienteId: null,
+      nome: "Cliente PNG",
+      email: "cliente-png@exemplo.com",
+      whatsapp: null,
+      aceitaWhatsapp: false,
+      metodo: "pix",
+    });
+    if (!pedido.ok) throw new Error("pedido");
+    await confirmarPagamento(pedido.pedidoId);
+    const banco = await obterBanco();
+    const [item] = await banco
+      .select()
+      .from(t.itensPedido)
+      .where(eq(t.itensPedido.pedidoId, pedido.pedidoId));
+    const download = await autorizarDownload(item.id, { token: pedido.token }, null);
+    const url = new URL(download!.url);
+    expect(url.searchParams.get("response-content-type")).toBe("image/png");
+    expect(url.searchParams.get("response-content-disposition")).toMatch(/\.png"/);
+    expect(download!.nomeArquivo.endsWith(".png")).toBe(true);
+  });
+
+  it("TIFF de 16 bits: prévia e miniatura em sRGB de 8 bits, original em TIFF", async () => {
+    const tiff = await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: { r: 40, g: 160, b: 90 } },
+    })
+      .toColourspace("rgb16")
+      .tiff({ compression: "lzw" })
+      .toBuffer();
+    expect((await sharp(tiff).metadata()).depth).toBe("ushort");
+    const { resultado, chaves, fotoId } = await enviarEProcessar(tiff, "tiff");
+    expect(resultado).toEqual({ eventoId: evento.id });
+    for (const chave of [chaves.previa, chaves.miniatura]) {
+      const info = await sharp(objetos.get(nome(R2.R2_BUCKET_PUBLICO, chave))!.corpo).metadata();
+      expect(info.format).toBe("webp");
+      expect(info.space).toBe("srgb");
+      expect(info.depth).toBe("uchar");
+    }
+    // A cor não foi destruída na conversão de 16 para 8 bits.
+    const previa = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previa))!.corpo;
+    const { channels } = await sharp(previa).stats();
+    expect(channels[1].mean).toBeGreaterThan(channels[0].mean);
+    expect(objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))?.tipo).toBe("image/tiff");
+    expect([(await linhaDaFoto(fotoId)).largura, (await linhaDaFoto(fotoId)).altura]).toEqual([
+      1200, 800,
+    ]);
+  });
+
+  it("WebP e AVIF também são processados e guardados no formato enviado", async () => {
+    const base = sharp({
+      create: { width: 640, height: 480, channels: 3, background: { r: 200, g: 120, b: 30 } },
+    });
+    const webp = await base.clone().webp().toBuffer();
+    const avif = await base.clone().avif().toBuffer();
+    for (const [corpo, formato, tipo] of [
+      [webp, "webp", "image/webp"],
+      [avif, "avif", "image/avif"],
+    ] as const) {
+      const { resultado, chaves } = await enviarEProcessar(corpo, formato);
+      expect(resultado).toEqual({ eventoId: evento.id });
+      expect(objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))?.tipo).toBe(tipo);
+      expect(objetos.has(nome(R2.R2_BUCKET_PUBLICO, chaves.previa))).toBe(true);
+    }
+  });
+
+  it("RAW e HEIC que chegam ao servidor são recusados com mensagem clara", async () => {
+    // Cabeçalho de CR2 (TIFF com "CR" no byte 8), declarado como TIFF.
+    const cr2 = Buffer.concat([
+      Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x10, 0, 0, 0, 0x43, 0x52, 0x02, 0x00]),
+      Buffer.alloc(2000),
+    ]);
+    const raw = await enviarEProcessar(cr2, "tiff");
+    expect(raw.resultado).toEqual({ erro: MENSAGEM_RAW });
+    // HEIC (caixa ftyp com a marca heic), declarado como AVIF.
+    const heic = Buffer.concat([
+      Buffer.from([0, 0, 0, 0x18]),
+      Buffer.from("ftypheic\0\0\0\0mif1heic", "latin1"),
+      Buffer.alloc(2000),
+    ]);
+    const r = await enviarEProcessar(heic, "avif");
+    expect((r.resultado as { erro: string }).erro).toMatch(/HEIC/);
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, r.chaves.temporaria))).toBe(false);
+  });
+
+  it("imagem grande (100 MP) gera as prévias sem estourar; acima de 160 MP é recusada", async () => {
+    const grande = await sharp({
+      create: { width: 12_240, height: 8_160, channels: 3, background: { r: 90, g: 90, b: 200 } },
+    })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    const inicio = performance.now();
+    const { resultado, chaves, fotoId } = await enviarEProcessar(grande, "jpeg");
+    expect(resultado).toEqual({ eventoId: evento.id });
+    expect(performance.now() - inicio).toBeLessThan(20_000);
+    const info = await sharp(
+      objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previa))!.corpo,
+    ).metadata();
+    expect(Math.max(info.width, info.height)).toBe(1600);
+    expect((await linhaDaFoto(fotoId)).largura).toBe(12_240);
+
+    // 13.000 x 13.000 = 169 MP: acima do LIMITE_PIXELS (bomba de descompressão em poucos KB).
+    const bomba = await sharp({
+      create: { width: 13_000, height: 13_000, channels: 3, background: "#000000" },
+    })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+    const recusa = await enviarEProcessar(bomba, "png");
+    expect((recusa.resultado as { erro: string }).erro).toMatch(/megapixels/);
+  }, 60_000);
+});
+
+describe("envio em partes (multipart) dos arquivos grandes", () => {
+  it("assina uma URL por parte, reassina as que faltam, exige todas e processa o resultado", async () => {
+    // TIFF sem compressão de ~58 MB: acima de MULTIPART_A_PARTIR_DE (50 MB), 6 partes de 10 MB.
+    const tiff = await sharp({
+      create: { width: 4400, height: 4400, channels: 3, background: { r: 10, g: 120, b: 220 } },
+    })
+      .tiff({ compression: "none" })
+      .toBuffer();
+    expect(tiff.length).toBeGreaterThan(50 * 1024 * 1024);
+    const item = await iniciarUm(lia.id, evento.id, tiff, "tiff");
+    expect(item.url).toBeUndefined();
+    const { uploadId, urls } = item.partes!;
+    expect(urls).toHaveLength(6);
+    const primeira = new URL(urls[0]);
+    expect(primeira.pathname).toBe(
+      `/${chavesDaFoto(lia.id, evento.id, item.fotoId, "tiff").temporaria}`,
+    );
+    expect(primeira.searchParams.get("partNumber")).toBe("1");
+    expect(primeira.searchParams.get("uploadId")).toBe(uploadId);
+    expect(primeira.searchParams.get("X-Amz-Expires")).toBe("900");
+    expect(primeira.searchParams.get("X-Amz-SignedHeaders")!.split(";")).toContain(
+      "content-length",
+    );
+    // O tipo do original fica no upload em partes (a parte em si vai sem tipo).
+    expect([...multipart.values()].at(-1)?.tipo).toBe("image/tiff");
+
+    // URL vencida: reassina só as partes pedidas, do mesmo upload.
+    const novas = await assinarPartes(lia.id, item.fotoId, { uploadId, numeros: [2, 6] });
+    expect("urls" in novas && novas.urls.map((u) => u.numero)).toEqual([2, 6]);
+    // Parte além do tamanho registrado, foto de outro fotógrafo ou corpo inválido: recusa.
+    expect(await assinarPartes(lia.id, item.fotoId, { uploadId, numeros: [7] })).toHaveProperty(
+      "erro",
+    );
+    expect(await assinarPartes(pedro.id, item.fotoId, { uploadId, numeros: [1] })).toEqual({
+      erro: "Foto não encontrada.",
+    });
+    expect(await assinarPartes(lia.id, item.fotoId, { uploadId: "a b", numeros: [1] })).toEqual({
+      erro: "Pedido inválido.",
+    });
+
+    // O "navegador" manda as partes de 10 MB (a última menor).
+    const PARTE = 10 * 1024 * 1024;
+    for (let n = 1; n <= 6; n++) {
+      partesEnviadas.set(`${uploadId}:${n}`, tiff.subarray((n - 1) * PARTE, n * PARTE));
+    }
+    const etags = Array.from({ length: 6 }, (_, n) => ({ numero: n + 1, etag: `"etag${n + 1}"` }));
+    // Faltando uma parte, não fecha.
+    expect(
+      await concluirPartes(lia.id, item.fotoId, { uploadId, partes: etags.slice(0, 5) }),
+    ).toMatchObject({ reiniciar: true });
+    expect(await concluirPartes(lia.id, item.fotoId, { uploadId, partes: etags })).toEqual({
+      ok: true,
+    });
+    // Upload que não existe mais: pede para recomeçar.
+    expect(await concluirPartes(lia.id, item.fotoId, { uploadId, partes: etags })).toMatchObject({
+      reiniciar: true,
+    });
+
+    expect(await confirmarEnvio(lia.id, item.fotoId)).toEqual({ eventoId: evento.id });
+    const chaves = chavesDaFoto(lia.id, evento.id, item.fotoId, "tiff");
+    const original = objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))!;
+    expect(original.corpo.equals(tiff)).toBe(true);
+    expect(original.tipo).toBe("image/tiff");
+  }, 60_000);
+});
+
+describe("rota do envio em partes (/api/envios/partes)", () => {
+  function pedido(corpo: unknown, cabecalhos: Record<string, string> = {}) {
+    return new Request("https://clicouai.test/api/envios/partes", {
+      method: "POST",
+      headers: {
+        host: "clicouai.test",
+        origin: "https://clicouai.test",
+        "content-type": "application/json",
+        ...cabecalhos,
+      },
+      body: typeof corpo === "string" ? corpo : JSON.stringify(corpo),
+    }) as never;
+  }
+
+  it("assina partes só para o dono, da mesma origem, com corpo pequeno e válido", async () => {
+    const r = await iniciarEnvio(lia.id, evento.id, [
+      { nome: "rota.tif", tamanhoBytes: 60 * 1024 * 1024, hash: "9".repeat(64), formato: "tiff" },
+    ]);
+    const item = (r as { itens: { fotoId: string; partes: { uploadId: string } }[] }).itens[0];
+    const assinar = { acao: "assinar", fotoId: item.fotoId, uploadId: item.partes.uploadId };
+
+    sessao.fotografoId = lia.id;
+    const ok = await partesRota(pedido({ ...assinar, numeros: [1, 2] }));
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("cache-control")).toBe("no-store");
+    expect(((await ok.json()) as { urls: unknown[] }).urls).toHaveLength(2);
+
+    expect(
+      (await partesRota(pedido({ ...assinar, numeros: [1] }, { origin: "https://outro.site" })))
+        .status,
+    ).toBe(403);
+    expect((await partesRota(pedido("x".repeat(9000)))).status).toBe(400);
+    expect((await partesRota(pedido({ ...assinar, acao: "apagar" }))).status).toBe(400);
+    sessao.fotografoId = pedro.id;
+    expect((await partesRota(pedido({ ...assinar, numeros: [1] }))).status).toBe(422);
+    sessao.fotografoId = "";
+    expect((await partesRota(pedido({ ...assinar, numeros: [1] }))).status).toBe(401);
+
+    // Fechar sem todas as partes: 409 (o navegador recomeça o upload).
+    sessao.fotografoId = lia.id;
+    const concluir = await partesRota(
+      pedido({
+        acao: "concluir",
+        fotoId: item.fotoId,
+        uploadId: item.partes.uploadId,
+        partes: [{ numero: 1, etag: '"abc"' }],
+      }),
+    );
+    expect(concluir.status).toBe(409);
   });
 });

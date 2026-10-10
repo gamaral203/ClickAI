@@ -11,12 +11,15 @@
 import "server-only";
 
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CopyObjectCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
-  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -90,18 +93,18 @@ export function reiniciarClienteR2() {
 }
 
 /**
- * URL para o navegador mandar um JPEG direto ao bucket de originais (PUT), sem passar pelo
+ * URL para o navegador mandar a foto direto ao bucket de originais (PUT), sem passar pelo
  * Next.js. Tipo e tamanho entram na assinatura: outro Content-Type ou outro tamanho é recusado
  * pelo R2.
  */
-export async function urlDeEnvio(chave: string, tamanhoBytes: number) {
+export async function urlDeEnvio(chave: string, tamanhoBytes: number, tipo: string) {
   const config = exigirConfig();
   return getSignedUrl(
     s3(config),
     new PutObjectCommand({
       Bucket: config.bucketOriginais,
       Key: chave,
-      ContentType: "image/jpeg",
+      ContentType: tipo,
       ContentLength: tamanhoBytes,
     }),
     {
@@ -111,14 +114,88 @@ export async function urlDeEnvio(chave: string, tamanhoBytes: number) {
   );
 }
 
+// ---------------------------------------------------------------- Upload em partes (multipart)
+// Para arquivos grandes: o servidor abre o upload (CreateMultipartUpload) e assina uma URL de PUT
+// por parte; o navegador manda cada parte direto ao R2 (uma parte que falha é reenviada
+// sozinha) e devolve os ETags; o servidor fecha o upload (CompleteMultipartUpload). O arquivo
+// continua sem passar pelo Next.js. Upload aberto e abandonado é descartado pelo R2 (regra padrão
+// do bucket: multipart incompleto some em 7 dias).
+
+/** Abre um upload em partes na chave e devolve o id dele. */
+export async function abrirEnvioEmPartes(chave: string, tipo: string): Promise<string> {
+  const config = exigirConfig();
+  const resposta = await s3(config).send(
+    new CreateMultipartUploadCommand({
+      Bucket: config.bucketOriginais,
+      Key: chave,
+      ContentType: tipo,
+    }),
+  );
+  if (!resposta.UploadId) throw new Error("O R2 não devolveu o id do upload em partes");
+  return resposta.UploadId;
+}
+
+/** URL assinada (PUT, 15 min) de uma parte, com o tamanho exato dela na assinatura. */
+export async function urlDaParte(
+  chave: string,
+  uploadId: string,
+  numero: number,
+  tamanhoBytes: number,
+) {
+  const config = exigirConfig();
+  return getSignedUrl(
+    s3(config),
+    new UploadPartCommand({
+      Bucket: config.bucketOriginais,
+      Key: chave,
+      UploadId: uploadId,
+      PartNumber: numero,
+      ContentLength: tamanhoBytes,
+    }),
+    { expiresIn: VALIDADE_URL_S, signableHeaders: new Set(["content-length"]) },
+  );
+}
+
+/** Fecha o upload em partes; o objeto passa a existir na chave. */
+export async function fecharEnvioEmPartes(
+  chave: string,
+  uploadId: string,
+  partes: { numero: number; etag: string }[],
+) {
+  const config = exigirConfig();
+  await s3(config).send(
+    new CompleteMultipartUploadCommand({
+      Bucket: config.bucketOriginais,
+      Key: chave,
+      UploadId: uploadId,
+      MultipartUpload: { Parts: partes.map((p) => ({ PartNumber: p.numero, ETag: p.etag })) },
+    }),
+  );
+}
+
+/** Descarta um upload em partes (as partes já enviadas são apagadas). */
+export async function cancelarEnvioEmPartes(chave: string, uploadId: string) {
+  const config = exigirConfig();
+  await s3(config).send(
+    new AbortMultipartUploadCommand({
+      Bucket: config.bucketOriginais,
+      Key: chave,
+      UploadId: uploadId,
+    }),
+  );
+}
+
 /** Content-Disposition de anexo, com nome ASCII de reserva e o nome completo em UTF-8. */
 export function dispositionDeAnexo(nome: string) {
   const ascii = nome.normalize("NFD").replace(/[^\w.-]/g, "_");
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 }
 
-/** URL assinada (GET, ~15 min) do original, que o navegador salva como arquivo com este nome. */
-export async function urlDeDownload(chave: string, nomeArquivo: string) {
+/**
+ * URL assinada (GET, ~15 min) do original, que o navegador salva como arquivo com este nome e
+ * este tipo (o do formato em que a foto foi enviada).
+ */
+export async function urlDeDownload(chave: string, nomeArquivo: string, tipo: string) {
   const config = exigirConfig();
   return getSignedUrl(
     s3(config),
@@ -126,24 +203,10 @@ export async function urlDeDownload(chave: string, nomeArquivo: string) {
       Bucket: config.bucketOriginais,
       Key: chave,
       ResponseContentDisposition: dispositionDeAnexo(nomeArquivo),
-      ResponseContentType: "image/jpeg",
+      ResponseContentType: tipo,
     }),
     { expiresIn: VALIDADE_URL_S },
   );
-}
-
-/** Tamanho do objeto no bucket de originais, ou `null` se ele não existe. */
-export async function tamanhoDoOriginal(chave: string): Promise<number | null> {
-  const config = exigirConfig();
-  try {
-    const resposta = await s3(config).send(
-      new HeadObjectCommand({ Bucket: config.bucketOriginais, Key: chave }),
-    );
-    return resposta.ContentLength ?? null;
-  } catch (erro) {
-    if (naoExiste(erro)) return null;
-    throw erro;
-  }
 }
 
 /** Lê um objeto do bucket de originais inteiro na memória (para processar a foto). */
@@ -154,6 +217,37 @@ export async function lerOriginal(chave: string): Promise<Buffer> {
   );
   if (!resposta.Body) throw new Error("Objeto sem conteúdo");
   return Buffer.from(await resposta.Body.transformToByteArray());
+}
+
+export type ArquivoEnviado =
+  | { situacao: "ausente" }
+  | { situacao: "grande"; tamanho: number }
+  | { situacao: "ok"; conteudo: Buffer };
+
+/**
+ * Lê o arquivo que o navegador enviou numa ida só (GET, sem o HEAD antes: o bucket fica nos EUA
+ * e cada ida custa ~150 ms a partir de São Paulo). Maior que `limite` não é baixado: só o
+ * tamanho, pelo cabeçalho da resposta.
+ */
+export async function lerEnviado(chave: string, limite: number): Promise<ArquivoEnviado> {
+  const config = exigirConfig();
+  let resposta;
+  try {
+    resposta = await s3(config).send(
+      new GetObjectCommand({ Bucket: config.bucketOriginais, Key: chave }),
+    );
+  } catch (erro) {
+    if (naoExiste(erro)) return { situacao: "ausente" };
+    throw erro;
+  }
+  if (!resposta.Body) return { situacao: "ausente" };
+  if (resposta.ContentLength !== undefined && resposta.ContentLength > limite) {
+    (resposta.Body as { destroy?: () => void }).destroy?.();
+    return { situacao: "grande", tamanho: resposta.ContentLength };
+  }
+  const conteudo = Buffer.from(await resposta.Body.transformToByteArray());
+  if (conteudo.length > limite) return { situacao: "grande", tamanho: conteudo.length };
+  return { situacao: "ok", conteudo };
 }
 
 /** Grava no bucket público (prévias e miniaturas), com cache longo: a chave nunca muda. */
@@ -171,14 +265,14 @@ export async function gravarPublico(chave: string, conteudo: Buffer, tipo: strin
 }
 
 /** Move um objeto dentro do bucket de originais (cópia + remoção da origem). */
-export async function moverOriginal(de: string, para: string) {
+export async function moverOriginal(de: string, para: string, tipo: string) {
   const config = exigirConfig();
   await s3(config).send(
     new CopyObjectCommand({
       Bucket: config.bucketOriginais,
       CopySource: `${config.bucketOriginais}/${de.split("/").map(encodeURIComponent).join("/")}`,
       Key: para,
-      ContentType: "image/jpeg",
+      ContentType: tipo,
       MetadataDirective: "REPLACE",
     }),
   );
