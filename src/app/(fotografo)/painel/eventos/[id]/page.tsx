@@ -19,7 +19,7 @@ import { FormularioPacote } from "@/components/painel/formulario-pacote";
 import { Pastas } from "@/components/painel/pastas";
 import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
-import { GradeFotosPainel } from "@/components/painel/grade-fotos-painel";
+import { FotosDoEvento } from "@/components/painel/fotos-do-evento";
 import { ReaproveitarEvento } from "@/components/painel/reaproveitar-evento";
 import { RostosDoEvento } from "@/components/painel/rostos-do-evento";
 import { TopCliques } from "@/components/painel/top-cliques";
@@ -33,7 +33,9 @@ import {
   listarColaboradores,
   listarFaixas,
   listarItensDoPainel,
+  horaDaRequisicao,
   listarPastasDoPainel,
+  resumoDaLiberacao,
   situacaoDosRostos,
   topCliquesDoEvento,
   totaisDoEvento,
@@ -41,7 +43,8 @@ import {
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { urlDoSite } from "@/lib/endereco";
-import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
+import { formatarPreco } from "@/lib/formatar";
+import { estadoDaLiberacao, formatarAgendamento } from "@/lib/liberacao";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
@@ -82,7 +85,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   if (!evento) notFound();
   const { criado, publicado, copiado } = await searchParams;
   const categorias = await listarCategorias();
-  const liberacaoManualPendente = evento.liberacao === "manual" && !evento.liberadoEm;
+  // Estado da liberação de cada foto: comparado com a hora desta requisição.
+  const agora = await horaDaRequisicao();
   const [
     itensDoPainel,
     faixasDoEvento,
@@ -93,6 +97,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     rostos,
     top,
     totais,
+    liberacao,
   ] = await Promise.all([
     listarItensDoPainel(evento.id, conta.id),
     listarFaixas(conta.id, evento.id),
@@ -103,6 +108,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     situacaoDosRostos(evento.id),
     topCliquesDoEvento(evento.id),
     totaisDoEvento(evento.id, conta.id),
+    resumoDaLiberacao(evento.id, agora),
   ]);
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
@@ -150,10 +156,24 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         <p className="text-sm text-muted-foreground">
           {evento.totalItens} {evento.totalItens === 1 ? "foto pronta" : "fotos prontas"} ·{" "}
           {evento.vendidos} {evento.vendidos === 1 ? "vendida" : "vendidas"}
-          {evento.liberacao === "agendada" &&
-            evento.liberadoEm &&
-            ` · liberação em ${formatarDataEHora(evento.liberadoEm)}`}
-          {liberacaoManualPendente && " · fotos ainda não liberadas"}
+        </p>
+        <p className="text-sm" aria-label="Liberação das fotos prontas">
+          <strong className="tabular-nums">{liberacao.liberadas}</strong>{" "}
+          {liberacao.liberadas === 1 ? "liberada" : "liberadas"} ·{" "}
+          <strong className="tabular-nums">{liberacao.agendadas}</strong>{" "}
+          {liberacao.agendadas === 1 ? "agendada" : "agendadas"}
+          {liberacao.proximaEm && (
+            <span className="text-muted-foreground">
+              {" "}
+              (próxima às {formatarAgendamento(liberacao.proximaEm)})
+            </span>
+          )}{" "}
+          · <strong className="tabular-nums">{liberacao.aguardando}</strong> aguardando
+          {evento.status !== "publicado" && (
+            <span className="block text-muted-foreground">
+              Fotos liberadas só aparecem depois que o evento for publicado.
+            </span>
+          )}
         </p>
         {totais && totais.pedidos > 0 && (
           <p className="text-sm">
@@ -191,7 +211,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
         <AcoesEvento
           eventoId={evento.id}
           status={evento.status}
-          liberacaoManualPendente={liberacaoManualPendente}
+          pendentesDeLiberacao={liberacao.agendadas + liberacao.aguardando}
         />
       </header>
 
@@ -331,8 +351,22 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Fotos ({itens.length})</h2>
-        <EnvioFotos eventoId={evento.id} modo={modoEnvio()} />
-        <GradeFotosPainel
+        <EnvioFotos
+          eventoId={evento.id}
+          modo={modoEnvio()}
+          liberacao={{
+            modo: evento.liberacao,
+            em:
+              evento.liberacao === "agendada" && evento.liberadoEm
+                ? isoParaCampo(evento.liberadoEm)
+                : "",
+            podeEscolher: true,
+            descricao: "",
+          }}
+        />
+        <FotosDoEvento
+          eventoId={evento.id}
+          podeLiberar
           itens={itens.map((i) => ({
             id: i.id,
             urlMiniatura: i.urlMiniatura,
@@ -344,6 +378,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             precoEventoCentavos:
               i.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos,
             pastaId: i.pastaId,
+            estadoLiberacao: estadoDaLiberacao(i.liberarEm, agora),
+            liberarEm: i.liberarEm,
           }))}
           pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
         />

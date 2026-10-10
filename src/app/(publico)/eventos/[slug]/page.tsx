@@ -7,7 +7,7 @@ import { ArrowLeft, Calendar, Camera, Clock, Flag, Images, MapPin, ScanFace } fr
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { contarItens } from "@/components/galeria/cartao-evento";
-import { ContagemRegressiva } from "@/components/galeria/contagem-regressiva";
+import { AtualizarNaHora, ContagemRegressiva } from "@/components/galeria/contagem-regressiva";
 import { FiltrosGaleria } from "@/components/galeria/filtros-galeria";
 import { FormularioSenhaEvento } from "@/components/galeria/formulario-senha-evento";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
@@ -196,6 +196,13 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       <p className="-mt-4 text-sm text-muted-foreground">
         Toque numa foto para ver maior e comprar.
       </p>
+      {situacao.tipo === "aberta" && situacao.proximaLiberacao && (
+        <p className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
+          <Clock aria-hidden="true" className="size-4 shrink-0" />
+          Mais fotos chegam em {formatarDataEHora(situacao.proximaLiberacao)}.
+          <AtualizarNaHora alvo={situacao.proximaLiberacao} />
+        </p>
+      )}
       <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
       <GaleriaFotos
         // Novo filtro, nova lista: sem a chave, a galeria manteria as fotos do filtro anterior.

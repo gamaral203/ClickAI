@@ -105,8 +105,9 @@ export type Evento = {
   listado: boolean;
   /** A galeria aberta fica vazia; só os resultados da busca aparecem. */
   fotosSoAposBusca: boolean;
+  /** Liberação padrão dos próximos envios ao evento (cada foto guarda a sua em `liberarEm`). */
   liberacao: Liberacao;
-  /** Quando os itens passam a aparecer (liberação manual ou agendada). */
+  /** Horário padrão da liberação agendada (só vale com `liberacao` agendada). */
   liberadoEm: string | null;
   filtroHorario: boolean;
   listarNaoIdentificadas: boolean;
@@ -150,6 +151,10 @@ export type Foto = {
   status: StatusFoto;
   criadoEm: string;
   excluidaEm: string | null;
+  /** Modo do lote em que a foto entrou (src/lib/liberacao.ts). */
+  liberacao: Liberacao;
+  /** A partir de quando aparece para o público; `null`: aguardando o "Liberar agora" do dono. */
+  liberarEm: string | null;
 };
 
 // ---------------------------------------------------------------- Crescimento
@@ -352,7 +357,7 @@ export type Mensagem = {
   /** Pedido da mensagem; `null` nas mensagens de denúncia. */
   pedidoId: string | null;
   canal: "email" | "whatsapp";
-  tipo: "entrega" | "lembrete" | "denuncia" | "lembrete_pix" | "venda" | "seguranca";
+  tipo: "entrega" | "lembrete" | "denuncia" | "lembrete_pix" | "venda" | "seguranca" | "liberacao";
   /** E-mail ou número de WhatsApp. */
   para: string;
   assunto: string;
@@ -455,7 +460,9 @@ export type EventoResumo = Evento & {
  * escolher a mensagem; a camada de dados usa para não entregar fotos que não deveria.
  */
 export type SituacaoGaleria =
-  | { tipo: "aberta" }
+  /** `proximaLiberacao`: há mais fotos agendadas para esse horário (ISO), ou `null`. */
+  | { tipo: "aberta"; proximaLiberacao?: string | null }
+  /** Nenhuma foto liberada ainda; `liberaEm` é o próximo horário agendado (`null`: manual). */
   | { tipo: "aguardando_liberacao"; liberaEm: string | null }
   | { tipo: "so_apos_busca" }
   | { tipo: "senha" };

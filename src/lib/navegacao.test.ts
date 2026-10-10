@@ -8,6 +8,7 @@ import {
   inicioDoPapel,
   linkAtivo,
   linksDoCabecalho,
+  mostraCartaoMeta,
   podeComprar,
 } from "./navegacao";
 
@@ -20,7 +21,6 @@ describe("linksDoCabecalho", () => {
     expect(nav.variante).toBe("publico");
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil).toBeNull();
-    expect(nav.meta).toBe(false);
     expect(nav.rodape).toBe("completo");
     expect(hrefs(nav.desktop)).toEqual(["/", "/eventos"]);
     expect(hrefs(nav.celular)).toEqual([
@@ -38,7 +38,6 @@ describe("linksDoCabecalho", () => {
     expect(nav.variante).toBe("publico");
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil?.href).toBe("/minhas-compras");
-    expect(nav.meta).toBe(false);
     expect(nav.rodape).toBe("completo");
     expect(hrefs(nav.celular)).toEqual([
       "/",
@@ -50,11 +49,10 @@ describe("linksDoCabecalho", () => {
     expect(hrefs(nav.celular).some((h) => h.startsWith("/painel") || h === "/admin")).toBe(false);
   });
 
-  it("fotógrafo: cabeçalho do painel com Início e meta, sem carrinho, vitrine nem compras", () => {
+  it("fotógrafo: cabeçalho do painel com Início, sem carrinho, vitrine nem compras", () => {
     const nav = linksDoCabecalho(usuario("fotografo"));
     expect(nav.variante).toBe("painel");
     expect(nav.carrinho).toBe(false);
-    expect(nav.meta).toBe(true);
     expect(nav.rodape).toBe("curto");
     expect(nav.perfil?.href).toBe("/painel/perfil");
     expect(nav.desktop[0]).toEqual({ href: "/painel", rotulo: "Início", exato: true });
@@ -81,11 +79,10 @@ describe("linksDoCabecalho", () => {
     }
   });
 
-  it("gestor: cabeçalho do painel com o atalho da Gestão e sem selo de meta", () => {
+  it("gestor: cabeçalho do painel com o atalho da Gestão", () => {
     const nav = linksDoCabecalho(usuario("admin"));
     expect(nav.variante).toBe("painel");
     expect(nav.carrinho).toBe(false);
-    expect(nav.meta).toBe(false);
     expect(nav.rodape).toBe("curto");
     expect(hrefs(nav.desktop)).toEqual([
       "/painel",
@@ -146,6 +143,25 @@ describe("linkAtivo", () => {
     expect(marcados("/painel/eventos/123")).toEqual(["Meus eventos"]);
     expect(marcados("/painel/vendas")).toEqual(["Financeiro"]);
     expect(marcados("/painel/perfil")).toEqual([]);
+  });
+});
+
+describe("mostraCartaoMeta", () => {
+  const conta = { id: "f1a7c0de-0000-4000-8000-000000000001" };
+
+  it("quem tem conta de fotógrafo vê o cartão, inclusive o gestor que também vende", () => {
+    expect(mostraCartaoMeta({ papel: "fotografo" }, conta)).toBe(true);
+    expect(mostraCartaoMeta({ papel: "admin" }, conta)).toBe(true);
+  });
+
+  it("sem conta de fotógrafo, ninguém vê", () => {
+    expect(mostraCartaoMeta({ papel: "fotografo" }, null)).toBe(false);
+    expect(mostraCartaoMeta({ papel: "admin" }, null)).toBe(false);
+  });
+
+  it("visitante e cliente não usam o painel", () => {
+    expect(mostraCartaoMeta(null, conta)).toBe(false);
+    expect(mostraCartaoMeta({ papel: "cliente" }, conta)).toBe(false);
   });
 });
 

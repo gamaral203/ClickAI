@@ -2,9 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { TriangleAlert, Camera, ImageUp, Loader2, RotateCw, XCircle } from "lucide-react";
+import { TriangleAlert, Camera, ImageUp, Loader2, Plus, RotateCw, XCircle } from "lucide-react";
 
-import { enviarFotosAcao, iniciarEnvioAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import {
+  enviarFotosAcao,
+  iniciarEnvioAcao,
+  situacaoDoEnvioAcao,
+} from "@/app/(fotografo)/painel/eventos/acoes";
+import { CirculoProgresso } from "@/components/painel/circulo-progresso";
 import { Button } from "@/components/ui/button";
 import { emParalelo, esperaDaTentativa } from "@/lib/concorrencia";
 import {
@@ -14,6 +19,8 @@ import {
   type FaixaDeConcorrencia,
 } from "@/lib/concorrencia-adaptativa";
 import { impressaoDoBlob } from "@/lib/impressao-arquivo";
+import { instanteDoCampo, type EscolhaLiberacao, type ModoLiberacao } from "@/lib/liberacao";
+import { progressoDoEnvio, type EstadoDoArquivo } from "@/lib/progresso-envio";
 import {
   FOTOS_POR_LOTE,
   LIMITE_FOTO_BYTES,
@@ -40,13 +47,24 @@ import {
 //      ajustada pela vazão medida (src/lib/concorrencia-adaptativa.ts); arquivos grandes sobem
 //      em partes, e uma parte que falha é reenviada sozinha;
 //   3. PROCESSAMENTOS_SIMULTANEOS fotos sendo processadas no servidor (prévia com marca d'água,
-//      miniatura, rostos) pela rota /api/envios/processar, enquanto as próximas sobem.
+//      miniatura, rostos) pela rota /api/envios/processar, enquanto as próximas sobem. Quando o
+//      último upload termina, as fotos que ainda esperam processamento são entregues ao servidor
+//      de uma vez ({ fotoIds }): ele as processa sozinho, e a página pode fechar. Se a página
+//      fechar antes, as que já subiram vão por sendBeacon.
 // Cada arquivo tem novas tentativas com espera crescente; um erro não para a fila. A tela não
-// desenha uma linha por foto: mostra o progresso somado, só as fotos com problema e, em
+// desenha uma linha por foto nem fala das etapas: mostra um círculo com a porcentagem somada
+// (src/lib/progresso-envio.ts), que só chega a 100% quando as fotos estão prontas (as entregues
+// ao servidor são acompanhadas por situacaoDoEnvioAcao), só as fotos com problema e, em
 // "Detalhes técnicos", os tempos médios de cada etapa (para medir o envio em produção).
 
-/** Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). */
-const PROCESSAMENTOS_SIMULTANEOS = 6;
+/**
+ * Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). O
+ * processamento de cada foto é quase todo espera (R2, banco), não processador: com 6, o envio
+ * terminava muito antes do processamento (~100 fotos por minuto contra ~300 enviadas).
+ */
+const PROCESSAMENTOS_SIMULTANEOS = 10;
+/** Fotos por entrega ao servidor (o mesmo limite da rota /api/envios/processar). */
+const FOTOS_POR_ENTREGA = 100;
 /** Impressões calculadas ao mesmo tempo (cada uma lê só ~3 MB do arquivo). */
 const IMPRESSOES_SIMULTANEAS = 8;
 /** Partes de um mesmo arquivo grande subindo ao mesmo tempo (dentro das vagas gerais). */
@@ -69,11 +87,18 @@ const JANELA_VELOCIDADE_MS = 8000;
 const JANELA_AJUSTE_MS = 5000;
 /** Qualidade do JPEG gerado a partir do HEIC (vira o original vendido). */
 const QUALIDADE_HEIC = 0.95;
+/** Intervalo da consulta das fotos entregues ao servidor, até ficarem prontas. */
+const CONSULTA_A_CADA_MS = 2500;
+/** Fotos por consulta (o mesmo limite de situacaoDoEnvioAcao). */
+const FOTOS_POR_CONSULTA = 500;
+/** Sem nenhuma foto ficar pronta por este tempo, a tela para de acompanhar. */
+const DESISTE_SEM_NOVIDADE_MS = 5 * 60 * 1000;
+/** Envio que terminou sem problema volta para a área de escolher fotos depois disto. */
+const VOLTA_A_ESCOLHER_MS = 6000;
 
 export type ModoEnvio = "r2" | "simulado" | "indisponivel";
 
-type Estado =
-  "recusada" | "repetida" | "aguardando" | "enviando" | "processando" | "pronta" | "erro";
+type Estado = EstadoDoArquivo;
 
 type Partes = {
   uploadId: string;
@@ -269,6 +294,8 @@ async function postJson<T>(url: string, corpo: object): Promise<{ status: number
 
 type RespostaDoProcessamento = {
   erro?: string;
+  /** Outra chamada (entrega em segundo plano ou job) já estava processando, ou já está pronta. */
+  emAndamento?: boolean;
   tempos?: Partial<Record<EtapaDoServidor, number>>;
 };
 
@@ -310,6 +337,11 @@ class Fila {
     this.fechada = true;
     this.esperando.splice(0).forEach((f) => f(null));
   }
+
+  /** Tira da fila tudo o que ainda não foi pego. */
+  retirarTodos() {
+    return this.itens.splice(0);
+  }
 }
 
 /** Lotes da seleção: o primeiro pequeno (o envio começa logo), os outros de FOTOS_POR_LOTE. */
@@ -323,8 +355,32 @@ function lotesDoEnvio(indices: number[]) {
 
 const ENVIAVEL: Estado[] = ["aguardando", "erro"];
 
-export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnvio }) {
+/** Liberação dos próximos envios: o padrão do evento e se quem envia pode trocar (só o dono). */
+export type LiberacaoDoEnvio = {
+  modo: ModoLiberacao;
+  /** Horário padrão da agendada, no formato do campo (Brasília), ou "". */
+  em: string;
+  podeEscolher: boolean;
+  /** Ex.: "Agendada para 16:00 de 10/10", para quem não pode escolher. */
+  descricao: string;
+};
+
+export function EnvioFotos({
+  eventoId,
+  modo,
+  liberacao,
+}: {
+  eventoId: string;
+  modo: ModoEnvio;
+  liberacao?: LiberacaoDoEnvio;
+}) {
   const router = useRouter();
+  // Liberação deste lote: começa no padrão do evento; o dono pode trocar antes de enviar.
+  const [modoLote, setModoLote] = useState<ModoLiberacao>(liberacao?.modo ?? "automatica");
+  const [emLote, setEmLote] = useState(liberacao?.em ?? "");
+  const [horarioPassado, setHorarioPassado] = useState(false);
+  /** Escolha fixada no início do envio: o "tentar de novo" usa a mesma. */
+  const escolhaDoEnvio = useRef<EscolhaLiberacao | null>(null);
   /** Os itens ficam fora do estado do React: com milhares de fotos, cada progresso de envio
    *  copiaria a lista inteira. A tela redesenha em intervalos curtos (redesenhar). */
   const itens = useRef<Item[]>([]);
@@ -338,6 +394,9 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
   const [arrastando, setArrastando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
+  /** As fotos já subiram e o servidor as termina; a tela acompanha até ficarem prontas. */
+  const [acompanhando, setAcompanhando] = useState(false);
+  const montado = useRef(false);
   const telemetria = useRef<Telemetria>(telemetriaVazia());
   const [numeros, setNumeros] = useState<Telemetria>(telemetriaVazia());
   const [copiado, setCopiado] = useState(false);
@@ -352,7 +411,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
     return itens.current.reduce(
       (s, item) =>
         s +
-        (item.estado === "processando" || item.estado === "pronta"
+        (item.estado === "processando" || item.estado === "pronta" || item.estado === "no-servidor"
           ? item.arquivo.size
           : item.estado === "enviando"
             ? item.enviados
@@ -387,6 +446,13 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
     Object.assign(itens.current[indice], mudanca);
     redesenhar();
   }
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   // Fechar a página no meio do envio para tudo: o navegador avisa antes.
   useEffect(() => {
@@ -487,6 +553,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         hash: itens.current[i].hash,
         formato: itens.current[i].formato,
       })),
+      escolhaDoEnvio.current,
     ).catch(() => ({ erro: "A conexão caiu. Tente de novo." }));
     telemetria.current.urls.lotes++;
     telemetria.current.urls.fotos += lote.length;
@@ -703,6 +770,10 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       const { status, dados } = await postJson<RespostaDoProcessamento>("/api/envios/processar", {
         fotoId,
       });
+      if (status === 200 && dados.emAndamento) {
+        atualizar(i, { estado: "pronta", problema: null });
+        return;
+      }
       if (status === 200) {
         const t = telemetria.current;
         t.processamento.n++;
@@ -719,7 +790,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         atualizar(i, {
           estado: "erro",
           destino: null,
-          problema: dados.erro ?? "Não foi possível processar a foto. Tente de novo.",
+          problema: dados.erro ?? "Não foi possível preparar a foto. Tente de novo.",
         });
         return;
       }
@@ -730,8 +801,39 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       estado: "erro",
       destino: null,
       problema:
-        "O processamento não respondeu. Ela aparece no evento em até 1 hora, ou tente de novo.",
+        "O servidor não respondeu. Ela aparece no evento em alguns minutos, ou tente de novo.",
     });
+  }
+
+  /**
+   * Entrega ao servidor fotos que já subiram, para ele processar sozinho (a página pode fechar).
+   * `beacon`: a página está fechando; vai por sendBeacon, sem esperar resposta. Devolve as que
+   * não foram entregues (a rede falhou), para processar daqui.
+   */
+  async function entregarAoServidor(indices: number[], beacon = false): Promise<number[]> {
+    const comId = indices.filter((i) => itens.current[i].destino?.fotoId);
+    const falharam: number[] = [];
+    for (let k = 0; k < comId.length; k += FOTOS_POR_ENTREGA) {
+      const parte = comId.slice(k, k + FOTOS_POR_ENTREGA);
+      const corpo = { fotoIds: parte.map((i) => itens.current[i].destino!.fotoId) };
+      let entregou = false;
+      if (beacon) {
+        entregou = navigator.sendBeacon?.(
+          "/api/envios/processar",
+          new Blob([JSON.stringify(corpo)], { type: "application/json" }),
+        );
+      } else {
+        for (let tentativa = 1; tentativa <= TENTATIVAS && !entregou; tentativa++) {
+          const { status } = await postJson("/api/envios/processar", corpo);
+          entregou = status === 202;
+          if (!entregou && status >= 400 && status < 500) break;
+          if (!entregou && tentativa < TENTATIVAS) await dormir(esperaDaTentativa(tentativa));
+        }
+      }
+      if (entregou) for (const i of parte) atualizar(i, { estado: "no-servidor", problema: null });
+      else falharam.push(...parte);
+    }
+    return falharam;
   }
 
   /** Envio real: lotes de URLs, envios em paralelo ao R2 e processamento em paralelo. */
@@ -777,7 +879,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           break;
         }
         for (const i of validos) if (itens.current[i].destino) paraSubir.colocar(i);
-        // As fotos já aparecem no painel como "processando".
+        // As fotos já aparecem na grade do painel, esmaecidas até ficarem prontas.
         if (primeiroLote) router.refresh();
         primeiroLote = false;
       }
@@ -797,14 +899,25 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       }
     });
 
+    // Página fechando no meio: as fotos que já subiram e esperam processamento vão para o
+    // servidor (sem isto, ficavam paradas até o job de revisão).
+    const aoSair = () => void entregarAoServidor(paraProcessar.retirarTodos(), true);
+    window.addEventListener("pagehide", aoSair);
+
+    let naoEntregues: number[] = [];
     try {
       await preparar;
       await Promise.all(subidas);
+      // Todos os uploads terminaram: o que ainda espera processamento vai para o servidor de uma
+      // vez, em vez de a tela processar de 10 em 10 com a página aberta.
+      naoEntregues = await entregarAoServidor(paraProcessar.retirarTodos());
     } finally {
       clearInterval(relogio);
+      window.removeEventListener("pagehide", aoSair);
     }
     paraProcessar.fechar();
     await Promise.all(processamentos);
+    await emParalelo(naoEntregues, PROCESSAMENTOS_SIMULTANEOS, processarUma);
     // O que não teve URL (lote interrompido) volta para a fila do "tentar de novo".
     for (const i of indices) {
       if (itens.current[i].estado === "aguardando" && erroGeral) {
@@ -829,6 +942,7 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           formato: itens.current[i].formato,
           ...(itens.current[i].hash && { hash: itens.current[i].hash }),
         })),
+        escolhaDoEnvio.current,
       ).catch(() => ({ erro: "A conexão caiu." }));
       if (resultado.erro) return resultado.erro;
       for (const i of validos) {
@@ -838,16 +952,112 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
     return null;
   }
 
+  /** Começa o envio com a liberação escolhida; agendada no passado não começa. */
+  function comecar(indices: number[]) {
+    setHorarioPassado(false);
+    if (liberacao?.podeEscolher) {
+      if (modoLote === "agendada") {
+        const em = instanteDoCampo(emLote);
+        if (!em || em.getTime() <= Date.now()) {
+          setHorarioPassado(true);
+          return;
+        }
+        escolhaDoEnvio.current = { modo: "agendada", em: emLote };
+      } else {
+        escolhaDoEnvio.current = { modo: modoLote };
+      }
+    } else {
+      escolhaDoEnvio.current = null;
+    }
+    void enviar(indices);
+  }
+
   async function enviar(indices: number[]) {
     if (indices.length === 0) return;
     setEnviando(true);
     setMensagem(null);
     amostras.current = [];
     const erro = modo === "r2" ? await enviarR2(indices) : await enviarSimulado(indices);
+    // O que não chegou a subir (o envio parou no meio) vai para o "tentar de novo".
+    if (erro) {
+      for (const i of indices) {
+        if (itens.current[i].estado === "aguardando") {
+          atualizar(i, { estado: "erro", problema: erro });
+        }
+      }
+    }
     setEnviando(false);
     redesenhar();
     if (erro) setMensagem({ tipo: "erro", texto: erro });
     router.refresh();
+    if (itens.current.some((item) => item.estado === "no-servidor")) void acompanharNoServidor();
+  }
+
+  /**
+   * Acompanha as fotos entregues ao servidor até ficarem prontas (ou com erro), para o círculo
+   * só chegar a 100% quando elas aparecem no evento. Só lê a situação; quem processa é o
+   * servidor. Para se a página sair ou se nenhuma ficar pronta por DESISTE_SEM_NOVIDADE_MS.
+   */
+  async function acompanharNoServidor() {
+    setAcompanhando(true);
+    let ultimaNovidade = Date.now();
+    try {
+      while (montado.current && Date.now() - ultimaNovidade < DESISTE_SEM_NOVIDADE_MS) {
+        const pendentes = itens.current.flatMap((item, i) =>
+          item.estado === "no-servidor" && item.destino ? [i] : [],
+        );
+        if (pendentes.length === 0) break;
+        await dormir(CONSULTA_A_CADA_MS);
+        for (let k = 0; k < pendentes.length && montado.current; k += FOTOS_POR_CONSULTA) {
+          const porId = new Map(
+            pendentes
+              .slice(k, k + FOTOS_POR_CONSULTA)
+              .map((i) => [itens.current[i].destino!.fotoId, i] as const),
+          );
+          const resposta = await situacaoDoEnvioAcao([...porId.keys()]).catch(() => null);
+          if (!resposta || "erro" in resposta) continue;
+          const vistas = new Set<string>();
+          for (const foto of resposta.fotos) {
+            const i = porId.get(foto.id);
+            if (i === undefined) continue;
+            vistas.add(foto.id);
+            if (foto.status === "pronta") {
+              atualizar(i, { estado: "pronta", problema: null });
+              ultimaNovidade = Date.now();
+            } else if (foto.status === "erro") {
+              atualizar(i, {
+                estado: "erro",
+                destino: null,
+                problema: foto.erro ?? "Não foi possível preparar a foto. Tente de novo.",
+              });
+              ultimaNovidade = Date.now();
+            }
+          }
+          // Excluída no meio do envio: não há mais o que esperar.
+          for (const [id, i] of porId) {
+            if (!vistas.has(id)) atualizar(i, { estado: "erro", problema: "A foto foi excluída." });
+          }
+        }
+      }
+    } finally {
+      if (montado.current) {
+        setAcompanhando(false);
+        redesenhar();
+        router.refresh();
+      }
+    }
+  }
+
+  /** Limpa o envio que terminou e volta para a área de escolher fotos. */
+  function enviarMais(aviso: string | null) {
+    itens.current = [];
+    amostras.current = [];
+    telemetria.current = telemetriaVazia();
+    setLista([]);
+    setNumeros(telemetriaVazia());
+    setVelocidade(0);
+    setCopiado(false);
+    setMensagem(aviso ? { tipo: "ok", texto: aviso } : null);
   }
 
   // ------------------------------------------------------------ Resumo para a tela
@@ -856,14 +1066,11 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
   const problemas: number[] = [];
   let validas = 0;
   let recusadas = 0;
-  let repetidas = 0;
-  let subiram = 0;
-  let prontas = 0;
-  let comErro = 0;
   let heics = 0;
   let totalBytes = 0;
   let bytesEnviados = 0;
-  let comecou = false;
+  // Clicou em enviar: o círculo aparece já em 0%, antes de a primeira foto mudar de estado.
+  let comecou = enviando || acompanhando;
   lista.forEach((item, i) => {
     if (ENVIAVEL.includes(item.estado)) paraEnviar.push(i);
     if (item.estado === "recusada") {
@@ -872,32 +1079,86 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
       return;
     }
     if (item.estado !== "aguardando") comecou = true;
-    if (item.estado === "repetida") {
-      repetidas++;
-      return;
-    }
+    if (item.estado === "repetida") return;
     validas++;
     if (item.formato === "heic" || item.convertida) heics++;
     totalBytes += item.arquivo.size;
-    if (item.estado === "erro") {
-      comErro++;
-      problemas.push(i);
-    }
-    if (item.estado === "processando" || item.estado === "pronta") {
-      subiram++;
+    if (item.estado === "erro") problemas.push(i);
+    if (
+      item.estado === "processando" ||
+      item.estado === "pronta" ||
+      item.estado === "no-servidor"
+    ) {
       bytesEnviados += item.arquivo.size;
     } else if (item.estado === "enviando") {
       bytesEnviados += item.enviados;
     }
-    if (item.estado === "pronta") prontas++;
   });
+  const progresso = progressoDoEnvio(
+    lista.map((item) => ({
+      estado: item.estado,
+      enviados: item.enviados,
+      tamanho: item.arquivo.size,
+    })),
+  );
 
   // Tempo que falta para subir o resto, pela velocidade média dos últimos segundos.
   const restante = velocidade > 0 ? (totalBytes - bytesEnviados) / velocidade : null;
 
-  const porcento = totalBytes ? Math.round((bytesEnviados / totalBytes) * 100) : 0;
-  const terminou = comecou && !enviando && paraEnviar.length === 0;
+  const emAndamento = enviando || acompanhando;
+  const terminou = comecou && !emAndamento;
+  /** Tudo pronto, sem erro nem recusa: a tela volta sozinha para a área de escolher fotos. */
+  const tudoCerto =
+    terminou &&
+    progresso.pendentes === 0 &&
+    problemas.length === 0 &&
+    paraEnviar.length === 0 &&
+    mensagem?.tipo !== "erro";
   const detalhes = textoDosDetalhes(numeros);
+  const fotos = (n: number) => `${n.toLocaleString("pt-BR")} ${n === 1 ? "foto" : "fotos"}`;
+  const resumoFinal = [
+    progresso.prontas > 0 || progresso.comErro === 0
+      ? `${fotos(progresso.prontas)} ${progresso.prontas === 1 ? "pronta" : "prontas"}`
+      : null,
+    progresso.comErro > 0 ? `${progresso.comErro} com erro` : null,
+    progresso.repetidas > 0
+      ? `${progresso.repetidas} ${progresso.repetidas === 1 ? "repetida pulada" : "repetidas puladas"}`
+      : null,
+    progresso.pendentes > 0 ? `${progresso.pendentes} ainda chegando` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const avisoFinal = `${resumoFinal}. ${progresso.prontas === 1 ? "Ela já está" : "Elas já estão"} no evento.`;
+
+  // Terminou sem problema: depois de alguns segundos, volta para a área de escolher fotos.
+  const voltarSozinho = tudoCerto ? avisoFinal : null;
+  useEffect(() => {
+    if (!voltarSozinho) return;
+    const espera = setTimeout(() => enviarMais(voltarSozinho), VOLTA_A_ESCOLHER_MS);
+    return () => clearTimeout(espera);
+  }, [voltarSozinho]);
+
+  const listaDeProblemas = problemas.length > 0 && (
+    <ul className="flex max-h-60 w-full flex-col divide-y overflow-y-auto rounded-md border text-left">
+      {problemas.slice(0, PROBLEMAS_NA_TELA).map((i) => (
+        <li key={i} className="flex items-start gap-2 px-3 py-2">
+          <XCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate">{lista[i].arquivo.name}</span>
+            <span className="text-destructive">{lista[i].problema}</span>
+          </span>
+          <span className="text-muted-foreground tabular-nums">
+            {tamanho(lista[i].arquivo.size)}
+          </span>
+        </li>
+      ))}
+      {problemas.length > PROBLEMAS_NA_TELA && (
+        <li className="px-3 py-2 text-muted-foreground">
+          E mais {problemas.length - PROBLEMAS_NA_TELA}.
+        </li>
+      )}
+    </ul>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -913,62 +1174,62 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
           </span>
         </p>
       ) : (
-        <label
-          onDragOver={(e) => {
-            e.preventDefault();
-            setArrastando(true);
-          }}
-          onDragLeave={() => setArrastando(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setArrastando(false);
-            void selecionar(e.dataTransfer.files);
-          }}
-          className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors hover:border-primary data-[arrastando=true]:border-primary data-[arrastando=true]:bg-accent"
-          data-arrastando={arrastando}
-        >
-          <ImageUp aria-hidden="true" className="size-8 text-primary" />
-          <span className="font-medium">
-            <span className="sm:hidden">Toque para escolher as fotos da galeria</span>
-            <span className="hidden sm:inline">Arraste as fotos aqui ou clique para escolher</span>
-          </span>
-          <span className="text-sm text-muted-foreground">
-            JPEG, PNG, WebP, TIFF, AVIF ou HEIC, de qualquer tamanho até {LIMITE_FOTO_TEXTO},
-            quantas quiser. RAW não: exporte antes. Fotos repetidas são puladas sozinhas.
-          </span>
-          <input
-            type="file"
-            accept={aceita}
-            multiple
-            className="sr-only"
-            disabled={enviando}
-            onChange={(e) => void selecionar(e.target.files)}
-          />
-        </label>
-      )}
+        !comecou && (
+          <>
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setArrastando(true);
+              }}
+              onDragLeave={() => setArrastando(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setArrastando(false);
+                void selecionar(e.dataTransfer.files);
+              }}
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors hover:border-primary data-[arrastando=true]:border-primary data-[arrastando=true]:bg-accent"
+              data-arrastando={arrastando}
+            >
+              <ImageUp aria-hidden="true" className="size-8 text-primary" />
+              <span className="font-medium">
+                <span className="sm:hidden">Toque para escolher as fotos da galeria</span>
+                <span className="hidden sm:inline">
+                  Arraste as fotos aqui ou clique para escolher
+                </span>
+              </span>
+              <input
+                type="file"
+                accept={aceita}
+                multiple
+                className="sr-only"
+                disabled={enviando}
+                onChange={(e) => void selecionar(e.target.files)}
+              />
+            </label>
 
-      {/* No celular: tirar a foto e já enviar, sem passar pela galeria. */}
-      {!indisponivel && (
-        <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border text-sm font-medium has-disabled:opacity-50 sm:hidden">
-          <Camera aria-hidden="true" className="size-4" />
-          Tirar foto com a câmera
-          <input
-            type="file"
-            accept="image/jpeg"
-            capture="environment"
-            className="sr-only"
-            disabled={enviando}
-            onChange={(e) => void selecionar(e.target.files)}
-          />
-        </label>
-      )}
+            {/* No celular: tirar a foto e já enviar, sem passar pela galeria. */}
+            <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border text-sm font-medium has-disabled:opacity-50 sm:hidden">
+              <Camera aria-hidden="true" className="size-4" />
+              Tirar foto com a câmera
+              <input
+                type="file"
+                accept="image/jpeg"
+                capture="environment"
+                className="sr-only"
+                disabled={enviando}
+                onChange={(e) => void selecionar(e.target.files)}
+              />
+            </label>
 
-      {modo === "simulado" && (
-        <p className="rounded-lg border border-dashed bg-highlight/20 p-3 text-sm">
-          <strong>Ambiente de exemplo:</strong> o armazenamento de fotos (R2) não está configurado.
-          Os arquivos são conferidos aqui, mas não sobem; cada foto aceita vira um item com uma
-          imagem de exemplo.
-        </p>
+            {modo === "simulado" && (
+              <p className="rounded-lg border border-dashed bg-highlight/20 p-3 text-sm">
+                <strong>Ambiente de exemplo:</strong> o armazenamento de fotos (R2) não está
+                configurado. Os arquivos são conferidos aqui, mas não sobem; cada foto aceita vira
+                um item com uma imagem de exemplo.
+              </p>
+            )}
+          </>
+        )
       )}
 
       {conferindo && (
@@ -978,54 +1239,17 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         </p>
       )}
 
-      {lista.length > 0 && !conferindo && (
+      {/* Fotos escolhidas, antes de enviar. */}
+      {lista.length > 0 && !conferindo && !comecou && (
         <div className="flex flex-col gap-3 rounded-lg border p-3 text-sm">
-          {!comecou ? (
-            <p className="tabular-nums">
-              <strong>
-                {validas} {validas === 1 ? "foto pronta" : "fotos prontas"} para enviar
-              </strong>{" "}
-              ({tamanho(totalBytes)})
-              {recusadas > 0 &&
-                ` · ${recusadas} ${recusadas === 1 ? "recusada" : "recusadas"} (veja abaixo)`}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <div
-                role="progressbar"
-                aria-label="Progresso do envio"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={porcento}
-                className="h-3 overflow-hidden rounded-full bg-muted"
-              >
-                <div
-                  className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none"
-                  style={{ width: `${porcento}%` }}
-                />
-              </div>
-              <p className="text-muted-foreground tabular-nums" aria-live="polite">
-                <strong className="text-foreground">
-                  {subiram} de {validas} enviadas
-                </strong>{" "}
-                ({porcento}%) · {prontas} {prontas === 1 ? "processada" : "processadas"}
-                {comErro > 0 && ` · ${comErro} com erro`}
-                {repetidas > 0 && ` · ${repetidas} repetidas puladas`}
-              </p>
-              <p className="text-muted-foreground tabular-nums">
-                {tamanho(bytesEnviados)} de {tamanho(totalBytes)}
-                {enviando && velocidade > 0 && ` · ${tamanho(velocidade)}/s`}
-                {enviando &&
-                  restante !== null &&
-                  bytesEnviados < totalBytes &&
-                  ` · ${duracao(restante)} para terminar de enviar`}
-                {enviando &&
-                  bytesEnviados >= totalBytes &&
-                  subiram > prontas &&
-                  ` · processando as últimas ${subiram - prontas}`}
-              </p>
-            </div>
-          )}
+          <p className="tabular-nums">
+            <strong>
+              {validas} {validas === 1 ? "foto escolhida" : "fotos escolhidas"}
+            </strong>{" "}
+            ({tamanho(totalBytes)})
+            {recusadas > 0 &&
+              ` · ${recusadas} ${recusadas === 1 ? "recusada" : "recusadas"} (veja abaixo)`}
+          </p>
 
           {heics > 0 && (
             <p className="text-muted-foreground">
@@ -1035,57 +1259,107 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            {!comecou && (
-              <Button
-                size="touch"
-                disabled={enviando || indisponivel || paraEnviar.length === 0}
-                onClick={() => void enviar(paraEnviar)}
-              >
-                {paraEnviar.length === 0
-                  ? "Nenhuma foto válida"
-                  : `Enviar ${paraEnviar.length} ${paraEnviar.length === 1 ? "foto" : "fotos"}`}
-              </Button>
-            )}
-            {enviando && (
-              <p role="status" className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                Enviando… mantenha esta página aberta.
-              </p>
-            )}
-            {comecou && !enviando && paraEnviar.length > 0 && (
-              <Button size="touch" variant="outline" onClick={() => void enviar(paraEnviar)}>
-                <RotateCw aria-hidden="true" data-icon="inline-start" />
-                Tentar de novo ({paraEnviar.length}{" "}
-                {paraEnviar.length === 1 ? "restante" : "restantes"})
-              </Button>
-            )}
-          </div>
-
-          {problemas.length > 0 && (
-            <ul className="flex max-h-60 flex-col divide-y overflow-y-auto rounded-md border">
-              {problemas.slice(0, PROBLEMAS_NA_TELA).map((i) => (
-                <li key={i} className="flex items-start gap-2 px-3 py-2">
-                  <XCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{lista[i].arquivo.name}</span>
-                    <span className="text-destructive">{lista[i].problema}</span>
-                  </span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {tamanho(lista[i].arquivo.size)}
-                  </span>
-                </li>
-              ))}
-              {problemas.length > PROBLEMAS_NA_TELA && (
-                <li className="px-3 py-2 text-muted-foreground">
-                  E mais {problemas.length - PROBLEMAS_NA_TELA}.
-                </li>
-              )}
-            </ul>
+          {liberacao && (
+            <EscolhaDaLiberacao
+              eventoId={eventoId}
+              liberacao={liberacao}
+              modo={modoLote}
+              em={emLote}
+              aoMudarModo={(m) => {
+                setModoLote(m);
+                setHorarioPassado(false);
+              }}
+              aoMudarEm={(v) => {
+                setEmLote(v);
+                setHorarioPassado(false);
+              }}
+              horarioPassado={horarioPassado}
+              aoLiberarAgora={() => {
+                setModoLote("automatica");
+                setHorarioPassado(false);
+              }}
+            />
           )}
 
-          {comecou && detalhes.length > 0 && (
-            <details className="rounded-md border px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="touch"
+              disabled={enviando || indisponivel || paraEnviar.length === 0}
+              onClick={() => comecar(paraEnviar)}
+            >
+              {paraEnviar.length === 0
+                ? "Nenhuma foto válida"
+                : `Enviar ${paraEnviar.length} ${paraEnviar.length === 1 ? "foto" : "fotos"}`}
+            </Button>
+          </div>
+
+          {listaDeProblemas}
+        </div>
+      )}
+
+      {/* Envio em andamento ou terminado: o círculo com a porcentagem. */}
+      {comecou && (
+        <div className="flex flex-col items-center gap-4 rounded-xl border p-5 text-center text-sm sm:p-6">
+          <CirculoProgresso
+            porcentagem={progresso.porcentagem}
+            concluidas={progresso.concluidas}
+            total={progresso.total}
+            concluido={terminou && progresso.pendentes === 0 && progresso.comErro === 0}
+          />
+
+          {emAndamento ? (
+            <div className="flex flex-col gap-1">
+              <p className="font-medium">
+                {enviando
+                  ? "Enviando suas fotos… mantenha esta página aberta."
+                  : "Suas fotos já subiram e estão quase prontas."}
+              </p>
+              {enviando && velocidade > 0 && bytesEnviados < totalBytes && (
+                <p className="text-muted-foreground tabular-nums">
+                  {tamanho(velocidade)}/s
+                  {restante !== null && ` · ${duracao(restante)} para terminar`}
+                </p>
+              )}
+              {!enviando && (
+                <p className="text-muted-foreground">
+                  Se quiser, já pode sair desta página: elas aparecem no evento sozinhas.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p role="status" className="font-medium tabular-nums">
+              {resumoFinal}
+              {progresso.pendentes > 0 && (
+                <span className="block font-normal text-muted-foreground">
+                  As que faltam aparecem no evento em alguns minutos.
+                </span>
+              )}
+            </p>
+          )}
+
+          {terminou && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {paraEnviar.length > 0 && (
+                <Button size="touch" variant="outline" onClick={() => void enviar(paraEnviar)}>
+                  <RotateCw aria-hidden="true" data-icon="inline-start" />
+                  Tentar de novo ({paraEnviar.length})
+                </Button>
+              )}
+              <Button
+                size="touch"
+                variant={paraEnviar.length > 0 ? "ghost" : "default"}
+                onClick={() => enviarMais(tudoCerto ? avisoFinal : null)}
+              >
+                <Plus aria-hidden="true" data-icon="inline-start" />
+                Enviar mais fotos
+              </Button>
+            </div>
+          )}
+
+          {listaDeProblemas}
+
+          {detalhes.length > 0 && (
+            <details className="w-full rounded-md border px-3 py-2 text-left">
               <summary className="cursor-pointer text-muted-foreground">Detalhes técnicos</summary>
               <ul className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground tabular-nums">
                 {detalhes.map((linha) => (
@@ -1110,14 +1384,6 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         </div>
       )}
 
-      {terminou && (
-        <p role="status" className="text-sm text-primary">
-          {prontas} {prontas === 1 ? "foto enviada e processada" : "fotos enviadas e processadas"}.
-          {repetidas > 0 &&
-            ` ${repetidas} já ${repetidas === 1 ? "estava" : "estavam"} no evento ou na seleção e não ${repetidas === 1 ? "foi enviada" : "foram enviadas"} de novo.`}
-        </p>
-      )}
-
       {mensagem && (
         <p
           role={mensagem.tipo === "erro" ? "alert" : "status"}
@@ -1127,6 +1393,96 @@ export function EnvioFotos({ eventoId, modo }: { eventoId: string; modo: ModoEnv
         </p>
       )}
     </div>
+  );
+}
+
+const OPCOES_LIBERACAO: { valor: ModoLiberacao; rotulo: string; ajuda: string }[] = [
+  { valor: "automatica", rotulo: "Automática", ajuda: "cada foto aparece assim que fica pronta" },
+  { valor: "manual", rotulo: "Manual", ajuda: "ficam guardadas até você clicar em Liberar agora" },
+  { valor: "agendada", rotulo: "Agendada", ajuda: "aparecem sozinhas na data e hora escolhidas" },
+];
+
+/** Quando as fotos deste envio aparecem. O colaborador só vê o padrão do dono. */
+function EscolhaDaLiberacao({
+  eventoId,
+  liberacao,
+  modo,
+  em,
+  aoMudarModo,
+  aoMudarEm,
+  horarioPassado,
+  aoLiberarAgora,
+}: {
+  eventoId: string;
+  liberacao: LiberacaoDoEnvio;
+  modo: ModoLiberacao;
+  em: string;
+  aoMudarModo: (m: ModoLiberacao) => void;
+  aoMudarEm: (v: string) => void;
+  horarioPassado: boolean;
+  aoLiberarAgora: () => void;
+}) {
+  if (!liberacao.podeEscolher) {
+    return (
+      <p className="text-muted-foreground">
+        <strong className="text-foreground">Quando aparecem:</strong> {liberacao.descricao}. Quem
+        decide é o dono do evento.
+      </p>
+    );
+  }
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 font-medium">Quando estas fotos aparecem para o público</legend>
+      <div className="flex flex-col gap-1">
+        {OPCOES_LIBERACAO.map((o) => (
+          <label key={o.valor} className="flex min-h-11 cursor-pointer items-center gap-2">
+            <input
+              type="radio"
+              name={`liberacao-${eventoId}`}
+              value={o.valor}
+              checked={modo === o.valor}
+              onChange={() => aoMudarModo(o.valor)}
+              className="size-5 accent-primary"
+            />
+            <span>
+              <strong>{o.rotulo}:</strong> {o.ajuda}
+              {o.valor === liberacao.modo && (
+                <span className="text-muted-foreground"> (padrão do evento)</span>
+              )}
+            </span>
+          </label>
+        ))}
+      </div>
+      {modo === "agendada" && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`liberar-lote-${eventoId}`} className="font-medium">
+            Liberar em (horário de Brasília)
+          </label>
+          <input
+            id={`liberar-lote-${eventoId}`}
+            type="datetime-local"
+            value={em}
+            onChange={(e) => aoMudarEm(e.target.value)}
+            aria-invalid={horarioPassado}
+            className="h-11 w-full max-w-xs rounded-md border border-input bg-transparent px-3 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </div>
+      )}
+      {horarioPassado && (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 text-destructive sm:flex-row sm:items-center"
+        >
+          <span>
+            {em ? "Esse horário já passou." : "Escolha a data e a hora."} Escolha um horário no
+            futuro ou libere as fotos assim que ficarem prontas.
+          </span>
+          <Button size="sm" variant="outline" onClick={aoLiberarAgora}>
+            Liberar ao ficarem prontas
+          </Button>
+        </div>
+      )}
+    </fieldset>
   );
 }
 
@@ -1175,7 +1531,7 @@ function textoDosDetalhes(t: Telemetria): string[] {
   }
   if (t.processamento.n) {
     linhas.push(
-      `Processamento: ${s(t.processamento.ms, t.processamento.n)} por foto, ida e volta (${t.processamento.n})`,
+      `Preparo no servidor: ${s(t.processamento.ms, t.processamento.n)} por foto, ida e volta (${t.processamento.n})`,
     );
   }
   if (t.servidor.n) {
