@@ -1,22 +1,9 @@
-// Fachada do gateway de pagamento. O Asaas vale quando ASAAS_API_KEY existe; senão, o Mercado
-// Pago (MP_ACCESS_TOKEN); sem nenhum dos dois, o pagamento é simulado (só fora da produção).
-// Os serviços (pagamentos, estornos, saques, jobs) chamam só daqui, sem saber qual é.
+// Fachada do gateway de pagamento: hoje, o Mercado Pago (MP_ACCESS_TOKEN); sem ele, o pagamento
+// é simulado (só fora da produção). Os serviços (pagamentos, estornos, saques, jobs) chamam só
+// daqui, então trocar ou somar um gateway depois não mexe no resto do código.
 
 import "server-only";
 
-import {
-  asaasConfigurado,
-  buscarCobrancaAsaas,
-  buscarTransferenciaAsaas,
-  cancelarCobrancaAsaas,
-  criarCobrancaCartaoAsaas,
-  criarCobrancaPixAsaas,
-  enviarTransferenciaPixAsaas,
-  recusaDaTransferencia,
-  reembolsarCobrancaAsaas,
-  reembolsoJaPedidoAsaas,
-  type DadosCobrancaAsaas,
-} from "./asaas";
 import { ErroGateway, type Cobranca, type ResultadoPayout } from "./gateway-tipos";
 import {
   buscarOrder,
@@ -32,33 +19,27 @@ import {
 export { ErroGateway, SaqueNaoHabilitado } from "./gateway-tipos";
 export type { Cobranca, ResultadoPayout, SituacaoCobranca } from "./gateway-tipos";
 
-export type Provedor = "asaas" | "mercadopago";
+export type Provedor = "mercadopago";
 
 /** O gateway em uso, ou `null` no pagamento simulado. */
 export function provedorDePagamento(): Provedor | null {
-  if (asaasConfigurado()) return "asaas";
-  if (mercadoPagoConfigurado()) return "mercadopago";
-  return null;
+  return mercadoPagoConfigurado() ? "mercadopago" : null;
 }
 
 export function gatewayConfigurado() {
   return provedorDePagamento() !== null;
 }
 
-/** O checkout precisa pedir o CPF/CNPJ: o Asaas exige para cobrar. */
-export function exigeCpfDoComprador() {
-  return provedorDePagamento() === "asaas";
-}
-
 // ---------------------------------------------------------------- Cobrança
 
-export type DadosCobranca = Omit<DadosCobrancaAsaas, "cpf"> & { cpf: string | null };
+export type DadosCobranca = {
+  pedidoId: string;
+  totalCentavos: number;
+  nome: string;
+  email: string;
+};
 
-export async function criarCobrancaPix(dados: DadosCobranca): Promise<Cobranca> {
-  if (provedorDePagamento() === "asaas") {
-    if (!dados.cpf) throw new Error("CPF do comprador ausente: o Asaas exige para cobrar");
-    return criarCobrancaPixAsaas({ ...dados, cpf: dados.cpf });
-  }
+export function criarCobrancaPix(dados: DadosCobranca): Promise<Cobranca> {
   return criarOrderPix({
     pedidoId: dados.pedidoId,
     totalCentavos: dados.totalCentavos,
@@ -66,14 +47,8 @@ export async function criarCobrancaPix(dados: DadosCobranca): Promise<Cobranca> 
   });
 }
 
-/** Só no Asaas: a cobrança no cartão é paga na página do Asaas (`urlPagamento`). */
-export async function criarCobrancaCartaoRedirecionada(dados: DadosCobranca): Promise<Cobranca> {
-  if (!dados.cpf) throw new Error("CPF do comprador ausente: o Asaas exige para cobrar");
-  return criarCobrancaCartaoAsaas({ ...dados, cpf: dados.cpf });
-}
-
 export function buscarCobranca(id: string): Promise<Cobranca> {
-  return provedorDePagamento() === "asaas" ? buscarCobrancaAsaas(id) : buscarOrder(id);
+  return buscarOrder(id);
 }
 
 /**
@@ -82,19 +57,17 @@ export function buscarCobranca(id: string): Promise<Cobranca> {
  * de cartão em análise não pode ser dada como perdida.
  */
 export async function cancelarCobranca(id: string): Promise<boolean> {
-  return provedorDePagamento() === "asaas" ? cancelarCobrancaAsaas(id) : false;
+  void id;
+  return false;
 }
 
 export function reembolsarCobranca(id: string, pedidoId: string) {
-  return provedorDePagamento() === "asaas"
-    ? reembolsarCobrancaAsaas(id)
-    : reembolsarOrder(id, pedidoId);
+  return reembolsarOrder(id, pedidoId);
 }
 
 /** O gateway recusou o reembolso porque ele já foi feito ou está em andamento. */
 export function reembolsoJaFeito(erro: unknown) {
-  if (!(erro instanceof ErroGateway)) return false;
-  return provedorDePagamento() === "asaas" ? reembolsoJaPedidoAsaas(erro) : reembolsoJaPedido(erro);
+  return erro instanceof ErroGateway && reembolsoJaPedido(erro);
 }
 
 // ---------------------------------------------------------------- Saque
@@ -104,18 +77,14 @@ export function enviarSaquePix(dados: {
   liquidoCentavos: number;
   chavePix: string;
 }): Promise<ResultadoPayout> {
-  return provedorDePagamento() === "asaas"
-    ? enviarTransferenciaPixAsaas(dados)
-    : enviarPayoutPix(dados);
+  return enviarPayoutPix(dados);
 }
 
 export function buscarSaque(gatewayId: string, saqueId: string): Promise<ResultadoPayout> {
-  return provedorDePagamento() === "asaas"
-    ? buscarTransferenciaAsaas(gatewayId)
-    : buscarPayout(gatewayId, saqueId);
+  return buscarPayout(gatewayId, saqueId);
 }
 
 /** Recusa clara (o Pix certamente não saiu) ou ambígua (pode ter saído). */
 export function recusaDoSaque(erro: ErroGateway): "clara" | "ambigua" {
-  return provedorDePagamento() === "asaas" ? recusaDaTransferencia(erro) : recusaDoPayout(erro);
+  return recusaDoPayout(erro);
 }

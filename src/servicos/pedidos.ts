@@ -18,8 +18,6 @@ import {
   type RegraDeDivisao,
 } from "@/dados";
 
-import { provedorDePagamento } from "@/lib/gateway";
-
 import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
 import { avisarVenda, enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 
@@ -41,8 +39,6 @@ export type DadosComprador = {
   whatsapp: string | null;
   aceitaWhatsapp: boolean;
   metodo: MetodoPagamento;
-  /** CPF/CNPJ só com dígitos; o checkout pede quando o pagamento é pelo Asaas. */
-  cpf?: string | null;
 };
 
 /**
@@ -128,7 +124,6 @@ export async function criarPedido(
     clienteId: comprador.clienteId,
     emailComprador: comprador.email,
     nomeComprador: comprador.nome,
-    cpfComprador: comprador.cpf ?? null,
     whatsapp: comprador.aceitaWhatsapp ? comprador.whatsapp : null,
     aceitaWhatsapp: comprador.aceitaWhatsapp && comprador.whatsapp !== null,
     cupomId: descontos.cupom.situacao === "aplicado" ? descontos.cupom.cupomId : null,
@@ -229,8 +224,7 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
 
 /**
  * Lançamentos de uma venda confirmada em `agora`: a parte do autor de cada item e, se o autor é
- * colaborador, a do dono do evento. No Asaas, o dinheiro do cartão só fica disponível perto de
- * 30 dias depois: a venda no cartão não entra no saque antecipado, só no normal.
+ * colaborador, a do dono do evento.
  */
 export async function lancamentosDaVenda(
   itens: ItemPedido[],
@@ -238,10 +232,10 @@ export async function lancamentosDaVenda(
   metodo?: MetodoPagamento,
 ): Promise<Lancamento[]> {
   const disponivelEm = new Date(agora + PRAZO_SAQUE_MS).toISOString();
-  const cartaoNoAsaas = metodo === "cartao" && provedorDePagamento() === "asaas";
-  const antecipavelEm = cartaoNoAsaas
-    ? disponivelEm
-    : new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
+  // O método fica no contrato para regras por meio de pagamento (o Mercado Pago libera o cartão
+  // na hora, então hoje não muda nada).
+  void metodo;
+  const antecipavelEm = new Date(agora + PRAZO_ANTECIPACAO_MS).toISOString();
   const regras = await buscarRegrasDeDivisao(itens.map((i) => i.fotoId));
   return itens.flatMap((item) => {
     const regra = regras.find((r) => r.fotoId === item.fotoId);

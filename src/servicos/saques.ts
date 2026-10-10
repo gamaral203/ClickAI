@@ -375,8 +375,7 @@ export async function conferirSaques(fotografoId: string) {
   if (!gatewayConfigurado()) return;
   for (const saque of await listarSaquesProcessando(fotografoId)) {
     if (!saque.gatewayId) {
-      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência (no
-      // Asaas, o webhook de validação aprova uma transferência só por saque).
+      // O primeiro envio ficou sem resposta: reenvia com a mesma chave de idempotência.
       await enviar(saque, false);
       continue;
     }

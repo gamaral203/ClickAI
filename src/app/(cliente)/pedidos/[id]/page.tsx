@@ -7,7 +7,6 @@ import { CheckCircle2, Clock, Copy, Download, XCircle } from "lucide-react";
 import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
-import { CartaoAsaas } from "@/components/pagamento/cartao-asaas";
 import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
 import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
 import { AtualizadorDePagamento, BotaoGerarPix, QrCodePix } from "@/components/pagamento/pix";
@@ -74,9 +73,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
           <p className="text-muted-foreground">
             {pedido.metodo === "pix"
               ? `Pague com o Pix abaixo até ${formatarDataEHora(pedido.expiraEm)}. As fotos são liberadas assim que o pagamento for confirmado.`
-              : gateway === "asaas"
-                ? "O pagamento é à vista, na página segura do Asaas. As fotos são liberadas assim que ele for confirmado."
-                : "Preencha os dados do cartão abaixo. O pagamento é à vista, e as fotos são liberadas assim que ele for confirmado."}
+              : "Preencha os dados do cartão abaixo. O pagamento é à vista, e as fotos são liberadas assim que ele for confirmado."}
           </p>
           {gateway ? (
             <>
@@ -90,10 +87,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                 ) : (
                   <BotaoGerarPix pedidoId={pedido.id} token={dados.data.token} />
                 ))}
-              {pedido.metodo === "cartao" && gateway === "asaas" && (
-                <CartaoAsaas pedidoId={pedido.id} token={dados.data.token} />
-              )}
-              {pedido.metodo === "cartao" && gateway === "mercadopago" && (
+              {pedido.metodo === "cartao" && (
                 <CartaoMercadoPago
                   pedidoId={pedido.id}
                   token={dados.data.token}

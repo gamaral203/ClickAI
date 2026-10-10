@@ -68,8 +68,7 @@ export async function aplicarEstornoDaOrder(
 ): Promise<boolean> {
   switch (order.situacao) {
     case "reembolsada": {
-      // No Asaas, o chargeback perdido aparece como reembolso: o pedido em contestação diz que
-      // foi chargeback.
+      // Reembolso de um pedido em contestação é o fim do chargeback.
       const motivo = pedido.status === "contestado" ? "chargeback" : "reembolso";
       if (await estornarPedido(pedido.id, motivo)) {
         console.warn("Pedido estornado: cobrança reembolsada", {

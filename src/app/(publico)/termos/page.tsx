@@ -108,8 +108,8 @@ export default function PaginaTermos() {
           </li>
           <li>
             <strong>Pagamento.</strong> Por Pix ou cartão de crédito à vista, processados pelo
-            Asaas. O código Pix vale por 1 hora; depois disso, o pedido expira e é preciso fazer
-            outro. Os dados do cartão vão direto ao Asaas.
+            Mercado Pago. O código Pix vale por 1 hora; depois disso, o pedido expira e é preciso
+            fazer outro. Os dados do cartão vão direto ao Mercado Pago.
           </li>
           <li>
             <strong>Entrega.</strong> Assim que o pagamento é confirmado, os arquivos originais, sem

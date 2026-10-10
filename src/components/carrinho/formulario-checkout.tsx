@@ -20,14 +20,7 @@ import type { ResumoCarrinho } from "@/servicos/carrinho";
 
 import { esvaziarCarrinho, useCarrinho, usePacotes } from "./carrinho";
 
-export function FormularioCheckout({
-  inicial,
-  pedirCpf = false,
-}: {
-  inicial?: { nome: string; email: string };
-  /** O gateway (Asaas) exige o CPF/CNPJ de quem paga. */
-  pedirCpf?: boolean;
-}) {
+export function FormularioCheckout({ inicial }: { inicial?: { nome: string; email: string } }) {
   const router = useRouter();
   const ids = useCarrinho();
   const pacotes = usePacotes();
@@ -84,7 +77,6 @@ export function FormularioCheckout({
           ids: [...ids],
           nome: String(formulario.get("nome") ?? ""),
           email: String(formulario.get("email") ?? ""),
-          cpf: String(formulario.get("cpf") ?? ""),
           whatsapp: String(formulario.get("whatsapp") ?? ""),
           aceitaWhatsapp: formulario.get("aceitaWhatsapp") === "on",
           metodo: formulario.get("metodo"),
@@ -154,27 +146,6 @@ export function FormularioCheckout({
               className="h-11"
             />
           </Campo>
-          {pedirCpf && (
-            <Campo
-              id="cpf"
-              rotulo="CPF"
-              ajuda="Exigido pelo processador de pagamento. Não aparece para o fotógrafo."
-              erro={erros.cpf}
-            >
-              <Input
-                id="cpf"
-                name="cpf"
-                inputMode="numeric"
-                autoComplete="off"
-                required
-                maxLength={18}
-                placeholder="000.000.000-00"
-                aria-invalid={Boolean(erros.cpf)}
-                aria-describedby={erros.cpf ? "cpf-erro" : "cpf-ajuda"}
-                className="h-11"
-              />
-            </Campo>
-          )}
           <Campo
             id="whatsapp"
             rotulo="WhatsApp (opcional)"
