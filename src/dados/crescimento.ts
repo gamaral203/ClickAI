@@ -259,6 +259,11 @@ export function configDoEvento(evento: Evento): ConfigModelo {
     local: evento.local,
     cidade: evento.cidade,
     estado: evento.estado,
+    // O ponto no mapa acompanha o local: evento no mesmo lugar, mesmo mapa.
+    latitude: evento.latitude ?? null,
+    longitude: evento.longitude ?? null,
+    placeId: evento.placeId ?? null,
+    enderecoMapa: evento.enderecoMapa ?? null,
     precoFotoCentavos: evento.precoFotoCentavos,
     precoVideoCentavos: evento.precoVideoCentavos,
     // Senha não vai para o modelo: o evento novo nasce público e cada um define a sua.

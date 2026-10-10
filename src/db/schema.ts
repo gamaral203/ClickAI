@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -273,6 +274,16 @@ export const eventos = pgTable(
     local: text().notNull(),
     cidade: text().notNull(),
     estado: text().notNull(),
+    /**
+     * Ponto escolhido no Google Maps (docs/arquitetura.md, "Local no mapa"). Os dois juntos ou
+     * nenhum: sem eles, o evento tem só o texto de local, cidade e estado.
+     */
+    latitude: doublePrecision(),
+    longitude: doublePrecision(),
+    /** Id do lugar no Google (place_id), para o link "Como chegar" abrir o lugar certo. */
+    placeId: text(),
+    /** Endereço formatado devolvido pelo Google na escolha. */
+    enderecoMapa: text(),
     capa: text(),
     /**
      * Foto de capa escolhida pelo dono (cartões, página do evento, divulgação). Nula: capa
