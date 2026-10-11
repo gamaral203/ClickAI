@@ -284,6 +284,16 @@ export async function removerOriginal(chave: string) {
   await s3(config).send(new DeleteObjectCommand({ Bucket: config.bucketOriginais, Key: chave }));
 }
 
+/**
+ * Apaga um objeto do bucket público (prévia ou miniatura antiga, depois de a foto apontar para a
+ * nova). Só chaves de `previas/` e `miniaturas/`: nada mais sai do bucket público por aqui.
+ */
+export async function removerPublico(chave: string) {
+  if (!/^(previas|miniaturas)\//.test(chave)) throw new Error("Chave fora das prévias");
+  const config = exigirConfig();
+  await s3(config).send(new DeleteObjectCommand({ Bucket: config.bucketPublico, Key: chave }));
+}
+
 function naoExiste(erro: unknown) {
   const e = erro as { name?: string; $metadata?: { httpStatusCode?: number } };
   return e?.name === "NotFound" || e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404;

@@ -44,6 +44,7 @@ import {
   tamanhoDaParte,
 } from "@/lib/limites-envio";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
+import { SUFIXO_DA_VERSAO } from "@/lib/marca-dagua";
 import {
   abrirEnvioEmPartes,
   ERRO_SEM_ARMAZENAMENTO,
@@ -120,8 +121,9 @@ export function chavesDaFoto(
   return {
     temporaria: `envios/${caminho}.${ext}`,
     original: `originais/${caminho}.${ext}`,
-    previa: `previas/${caminho}.webp`,
-    miniatura: `miniaturas/${caminho}.webp`,
+    // Prévia e miniatura levam a versão da marca na chave (src/lib/marca-dagua.ts).
+    previa: `previas/${caminho}${SUFIXO_DA_VERSAO}`,
+    miniatura: `miniaturas/${caminho}${SUFIXO_DA_VERSAO}`,
   };
 }
 
@@ -333,6 +335,11 @@ class ArquivoRecusado extends Error {}
 export const ORCAMENTO_DE_MEMORIA_BYTES = 600 * 1024 * 1024;
 const memoria = new Orcamento(ORCAMENTO_DE_MEMORIA_BYTES);
 
+/** Reserva memória do mesmo orçamento do envio (a regeração das prévias também abre originais). */
+export function reservarMemoriaDoProcessamento(bytes: number) {
+  return memoria.reservar(bytes);
+}
+
 /** Como o Sharp chama cada formato aceito (o AVIF é lido pelo libheif, como "heif"). */
 const FORMATO_NO_SHARP: Record<FormatoAceito, string> = {
   jpeg: "jpeg",
@@ -499,7 +506,7 @@ export async function confirmarEnvio(
     const modelo = await modeloMarcaDoEvento(foto.eventoId);
     let versoes;
     try {
-      versoes = await gerarVersoes(original, modelo);
+      versoes = await gerarVersoes(original, modelo, foto.id);
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }
@@ -514,6 +521,9 @@ export async function confirmarEnvio(
 
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
+      // As chaves da versão atual da marca (a foto pode ter sido registrada antes de ela mudar).
+      urlPrevia: chaves.previa,
+      urlMiniatura: chaves.miniatura,
       // Medidas como a foto aparece (já girada pelo EXIF), para a grade da galeria.
       largura: info.autoOrient.width,
       altura: info.autoOrient.height,

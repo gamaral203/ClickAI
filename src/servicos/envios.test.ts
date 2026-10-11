@@ -59,6 +59,7 @@ import {
   iniciarEnvio,
   revisarFotosPresas,
 } from "@/servicos/envios";
+import { LARGURA_PREVIA } from "@/servicos/imagens";
 import { confirmarPagamento, criarPedido } from "@/servicos/pedidos";
 
 const [lia, pedro] = fotografos;
@@ -993,7 +994,10 @@ describe("formatos aceitos (JPEG, PNG, WebP, TIFF, AVIF)", () => {
     const info = await sharp(
       objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previa))!.corpo,
     ).metadata();
-    expect(Math.max(info.width, info.height)).toBe(1600);
+    expect(Math.max(info.width, info.height)).toBe(LARGURA_PREVIA);
+    // A foto aponta para a prévia da versão atual da marca (chave com o sufixo da versão).
+    expect((await linhaDaFoto(fotoId)).urlPrevia).toBe(chaves.previa);
+    expect(chaves.previa).toMatch(/-v2.webp$/);
     expect((await linhaDaFoto(fotoId)).largura).toBe(12_240);
 
     // 13.000 x 13.000 = 169 MP: acima do LIMITE_PIXELS (bomba de descompressão em poucos KB).

@@ -1599,3 +1599,4 @@ export * from "./push";
 export * from "./capa";
 export * from "./suporte";
 export * from "./originais-do-dono";
+export * from "./previas";

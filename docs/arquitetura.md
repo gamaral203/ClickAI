@@ -100,21 +100,44 @@ Cada foto vira três arquivos no R2 e cada vídeo vira três ou quatro, separado
 |---|---|---|---|
 | Original (foto) | `fotos-originais` (privado) | JPEG, PNG, WebP, TIFF ou AVIF, de 1 a 200 MB, no formato enviado (a chave leva a extensão do formato real) | Entregue só ao comprador, por URL assinada, com o tipo e a extensão do formato |
 | Original (vídeo) | `fotos-originais` (privado) | MP4 ou MOV de até 500 MB | Entregue só ao comprador, por URL assinada |
-| Prévia com marca d'água | `fotos-publicas` | Foto: 200 a 300 KB, 1600 px. Vídeo: 720p | Página do item e galeria ampliada |
-| Miniatura | `fotos-publicas` | 30 a 50 KB, 400 px (no vídeo, um quadro de capa) | Grade da galeria |
+| Prévia com marca d'água | `fotos-publicas` | Foto: 60 a 100 KB, 960 px no lado maior, WebP 62 (até out. 2026: 1600 px e WebP 72). Vídeo: 720p | Página do item, galeria ampliada e Open Graph |
+| Miniatura | `fotos-publicas` | 20 a 30 KB, 400 px, WebP 65 (no vídeo, um quadro de capa) | Grade da galeria |
 
 **Padrão de nomes das chaves:**
 
 ```
 envios/{fotografo_id}/{evento_id}/{foto_id}.jpg  # original chegando do navegador (privado, temporário)
 originais/{fotografo_id}/{evento_id}/{foto_id}.{jpg|mp4|mov}
-previas/{fotografo_id}/{evento_id}/{foto_id}.{webp|mp4}
-miniaturas/{fotografo_id}/{evento_id}/{foto_id}.webp
+previas/{fotografo_id}/{evento_id}/{foto_id}-v{versao}.webp  # foto; no vídeo, {foto_id}.mp4
+miniaturas/{fotografo_id}/{evento_id}/{foto_id}-v{versao}.webp
 denuncias/{denuncia_id}/{arquivo_id}          # anexos, no bucket privado
 ```
 
 - `fotos.chave_original` guarda a chave no bucket privado (`envios/...` enquanto a foto está em `processando`, `originais/...` depois). `fotos.url_previa` e `fotos.url_miniatura` guardam as chaves no bucket público, e o endereço é montado na leitura com `R2_URL_PUBLICA` (`src/lib/url-publica.ts`): trocar o `r2.dev` por um domínio próprio não mexe no banco. Os dados de exemplo guardam caminhos `/exemplo/...`, que passam como estão.
 - O prefixo `envios/` tem regra de ciclo de vida no R2 que apaga o que ficar lá mais de 1 dia (envio abandonado ou recusado); o original só vai para `originais/` depois de conferido.
+- **Versão da marca na chave:** a prévia e a miniatura levam no nome a versão do desenho da marca (`VERSAO_DA_MARCA` em `src/lib/marca-dagua.ts`; hoje `-v2`; as da versão 1 não têm sufixo). As duas são gravadas com cache `immutable`, então uma marca nova precisa de chave nova para furar o cache do navegador e da CDN. A versão na chave também é o que marca a foto como regerada: não há coluna nem migração para isso.
+
+**Prévia e marca d'água (versão 2, contra remoção por IA)**
+
+Um cliente pediu a um assistente de IA para "remover a fonte que adicionei sem querer" numa prévia de 1600 px com o padrão diagonal de logos e recebeu a foto limpa e com boa qualidade. Nenhuma marca resiste a um modelo generativo; a versão 2 (`src/servicos/imagens.ts`) faz o resultado da remoção ficar inútil ou visivelmente estragado ([riscos.md](riscos.md), "Marca d'água removida com ferramentas de IA"):
+
+- **Prévia menor e mais comprimida:** 960 px no lado maior (era 1600) e WebP 62 (era 72); miniatura de 400 px em WebP 65. Mesmo limpa, a prévia não serve para imprimir nem para postar em boa qualidade. Sem desfoque nem ruído: um removedor de ruído tira os dois com facilidade e eles atrapalhariam o comprador a se reconhecer.
+- **Logo grande no meio:** a logo com "ClicouAí · PRÉVIA" embaixo, com 44% a 60% da largura conforme o modelo (no Padrão, 50%) e um quarto a mais em foto em pé (até 75%), opacidade de 36% a 50% conforme o modelo, clara com sombra escura, um pouco acima do centro, onde costumam ficar rosto e tronco. Para tirá-la, a IA precisa inventar o rosto e o corpo da pessoa. As caixas de rosto não existem na hora da prévia (o reconhecimento roda depois), então a posição é o centro.
+- **Padrão de logos mais denso e mais opaco:** linhas de logos claras alternadas com linhas do texto "ClicouAí · PRÉVIA" escuro (com contorno claro), inclinadas, para aparecer em fundo claro e escuro. O texto vem de `public/marca-previa.png` (já desenhado, sem depender de fonte no servidor).
+- **Linhas finas em dois ângulos (33° e −61°)** cruzando a foto inteira, claras e escuras alternadas, com opacidade, espessura e vão sorteados linha a linha, e algumas faixas mais largas e suaves.
+- **Variação por foto:** a semente é o id da foto. Ela escolhe a inclinação do padrão (−28°, −24° ou −20°), o deslocamento do padrão e das linhas, a posição da logo central (até 5% para os lados) e a rotação dela (±3° ou ±6°). A mesma foto gera sempre a mesma prévia; fotos diferentes nunca têm o padrão idêntico, o que dificulta estimar e subtrair a marca a partir de várias prévias.
+- **Modelos do fotógrafo:** todos têm a logo central e as linhas desde a versão 2; o modelo muda a intensidade (densidade e opacidade), não a proteção mínima.
+- **Desempenho:** as camadas de marcas (um pouco maiores que a foto, para o deslocamento) e a logo central ficam em memória por tamanho de foto, modelo e variação (até 18 de cada). Medido com 1 thread do Sharp, a partir de JPEGs de 6000 px: mediana de 147 ms por foto (prévia + miniatura), contra 144 ms na versão 1; a prévia caiu de ~126 KB para ~75 KB em média.
+- **No site:** a galeria e a página da foto não deixam arrastar a imagem (`draggable=false`), não abrem o menu de contexto ("Salvar imagem como...") e não mostram o menu do toque longo no iPhone (`-webkit-touch-callout: none`, utilitário `imagem-protegida`). É só contra o caso casual; a proteção real é a marca nos pixels. Nenhuma página usa uma versão maior que a prévia; o Open Graph do evento usa a prévia da capa, lida do banco (já com a chave nova).
+
+**Regeração das prévias antigas**
+
+`src/servicos/regerar-previas.ts` regera, no servidor e a partir do original no bucket privado, a prévia e a miniatura das fotos cuja chave não tem o sufixo da versão atual (fotos prontas, não vídeos, inclusive as excluídas, porque quem comprou ainda vê a miniatura no pedido). Para cada foto: lê o original, gera as versões no modelo do dono do evento, grava nas chaves novas, troca as chaves no banco num UPDATE condicional (só se ainda estiverem as antigas) e só então apaga a prévia e a miniatura antigas do R2 (`removerPublico`, que só apaga `previas/` e `miniaturas/`). Seis fotos ao mesmo tempo, dentro do orçamento de memória do envio. Idempotente: a foto trocada sai da lista; duas chamadas ao mesmo tempo gravam o mesmo conteúdo nas mesmas chaves e só uma troca e apaga; se a função morrer no meio, a foto continua com a prévia antiga (que ainda existe) e volta na próxima chamada. O original nunca vai ao bucket público.
+
+- **Rota:** `GET /api/jobs/regerar-previas?evento=<slug>&limite=600`, com `Authorization: Bearer CRON_SECRET` (mesma proteção dos outros jobs), `maxDuration` de 300 s, começa fotos novas até 240 s. Responde `{ regeradas, falhas, restantes }`; chame de novo até `restantes` chegar a 0. Sem `evento`, todos os eventos, o mais recente (pela data do evento) primeiro.
+- **Job de revisão:** `/api/jobs/revisao` usa o tempo que sobra do prazo de 80 s (até 300 fotos por execução) para continuar a regeração até acabar, também do evento mais recente para o mais antigo.
+- **Tempo estimado:** por foto, a ida ao R2 para ler o original (~1 a 2 s para 10 a 25 MB, o bucket fica nos EUA), ~0,3 s de Sharp numa vCPU e as gravações; com 6 ao mesmo tempo, cerca de 2 a 3 fotos por segundo, ou 500 a 700 fotos por chamada de 240 s. Para ~3.800 fotos, 6 a 8 chamadas seguidas da rota (de 25 a 35 minutos); só pelo job de revisão (~60 s úteis a cada execução), várias horas.
+- **Como disparar:** `curl -H "Authorization: Bearer $CRON_SECRET" "https://<site>/api/jobs/regerar-previas?evento=<slug>"` repetido até `restantes: 0` (primeiro o evento ao vivo, depois sem `evento`).
 - O acesso ao R2 fica em `src/lib/r2.ts` (API compatível com o S3, só no servidor). Sem as variáveis `R2_*`, o build e o site funcionam; o envio de fotos responde "Armazenamento de fotos não configurado" na produção e usa o envio simulado (imagens de exemplo) fora dela.
 
 - Usar o `foto_id` (UUID) como nome evita colisão e não expõe o nome original do arquivo.

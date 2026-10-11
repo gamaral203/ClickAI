@@ -59,15 +59,20 @@ const nextConfig: NextConfig = {
       ...dominioPublicoDoR2(),
     ],
   },
-  // A marca d'água das prévias usa public/logo.png, lida do disco por src/servicos/imagens.ts
-  // onde as fotos são processadas (rota de processamento do envio, job de revisão e ações do
-  // painel); sem isto, o arquivo não vai para a função da Vercel.
+  // A marca d'água das prévias usa public/logo.png e public/marca-previa.png, lidas do disco por
+  // src/servicos/imagens.ts onde as fotos são processadas (rota de processamento do envio, jobs
+  // de revisão e de regeração das prévias e ações do painel); sem isto, os arquivos não vão para
+  // a função da Vercel.
   outputFileTracingIncludes: {
-    "/painel/**": ["./public/logo.png"],
+    "/painel/**": ["./public/logo.png", "./public/marca-previa.png"],
     // Foto de exemplo das amostras de marca d'água (src/servicos/imagens.ts, amostraDaMarca).
-    "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],
-    "/api/envios/**": ["./public/logo.png"],
-    "/api/jobs/**": ["./public/logo.png"],
+    "/painel/marca-dagua/**": [
+      "./public/logo.png",
+      "./public/marca-previa.png",
+      "./public/inicio/ensaio-casal.webp",
+    ],
+    "/api/envios/**": ["./public/logo.png", "./public/marca-previa.png"],
+    "/api/jobs/**": ["./public/logo.png", "./public/marca-previa.png"],
   },
   outputFileTracingExcludes: buildComBancoReal
     ? {

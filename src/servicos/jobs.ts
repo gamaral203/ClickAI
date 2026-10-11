@@ -18,9 +18,10 @@ import {
 import { gatewayConfigurado } from "@/lib/gateway";
 
 import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
-import { revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
+import { PRAZO_DO_JOB_MS, revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
 import { sincronizarPedido } from "./pagamentos";
+import { regerarPrevias, type ResultadoRegeracao } from "./regerar-previas";
 import { conferirSaques } from "./saques";
 
 // Job de pedidos (docs/arquitetura.md, "Carrinho abandonado"). Na Parte A roda pela rota
@@ -110,11 +111,17 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
 
 /** Fotógrafos com saque em processamento conferidos por execução (cada um consulta o Payouts). */
 const FOTOGRAFOS_COM_SAQUE_POR_VEZ = 20;
+/** Prévias regeradas por execução do job de revisão (no máximo; o prazo costuma parar antes). */
+const PREVIAS_REGERADAS_NO_JOB = 300;
+/** Abaixo disso de tempo sobrando, o job nem começa a regerar prévias. */
+const ESPERA_MINIMA_PARA_REGERAR_MS = 10 * 1000;
 
 export type ResultadoJobRevisao = {
   /** Fotógrafos cujos saques em `processando` foram conferidos no Mercado Pago. */
   saquesConferidos: number;
   fotos: ResultadoFotosPresas;
+  /** Prévias regeradas com a marca atual (só quando houve alguma). */
+  previas?: ResultadoRegeracao;
 };
 
 /**
@@ -123,11 +130,14 @@ export type ResultadoJobRevisao = {
  *      de vendas: pago vira `pago`, recusa clara no primeiro envio devolve o saldo, e todo caso
  *      ambíguo (sem resposta, recusa num reenvio, Pix devolvido) continua em `processando` para
  *      revisão manual. O saldo nunca volta sem certeza de que o Pix não saiu;
- *   2. revisa fotos presas em `processando` (revisarFotosPresas).
+ *   2. revisa fotos presas em `processando` (revisarFotosPresas);
+ *   3. com o tempo que sobra, regera as prévias de versão anterior da marca
+ *      (src/servicos/regerar-previas.ts), até acabar.
  * Sem o Mercado Pago ou sem o R2 configurados (desenvolvimento e testes), a parte
  * correspondente não faz nada. Uma parte que falha não impede a outra.
  */
 export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJobRevisao> {
+  const inicio = Date.now();
   const resultado: ResultadoJobRevisao = {
     saquesConferidos: 0,
     fotos: { revisadas: 0, prontas: 0, comErro: 0 },
@@ -154,6 +164,18 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
     resultado.fotos = await revisarFotosPresas(agora);
   } catch (erro) {
     console.error("[jobs] falha ao revisar as fotos presas", erro);
+  }
+
+  // 3. Com o tempo que sobra, regera as prévias de versão anterior da marca, o evento mais
+  // recente primeiro, até acabar (src/servicos/regerar-previas.ts).
+  const sobra = PRAZO_DO_JOB_MS - (Date.now() - inicio);
+  if (sobra > ESPERA_MINIMA_PARA_REGERAR_MS) {
+    try {
+      const previas = await regerarPrevias({ limite: PREVIAS_REGERADAS_NO_JOB, prazoMs: sobra });
+      if (previas.regeradas > 0 || previas.falhas > 0) resultado.previas = previas;
+    } catch (erro) {
+      console.error("[jobs] falha ao regerar as prévias", erro);
+    }
   }
   return resultado;
 }
