@@ -4,10 +4,16 @@ import { Suspense } from "react";
 import { ChartColumn, ExternalLink } from "lucide-react";
 
 import { EnvioFotos } from "@/components/painel/envio-fotos";
+import { MinhasFotosDoEvento } from "@/components/painel/minhas-fotos-do-evento";
 import { ResponderConvite } from "@/components/painel/responder-convite";
 import { TopCliques } from "@/components/painel/top-cliques";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
-import { horaDaRequisicao, listarColaboracoes, topCliquesDoEvento } from "@/dados";
+import {
+  fotosDoAutorNoEvento,
+  horaDaRequisicao,
+  listarColaboracoes,
+  topCliquesDoEvento,
+} from "@/dados";
 import { descreverPadrao } from "@/lib/liberacao";
 import { formatarPeriodo } from "@/lib/formatar";
 import { modoEnvio } from "@/lib/r2";
@@ -48,6 +54,16 @@ async function Conteudo() {
       colaboracoes
         .filter((c) => c.aceitoEm)
         .map(async (c) => [c.evento.id, await topCliquesDoEvento(c.evento.id)] as const),
+    ),
+  );
+  // Fotos que ele enviou a cada evento, para o "Baixar original" (só o autor baixa).
+  const minhasFotos = new Map(
+    await Promise.all(
+      colaboracoes
+        .filter((c) => c.aceitoEm)
+        .map(
+          async (c) => [c.evento.id, await fotosDoAutorNoEvento(c.evento.id, conta.id)] as const,
+        ),
     ),
   );
   const modo = modoEnvio();
@@ -113,6 +129,10 @@ async function Conteudo() {
                   podeEscolher: false,
                   descricao: descreverPadrao(c.evento.liberacao, c.evento.liberadoEm, agora),
                 }}
+              />
+              <MinhasFotosDoEvento
+                eventoId={c.evento.id}
+                fotos={minhasFotos.get(c.evento.id) ?? []}
               />
             </>
           ) : (

@@ -218,6 +218,7 @@ export function FotosDoEvento({
         </p>
       )}
       <GradeFotosPainel
+        eventoId={eventoId}
         itens={visiveis}
         pastas={pastas}
         selecao={podeLiberar ? { selecionados, alternar } : undefined}

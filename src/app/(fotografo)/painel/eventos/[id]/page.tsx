@@ -268,6 +268,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     pastaId: i.pastaId,
                     estadoLiberacao: estadoDaLiberacao(i.liberarEm, agora),
                     liberarEm: i.liberarEm,
+                    // "Baixar original" só nas fotos que o dono enviou (não nas dos colaboradores).
+                    doAutor: i.enviadaPor === conta.id,
                   }))}
                   pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
                 />

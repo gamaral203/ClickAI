@@ -213,13 +213,15 @@ afterAll(() => {
 });
 
 describe("originais do dono: o que entra", () => {
-  it("(a) vendidas: só pedidos pagos, inclusive as do colaborador e as excluídas, sem repetir", async () => {
+  it("(a) vendidas: só as fotos do dono em pedidos pagos, inclusive as excluídas, sem repetir", async () => {
     const { itens } = await todos(usuarioLia, evento.id, "vendidas");
     expect(itens.map((i) => i.id).sort()).toEqual(
-      [f.liaPaga, f.liaPagaDuasVezes, f.liaExcluidaVendida, f.pedroPaga].sort(),
+      [f.liaPaga, f.liaPagaDuasVezes, f.liaExcluidaVendida].sort(),
     );
-    // Pendente, cancelado, estornado e contestado não entram; foto de outro evento também não.
+    // Pendente, cancelado, estornado e contestado não entram; foto de outro evento também não;
+    // e a foto vendida do colaborador fica com o autor dela (só o autor baixa o original).
     for (const fora of [
+      f.pedroPaga,
       f.liaPendente,
       f.liaCancelada,
       f.liaEstornada,
@@ -247,7 +249,7 @@ describe("originais do dono: o que entra", () => {
 
   it("resumo das duas opções para a tela", async () => {
     const resumo = await resumoParaODono(usuarioLia, evento.id);
-    expect(resumo?.vendidas).toEqual({ quantidade: 4, bytes: 20_000_000, excluidas: 0 });
+    expect(resumo?.vendidas).toEqual({ quantidade: 3, bytes: 15_000_000, excluidas: 0 });
     expect(resumo?.minhas.quantidade).toBe(8);
     expect(resumo?.minhas.excluidas).toBe(1);
   });
@@ -276,7 +278,7 @@ describe("originais do dono: o que entra", () => {
         eventoId: evento.id,
         modo: "vendidas",
         liberacao: liberado.liberacao,
-        ids: [f.outroEventoPaga, f.liaPendente, f.liaPaga],
+        ids: [f.outroEventoPaga, f.liaPendente, f.pedroPaga, f.liaPaga],
       },
       null,
     );

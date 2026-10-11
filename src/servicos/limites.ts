@@ -98,6 +98,12 @@ const REGRAS = {
    */
   originais_dono_usuario: { limite: 120, janelaMs: 10 * MINUTO },
   /**
+   * Originais baixados um a um pelo autor da foto (botão "Baixar original" no painel), por
+   * usuário. 60 em 10 minutos cobre quem baixa algumas fotos à mão; para muitas, o dono usa o
+   * download em lote.
+   */
+  original_autor_usuario: { limite: 60, janelaMs: 10 * MINUTO },
+  /**
    * Códigos da verificação em duas etapas, por usuário (login, saque, troca de CPF/CNPJ). O
    * código tem 6 dígitos: 6 tentativas a cada 15 minutos deixam a chance de acertar no chute
    * perto de zero. Código certo zera a contagem.

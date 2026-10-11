@@ -623,12 +623,22 @@ export const downloads = pgTable(
   (t) => [index().on(t.itemPedidoId)],
 ).enableRLS();
 
-/** O que o dono do evento baixou dos originais (src/servicos/originais-do-dono.ts). */
-export const modoOriginaisDoDono = pgEnum("modo_originais_do_dono", ["vendidas", "minhas"]);
+/**
+ * O que o autor baixou dos originais (src/servicos/originais-do-dono.ts): os lotes do dono do
+ * evento ("vendidas" e "minhas", só fotos dele) ou uma foto só ("individual", dono ou
+ * colaborador, sempre na foto que ele mesmo enviou).
+ */
+export const modoOriginaisDoDono = pgEnum("modo_originais_do_dono", [
+  "vendidas",
+  "minhas",
+  "individual",
+]);
 
 /**
- * Auditoria do download dos originais pelo dono do evento: uma linha por lote de URLs assinadas
- * (quem, evento, qual opção, quantos arquivos, IP). Nunca guarda as URLs nem as chaves.
+ * Auditoria do download dos originais pelo autor: uma linha por lote de URLs assinadas do dono
+ * do evento, ou por foto baixada individualmente (quem, evento, qual opção, quantos arquivos,
+ * IP). `fotografo_id` é a conta de quem baixou, que é sempre a autora das fotos entregues.
+ * Nunca guarda as URLs nem as chaves.
  */
 export const downloadsDoDono = pgTable(
   "downloads_do_dono",
