@@ -1,6 +1,7 @@
 import "server-only";
 
 import { gestoresParaAviso, usuarioDoFotografo, type FotografoConta, type Saque } from "@/dados";
+import { formatarCpfCnpj, somenteDigitos } from "@/lib/documentos";
 import { enviarEmail } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
@@ -22,9 +23,10 @@ export function saqueAtrasado(saque: Pick<Saque, "criadoEm">, agora = Date.now()
   return new Date(pagarAte(saque)).getTime() < agora;
 }
 
-/** Mostra só o começo e o fim do CPF/CNPJ (para e-mail e notificação). */
-function chaveCurta(chave: string) {
-  return chave.length > 5 ? `${chave.slice(0, 3)}…${chave.slice(-2)}` : chave;
+/** "CPF 123.456.789-01" ou "CNPJ 12.345.678/0001-90": a gestão precisa da chave inteira para pagar. */
+function chaveParaPagar(chave: string) {
+  const tipo = somenteDigitos(chave).length === 14 ? "CNPJ" : "CPF";
+  return `${tipo} ${formatarCpfCnpj(chave)}`;
 }
 
 export async function avisarSaqueSolicitado(saque: Saque, conta: FotografoConta) {
@@ -36,7 +38,7 @@ export async function avisarSaqueSolicitado(saque: Saque, conta: FotografoConta)
       gestores.map((g) => g.id),
       {
         titulo: "Novo pedido de saque",
-        corpo: `${conta.nomePublico} pediu ${valor}${saque.antecipado ? " (antecipado)" : ""}. Pagar até ${prazo}.`,
+        corpo: `${conta.nomePublico} pediu ${valor}${saque.antecipado ? " (antecipado)" : ""} · Pix para ${chaveParaPagar(saque.chavePix)} · até ${prazo}.`,
         url: "/admin/saques",
       },
     );
@@ -45,7 +47,8 @@ export async function avisarSaqueSolicitado(saque: Saque, conta: FotografoConta)
         para: gestor.email,
         assunto: `Saque pedido: ${conta.nomePublico}, ${valor}`,
         paragrafos: [
-          `${conta.nomePublico} pediu um saque${saque.antecipado ? " antecipado" : ""} de ${valor}, para a chave Pix ${chaveCurta(saque.chavePix)} (o CPF/CNPJ dele).`,
+          `${conta.nomePublico} pediu um saque${saque.antecipado ? " antecipado" : ""} de ${valor}.`,
+          `Chave Pix (${chaveParaPagar(saque.chavePix)}).`,
           `Faça o Pix pelo app do banco até ${prazo} e dê baixa como pago na página de saques da gestão.`,
         ],
         botao: { texto: "Abrir os saques", url: urlDoSite("/admin/saques") },
