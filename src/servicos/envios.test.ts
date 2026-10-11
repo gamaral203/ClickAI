@@ -11,6 +11,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { RekognitionClient } from "@aws-sdk/client-rekognition";
 import { and, eq, inArray } from "drizzle-orm";
 import sharp from "sharp";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,7 +60,7 @@ import {
   iniciarEnvio,
   revisarFotosPresas,
 } from "@/servicos/envios";
-import { LARGURA_PREVIA } from "@/servicos/imagens";
+import { gerarVersoes, LARGURA_PREVIA } from "@/servicos/imagens";
 import { confirmarPagamento, criarPedido } from "@/servicos/pedidos";
 
 const [lia, pedro] = fotografos;
@@ -662,6 +663,47 @@ describe("prévias geradas no servidor", () => {
     const previa = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chave))!;
     const { channels } = await sharp(previa.corpo).stats();
     expect(channels[0].max - channels[0].min).toBeGreaterThan(40);
+  });
+
+  it("depois do cadastro dos rostos, regera com a marca sobre eles numa chave nova", async () => {
+    vi.stubEnv("REKOGNITION_REGIAO", "sa-east-1");
+    vi.stubEnv("REKOGNITION_ACCESS_KEY_ID", "AKIA_TESTE");
+    vi.stubEnv("REKOGNITION_SECRET_ACCESS_KEY", "segredo-teste");
+    const caixa = { esquerda: 0.05, topo: 0.08, largura: 0.14, altura: 0.2 };
+    const rekognition = vi.spyOn(RekognitionClient.prototype, "send").mockResolvedValue({
+      FaceRecords: [
+        {
+          Face: {
+            FaceId: crypto.randomUUID(),
+            BoundingBox: { Left: caixa.esquerda, Top: caixa.topo, Width: 0.14, Height: 0.2 },
+          },
+        },
+      ],
+    } as never);
+    try {
+      const corpo = await jpeg(1500, 1000);
+      const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+      simularPut(lia.id, evento.id, fotoId, corpo);
+      expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ eventoId: evento.id });
+
+      const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+      const linha = await linhaDaFoto(fotoId);
+      expect(linha.urlPrevia).toBe(chaves.previaComRostos);
+      expect(linha.urlMiniatura).toBe(chaves.miniaturaComRostos);
+      expect(chaves.previaComRostos).toMatch(/-r-v2.webp$/);
+      // As do envio (marca no centro) saíram do bucket.
+      expect(objetos.has(nome(R2.R2_BUCKET_PUBLICO, chaves.previa))).toBe(false);
+      expect(objetos.has(nome(R2.R2_BUCKET_PUBLICO, chaves.miniatura))).toBe(false);
+      // A nova é exatamente a prévia com a marca sobre o rosto (o desenho é reprodutível)...
+      const gravada = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previaComRostos))!.corpo;
+      const esperada = await gerarVersoes(corpo, "padrao", fotoId, [caixa]);
+      expect(gravada.equals(esperada.previa.buffer)).toBe(true);
+      // ...e difere da que tinha a marca no centro.
+      const semRostos = await gerarVersoes(corpo, "padrao", fotoId);
+      expect(gravada.equals(semRostos.previa.buffer)).toBe(false);
+    } finally {
+      rekognition.mockRestore();
+    }
   });
 });
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  caixasDasFotos,
   contarFotosComPreviaAntiga,
   listarFotosComPreviaAntiga,
   modeloMarcaDoEvento,
@@ -10,6 +11,7 @@ import {
 import { emParalelo } from "@/lib/concorrencia";
 import { LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
 import type { ModeloMarca } from "@/lib/marca-dagua";
+import type { CaixaDoRosto } from "@/lib/reconhecimento";
 import { gravarPublico, lerOriginal, modoEnvio, removerPublico } from "@/lib/r2";
 
 import { chavesDaFoto, PROCESSAMENTOS_NO_SERVIDOR, reservarMemoriaDoProcessamento } from "./envios";
@@ -20,8 +22,9 @@ import { gerarVersoes } from "./imagens";
 // Tudo no servidor, a partir do original no bucket privado, que nunca sai dele: só as versões
 // com marca vão ao bucket público.
 //
-// Para cada foto: lê o original, gera as versões com a marca atual (no modelo do dono do evento
-// e com a semente pelo id da foto), grava com a CHAVE NOVA (`...-v2.webp`, que fura o cache do
+// Para cada foto: lê o original, gera as versões com a marca atual (no modelo do dono do evento,
+// com a semente pelo id da foto e, se os rostos já foram cadastrados, a marca principal sobre o
+// maior rosto e marcas menores sobre os outros rostos grandes, pela tabela `rostos`), grava com a CHAVE NOVA (`...-v2.webp`, que fura o cache do
 // navegador e da CDN), troca as chaves no banco num UPDATE condicional e só então apaga a prévia
 // e a miniatura antigas do R2. Idempotente: a foto já trocada sai da lista (a chave tem o sufixo
 // da versão atual); duas chamadas ao mesmo tempo gravam o mesmo conteúdo nas mesmas chaves e só
@@ -59,6 +62,8 @@ export async function regerarPrevias({
   if (modoEnvio() !== "r2") return resultado;
   const fim = Date.now() + prazoMs;
   const fotos = await listarFotosComPreviaAntiga(limite, eventoId);
+  // Uma consulta só para os rostos do lote inteiro.
+  const caixas = await caixasDasFotos(fotos.map((f) => f.id));
   const modelos = new Map<string, Promise<ModeloMarca>>();
   const modeloDo = (id: string) => {
     let modelo = modelos.get(id);
@@ -69,7 +74,8 @@ export async function regerarPrevias({
   await emParalelo(fotos, PROCESSAMENTOS_NO_SERVIDOR, async (foto) => {
     if (Date.now() > fim) return;
     try {
-      if (await regerarUma(foto, await modeloDo(foto.eventoId))) resultado.regeradas++;
+      const rostos = caixas.get(foto.id) ?? [];
+      if (await regerarUma(foto, await modeloDo(foto.eventoId), rostos)) resultado.regeradas++;
     } catch (erro) {
       // Só o id: nada do arquivo vai para o log.
       console.error(`[previas] falha ao regerar a prévia da foto ${foto.id}`, erro);
@@ -81,12 +87,16 @@ export async function regerarPrevias({
 }
 
 /** Regera uma foto. `false` se outra chamada trocou as chaves antes. */
-async function regerarUma(foto: FotoComPreviaAntiga, modelo: ModeloMarca): Promise<boolean> {
+async function regerarUma(
+  foto: FotoComPreviaAntiga,
+  modelo: ModeloMarca,
+  rostos: CaixaDoRosto[],
+): Promise<boolean> {
   const novas = chavesDaFoto(foto.enviadaPor, foto.eventoId, foto.id);
   const liberar = await reservarMemoriaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   try {
     const original = await lerOriginal(foto.chaveOriginal);
-    const { previa, miniatura } = await gerarVersoes(original, modelo, foto.id);
+    const { previa, miniatura } = await gerarVersoes(original, modelo, foto.id, rostos);
     await Promise.all([
       gravarPublico(novas.previa, previa.buffer, "image/webp"),
       gravarPublico(novas.miniatura, miniatura.buffer, "image/webp"),

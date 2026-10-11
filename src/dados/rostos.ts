@@ -73,6 +73,28 @@ export async function caixasDosRostos(rostoIds: string[]): Promise<Record<string
 }
 
 /**
+ * Posição de todos os rostos gravados de cada foto: `{ fotoId: [caixa, ...] }`. Serve à marca
+ * d'água, que vai sobre os rostos na regeração das prévias (src/servicos/regerar-previas.ts).
+ * Fotos sem rosto (ou sem posição gravada) ficam de fora.
+ */
+export async function caixasDasFotos(fotoIds: string[]): Promise<Map<string, CaixaDoRosto[]>> {
+  const caixas = new Map<string, CaixaDoRosto[]>();
+  if (fotoIds.length === 0) return caixas;
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ fotoId: t.rostos.fotoId, caixa: t.rostos.caixa })
+    .from(t.rostos)
+    .where(inArray(t.rostos.fotoId, fotoIds));
+  for (const l of linhas) {
+    if (!l.caixa) continue;
+    const lista = caixas.get(l.fotoId);
+    if (lista) lista.push(l.caixa);
+    else caixas.set(l.fotoId, [l.caixa]);
+  }
+  return caixas;
+}
+
+/**
  * A foto tem rosto gravado. Nomes escritos por extenso: dentro do sql``, o Drizzle escreve a
  * coluna sem a tabela ("foto_id" = "id"), e na subconsulta os dois viravam colunas de `rostos`:
  * a conta dava sempre 0 e toda foto voltava ao reconhecimento a cada clique.
