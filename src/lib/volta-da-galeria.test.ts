@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   esquecerOrigem,
+  fotoParaRolar,
   guardarOrigem,
   lerOrigem,
   trocarFotoAtual,
@@ -18,64 +19,81 @@ function guardaFalsa() {
 }
 
 const T = 1_000_000;
+/** Fotos da página da galeria que estava na tela. */
+const PAGINA = ["a", "b", "c"];
 
 describe("volta da foto para a galeria", () => {
   it("quem veio da galeria volta no histórico; quem abriu o link direto, não", () => {
     const g = guardaFalsa();
     expect(veioDaGaleria("corrida", "a", T, g)).toBe(false);
-    guardarOrigem({ slug: "corrida", fotoAtual: "a", fotoClicada: "a" }, T, g);
+    guardarOrigem({ slug: "corrida", fotoAtual: "a", ids: PAGINA }, T, g);
     expect(veioDaGaleria("corrida", "a", T, g)).toBe(true);
     // Outra foto (link compartilhado aberto na mesma aba) ou outro evento: vai pelo link.
-    expect(veioDaGaleria("corrida", "b", T, g)).toBe(false);
+    expect(veioDaGaleria("corrida", "x", T, g)).toBe(false);
     expect(veioDaGaleria("festa", "a", T, g)).toBe(false);
   });
 
-  it("Anterior/Próxima acompanham a foto aberta e mantêm a foto tocada", () => {
+  it("Anterior/Próxima na mesma página voltam no histórico; ao atravessar a página, pelo link", () => {
     const g = guardaFalsa();
-    guardarOrigem({ slug: "corrida", fotoAtual: "a", fotoClicada: "a" }, T, g);
-    trocarFotoAtual("corrida", "a", "b", T, g);
-    expect(veioDaGaleria("corrida", "b", T, g)).toBe(true);
-    expect(lerOrigem(T, g)?.fotoClicada).toBe("a");
+    guardarOrigem({ slug: "corrida", fotoAtual: "b", ids: PAGINA }, T, g);
+    trocarFotoAtual("corrida", "b", "c", T, g);
+    expect(veioDaGaleria("corrida", "c", T, g)).toBe(true);
+    // "Próxima" da última foto da página leva à primeira da página seguinte: o voltar do
+    // histórico mostraria a página antiga, então vai pelo link da página certa.
+    trocarFotoAtual("corrida", "c", "d", T, g);
+    expect(veioDaGaleria("corrida", "d", T, g)).toBe(false);
     // Troca vinda de outra foto (sem origem correspondente) não mexe na origem.
     trocarFotoAtual("corrida", "x", "y", T, g);
-    expect(veioDaGaleria("corrida", "b", T, g)).toBe(true);
+    expect(lerOrigem(T, g)?.fotoAtual).toBe("d");
   });
 
-  it("ignora origem velha, inválida ou esquecida", () => {
+  it("a galeria rola até a foto aberta só se ela está na tela, e consome a origem", () => {
     const g = guardaFalsa();
-    guardarOrigem({ slug: "corrida", fotoAtual: "a", fotoClicada: "a" }, T, g);
+    guardarOrigem({ slug: "corrida", fotoAtual: "d", ids: PAGINA }, T, g);
+    // A lista da busca aparece antes e não tem a foto: não consome.
+    expect(fotoParaRolar("corrida", ["z"], T, g)).toBeNull();
+    expect(fotoParaRolar("festa", ["d"], T, g)).toBeNull();
+    // A página seguinte da galeria tem a foto: rola até ela e esquece.
+    expect(fotoParaRolar("corrida", ["d", "e"], T, g)).toBe("d");
+    expect(lerOrigem(T, g)).toBeNull();
+    expect(fotoParaRolar("corrida", ["d", "e"], T, g)).toBeNull();
+  });
+
+  it("origem sem fotos na tela não volta no histórico, mas ainda rola até a foto", () => {
+    const g = guardaFalsa();
+    guardarOrigem({ slug: "corrida", fotoAtual: "a", ids: [] }, T, g);
+    expect(veioDaGaleria("corrida", "a", T, g)).toBe(false);
+    expect(fotoParaRolar("corrida", PAGINA, T, g)).toBe("a");
+  });
+
+  it("ignora origem velha, inválida, do formato antigo ou esquecida", () => {
+    const g = guardaFalsa();
+    guardarOrigem({ slug: "corrida", fotoAtual: "a", ids: PAGINA }, T, g);
     expect(lerOrigem(T + 31 * 60 * 1000, g)).toBeNull();
     esquecerOrigem(g);
     expect(lerOrigem(T, g)).toBeNull();
     g.setItem("clicouai:volta-da-galeria", "{quebrado");
     expect(lerOrigem(T, g)).toBeNull();
+    // Formato do "Carregar mais" (sem `ids`), guardado antes desta versão.
+    g.setItem(
+      "clicouai:volta-da-galeria",
+      JSON.stringify({ slug: "corrida", fotoAtual: "a", fotoClicada: "a", em: T }),
+    );
+    expect(lerOrigem(T, g)).toBeNull();
     expect(lerOrigem(T, null)).toBeNull();
   });
 
-  it("sem espaço para as fotos, guarda ao menos de onde a pessoa saiu", () => {
-    const g = guardaFalsa();
-    let primeira = true;
+  it("sem sessionStorage (ou sem espaço), não quebra: o Voltar cai no link", () => {
     const cheia = {
-      ...g,
-      setItem: (k: string, v: string) => {
-        if (primeira) {
-          primeira = false;
-          throw new Error("QuotaExceededError");
-        }
-        g.setItem(k, v);
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("QuotaExceededError");
       },
+      removeItem: () => {},
     };
-    guardarOrigem(
-      {
-        slug: "corrida",
-        fotoAtual: "a",
-        fotoClicada: "a",
-        galeria: { chave: "||", fotos: [], cursor: null },
-      },
-      T,
-      cheia,
-    );
-    expect(veioDaGaleria("corrida", "a", T, g)).toBe(true);
-    expect(lerOrigem(T, g)?.galeria).toBeUndefined();
+    expect(() =>
+      guardarOrigem({ slug: "corrida", fotoAtual: "a", ids: PAGINA }, T, cheia),
+    ).not.toThrow();
+    expect(veioDaGaleria("corrida", "a", T, cheia)).toBe(false);
   });
 });

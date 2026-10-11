@@ -2,34 +2,31 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
-import { carregarMaisFotos } from "@/app/(publico)/eventos/[slug]/acoes";
-import { Button } from "@/components/ui/button";
+import { Paginacao } from "@/components/galeria/paginacao";
 import type { FiltroGaleria } from "@/dados";
-import type { Foto, PaginaDeFotos } from "@/dados/tipos";
-import { esquecerOrigem, guardarOrigem, lerOrigem } from "@/lib/volta-da-galeria";
+import type { Foto } from "@/dados/tipos";
+import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { fotoParaRolar, guardarOrigem } from "@/lib/volta-da-galeria";
 
 type Props = {
   slug: string;
   tituloEvento: string;
-  paginaInicial: PaginaDeFotos;
-  /** Filtro da primeira página, repetido ao carregar as seguintes. */
-  filtro?: FiltroGaleria;
-  /** Texto quando a página inicial vem vazia. */
+  /** Fotos na tela: a página da galeria ou o resultado da busca. */
+  fotos: Foto[];
+  /**
+   * Galeria principal do evento: página atual, total e o filtro (que entra nos links das
+   * páginas). Sem ela (resultado da busca), mostra todas as fotos recebidas, sem páginas.
+   */
+  paginacao?: { pagina: number; totalPaginas: number; total: number; filtro: FiltroGaleria };
+  /** Texto quando não há fotos. */
   vazio?: { titulo: string; detalhe: string };
   /**
    * Onde está o rosto da pessoa em cada foto (resultado da busca por selfie): a miniatura fica
    * ampliada no rosto, para ela se reconhecer mais rápido.
    */
   recortes?: Record<string, CaixaDoRosto>;
-  /**
-   * Galeria principal do evento: identifica a lista (o filtro) para, na volta da página da foto,
-   * recuperar as fotos já carregadas se a galeria for montada do zero. Sem ela (resultado da
-   * busca), só marca de onde a pessoa saiu.
-   */
-  restaurar?: string;
 };
 
 type CaixaDoRosto = { esquerda: number; topo: number; largura: number; altura: number };
@@ -55,70 +52,39 @@ const VAZIO_PADRAO = {
   detalhe: "O fotógrafo pode estar enviando agora. Volte daqui a pouco.",
 };
 
+const numero = new Intl.NumberFormat("pt-BR");
+
 export function GaleriaFotos({
   slug,
   tituloEvento,
-  paginaInicial,
-  filtro,
+  fotos,
+  paginacao,
   vazio = VAZIO_PADRAO,
   recortes,
-  restaurar,
 }: Props) {
-  const [fotos, setFotos] = useState<Foto[]>(paginaInicial.fotos);
-  const [cursor, setCursor] = useState(paginaInicial.proximoCursor);
-  const [erro, setErro] = useState(false);
-  const [carregando, startTransition] = useTransition();
-  const [rolarAte, setRolarAte] = useState<string | null>(null);
+  const ids = fotos.map((f) => f.id);
+  const chaveDosIds = ids.join();
 
-  // Volta da página da foto. Com a página preservada pelo Next (<Activity>), fotos e rolagem
-  // continuam como estavam; montada do zero, recupera as fotos carregadas e rola até a foto.
+  // Volta da página da foto: rola até a foto que estava aberta, se ela está nesta tela. A página
+  // em si vem da URL (`?pagina=N`). Pelo histórico, a foto vem do sessionStorage; pelo link, da
+  // âncora `#foto-<id>` (a galeria chega depois do esqueleto do Suspense, então a rolagem da
+  // âncora feita pelo Next não acharia a foto).
   useEffect(() => {
-    if (!restaurar) return;
-    const origem = lerOrigem();
-    esquecerOrigem();
-    const salva = origem?.slug === slug ? origem.galeria : undefined;
-    if (!origem || salva?.chave !== restaurar || salva.fotos.length <= fotos.length) return;
-    // sessionStorage só existe no navegador: ler no render daria HTML diferente da hidratação.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFotos(salva.fotos);
-    setCursor(salva.cursor);
-    setRolarAte(origem.fotoClicada);
-    // Só ao montar ou ao reaparecer: depois disso a lista muda pelo "Carregar mais".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!rolarAte) return;
+    const naTela = chaveDosIds.split(",");
+    const daAncora = /^#foto-([0-9a-f-]{36})$/.exec(window.location.hash)?.[1];
+    const alvo =
+      fotoParaRolar(slug, naTela) ?? (daAncora && naTela.includes(daAncora) ? daAncora : null);
+    if (!alvo) return;
     const quadro = requestAnimationFrame(() => {
       document
-        .querySelector(`[data-foto="${CSS.escape(rolarAte)}"]`)
+        .querySelector(`[data-foto="${CSS.escape(alvo)}"]`)
         ?.scrollIntoView({ block: "center", behavior: "instant" });
-      setRolarAte(null);
     });
     return () => cancelAnimationFrame(quadro);
-  }, [rolarAte]);
+  }, [slug, chaveDosIds]);
 
   function aoAbrirFoto(fotoId: string) {
-    guardarOrigem({
-      slug,
-      fotoAtual: fotoId,
-      fotoClicada: fotoId,
-      galeria: restaurar ? { chave: restaurar, fotos, cursor } : undefined,
-    });
-  }
-
-  function carregarMais() {
-    if (!cursor) return;
-    setErro(false);
-    startTransition(async () => {
-      try {
-        const pagina = await carregarMaisFotos(slug, cursor, filtro);
-        setFotos((atuais) => [...atuais, ...pagina.fotos]);
-        setCursor(pagina.proximoCursor);
-      } catch {
-        setErro(true);
-      }
-    });
+    guardarOrigem({ slug, fotoAtual: fotoId, ids });
   }
 
   if (fotos.length === 0) {
@@ -130,11 +96,33 @@ export function GaleriaFotos({
     );
   }
 
+  // Posição da primeira foto na lista inteira, para o "Foto N" do texto alternativo.
+  const deslocamento = paginacao ? (paginacao.pagina - 1) * FOTOS_POR_PAGINA : 0;
+  const paginas = paginacao && paginacao.totalPaginas > 1 ? paginacao : null;
+
   return (
-    <div className="flex flex-col items-center gap-8">
+    <div className="flex flex-col items-center gap-6">
+      {paginas && (
+        <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:justify-between">
+          <p className="text-sm text-muted-foreground tabular-nums" role="status">
+            Fotos {numero.format(deslocamento + 1)} a {numero.format(deslocamento + fotos.length)}{" "}
+            de {numero.format(paginas.total)}
+          </p>
+          <div className="sm:w-auto">
+            <Paginacao
+              slug={slug}
+              filtro={paginas.filtro}
+              pagina={paginas.pagina}
+              totalPaginas={paginas.totalPaginas}
+              rotulo="Páginas (topo da galeria)"
+            />
+          </div>
+        </div>
+      )}
+
       <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
         {fotos.map((foto, i) => (
-          <li key={foto.id} data-foto={foto.id}>
+          <li key={foto.id} id={`foto-${foto.id}`} data-foto={foto.id} className="scroll-mt-4">
             <Link
               onContextMenu={(e) => e.preventDefault()}
               href={`/fotos/${foto.id}`}
@@ -145,7 +133,7 @@ export function GaleriaFotos({
                 // Ampliada no rosto: usa a prévia (maior) para não pixelar com o zoom.
                 <Image
                   src={foto.urlPrevia}
-                  alt={`Foto ${i + 1} de ${tituloEvento}, ampliada no seu rosto`}
+                  alt={`Foto ${deslocamento + i + 1} de ${tituloEvento}, ampliada no seu rosto`}
                   fill
                   draggable={false}
                   sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
@@ -155,7 +143,7 @@ export function GaleriaFotos({
               ) : (
                 <Image
                   src={foto.urlMiniatura}
-                  alt={`Foto ${i + 1} de ${tituloEvento}`}
+                  alt={`Foto ${deslocamento + i + 1} de ${tituloEvento}`}
                   fill
                   draggable={false}
                   sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
@@ -167,21 +155,13 @@ export function GaleriaFotos({
         ))}
       </ul>
 
-      <p className="sr-only" role="status">
-        {fotos.length} fotos carregadas
-      </p>
-
-      {erro && (
-        <p className="text-sm text-destructive" role="alert">
-          Não foi possível carregar mais fotos. Verifique a conexão e tente de novo.
-        </p>
-      )}
-
-      {cursor && (
-        <Button variant="outline" onClick={carregarMais} disabled={carregando} size="touch">
-          {carregando && <Loader2 aria-hidden="true" className="animate-spin" />}
-          {carregando ? "Carregando…" : "Carregar mais fotos"}
-        </Button>
+      {paginas && (
+        <Paginacao
+          slug={slug}
+          filtro={paginas.filtro}
+          pagina={paginas.pagina}
+          totalPaginas={paginas.totalPaginas}
+        />
       )}
     </div>
   );

@@ -7,11 +7,8 @@ import {
   buscarEventoPublicado,
   conferirSenhaDoEvento,
   fotosPorNumero,
-  listarFotosDoEvento,
   registrarAcessoAoEvento,
-  type FiltroGaleria,
   type Foto,
-  type PaginaDeFotos,
 } from "@/dados";
 import {
   cookieDoEvento,
@@ -19,49 +16,13 @@ import {
   hashDoToken,
   novoTokenDeAcesso,
 } from "@/lib/acesso-evento";
-import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { limiteDoIpAtingido } from "@/servicos/limites";
 import { ofertaDePacote, type OfertaPacote } from "@/servicos/pacotes";
-import { horaSchema } from "@/lib/validacao";
 
 const slug = z
   .string()
   .max(120)
   .regex(/^[a-z0-9-]+$/);
-
-const entrada = z.object({
-  slug,
-  cursor: z.uuid(),
-  filtro: z
-    .object({
-      hora: horaSchema.optional(),
-      naoIdentificadas: z.boolean().optional(),
-      pasta: z.uuid().optional(),
-    })
-    .optional(),
-});
-
-/**
- * Próxima página da galeria, com os mesmos filtros da primeira. Server Actions são endpoints
- * públicos: valida a entrada e só devolve fotos de evento publicado.
- */
-export async function carregarMaisFotos(
-  slugEvento: string,
-  cursor: string,
-  filtro?: FiltroGaleria,
-): Promise<PaginaDeFotos> {
-  const dados = entrada.safeParse({ slug: slugEvento, cursor, filtro });
-  if (!dados.success) return { fotos: [], proximoCursor: null };
-
-  const evento = await buscarEventoPublicado(dados.data.slug);
-  if (!evento) return { fotos: [], proximoCursor: null };
-
-  return listarFotosDoEvento(evento.id, {
-    cursor: dados.data.cursor,
-    limite: FOTOS_POR_PAGINA,
-    filtro: dados.data.filtro,
-  });
-}
 
 const numero = z.object({
   slug,

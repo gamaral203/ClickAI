@@ -243,7 +243,7 @@ export function BuscaNoEvento({
               key={resultado.fotos.map((f) => f.id).join()}
               slug={slug}
               tituloEvento={tituloEvento}
-              paginaInicial={{ fotos: resultado.fotos, proximoCursor: null }}
+              fotos={resultado.fotos}
               recortes={resultado.recortes}
             />
           )}

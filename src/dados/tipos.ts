@@ -489,6 +489,10 @@ export type SituacaoGaleria =
 
 export type PaginaDeFotos = {
   fotos: Foto[];
-  /** Passar para a próxima chamada; `null` quando não há mais fotos. */
-  proximoCursor: string | null;
+  /** Página entregue, já dentro do intervalo (a pedida fora dele vira 1 ou a última). */
+  pagina: number;
+  /** Ao menos 1, mesmo com a lista vazia. */
+  totalPaginas: number;
+  /** Itens na lista inteira (com o filtro). */
+  total: number;
 };

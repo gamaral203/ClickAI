@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Clock, Folder, ScanFace } from "lucide-react";
 
 import type { FiltroGaleria, OpcoesGaleria } from "@/dados";
+import { enderecoDaGaleria } from "@/lib/galeria";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -10,14 +11,8 @@ type Props = {
   filtro: FiltroGaleria;
 };
 
-function endereco(slug: string, filtro: FiltroGaleria) {
-  const params = new URLSearchParams();
-  if (filtro.hora) params.set("hora", filtro.hora);
-  if (filtro.naoIdentificadas) params.set("nao-identificadas", "1");
-  if (filtro.pasta) params.set("pasta", filtro.pasta);
-  const busca = params.toString();
-  return `/eventos/${slug}${busca ? `?${busca}` : ""}#galeria`;
-}
+/** Trocar de filtro volta para a página 1 da nova lista. */
+const endereco = (slug: string, filtro: FiltroGaleria) => enderecoDaGaleria(slug, filtro);
 
 /** "07h às 08h", com o dia na frente quando o evento passa de um dia ("27/09, 23h às 00h"). */
 function rotuloHora(hora: string, comDia: boolean) {
