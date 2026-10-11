@@ -369,7 +369,7 @@ export type FiltroEventos = {
   categoria?: string;
   /** Nome da cidade, sem diferenciar acentos nem maiúsculas. */
   cidade?: string;
-  /** Só os eventos deste fotógrafo (página da loja própria). */
+  /** Só os eventos deste fotógrafo: os que ele criou e os que colabora com convite aceito. */
   fotografoId?: string;
 };
 
@@ -382,6 +382,26 @@ const eventoListado = and(
 async function eventosListados(): Promise<Evento[]> {
   const banco = await obterBanco();
   return (await banco.select().from(t.eventos).where(eventoListado)).map(paraEvento);
+}
+
+/**
+ * Filtro "eventos deste fotógrafo" da página pública dele: os que ele criou e aqueles em que é
+ * colaborador com o convite aceito (pendente ou recusado não). As regras de visibilidade
+ * (publicado, listado) continuam as de `eventoListado`.
+ */
+async function doFotografo(fotografoId: string): Promise<(e: Evento) => boolean> {
+  const banco = await obterBanco();
+  const colaborados = new Set(
+    (
+      await banco
+        .select({ eventoId: t.colaboradores.eventoId })
+        .from(t.colaboradores)
+        .where(
+          and(eq(t.colaboradores.fotografoId, fotografoId), isNotNull(t.colaboradores.aceitoEm)),
+        )
+    ).map((c) => c.eventoId),
+  );
+  return (e) => e.fotografoId === fotografoId || colaborados.has(e.id);
 }
 
 /**
@@ -402,13 +422,14 @@ export async function listarEventosPublicados(filtro: FiltroEventos = {}): Promi
       )[0]?.id ?? null)
     : undefined;
   if (categoriaId === null) return [];
+  const doFotografoFiltrado = filtro.fotografoId ? await doFotografo(filtro.fotografoId) : null;
 
   const escolhidos = (await eventosListados())
     // Evento de vários dias aparece em qualquer um deles; sem data final, só no dia de início.
     .filter((e) => !filtro.data || eventoNoDia(e, filtro.data))
     .filter((e) => !categoriaId || e.categoriaId === categoriaId)
     .filter((e) => !cidade || normalizar(e.cidade) === cidade)
-    .filter((e) => !filtro.fotografoId || e.fotografoId === filtro.fotografoId);
+    .filter((e) => !doFotografoFiltrado || doFotografoFiltrado(e));
   const resumos = await resumir(escolhidos, instante);
   return resumos
     .filter(
@@ -434,8 +455,9 @@ export async function listarOpcoesFiltroEventos(
   fotografoId?: string,
 ): Promise<OpcoesFiltroEventos> {
   const banco = await obterBanco();
+  const doFotografoFiltrado = fotografoId ? await doFotografo(fotografoId) : null;
   const listados = (await eventosListados()).filter(
-    (e) => !fotografoId || e.fotografoId === fotografoId,
+    (e) => !doFotografoFiltrado || doFotografoFiltrado(e),
   );
   const categoriaIds = new Set(listados.map((e) => e.categoriaId));
   const cidades = new Map(listados.map((e) => [normalizar(e.cidade), e]));

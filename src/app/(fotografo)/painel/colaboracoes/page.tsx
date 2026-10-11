@@ -65,7 +65,11 @@ async function Conteudo() {
   return (
     <ul className="flex flex-col gap-6">
       {colaboracoes.map((c) => (
-        <li key={c.colaboradorId} className="flex flex-col gap-4 rounded-xl border p-5">
+        <li
+          key={c.colaboradorId}
+          id={`colaboracao-${c.evento.id}`}
+          className="flex scroll-mt-24 flex-col gap-4 rounded-xl border p-5"
+        >
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-xl font-semibold">{c.evento.titulo}</h2>
