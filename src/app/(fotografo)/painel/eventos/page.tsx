@@ -2,11 +2,20 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Calendar, CalendarPlus, Camera, ChartColumn, Images, MapPin } from "lucide-react";
+import {
+  Calendar,
+  CalendarPlus,
+  Camera,
+  ChartColumn,
+  Images,
+  MapPin,
+  Upload,
+  Users,
+} from "lucide-react";
 
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { buttonVariants } from "@/components/ui/button";
-import { listarEventosDoFotografo } from "@/dados";
+import { horaDaRequisicao, listarMeusEventos } from "@/dados";
 import { formatarPeriodo } from "@/lib/formatar";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -34,7 +43,7 @@ export default function PaginaEventosDoPainel() {
 
 async function Lista() {
   const { conta } = await exigirFotografo("/painel/eventos");
-  const eventos = await listarEventosDoFotografo(conta.id);
+  const eventos = await listarMeusEventos(conta.id, await horaDaRequisicao());
 
   if (eventos.length === 0) {
     return (
@@ -50,84 +59,104 @@ async function Lista() {
   return (
     // Cartões com a capa, como numa vitrine: 1 por linha no celular, 2 no tablet, 3 no computador.
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {eventos.map((evento) => (
-        <li
-          key={evento.id}
-          className="flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
-        >
-          <Link
-            href={`/painel/eventos/${evento.id}`}
-            aria-label={`Gerenciar ${evento.titulo}`}
-            className="relative block aspect-[3/2] bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      {eventos.map((evento) => {
+        // O colaborador não gerencia o evento do dono: abre Colaborações, onde envia as fotos.
+        const abrir = evento.colaboracao
+          ? `/painel/colaboracoes#colaboracao-${evento.id}`
+          : `/painel/eventos/${evento.id}`;
+        const rotuloAbrir = evento.colaboracao ? "Enviar fotos" : "Gerenciar";
+        return (
+          <li
+            key={evento.id}
+            className="flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
           >
-            {evento.capaMiniatura ? (
-              <Image
-                src={evento.capaMiniatura.urlMiniatura}
-                alt=""
-                fill
-                sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="object-cover"
-              />
-            ) : (
-              <span className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                <Camera aria-hidden="true" className="size-8" />
-                <span className="text-sm font-medium">
-                  {evento.processando > 0 ? "Processando as fotos…" : "Sem fotos ainda"}
+            <Link
+              href={abrir}
+              aria-label={`${rotuloAbrir}: ${evento.titulo}`}
+              className="relative block aspect-[3/2] bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              {evento.capaMiniatura ? (
+                <Image
+                  src={evento.capaMiniatura.urlMiniatura}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  className="object-cover"
+                />
+              ) : (
+                <span className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <Camera aria-hidden="true" className="size-8" />
+                  <span className="text-sm font-medium">
+                    {evento.processando > 0 ? "Processando as fotos…" : "Sem fotos ainda"}
+                  </span>
                 </span>
+              )}
+              <span className="absolute top-3 left-3">
+                <StatusEventoSelo status={evento.status} />
               </span>
-            )}
-            <span className="absolute top-3 left-3">
-              <StatusEventoSelo status={evento.status} />
-            </span>
-          </Link>
-          <div className="flex flex-1 flex-col gap-3 p-4">
-            <div className="flex flex-col gap-1.5">
-              <Link
-                href={`/painel/eventos/${evento.id}`}
-                className="text-lg leading-tight font-semibold hover:underline"
-              >
-                {evento.titulo}
-              </Link>
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin aria-hidden="true" className="size-4 shrink-0" />
-                <span className="truncate">
-                  {evento.local ? `${evento.local} · ` : ""}
-                  {evento.cidade}, {evento.estado}
-                </span>
-              </p>
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar aria-hidden="true" className="size-4 shrink-0" />
-                {formatarPeriodo(evento.inicioEm, evento.fimEm)}
-              </p>
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Images aria-hidden="true" className="size-4 shrink-0" />
-                {evento.totalItens} {evento.totalItens === 1 ? "foto" : "fotos"} · {evento.vendidos}{" "}
-                {evento.vendidos === 1 ? "vendida" : "vendidas"} · {evento.categoria.nome}
-              </p>
+            </Link>
+            <div className="flex flex-1 flex-col gap-3 p-4">
+              <div className="flex flex-col gap-1.5">
+                <Link href={abrir} className="text-lg leading-tight font-semibold hover:underline">
+                  {evento.titulo}
+                </Link>
+                {evento.colaboracao && (
+                  <p className="flex w-fit items-center gap-1.5 rounded-md bg-highlight px-2 py-1 text-xs font-semibold text-highlight-foreground">
+                    <Users aria-hidden="true" className="size-3.5 shrink-0" />
+                    Colaboração · evento de {evento.colaboracao.donoNome}
+                  </p>
+                )}
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                  <span className="truncate">
+                    {evento.local ? `${evento.local} · ` : ""}
+                    {evento.cidade}, {evento.estado}
+                  </span>
+                </p>
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar aria-hidden="true" className="size-4 shrink-0" />
+                  {formatarPeriodo(evento.inicioEm, evento.fimEm)}
+                </p>
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Images aria-hidden="true" className="size-4 shrink-0" />
+                  {/* No evento colaborado, os números são só das fotos que ele enviou. */}
+                  {evento.totalItens}{" "}
+                  {evento.colaboracao
+                    ? evento.totalItens === 1
+                      ? "foto sua"
+                      : "fotos suas"
+                    : evento.totalItens === 1
+                      ? "foto"
+                      : "fotos"}{" "}
+                  · {evento.vendidos} {evento.vendidos === 1 ? "vendida" : "vendidas"} ·{" "}
+                  {evento.categoria.nome}
+                </p>
+              </div>
+              <div className="mt-auto flex flex-wrap gap-2">
+                <Link
+                  href={`/painel/eventos/${evento.id}/desempenho`}
+                  aria-label={`Desempenho de ${evento.titulo}`}
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "touch",
+                    className: "flex-1",
+                  })}
+                >
+                  <ChartColumn aria-hidden="true" data-icon="inline-start" />
+                  Desempenho
+                </Link>
+                <Link
+                  href={abrir}
+                  className={buttonVariants({ size: "touch", className: "min-w-[8.5rem] flex-1" })}
+                >
+                  {evento.colaboracao && <Upload aria-hidden="true" data-icon="inline-start" />}
+                  {rotuloAbrir}
+                </Link>
+              </div>
             </div>
-            <div className="mt-auto flex flex-wrap gap-2">
-              <Link
-                href={`/painel/eventos/${evento.id}/desempenho`}
-                aria-label={`Desempenho de ${evento.titulo}`}
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "touch",
-                  className: "flex-1",
-                })}
-              >
-                <ChartColumn aria-hidden="true" data-icon="inline-start" />
-                Desempenho
-              </Link>
-              <Link
-                href={`/painel/eventos/${evento.id}`}
-                className={buttonVariants({ size: "touch", className: "min-w-[8.5rem] flex-1" })}
-              >
-                Gerenciar
-              </Link>
-            </div>
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

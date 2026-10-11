@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
@@ -13,7 +13,7 @@ import { ehModeloMarca, MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marc
 
 import type { EscolhaLiberacao } from "@/lib/liberacao";
 
-import { capasParaODono } from "./capa";
+import { capasDosEventos, capasParaODono } from "./capa";
 import imagens from "./exemplo/imagens.json";
 import { liberacaoParaEnvio } from "./liberacao";
 import { deIso, iso, paraEvento, paraFoto, paraLancamento, paraSaque } from "./mapas";
@@ -38,10 +38,18 @@ export type EventoDoPainel = Evento & {
   capaMiniatura: { urlMiniatura: string; largura: number; altura: number } | null;
 };
 
-async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<EventoDoPainel[]> {
+/**
+ * Com `colaborador`, as contagens são só das fotos que ele enviou e a capa é a pública (só item
+ * já liberado): o colaborador não vê os números nem as fotos ainda fechadas do dono.
+ */
+async function paraPainel(
+  linhas: (typeof t.eventos.$inferSelect)[],
+  colaborador?: { fotografoId: string; instante: number },
+): Promise<EventoDoPainel[]> {
   if (linhas.length === 0) return [];
   const banco = await obterBanco();
   const ids = linhas.map((l) => l.id);
+  const doAutor = colaborador ? eq(t.fotos.enviadaPor, colaborador.fotografoId) : undefined;
   const [cats, contagens, vendidos, capas] = await Promise.all([
     banco.select().from(t.categorias),
     banco
@@ -51,7 +59,7 @@ async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<Ev
         processando: sql<number>`count(*) filter (where ${t.fotos.status} = 'processando')::int`,
       })
       .from(t.fotos)
-      .where(and(inArray(t.fotos.eventoId, ids), isNull(t.fotos.excluidaEm)))
+      .where(and(inArray(t.fotos.eventoId, ids), isNull(t.fotos.excluidaEm), doAutor))
       .groupBy(t.fotos.eventoId),
     // Itens não excluídos que aparecem em algum pedido pago.
     banco
@@ -67,10 +75,11 @@ async function paraPainel(linhas: (typeof t.eventos.$inferSelect)[]): Promise<Ev
           inArray(t.fotos.eventoId, ids),
           eq(t.pedidos.status, "pago"),
           isNull(t.fotos.excluidaEm),
+          doAutor,
         ),
       )
       .groupBy(t.fotos.eventoId),
-    capasParaODono(ids),
+    colaborador ? capasDosEventos(ids, colaborador.instante) : capasParaODono(ids),
   ]);
   return linhas.map((l) => {
     const categoria = cats.find((c) => c.id === l.categoriaId);
@@ -105,6 +114,52 @@ export async function listarEventosDoFotografo(fotografoId: string): Promise<Eve
     .where(eq(t.eventos.fotografoId, fotografoId))
     .orderBy(desc(t.eventos.inicioEm));
   return paraPainel(linhas);
+}
+
+/** Evento da lista "Meus eventos": do próprio fotógrafo ou em que ele colabora. */
+export type EventoDeMeusEventos = EventoDoPainel & {
+  /** Preenchido quando o evento é de outro fotógrafo e este colabora (convite aceito). */
+  colaboracao: { donoNome: string } | null;
+};
+
+/**
+ * "Meus eventos": os eventos de que o fotógrafo é dono e aqueles em que é colaborador com o
+ * convite aceito (pendente, recusado ou removido não entram), do mais recente para o mais
+ * antigo, sem repetir. Nos colaborados, as contagens são só das fotos dele e a capa é a pública.
+ */
+export async function listarMeusEventos(
+  fotografoId: string,
+  instante: number,
+): Promise<EventoDeMeusEventos[]> {
+  const banco = await obterBanco();
+  const [proprios, colaborados] = await Promise.all([
+    banco.select().from(t.eventos).where(eq(t.eventos.fotografoId, fotografoId)),
+    banco
+      .select({ evento: t.eventos, donoNome: t.fotografos.nomePublico })
+      .from(t.colaboradores)
+      .innerJoin(t.eventos, eq(t.eventos.id, t.colaboradores.eventoId))
+      .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))
+      .where(
+        and(
+          eq(t.colaboradores.fotografoId, fotografoId),
+          isNotNull(t.colaboradores.aceitoEm),
+          // O dono nunca aparece duas vezes, mesmo com um registro de colaborador no próprio evento.
+          ne(t.eventos.fotografoId, fotografoId),
+        ),
+      ),
+  ]);
+  const donos = new Map(colaborados.map((c) => [c.evento.id, c.donoNome]));
+  const [doDono, deColaboracao] = await Promise.all([
+    paraPainel(proprios),
+    paraPainel(
+      colaborados.map((c) => c.evento),
+      { fotografoId, instante },
+    ),
+  ]);
+  return [
+    ...doDono.map((e) => ({ ...e, colaboracao: null })),
+    ...deColaboracao.map((e) => ({ ...e, colaboracao: { donoNome: donos.get(e.id) ?? "" } })),
+  ].sort((a, b) => b.inicioEm.localeCompare(a.inicioEm));
 }
 
 /** Evento do fotógrafo, ou `null` se não existir ou for de outra pessoa. */
