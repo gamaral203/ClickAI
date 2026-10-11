@@ -37,8 +37,10 @@ import { gerarHashSenha } from "@/lib/senha";
 
 import {
   conferirCodigoDeLogin,
+  ESPERA_REENVIO_CODIGO_LOGIN_MS,
   hashDoCodigoDeLogin,
   MAXIMO_REENVIOS_CODIGO_LOGIN,
+  reenviarCodigoDeLogin,
   VALIDADE_CODIGO_LOGIN_MS,
   verificacaoPorEmailAtiva,
 } from "./codigo-login";
@@ -183,10 +185,11 @@ describe("código por e-mail no login do gestor", () => {
     expect(await concluirLoginComCodigo(codigo)).toEqual({ ok: false, motivo: "codigo_bloqueado" });
     expect(await sessaoAtual()).toBeNull();
 
-    // Um código novo (depois da espera de 60 segundos) volta a valer.
+    // Sem tentativas, o reenvio traz um código novo, que volta a valer.
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + 61_000);
-    expect(await reenviarCodigoDoLoginPendente()).toEqual({ ok: true });
+    vi.setSystemTime(Date.now() + ESPERA_REENVIO_CODIGO_LOGIN_MS + 1000);
+    expect(await reenviarCodigoDoLoginPendente()).toMatchObject({ ok: true, mesmo: false });
+    expect(ultimoCodigo()).not.toBe(codigo);
     expect(await concluirLoginComCodigo(ultimoCodigo())).toMatchObject({ ok: true });
     expect((await sessaoAtual())?.usuario.email).toBe(email);
   });
@@ -209,7 +212,7 @@ describe("código por e-mail no login do gestor", () => {
     expect(await sessaoAtual()).toBeNull();
   });
 
-  it("o reenvio espera 60 segundos, troca o código e para no terceiro", async () => {
+  it("o reenvio espera 30 segundos, manda o mesmo código e para no terceiro", async () => {
     const { email } = await novaConta("admin");
     await entrar(email, SENHA);
     const primeiro = ultimoCodigo();
@@ -218,25 +221,19 @@ describe("código por e-mail no login do gestor", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     let agora = Date.now();
     for (let i = 0; i < MAXIMO_REENVIOS_CODIGO_LOGIN; i++) {
-      agora += 61_000;
+      agora += ESPERA_REENVIO_CODIGO_LOGIN_MS + 1000;
       vi.setSystemTime(agora);
-      expect(await reenviarCodigoDoLoginPendente()).toEqual({ ok: true });
+      expect(await reenviarCodigoDoLoginPendente()).toMatchObject({ ok: true, mesmo: true });
     }
     expect(codigos()).toHaveLength(1 + MAXIMO_REENVIOS_CODIGO_LOGIN);
-    agora += 61_000;
+    agora += ESPERA_REENVIO_CODIGO_LOGIN_MS + 1000;
     vi.setSystemTime(agora);
     expect(await reenviarCodigoDoLoginPendente()).toEqual({ ok: false, motivo: "reenvios" });
     expect(codigos()).toHaveLength(1 + MAXIMO_REENVIOS_CODIGO_LOGIN);
 
-    // O primeiro código deixou de valer; o último entra.
-    const ultimo = ultimoCodigo();
-    if (primeiro !== ultimo) {
-      expect(await concluirLoginComCodigo(primeiro)).toMatchObject({
-        ok: false,
-        motivo: "invalido_email",
-      });
-    }
-    expect(await concluirLoginComCodigo(ultimo)).toMatchObject({ ok: true });
+    // Um código por vez: todos os e-mails trouxeram o mesmo, e ele entra.
+    expect(new Set(codigos())).toEqual(new Set([primeiro]));
+    expect(await concluirLoginComCodigo(primeiro)).toMatchObject({ ok: true });
   });
 
   it("gestor com o app ligado entra com o código do app ou com o do e-mail", async () => {
@@ -319,5 +316,117 @@ describe("produção sem o Resend", () => {
     vi.stubEnv("RESEND_API_KEY", "re_teste");
     vi.stubEnv("EMAIL_REMETENTE", "ClicouAí <nao-responda@teste.com>");
     expect(verificacaoPorEmailAtiva()).toBe(true);
+  });
+});
+
+describe("um código por vez no login do gestor", () => {
+  it("um login novo manda o mesmo código; dois logins seguidos mandam um e-mail só", async () => {
+    const { email } = await novaConta("admin");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    let agora = Date.now();
+    em("a");
+    await entrar(email, SENHA);
+    const codigo = ultimoCodigo();
+    // Outro login logo depois (outra aba): nenhum e-mail novo, o mesmo código serve.
+    em("b");
+    expect(await entrar(email, SENHA)).toMatchObject({
+      envioCodigo: { ok: true, mesmo: true, enviou: false },
+    });
+    expect(codigos()).toHaveLength(1);
+    // Mais tarde, outro login: o e-mail sai de novo, com o mesmo código.
+    agora += ESPERA_REENVIO_CODIGO_LOGIN_MS + 1000;
+    vi.setSystemTime(agora);
+    em("c");
+    expect(await entrar(email, SENHA)).toMatchObject({
+      envioCodigo: { ok: true, mesmo: true, enviou: true },
+    });
+    expect(codigos()).toEqual([codigo, codigo]);
+    // Só o login mais novo aceita o código.
+    em("a");
+    expect(await concluirLoginComCodigo(codigo)).toMatchObject({ ok: false });
+    em("c");
+    expect(await concluirLoginComCodigo(codigo)).toMatchObject({ ok: true });
+  });
+
+  it("depois de usado, o próximo login gera outro código", async () => {
+    const { email } = await novaConta("admin");
+    await entrar(email, SENHA);
+    const primeiro = ultimoCodigo();
+    expect(await concluirLoginComCodigo(primeiro)).toMatchObject({ ok: true });
+    em("b");
+    expect(await entrar(email, SENHA)).toMatchObject({ envioCodigo: { ok: true, mesmo: false } });
+    expect(codigos()).toHaveLength(2);
+  });
+
+  it("depois de vencido, o reenvio gera outro código", async () => {
+    const { email } = await novaConta("admin");
+    await entrar(email, SENHA);
+    const primeiro = ultimoCodigo();
+    const { usuario, loginId } = (await loginPendente())!;
+    const depois = Date.now() + VALIDADE_CODIGO_LOGIN_MS + 1000;
+    expect(await reenviarCodigoDeLogin(usuario, loginId!, depois)).toMatchObject({
+      ok: true,
+      mesmo: false,
+    });
+    const novo = ultimoCodigo();
+    expect(novo).not.toBe(primeiro);
+    expect(await conferirCodigoDeLogin(usuario.id, loginId!, novo, depois)).toEqual({ ok: true });
+  });
+
+  it("entrar de novo não zera as tentativas do mesmo código", async () => {
+    const { email } = await novaConta("admin");
+    await entrar(email, SENHA);
+    const codigo = ultimoCodigo();
+    for (let i = 0; i < 4; i++) await concluirLoginComCodigo(errado(codigo));
+    em("b");
+    await entrar(email, SENHA);
+    expect(codigos()).toHaveLength(1);
+    expect(await concluirLoginComCodigo(errado(codigo))).toEqual({
+      ok: false,
+      motivo: "codigo_bloqueado",
+    });
+    // Esgotado: o próximo login traz um código novo.
+    em("c");
+    expect(await entrar(email, SENHA)).toMatchObject({ envioCodigo: { ok: true, mesmo: false } });
+    expect(await concluirLoginComCodigo(ultimoCodigo())).toMatchObject({ ok: true });
+  });
+
+  it("dois reenvios ao mesmo tempo mandam um e-mail só", async () => {
+    const { email } = await novaConta("admin");
+    await entrar(email, SENHA);
+    const { usuario, loginId } = (await loginPendente())!;
+    const depois = Date.now() + ESPERA_REENVIO_CODIGO_LOGIN_MS + 1000;
+    const resultados = await Promise.all([
+      reenviarCodigoDeLogin(usuario, loginId!, depois),
+      reenviarCodigoDeLogin(usuario, loginId!, depois),
+    ]);
+    expect(resultados.filter((r) => r.ok)).toHaveLength(1);
+    expect(codigos()).toHaveLength(2);
+    expect(new Set(codigos()).size).toBe(1);
+  });
+
+  it("na produção com o Resend, o código não aparece em log", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "re_teste");
+    vi.stubEnv("EMAIL_REMETENTE", "ClicouAí <nao-responda@clicouai.com>");
+    const corpos: { subject: string; text: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        corpos.push(JSON.parse(String(init.body)));
+        return new Response("{}", { status: 200 });
+      }),
+    );
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { email } = await novaConta("admin");
+    await entrar(email, SENHA);
+    const codigo = /\b(\d{6})\b/.exec(corpos[0]!.text)?.[1];
+    expect(codigo).toMatch(/^\d{6}$/);
+    expect(corpos[0]!.subject).toContain("Seu código ClicouAí");
+    expect(corpos[0]!.subject).not.toContain(codigo!);
+    const tudo = JSON.stringify([...log.mock.calls, ...erro.mock.calls, ...aviso.mock.calls]);
+    expect(tudo).not.toContain(codigo!);
+    vi.unstubAllGlobals();
   });
 });

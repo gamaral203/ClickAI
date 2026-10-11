@@ -7,6 +7,8 @@ import { FormularioCodigoEmail } from "@/components/conta/formulario-codigo-emai
 import { buttonVariants } from "@/components/ui/button";
 import { emProducao } from "@/db/conexao";
 import { emailConfigurado } from "@/lib/email";
+import { formatarHora } from "@/lib/formatar";
+import { mascararEmail } from "@/lib/mascarar-email";
 import { confirmacaoPendente } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -69,8 +71,13 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/cadastro/codigo">, "s
         <h1 className="text-2xl font-bold tracking-tight">Confirme seu e-mail</h1>
         <p className="text-muted-foreground">
           Enviamos um código de 6 números para{" "}
-          <strong className="break-words text-foreground">{pendente.email}</strong>. Digite abaixo
-          para liberar sua conta.
+          <strong className="break-words text-foreground">{mascararEmail(pendente.email)}</strong>
+          {pendente.enviadoEm > 0 && ` às ${formatarHora(pendente.enviadoEm)}`}. Digite abaixo para
+          liberar sua conta.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          O código vale até <strong>{formatarHora(pendente.expiraEm)}</strong>. Se chegou mais de um
+          e-mail, use o mais recente: enquanto vale, o código é sempre o mesmo.
         </p>
       </div>
       {aviso && (

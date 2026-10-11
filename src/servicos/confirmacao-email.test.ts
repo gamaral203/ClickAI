@@ -143,15 +143,16 @@ describe("cadastro com senha e código por e-mail", () => {
     expect(await confirmarEmailComCodigo(certo)).toEqual({ ok: false, motivo: "bloqueado" });
     expect(await buscarUsuarioParaLogin(email)).toBeNull();
 
-    // Depois da espera de 60 s, um código novo zera as tentativas.
+    // Sem tentativas, o código não é reenviado: vem um código novo, com as tentativas zeradas.
     const depois = Date.now() + ESPERA_REENVIO_MS + 1000;
-    expect(await reenviarCodigo(email, depois)).toEqual({ ok: true });
+    expect(await reenviarCodigo(email, depois)).toMatchObject({ ok: true, mesmo: false });
     const novo = ultimoCodigo();
+    expect(novo).not.toBe(certo);
     expect(await conferirCodigo(email, certo)).toMatchObject({ ok: false });
     expect(await confirmarEmailComCodigo(novo)).toMatchObject({ ok: true, novo: true });
   });
 
-  it("código vencido (15 minutos) não vale", async () => {
+  it("código vencido (2 horas) não vale", async () => {
     const email = emailNovo();
     await cadastrar(dadosCadastro(email));
     const codigo = ultimoCodigo();
@@ -162,7 +163,7 @@ describe("cadastro com senha e código por e-mail", () => {
     expect(await buscarUsuarioParaLogin(email)).toBeNull();
   });
 
-  it("reenvio espera 60 segundos e tem limite por e-mail", async () => {
+  it("reenvio manda o mesmo código, espera 30 segundos e tem limite por e-mail", async () => {
     const email = emailNovo();
     await cadastrar(dadosCadastro(email));
     const primeiro = ultimoCodigo();
@@ -170,15 +171,16 @@ describe("cadastro com senha e código por e-mail", () => {
     const espera = await reenviarCodigo(email, agora + 10_000);
     expect(espera).toMatchObject({ ok: false, motivo: "espera" });
     expect(espera.ok === false && espera.motivo === "espera" && espera.segundos).toBeGreaterThan(
-      40,
+      15,
     );
     // Dentro da espera, o código anterior continua valendo e nada novo foi enviado.
     expect(codigos()).toHaveLength(1);
 
     // 5 envios por hora para o mesmo e-mail (o cadastro foi o primeiro).
     for (let i = 1; i <= 4; i++) {
-      expect(await reenviarCodigo(email, agora + i * (ESPERA_REENVIO_MS + 1000))).toEqual({
+      expect(await reenviarCodigo(email, agora + i * (ESPERA_REENVIO_MS + 1000))).toMatchObject({
         ok: true,
+        mesmo: true,
       });
     }
     expect(await reenviarCodigo(email, agora + 5 * (ESPERA_REENVIO_MS + 1000))).toEqual({
@@ -186,7 +188,8 @@ describe("cadastro com senha e código por e-mail", () => {
       motivo: "limite",
     });
     expect(codigos()).toHaveLength(5);
-    expect(codigos()).not.toContain(undefined);
+    // Um código por vez: todos os e-mails trouxeram o mesmo número.
+    expect(new Set(codigos())).toEqual(new Set([primeiro]));
     expect(primeiro).toBeDefined();
   });
 
@@ -373,5 +376,127 @@ describe("sem o Resend", () => {
       vi.stubEnv("VERCEL_ENV", valor);
       expect(podeEnviarCodigo()).toBe(true);
     }
+  });
+});
+
+describe("um código por vez", () => {
+  it("reenviar dentro da validade manda o MESMO código no e-mail, sem o código no assunto nem no log", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "re_teste");
+    vi.stubEnv("EMAIL_REMETENTE", "ClicouAí <nao-responda@clicouai.com>");
+    const corpos: { subject: string; text: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        corpos.push(JSON.parse(String(init.body)));
+        return new Response("{}", { status: 200 });
+      }),
+    );
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const email = emailNovo();
+    const agora = Date.now();
+    expect(await iniciarCadastro(dadosCadastro(email, "fotografo"), agora)).toEqual({ ok: true });
+    expect(await reenviarCodigo(email, agora + ESPERA_REENVIO_MS + 1000)).toMatchObject({
+      ok: true,
+      mesmo: true,
+    });
+    expect(await reenviarCodigo(email, agora + 2 * (ESPERA_REENVIO_MS + 1000))).toMatchObject({
+      ok: true,
+      mesmo: true,
+    });
+    expect(corpos).toHaveLength(3);
+    const lidos = corpos.map((c) => /\b(\d{6})\b/.exec(c.text)?.[1]);
+    expect(lidos[0]).toMatch(/^\d{6}$/);
+    expect(new Set(lidos)).toEqual(new Set([lidos[0]]));
+    for (const corpo of corpos) {
+      expect(corpo.subject).toContain("Seu código ClicouAí");
+      expect(corpo.subject).not.toContain(lidos[0]!);
+    }
+    // O mesmo código continua confirmando a conta.
+    expect(await conferirCodigo(email, lidos[0]!, agora + 3 * ESPERA_REENVIO_MS)).toMatchObject({
+      ok: true,
+      novo: true,
+    });
+    // Nada do código em log, nem cifrado legível no banco.
+    const tudo = JSON.stringify([...log.mock.calls, ...erro.mock.calls, ...aviso.mock.calls]);
+    expect(tudo).not.toContain(lidos[0]!);
+    vi.unstubAllGlobals();
+  });
+
+  it("o banco guarda o código só cifrado, e o reenvio não zera as tentativas", async () => {
+    const email = emailNovo();
+    const agora = Date.now();
+    await iniciarCadastro(dadosCadastro(email), agora);
+    const codigo = ultimoCodigo();
+    const linha = await buscarCodigoEmail(email);
+    expect(linha?.codigoCifrado).toMatch(/^v1\./);
+    expect(linha?.codigoCifrado).not.toContain(codigo);
+    for (let i = 0; i < 3; i++) await conferirCodigo(email, errado(codigo), agora);
+    expect(await reenviarCodigo(email, agora + ESPERA_REENVIO_MS + 1000)).toMatchObject({
+      ok: true,
+      mesmo: true,
+    });
+    expect(ultimoCodigo()).toBe(codigo);
+    // Restavam 2 tentativas antes do reenvio; continuam 2 (o reenvio não dá chutes novos).
+    expect(await conferirCodigo(email, errado(codigo), agora)).toEqual({
+      ok: false,
+      motivo: "invalido",
+      restantes: 1,
+    });
+    expect(await conferirCodigo(email, errado(codigo), agora)).toEqual({
+      ok: false,
+      motivo: "bloqueado",
+    });
+    // Esgotado: o cifrado sai, e o próximo envio traz um código novo.
+    expect((await buscarCodigoEmail(email))?.codigoCifrado).toBeNull();
+    expect(await reenviarCodigo(email, agora + 2 * (ESPERA_REENVIO_MS + 1000))).toMatchObject({
+      ok: true,
+      mesmo: false,
+    });
+    expect(ultimoCodigo()).not.toBe(codigo);
+  });
+
+  it("depois de vencido, gera outro código", async () => {
+    const email = emailNovo();
+    const agora = Date.now();
+    await iniciarCadastro(dadosCadastro(email), agora);
+    const primeiro = ultimoCodigo();
+    const depois = agora + VALIDADE_CODIGO_MS + 1000;
+    expect(await reenviarCodigo(email, depois)).toMatchObject({ ok: true, mesmo: false });
+    const novo = ultimoCodigo();
+    expect(novo).not.toBe(primeiro);
+    expect(await conferirCodigo(email, primeiro, depois)).toMatchObject({ ok: false });
+    expect(await conferirCodigo(email, novo, depois)).toMatchObject({ ok: true });
+  });
+
+  it("chamada dupla (clique duplo, tela recarregada) não manda dois e-mails", async () => {
+    const email = emailNovo();
+    const agora = Date.now();
+    await iniciarCadastro(dadosCadastro(email), agora);
+    expect(codigos()).toHaveLength(1);
+    // Logo depois do cadastro: nada sai, a tela diz que já enviamos.
+    expect(await reenviarCodigo(email, agora + 5000)).toMatchObject({
+      ok: false,
+      motivo: "espera",
+    });
+    expect(codigos()).toHaveLength(1);
+    // Dois pedidos ao mesmo tempo, depois da espera: um e-mail só.
+    const depois = agora + ESPERA_REENVIO_MS + 1000;
+    const resultados = await Promise.all([
+      reenviarCodigo(email, depois),
+      reenviarCodigo(email, depois),
+    ]);
+    expect(resultados.filter((r) => r.ok)).toHaveLength(1);
+    expect(codigos()).toHaveLength(2);
+    expect(new Set(codigos()).size).toBe(1);
+  });
+
+  it("a tela mostra a hora do envio e a validade", async () => {
+    const email = emailNovo();
+    await cadastrar(dadosCadastro(email));
+    const pendente = await confirmacaoPendente();
+    expect(pendente?.enviadoEm).toBeGreaterThan(0);
+    expect(pendente!.expiraEm - pendente!.enviadoEm).toBe(VALIDADE_CODIGO_MS);
   });
 });

@@ -110,3 +110,14 @@ export function formatarBytes(bytes: number) {
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1).replace(".", ",")} MB`;
   return `${Math.ceil(bytes / 1024)} KB`;
 }
+
+const formatoHora = new Intl.DateTimeFormat("pt-BR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: FUSO,
+});
+
+/** Hora de Brasília, "HH:MM" (ex.: "14:05"), de um instante em milissegundos. */
+export function formatarHora(ms: number) {
+  return formatoHora.format(new Date(ms));
+}

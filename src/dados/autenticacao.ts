@@ -26,6 +26,10 @@ export type CodigoEmail = {
   /** Dados do cadastro com senha que ainda espera o código; `null` na conta antiga. */
   cadastro: CadastroPendente | null;
   codigoHash: string;
+  /** O código cifrado (src/lib/codigo-cifrado.ts), para reenviar o mesmo; `null` se não há. */
+  codigoCifrado: string | null;
+  /** Quando o código foi gerado (teto da validade); `null` nas linhas antigas. */
+  codigoGeradoEm: number | null;
   codigoExpiraEm: number;
   tentativas: number;
   enviadoEm: number;
@@ -41,6 +45,8 @@ function paraCodigoEmail(r: typeof t.codigosEmail.$inferSelect): CodigoEmail {
         ? { nome: r.nome, senhaHash: r.senhaHash, papel: r.papel }
         : null,
     codigoHash: r.codigoHash,
+    codigoCifrado: r.codigoCifrado,
+    codigoGeradoEm: r.codigoGeradoEm?.getTime() ?? null,
     codigoExpiraEm: r.codigoExpiraEm.getTime(),
     tentativas: r.tentativas,
     enviadoEm: r.enviadoEm.getTime(),
@@ -67,6 +73,7 @@ export async function gravarCodigoEmail(dados: {
   usuarioId: string | null;
   cadastro: CadastroPendente | null;
   codigoHash: string;
+  codigoCifrado: string;
   codigoExpiraEm: number;
   agora: number;
   esperaMs: number;
@@ -79,6 +86,8 @@ export async function gravarCodigoEmail(dados: {
     senhaHash: dados.cadastro?.senhaHash ?? null,
     papel: dados.cadastro?.papel ?? null,
     codigoHash: dados.codigoHash,
+    codigoCifrado: dados.codigoCifrado,
+    codigoGeradoEm: new Date(dados.agora),
     codigoExpiraEm: new Date(dados.codigoExpiraEm),
     tentativas: 0,
     enviadoEm: new Date(dados.agora),
@@ -97,6 +106,47 @@ export async function gravarCodigoEmail(dados: {
     })
     .returning({ email: t.codigosEmail.email });
   return gravados.length > 0;
+}
+
+/**
+ * Reenvio do MESMO código (um código por vez): renova a validade e a hora do envio e troca os
+ * dados do cadastro, sem mexer no código nem nas tentativas. Só se a linha ainda tiver este
+ * código, com tentativas sobrando, e o último envio foi há pelo menos `esperaMs`. Devolve se
+ * renovou: dois envios ao mesmo tempo renovam um só, e só quem renovou manda o e-mail.
+ */
+export async function renovarEnvioDoCodigoEmail(dados: {
+  email: string;
+  codigoHash: string;
+  usuarioId: string | null;
+  cadastro: CadastroPendente | null;
+  codigoExpiraEm: number;
+  agora: number;
+  esperaMs: number;
+  maximoTentativas: number;
+  renovar: boolean;
+}): Promise<boolean> {
+  const banco = await obterBanco();
+  const renovados = await banco
+    .update(t.codigosEmail)
+    .set({
+      usuarioId: dados.usuarioId,
+      nome: dados.cadastro?.nome ?? null,
+      senhaHash: dados.cadastro?.senhaHash ?? null,
+      papel: dados.cadastro?.papel ?? null,
+      codigoExpiraEm: new Date(dados.codigoExpiraEm),
+      enviadoEm: new Date(dados.agora),
+      ...(dados.renovar ? { criadoEm: new Date(dados.agora) } : {}),
+    })
+    .where(
+      and(
+        eq(t.codigosEmail.email, normalizarEmail(dados.email)),
+        eq(t.codigosEmail.codigoHash, dados.codigoHash),
+        lt(t.codigosEmail.tentativas, dados.maximoTentativas),
+        lte(t.codigosEmail.enviadoEm, new Date(dados.agora - dados.esperaMs)),
+      ),
+    )
+    .returning({ email: t.codigosEmail.email });
+  return renovados.length > 0;
 }
 
 /**
@@ -132,7 +182,11 @@ export async function contarTentativaDoCodigo(
   const banco = await obterBanco();
   const [linha] = await banco
     .update(t.codigosEmail)
-    .set({ tentativas: sql`${t.codigosEmail.tentativas} + 1` })
+    .set({
+      tentativas: sql`${t.codigosEmail.tentativas} + 1`,
+      // Esgotou as tentativas: este código não será reenviado, então o cifrado sai.
+      codigoCifrado: sql`case when ${t.codigosEmail.tentativas} + 1 >= ${maximo} then null else ${t.codigosEmail.codigoCifrado} end`,
+    })
     .where(
       and(eq(t.codigosEmail.email, normalizarEmail(email)), lt(t.codigosEmail.tentativas, maximo)),
     )
@@ -169,6 +223,22 @@ export async function apagarCodigosEmailAntigos(limite: number) {
   await banco.delete(t.codigosEmail).where(lt(t.codigosEmail.criadoEm, new Date(limite)));
 }
 
+/**
+ * O código cifrado só fica enquanto o código vale: apaga o dos códigos vencidos (confirmação do
+ * e-mail e acesso do gestor). Roda no job de pedidos; quem lê já ignora o código vencido.
+ */
+export async function apagarCodigosCifradosVencidos(agora: number) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.codigosEmail)
+    .set({ codigoCifrado: null })
+    .where(lte(t.codigosEmail.codigoExpiraEm, new Date(agora)));
+  await banco
+    .update(t.codigosDeLogin)
+    .set({ codigoCifrado: null })
+    .where(lte(t.codigosDeLogin.expiraEm, new Date(agora)));
+}
+
 // ---------------------------------------------------------------- Código de acesso do gestor
 
 export type CodigoDeLogin = {
@@ -176,6 +246,10 @@ export type CodigoDeLogin = {
   /** Login pendente que pediu o código (o mesmo id vai no cookie da segunda etapa). */
   loginId: string;
   codigoHash: string;
+  /** O código cifrado (src/lib/codigo-cifrado.ts), para reenviar o mesmo; `null` se não há. */
+  codigoCifrado: string | null;
+  /** Quando o código foi gerado (teto da validade); `null` nas linhas antigas. */
+  codigoGeradoEm: number | null;
   expiraEm: number;
   tentativas: number;
   reenvios: number;
@@ -187,6 +261,8 @@ function paraCodigoDeLogin(r: typeof t.codigosDeLogin.$inferSelect): CodigoDeLog
     usuarioId: r.usuarioId,
     loginId: r.loginId,
     codigoHash: r.codigoHash,
+    codigoCifrado: r.codigoCifrado,
+    codigoGeradoEm: r.codigoGeradoEm?.getTime() ?? null,
     expiraEm: r.expiraEm.getTime(),
     tentativas: r.tentativas,
     reenvios: r.reenvios,
@@ -211,6 +287,7 @@ export async function gravarCodigoDeLogin(dados: {
   usuarioId: string;
   loginId: string;
   codigoHash: string;
+  codigoCifrado: string;
   expiraEm: number;
   agora: number;
   reenvios: number;
@@ -219,6 +296,8 @@ export async function gravarCodigoDeLogin(dados: {
   const valores = {
     loginId: dados.loginId,
     codigoHash: dados.codigoHash,
+    codigoCifrado: dados.codigoCifrado,
+    codigoGeradoEm: new Date(dados.agora),
     expiraEm: new Date(dados.expiraEm),
     tentativas: 0,
     reenvios: dados.reenvios,
@@ -240,6 +319,7 @@ export async function trocarCodigoDeLogin(dados: {
   usuarioId: string;
   loginId: string;
   codigoHash: string;
+  codigoCifrado: string;
   expiraEm: number;
   agora: number;
   esperaMs: number;
@@ -250,6 +330,8 @@ export async function trocarCodigoDeLogin(dados: {
     .update(t.codigosDeLogin)
     .set({
       codigoHash: dados.codigoHash,
+      codigoCifrado: dados.codigoCifrado,
+      codigoGeradoEm: new Date(dados.agora),
       expiraEm: new Date(dados.expiraEm),
       tentativas: 0,
       reenvios: sql`${t.codigosDeLogin.reenvios} + 1`,
@@ -267,7 +349,55 @@ export async function trocarCodigoDeLogin(dados: {
   return trocados.length > 0;
 }
 
-/** O e-mail não saiu: libera o reenvio na hora, sem esperar os 60 segundos. */
+/**
+ * Manda o MESMO código de novo (um código por vez), sem mexer nas tentativas. Só se a linha ainda
+ * tiver o código `codigoHashAnterior` do login `loginIdAnterior`, com tentativas sobrando. Dois usos:
+ * - reenvio do mesmo login (`reenvio`): conta um reenvio e exige a espera e o máximo;
+ * - login novo do mesmo usuário: passa o código ao login novo (`loginId` e o hash ligado a ele)
+ *   e zera os reenvios.
+ * Com `enviar: false` (o último envio foi há pouco), não mexe na hora do envio. Devolve se
+ * renovou: só quem renovou segue (e manda o e-mail, se for o caso).
+ */
+export async function renovarCodigoDeLogin(dados: {
+  usuarioId: string;
+  loginIdAnterior: string;
+  codigoHashAnterior: string;
+  loginId: string;
+  codigoHash: string;
+  expiraEm: number;
+  agora: number;
+  maximoTentativas: number;
+  enviar: boolean;
+  reenvio?: { esperaMs: number; maximoReenvios: number };
+}): Promise<boolean> {
+  const banco = await obterBanco();
+  const condicoes = [
+    eq(t.codigosDeLogin.usuarioId, dados.usuarioId),
+    eq(t.codigosDeLogin.loginId, dados.loginIdAnterior),
+    eq(t.codigosDeLogin.codigoHash, dados.codigoHashAnterior),
+    lt(t.codigosDeLogin.tentativas, dados.maximoTentativas),
+  ];
+  if (dados.reenvio) {
+    condicoes.push(
+      lt(t.codigosDeLogin.reenvios, dados.reenvio.maximoReenvios),
+      lte(t.codigosDeLogin.enviadoEm, new Date(dados.agora - dados.reenvio.esperaMs)),
+    );
+  }
+  const renovados = await banco
+    .update(t.codigosDeLogin)
+    .set({
+      loginId: dados.loginId,
+      codigoHash: dados.codigoHash,
+      expiraEm: new Date(dados.expiraEm),
+      reenvios: dados.reenvio ? sql`${t.codigosDeLogin.reenvios} + 1` : 0,
+      ...(dados.enviar ? { enviadoEm: new Date(dados.agora) } : {}),
+    })
+    .where(and(...condicoes))
+    .returning({ usuarioId: t.codigosDeLogin.usuarioId });
+  return renovados.length > 0;
+}
+
+/** O e-mail não saiu: libera o reenvio na hora, sem esperar a espera entre envios. */
 export async function liberarReenvioDoCodigoDeLogin(usuarioId: string, loginId: string) {
   const banco = await obterBanco();
   await banco
@@ -289,7 +419,10 @@ export async function contarTentativaDoCodigoDeLogin(
   const banco = await obterBanco();
   const [linha] = await banco
     .update(t.codigosDeLogin)
-    .set({ tentativas: sql`${t.codigosDeLogin.tentativas} + 1` })
+    .set({
+      tentativas: sql`${t.codigosDeLogin.tentativas} + 1`,
+      codigoCifrado: sql`case when ${t.codigosDeLogin.tentativas} + 1 >= ${maximo} then null else ${t.codigosDeLogin.codigoCifrado} end`,
+    })
     .where(
       and(
         eq(t.codigosDeLogin.usuarioId, usuarioId),
