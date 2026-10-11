@@ -443,19 +443,22 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                 <CapaDoEvento
                   eventoId={evento.id}
                   escolhidaId={capaFotoId}
+                  capaEnviada={Boolean(evento.capa)}
                   atual={
                     capaAtual && {
                       urlMiniatura: capaAtual.urlMiniatura,
-                      escolhida: capaAtual.escolhida,
+                      origem: capaAtual.enviada
+                        ? "enviada"
+                        : capaAtual.escolhida
+                          ? "escolhida"
+                          : "automatica",
                     }
                   }
-                  fotos={itens
-                    .filter(podeSerCapa)
-                    .map((i) => ({
-                      id: i.id,
-                      urlMiniatura: i.urlMiniatura,
-                      nomeArquivo: i.nomeArquivo,
-                    }))}
+                  fotos={itens.filter(podeSerCapa).map((i) => ({
+                    id: i.id,
+                    urlMiniatura: i.urlMiniatura,
+                    nomeArquivo: i.nomeArquivo,
+                  }))}
                 />
                 <FormularioEvento
                   eventoId={evento.id}
