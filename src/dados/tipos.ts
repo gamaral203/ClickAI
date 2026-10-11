@@ -70,7 +70,7 @@ export type FotografoConta = Fotografo & {
    * CPF/CNPJ mudar, para o saque nunca ir para uma chave antiga.
    */
   chavePix: string | null;
-  /** Última troca do CPF/CNPJ (ISO): saques bloqueados por 72 horas depois dela. */
+  /** Última troca do CPF/CNPJ (ISO): saques bloqueados por 24 horas depois dela. */
   documentoTrocadoEm?: string | null;
   /** Comissão da plataforma, descontada no saque. */
   comissaoPct: number;

@@ -20,7 +20,7 @@ export type EstadoPerfil = {
   ok?: boolean;
   /** CPF/CNPJ salvo, mas a chave Pix ainda não foi confirmada (sem ela não dá para publicar). */
   chavePendente?: boolean;
-  /** O CPF/CNPJ foi trocado agora: saques bloqueados por 72 horas (ISO). */
+  /** O CPF/CNPJ foi trocado agora: saques bloqueados por 24 horas (ISO). */
   saquesLiberadosEm?: string;
   /** Conta só com o Google: precisa entrar de novo com ele para trocar o CPF/CNPJ. */
   reentrarComGoogle?: boolean;
@@ -113,7 +113,7 @@ export async function salvarPerfilAcao(
   let saquesLiberadosEm: string | undefined;
   if (documentoMudou && sessao) {
     // A chave Pix confirmada era o documento antigo e volta a exigir confirmação; os saques
-    // ficam bloqueados por 72 horas, sai o aviso por e-mail e as outras sessões caem.
+    // ficam bloqueados por 24 horas, sai o aviso por e-mail e as outras sessões caem.
     const agora = Date.now();
     await trocarDocumento(sessao, novoDocumento, agora);
     saquesLiberadosEm = new Date(agora + BLOQUEIO_SAQUE_APOS_TROCA_MS).toISOString();

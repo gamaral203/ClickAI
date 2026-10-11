@@ -1526,7 +1526,7 @@ export type AlteracoesPerfil = Partial<
 
 /**
  * Troca o CPF/CNPJ da conta deste usuário: a chave Pix confirmada era o documento antigo e volta
- * a exigir confirmação, e a hora da troca fica gravada para segurar os saques por 72 horas.
+ * a exigir confirmação, e a hora da troca fica gravada para segurar os saques por 24 horas.
  */
 export async function trocarDocumentoDoFotografo(
   usuarioId: string,

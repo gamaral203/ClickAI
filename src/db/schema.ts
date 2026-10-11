@@ -235,7 +235,7 @@ export const fotografos = pgTable(
     /** O próprio CPF/CNPJ, só dígitos, depois de confirmado. */
     chavePix: text(),
     /**
-     * Última troca do CPF/CNPJ (que define a chave Pix). Saques ficam bloqueados por 72 horas
+     * Última troca do CPF/CNPJ (que define a chave Pix). Saques ficam bloqueados por 24 horas
      * depois dela (src/servicos/saques.ts), contra quem invade a conta e troca o documento.
      */
     documentoTrocadoEm: data(),
