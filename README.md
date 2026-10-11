@@ -12,7 +12,7 @@ O que já funciona:
 
 - Página inicial com carrossel (fotos horizontais no computador, verticais no celular) e os eventos recentes com busca; lista de eventos com busca por nome, cidade ou fotógrafo (sem diferenciar acentos) e filtro por data
 - Busca por selfie e por número de peito na página do evento (Amazon Rekognition com as credenciais `REKOGNITION_*`; rostos de exemplo sem elas)
-- Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação, com senha ou só após a busca)
+- Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação ou com senha)
 - Página da foto com a prévia grande, preço e navegação para a foto anterior e a próxima
 - Prévias e miniaturas com a marca d'água gravada nos pixels, rotação do EXIF corrigida e metadados (GPS, câmera) removidos
 - Carrinho e checkout com Mercado Pago (Pix e cartão dentro do site, webhook e conferência na API) ou pagamento simulado sem credenciais; download do original só para pedido pago
@@ -60,7 +60,7 @@ As imagens de exemplo já estão no repositório; só é preciso rodar `exemplos
 
 ## Dados de exemplo
 
-Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 5 categorias, 10 eventos e 780 fotos, além de pastas, colaborador, números de peito, cupons, faixas de desconto, pacotes e uma loja. Cada evento exercita uma regra: não listado, com senha (senha de exemplo `formatura2026`), fotos só após a busca, liberação agendada no passado e no futuro, liberação manual e rascunho. Há também uma foto excluída, uma em processamento e uma com preço individual. As telas nunca importam esses arquivos direto: tudo passa por [`src/dados/index.ts`](src/dados/index.ts), que tem as mesmas assinaturas que a implementação com o banco terá e concentra as regras de quem vê o quê.
+Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 5 categorias, 10 eventos e 780 fotos, além de pastas, colaborador, números de peito, cupons, faixas de desconto, pacotes e uma loja. Cada evento exercita uma regra: não listado, com senha (senha de exemplo `formatura2026`), liberação agendada no passado e no futuro, liberação manual e rascunho. Há também uma foto excluída, uma em processamento e uma com preço individual. As telas nunca importam esses arquivos direto: tudo passa por [`src/dados/index.ts`](src/dados/index.ts), que tem as mesmas assinaturas que a implementação com o banco terá e concentra as regras de quem vê o quê.
 
 ## Stack
 

@@ -489,7 +489,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     precoVideo: centavosParaCampo(evento.precoVideoCentavos),
                     visibilidade: evento.visibilidade,
                     temSenha: evento.temSenha,
-                    fotosSoAposBusca: evento.fotosSoAposBusca,
                     liberacao: evento.liberacao,
                     liberadoEm: evento.liberadoEm ? isoParaCampo(evento.liberadoEm) : "",
                     filtroHorario: evento.filtroHorario,

@@ -268,7 +268,6 @@ export function configDoEvento(evento: Evento): ConfigModelo {
     precoVideoCentavos: evento.precoVideoCentavos,
     // Senha não vai para o modelo: o evento novo nasce público e cada um define a sua.
     visibilidade: evento.visibilidade === "senha" ? "publico" : evento.visibilidade,
-    fotosSoAposBusca: evento.fotosSoAposBusca,
     // Liberação agendada depende da data de cada evento; o modelo usa a automática.
     liberacao: evento.liberacao === "agendada" ? "automatica" : evento.liberacao,
     filtroHorario: evento.filtroHorario,

@@ -58,7 +58,6 @@ const BASE_EVENTO = {
   precoVideoCentavos: 3000,
   visibilidade: "publico",
   listado: true,
-  fotosSoAposBusca: false,
   liberacao: "automatica",
   liberadoEm: null,
   filtroHorario: false,

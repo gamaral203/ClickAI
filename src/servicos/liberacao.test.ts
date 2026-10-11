@@ -77,7 +77,6 @@ async function novoEvento(padrao: {
     precoVideoCentavos: 3000,
     visibilidade: "publico",
     listado: true,
-    fotosSoAposBusca: false,
     liberacao: padrao.liberacao,
     liberadoEm: padrao.liberadoEm ?? null,
     filtroHorario: false,

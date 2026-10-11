@@ -43,7 +43,7 @@ export const MEDIDAS_CAPA_ENVIADA = { largura: 1200, altura: 800 } as const;
 
 /**
  * Imagens enviadas pelo dono (`eventos.capa`), já como capa pronta para os cartões. Não é foto à
- * venda, então vale também com a galeria fechada (só após a busca, aguardando liberação); quem
+ * venda, então vale também com a galeria fechada (aguardando liberação); quem
  * chama só não passa o evento com senha.
  */
 export async function capasEnviadas(eventoIds: string[]): Promise<Map<string, CapaDoEvento>> {
@@ -74,7 +74,7 @@ export async function capasEnviadas(eventoIds: string[]): Promise<Map<string, Ca
  * fotos antes dos vídeos, depois o sorteio fixo. Evento sem item liberado fica fora do mapa
  * (o cartão mostra o aviso de sempre).
  *
- * Não confere status do evento, senha nem "só após a busca": quem chama já passa só os eventos
+ * Não confere status do evento nem senha: quem chama já passa só os eventos
  * publicados com a galeria aberta.
  */
 export async function capasDosEventos(

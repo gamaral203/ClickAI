@@ -33,7 +33,6 @@ export type ValoresEvento = {
   precoVideo: string;
   visibilidade: "publico" | "nao_listado" | "senha";
   temSenha: boolean;
-  fotosSoAposBusca: boolean;
   liberacao: "automatica" | "manual" | "agendada";
   liberadoEm: string;
   filtroHorario: boolean;
@@ -298,9 +297,6 @@ export function FormularioEvento({
                 />
               </Campo>
             )}
-            <Opcao nome="fotosSoAposBusca" marcado={inicial.fotosSoAposBusca}>
-              Mostrar as fotos só depois da busca por selfie ou número de peito
-            </Opcao>
           </Secao>
 
           <Secao titulo="Quando as fotos aparecem">
