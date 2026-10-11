@@ -262,4 +262,15 @@ describe("verificação em duas etapas", () => {
     expect(await desligarMfaComCodigo(usuario.id, codigoAtual(segredo))).toBe("ok");
     expect(await estadoMfa(usuario.id)).toMatchObject({ ativo: false, codigosRestantes: 0 });
   });
+
+  it("sem o celular: entra com um código de emergência e desliga com outro", async () => {
+    const { email, codigos, usuario } = await fotografoComMfa();
+    await entrar(email, SENHA);
+    expect(await concluirLoginComCodigo(codigos[3])).toMatchObject({ ok: true });
+    expect(await desligarMfaComCodigo(usuario.id, codigos[4])).toBe("ok");
+    expect(await estadoMfa(usuario.id)).toMatchObject({ ativo: false, codigosRestantes: 0 });
+    // Desligada, o login volta a abrir só com a senha.
+    em("b");
+    expect(await entrar(email, SENHA)).toMatchObject({ pedeCodigo: false });
+  });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import {
@@ -19,8 +19,9 @@ const inicial: EstadoCodigoLogin = {};
 /**
  * Segunda etapa do login (/entrar/codigo). Com o código por e-mail (gestor), o campo é numérico,
  * aceita o preenchimento automático do celular (`one-time-code`), envia sozinho aos 6 dígitos e
- * tem "Reenviar código" com espera de 60 segundos. Com o app autenticador ligado, o mesmo campo
- * aceita o código do app ou um código de recuperação.
+ * tem "Reenviar código" (que manda o mesmo código enquanto ele vale). Com o app autenticador
+ * ligado, o campo pede o código de 6 números do app; um link secundário troca para o código de
+ * emergência (recuperação), para ninguém confundir os dois.
  */
 export function FormularioCodigoLogin({
   porEmail,
@@ -35,14 +36,17 @@ export function FormularioCodigoLogin({
   const formulario = useRef<HTMLFormElement>(null);
   // Só o código do e-mail: o campo aceita só os 6 números. Com o app, também o de recuperação.
   const soNumeros = Boolean(porEmail) && !totp;
+  // Só o app: o campo pede o código do app; "Usar um código de emergência" troca o campo.
+  const [emergencia, setEmergencia] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
       <form ref={formulario} action={acao} className="flex flex-col gap-4">
         {!porEmail && (
           <p className="text-muted-foreground">
-            Abra o app autenticador (Google Authenticator, Authy…) e digite o código de 6 dígitos do
-            ClicouAí. Sem o celular, use um dos códigos de recuperação.
+            {emergencia
+              ? "Digite um dos códigos de emergência que você guardou ao ligar a verificação (formato abcde-12345). Cada um vale uma vez só."
+              : "Abra o app autenticador (Google Authenticator, Authy…) no celular e digite o código de 6 números que aparece para o ClicouAí. Ele muda a cada 30 segundos."}
           </p>
         )}
         {estado.erro && (
@@ -51,7 +55,13 @@ export function FormularioCodigoLogin({
           </p>
         )}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="codigo">{porEmail ? "Código de acesso" : "Código"}</Label>
+          <Label htmlFor="codigo">
+            {porEmail
+              ? "Código de acesso"
+              : emergencia
+                ? "Código de emergência"
+                : "Digite o código de 6 números do app autenticador (Google Authenticator)"}
+          </Label>
           {porEmail ? (
             <Input
               id="codigo"
@@ -77,23 +87,46 @@ export function FormularioCodigoLogin({
                 }
               }}
             />
-          ) : (
+          ) : emergencia ? (
             <Input
+              key="emergencia"
               id="codigo"
               name="codigo"
-              autoComplete="one-time-code"
+              autoComplete="off"
               autoCapitalize="none"
               spellCheck={false}
               required
               maxLength={40}
               autoFocus
+              placeholder="abcde-12345"
               className="h-11 text-lg tracking-widest"
               aria-invalid={Boolean(estado.erro)}
+            />
+          ) : (
+            <Input
+              key="app"
+              id="codigo"
+              name="codigo"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={6}
+              required
+              autoFocus
+              spellCheck={false}
+              placeholder="000000"
+              className="h-14 text-center font-mono text-2xl tracking-[0.5em] placeholder:text-muted-foreground/40 md:text-2xl"
+              aria-invalid={Boolean(estado.erro)}
+              onChange={(e) => {
+                const digitos = e.currentTarget.value.replace(/D/g, "").slice(0, 6);
+                if (digitos !== e.currentTarget.value) e.currentTarget.value = digitos;
+                if (digitos.length === 6 && !enviando) formulario.current?.requestSubmit();
+              }}
             />
           )}
           {porEmail && (
             <p id="codigo-ajuda" className="text-sm text-muted-foreground">
-              6 números. O código vale por 10 minutos e funciona uma vez só.
+              6 números. Funciona uma vez só; os reenvios trazem o mesmo código.
             </p>
           )}
         </div>
@@ -131,12 +164,21 @@ export function FormularioCodigoLogin({
           </p>
         </form>
       ) : (
-        <p className="text-center text-sm text-muted-foreground">
-          Perdeu o celular e os códigos?{" "}
-          <Link href="/ajuda" className="font-medium text-primary hover:underline">
-            Fale com a gente
-          </Link>
-        </p>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <button
+            type="button"
+            className="text-sm font-medium text-primary hover:underline"
+            onClick={() => setEmergencia((e) => !e)}
+          >
+            {emergencia ? "Usar o código do app autenticador" : "Usar um código de emergência"}
+          </button>
+          <p className="text-sm text-muted-foreground">
+            Perdeu o celular e os códigos?{" "}
+            <Link href="/ajuda" className="font-medium text-primary hover:underline">
+              Fale com a gente
+            </Link>
+          </p>
+        </div>
       )}
     </div>
   );

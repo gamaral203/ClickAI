@@ -33,8 +33,18 @@ Legenda: ✅ feito · ⚠️ parcial (o código está pronto, falta configuraç�
 - **Guardado:** segredo TOTP cifrado com AES-256-GCM em `usuarios.mfa_segredo`, com chave derivada do `APP_SECRET` por HKDF; 10 códigos de recuperação só como HMAC em `codigos_recuperacao`. Biblioteca `otpauth` (RFC 6238, SHA-1, 6 dígitos, 30 s, janela de ±1 passo).
 - **Quando pede:** login com senha, login com o Google, troca de CPF/CNPJ e cada saque. Cada código de 6 dígitos vale uma vez (`mfa_ultimo_passo`), cada código de recuperação também; 6 tentativas erradas em 15 minutos bloqueiam (regra `mfa_usuario`).
 - **Google:** a decisão é pedir o código também depois do Google. O Google prova que a pessoa controla o Gmail, não que está com o celular; quem invadiu só o e-mail não entra.
+- **Códigos de emergência (recuperação):** a tela que os mostra diz em destaque "Códigos de emergência (não são para entrar agora)", explica que o dia a dia usa o código de 6 números do app, tem "Copiar" e "Baixar .txt" e só sai da tela depois de "Guardei meus códigos". No login, o campo pede "o código de 6 números do app autenticador (Google Authenticator)" e um link secundário troca para "Usar um código de emergência". Motivo: em 11/10/2026 um fotógrafo ligou a verificação, achou que a lista de 10 códigos era "o código de entrar" e gastou 2 deles tentando adivinhar.
+- **Perdeu o celular, mas tem os códigos de emergência:** entra com um deles e desliga em Perfil e recebimento com outro (testado em `src/servicos/mfa.test.ts`).
 - **Perdeu o celular e os códigos:** hoje só pelo suporte, que confere a identidade e desliga no banco (`update usuarios set mfa_segredo = null, mfa_ativado_em = null, mfa_ultimo_passo = null where email = '...'; delete from codigos_recuperacao where usuario_id = '...';`).
 - **Trocar o `APP_SECRET`** torna os segredos ilegíveis: avise quem usa e desligue a verificação de todos depois ([deploy.md](deploy.md), item 3).
+
+## Códigos por e-mail (confirmação do cadastro e acesso do gestor)
+
+- **Um código por vez:** enquanto o código vale (não usado, não vencido, com tentativas sobrando), "Reenviar", um login novo ou refazer o cadastro mandam o **mesmo** código; todo e-mail que chegar traz o mesmo número. O código só muda depois de usado, vencido ou com as 5 tentativas esgotadas. Confirmação do cadastro: vale 2 horas desde que foi gerado. Acesso do gestor: 10 minutos a cada envio, no máximo 2 horas.
+- **Por que não um código fixo:** um código permanente seria uma segunda senha de 6 dígitos que nunca muda, vazaria uma vez e valeria para sempre. O código atual troca sozinho e só vale por pouco tempo.
+- **Guardado:** a conferência continua pelo HMAC (`codigo_hash`). Para reenviar o mesmo código, a linha guarda também o código cifrado com AES-256-GCM (`codigo_cifrado`, chave derivada do `APP_SECRET` por HKDF com propósito próprio e o dono como dado autenticado, `src/lib/codigo-cifrado.ts`, migração 0025). O cifrado some com a linha (código usado), ao esgotar as tentativas e, no job de pedidos, quando o código vence.
+- **Abuso:** o reenvio não zera as tentativas (senão cada reenvio daria mais 5 chutes); outro envio em menos de 30 segundos não sai (clique duplo, tela recarregada: a tela diz "Já enviamos o código"); os limites de envio por e-mail/usuário e por IP continuam contando também o reenvio do mesmo código (cota do Resend).
+- **Sem o código no assunto nem no log:** o assunto é "Seu código ClicouAí (vale até HH:MM)"; o código só vai no corpo. A tela mostra o e-mail mascarado, a hora do envio e até quando o código vale.
 
 ## Passos que dependem de você
 

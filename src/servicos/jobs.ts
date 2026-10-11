@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  apagarCodigosCifradosVencidos,
   apagarCodigosEmailAntigos,
   apagarRedefinicoesVencidas,
   apagarSessoesRevogadasVencidas,
@@ -99,6 +100,8 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
   await apagarSessoesRevogadasVencidas(agora);
   // Cadastros abandonados sem o código e links de "Esqueci a senha" vencidos.
   await apagarCodigosEmailAntigos(agora - VALIDADE_CADASTRO_PENDENTE_MS);
+  // O código cifrado (para reenviar o mesmo) só fica enquanto o código vale.
+  await apagarCodigosCifradosVencidos(agora);
   await apagarRedefinicoesVencidas(agora);
   return resultado;
 }

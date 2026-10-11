@@ -154,9 +154,9 @@ export const sessoesRevogadas = pgTable(
  * Código de confirmação do e-mail (6 dígitos, src/servicos/confirmacao-email.ts), um por e-mail.
  * Serve a dois casos: o cadastro com senha ainda não confirmado (nome, hash da senha e papel ficam
  * aqui, e a conta só nasce em `usuarios` com o código certo) e a conta antiga, criada antes da
- * confirmação obrigatória (`usuario_id`). Do código, só o HMAC; vale 15 minutos e aceita 5
- * tentativas. O cadastro abandonado vence em 24 horas e não prende o e-mail: refazer o cadastro
- * troca os dados e o código.
+ * confirmação obrigatória (`usuario_id`). O código é conferido pelo HMAC; vale 2 horas, aceita 5
+ * tentativas, e "Reenviar" manda o MESMO código enquanto ele vale (um código por vez). O
+ * cadastro abandonado vence em 24 horas e não prende o e-mail.
  */
 export const codigosEmail = pgTable(
   "codigos_email",
@@ -167,9 +167,17 @@ export const codigosEmail = pgTable(
     senhaHash: text(),
     papel: papel(),
     codigoHash: text().notNull(),
+    /**
+     * O mesmo código, cifrado (AES-256-GCM, src/lib/codigo-cifrado.ts), só para o reenvio mandar
+     * o MESMO código. Apagado quando o código vence ou esgota as tentativas; nulo nas linhas
+     * antigas (o próximo envio gera um código novo).
+     */
+    codigoCifrado: text(),
+    /** Quando este código foi gerado: teto da validade, mesmo com reenvios. */
+    codigoGeradoEm: data(),
     codigoExpiraEm: data().notNull(),
     tentativas: integer().notNull().default(0),
-    /** Último envio: o reenvio espera 60 segundos. */
+    /** Último envio: outro envio em menos de 30 segundos não sai (clique duplo). */
     enviadoEm: data().notNull(),
     criadoEm: momento(),
   },
@@ -179,9 +187,10 @@ export const codigosEmail = pgTable(
 /**
  * Código de acesso do gestor (6 dígitos, src/servicos/codigo-login.ts): segunda etapa obrigatória
  * do login de quem tem o papel `admin`, enviada ao e-mail da conta. Um por usuário (a chave
- * primária é o índice por usuário): um login novo troca o código. Do código, só o HMAC; vale 10
- * minutos, aceita 5 tentativas e é apagado ao ser usado. `login_id` é o login pendente que pediu o
- * código (o mesmo id vai no cookie assinado), e `reenvios` conta os códigos novos desse login.
+ * primária é o índice por usuário). Um login novo ou um reenvio manda o MESMO código enquanto ele
+ * vale (só o login mais novo o aceita); conferido pelo HMAC, vale 10 minutos a cada envio, no
+ * máximo 2 horas, aceita 5 tentativas e é apagado ao ser usado. `login_id` é o login pendente
+ * (o mesmo id vai no cookie assinado), e `reenvios` conta os reenvios desse login.
  */
 export const codigosDeLogin = pgTable("codigos_de_login", {
   usuarioId: uuid()
@@ -189,10 +198,14 @@ export const codigosDeLogin = pgTable("codigos_de_login", {
     .references(() => usuarios.id, { onDelete: "cascade" }),
   loginId: uuid().notNull(),
   codigoHash: text().notNull(),
+  /** O mesmo código, cifrado (src/lib/codigo-cifrado.ts), para o reenvio mandar o mesmo. */
+  codigoCifrado: text(),
+  /** Quando este código foi gerado: teto da validade, mesmo com reenvios. */
+  codigoGeradoEm: data(),
   expiraEm: data().notNull(),
   tentativas: integer().notNull().default(0),
   reenvios: integer().notNull().default(0),
-  /** Último envio: o reenvio espera 60 segundos. */
+  /** Último envio: outro envio em menos de 30 segundos não sai (clique duplo). */
   enviadoEm: data().notNull(),
   criadoEm: momento(),
 }).enableRLS();

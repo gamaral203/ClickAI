@@ -5,8 +5,13 @@ import { Suspense } from "react";
 import { FormularioCodigoLogin } from "@/components/conta/formulario-codigo-login";
 import { emProducao } from "@/db/conexao";
 import { emailConfigurado } from "@/lib/email";
+import { formatarHora } from "@/lib/formatar";
 import { mascararEmail } from "@/lib/mascarar-email";
-import { esperaParaReenviarCodigoDeLogin, loginPendente } from "@/servicos/sessao";
+import {
+  esperaParaReenviarCodigoDeLogin,
+  loginPendente,
+  situacaoDoCodigoDoLoginPendente,
+} from "@/servicos/sessao";
 
 export const metadata: Metadata = {
   title: "Verificação em duas etapas",
@@ -52,7 +57,10 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/entrar/codigo">, "sea
 
   const { envio } = await searchParams;
   const aviso = typeof envio === "string" ? AVISOS_ENVIO[envio] : undefined;
-  const espera = await esperaParaReenviarCodigoDeLogin(pendente);
+  const [espera, situacao] = await Promise.all([
+    esperaParaReenviarCodigoDeLogin(pendente),
+    situacaoDoCodigoDoLoginPendente(pendente),
+  ]);
   // Só fora da produção: sem o Resend, o código vai para o log do servidor (src/servicos/mensagens.ts).
   const codigoNoLog = !emailConfigurado() && !emProducao();
 
@@ -63,9 +71,16 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/entrar/codigo">, "sea
         <strong className="break-words text-foreground">
           {mascararEmail(pendente.usuario.email)}
         </strong>
-        . Digite abaixo para entrar na gestão.
+        {situacao && ` às ${formatarHora(situacao.enviadoEm)}`}. Digite abaixo para entrar na
+        gestão.
         {totp && " Ou use o código do seu aplicativo autenticador."}
       </p>
+      {situacao && (
+        <p className="text-sm text-muted-foreground">
+          O código vale até <strong>{formatarHora(situacao.expiraEm)}</strong>. Se chegou mais de um
+          e-mail, use o mais recente: enquanto vale, o código é sempre o mesmo.
+        </p>
+      )}
       {aviso && (
         <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-destructive">
           {aviso}

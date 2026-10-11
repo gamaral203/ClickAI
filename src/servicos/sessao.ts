@@ -40,6 +40,7 @@ import {
   exigeCodigoPorEmail,
   reenviarCodigoDeLogin,
   segundosParaReenviarCodigoDeLogin,
+  situacaoDoCodigoDeLogin,
   verificacaoPorEmailAtiva,
   type ResultadoEnvioCodigoLogin,
 } from "./codigo-login";
@@ -277,6 +278,14 @@ export async function esperaParaReenviarCodigoDeLogin(pendente: LoginPendente): 
   return segundosParaReenviarCodigoDeLogin(pendente.usuario.id, pendente.loginId);
 }
 
+/** Hora do último envio e validade do código por e-mail deste login (para a tela), ou null. */
+export async function situacaoDoCodigoDoLoginPendente(
+  pendente: LoginPendente,
+): Promise<{ enviadoEm: number; expiraEm: number } | null> {
+  if (!pendente.loginId) return null;
+  return situacaoDoCodigoDeLogin(pendente.usuario.id, pendente.loginId);
+}
+
 export type ResultadoCodigoLogin =
   | { ok: true; usuario: Usuario; proximo: string | null }
   | {
@@ -489,6 +498,9 @@ export type ConfirmacaoPendente = {
   email: string;
   /** Segundos até poder pedir outro código (0: já pode). */
   esperaReenvio: number;
+  /** Hora do último envio do código (0: o envio falhou) e até quando ele vale. */
+  enviadoEm: number;
+  expiraEm: number;
 };
 
 /** E-mail que espera o código neste aparelho, ou `null` (cookie vencido ou cadastro abandonado). */
@@ -497,7 +509,12 @@ export async function confirmacaoPendente(): Promise<ConfirmacaoPendente | null>
   if (!dados) return null;
   const linha = await codigoPendente(dados.e);
   if (!linha) return null;
-  return { email: linha.email, esperaReenvio: segundosParaReenviar(linha) };
+  return {
+    email: linha.email,
+    esperaReenvio: segundosParaReenviar(linha),
+    enviadoEm: linha.enviadoEm,
+    expiraEm: linha.codigoExpiraEm,
+  };
 }
 
 /** E-mail do cookie de confirmação (para o reenvio), sem consultar o banco. */

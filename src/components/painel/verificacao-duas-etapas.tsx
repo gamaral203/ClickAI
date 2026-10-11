@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { CheckCircle2, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Copy, Download, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 
 import {
   verificacaoDuasEtapasAcao,
@@ -16,7 +16,8 @@ const inicial: EstadoMfa = {};
 
 /**
  * Verificação em duas etapas (TOTP) em Perfil e recebimento: ligar com QR Code e primeiro código,
- * ver os códigos de recuperação uma vez, gerar novos e desligar (sempre com um código válido).
+ * ver os códigos de emergência (recuperação) uma vez, gerar novos e desligar (sempre com um código
+ * válido do app ou de emergência: é a saída de quem perdeu o celular).
  */
 export function VerificacaoDuasEtapas({
   ativa,
@@ -30,6 +31,9 @@ export function VerificacaoDuasEtapas({
   temSenha: boolean;
 }) {
   const [estado, acao, enviando] = useActionState(verificacaoDuasEtapasAcao, inicial);
+  // Os códigos de emergência saem da tela quando a pessoa marca que guardou.
+  const [guardados, setGuardados] = useState<string[] | null>(null);
+  const mostrarCodigos = estado.codigos && estado.codigos !== guardados ? estado.codigos : null;
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border p-5">
@@ -69,8 +73,11 @@ export function VerificacaoDuasEtapas({
         </div>
       )}
 
-      {estado.codigos ? (
-        <CodigosRecuperacao codigos={estado.codigos} />
+      {mostrarCodigos ? (
+        <CodigosRecuperacao
+          codigos={mostrarCodigos}
+          onGuardei={() => setGuardados(mostrarCodigos)}
+        />
       ) : estado.cadastro ? (
         <form action={acao} className="flex flex-col gap-4">
           <input type="hidden" name="etapa" value="confirmar" />
@@ -100,14 +107,14 @@ export function VerificacaoDuasEtapas({
         <div className="flex flex-col gap-4">
           <p className="flex items-center gap-2 text-sm font-medium text-primary">
             <CheckCircle2 aria-hidden="true" className="size-5" />
-            Ligada{ativadaEm ? ` desde ${formatarData(ativadaEm)}` : ""}. Códigos de recuperação
+            Ligada{ativadaEm ? ` desde ${formatarData(ativadaEm)}` : ""}. Códigos de emergência
             restantes: {codigosRestantes}.
           </p>
           <AcaoComCodigo
             acao={acao}
             enviando={enviando}
             etapa="codigos"
-            titulo="Gerar novos códigos de recuperação"
+            titulo="Gerar novos códigos de emergência"
             botao="Gerar códigos novos"
           />
           <AcaoComCodigo
@@ -217,7 +224,10 @@ function AcaoComCodigo({
     <form action={acao} className="flex flex-col gap-3 rounded-lg border p-4">
       <input type="hidden" name="etapa" value={etapa} />
       <p className="text-sm font-medium">{titulo}</p>
-      <CampoCodigo id={`mfa-codigo-${etapa}`} rotulo="Código do app (ou de recuperação)" />
+      <CampoCodigo
+        id={`mfa-codigo-${etapa}`}
+        rotulo="Código de 6 números do app autenticador, ou um código de emergência"
+      />
       <Botao enviando={enviando} variante={variante}>
         {botao}
       </Botao>
@@ -225,32 +235,81 @@ function AcaoComCodigo({
   );
 }
 
-function CodigosRecuperacao({ codigos }: { codigos: string[] }) {
+/**
+ * Códigos de emergência (recuperação), mostrados uma vez só. Fotógrafo confundia esta lista com
+ * "o código de entrar" e tentava adivinhar qual usar: o título diz que não são para agora, e a
+ * lista só sai da tela depois de a pessoa marcar que guardou.
+ */
+function CodigosRecuperacao({ codigos, onGuardei }: { codigos: string[]; onGuardei: () => void }) {
+  const [guardei, setGuardei] = useState(false);
+  const [copiou, setCopiou] = useState(false);
+  const texto = [
+    "ClicouAí - códigos de emergência da verificação em duas etapas",
+    "Use um destes só se perder o celular com o app autenticador. Cada um vale uma vez.",
+    "Para entrar no dia a dia, use o código de 6 números do app autenticador.",
+    "",
+    ...codigos,
+    "",
+  ].join("\n");
+
+  function baixar() {
+    const url = URL.createObjectURL(new Blob([texto], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "clicouai-codigos-de-emergencia.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-lg border p-4">
       <p className="flex items-center gap-2 font-medium">
         <KeyRound aria-hidden="true" className="size-4" />
-        Guarde os códigos de recuperação
+        Códigos de emergência (não são para entrar agora)
       </p>
       <p className="text-sm text-muted-foreground">
-        Cada um vale uma vez, no lugar do código do app, se você perder o celular. Anote num lugar
-        seguro: eles não aparecem de novo.
+        Para entrar, você vai usar sempre o código de 6 números do app autenticador. Estes 10
+        códigos são só para o dia em que perder o celular: cada um vale uma vez, no lugar do código
+        do app. Guarde num lugar seguro, porque eles não aparecem de novo.
       </p>
-      <ul className="grid grid-cols-2 gap-2 font-mono text-sm">
+      <ul className="grid grid-cols-2 gap-2 font-mono text-sm" aria-label="Códigos de emergência">
         {codigos.map((c) => (
           <li key={c} className="rounded bg-muted px-2 py-1">
             {c}
           </li>
         ))}
       </ul>
-      <Button
-        type="button"
-        variant="outline"
-        size="touch"
-        className="w-fit"
-        onClick={() => navigator.clipboard?.writeText(codigos.join("\n")).catch(() => {})}
-      >
-        Copiar os códigos
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="touch"
+          onClick={() =>
+            navigator.clipboard
+              ?.writeText(texto)
+              .then(() => setCopiou(true))
+              .catch(() => {})
+          }
+        >
+          <Copy aria-hidden="true" data-icon="inline-start" />
+          {copiou ? "Copiado" : "Copiar"}
+        </Button>
+        <Button type="button" variant="outline" size="touch" onClick={baixar}>
+          <Download aria-hidden="true" data-icon="inline-start" />
+          Baixar .txt
+        </Button>
+      </div>
+      <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={guardei}
+          onChange={(e) => setGuardei(e.currentTarget.checked)}
+          className="size-5 accent-primary"
+        />
+        Guardei meus códigos
+      </label>
+      <Button type="button" size="touch" className="w-fit" disabled={!guardei} onClick={onGuardei}>
+        Continuar
       </Button>
     </div>
   );

@@ -13,6 +13,7 @@ import {
   gravarCodigoEmail,
   liberarReenvioDoCodigo,
   marcarEmailConfirmado,
+  renovarEnvioDoCodigoEmail,
   vincularPedidosDeConvidado,
   type CadastroPendente,
   type CodigoEmail,
@@ -21,6 +22,7 @@ import {
 } from "@/dados";
 import { emProducao } from "@/db/conexao";
 import { derivarChave } from "@/lib/assinatura";
+import { cifrarCodigo, decifrarCodigo } from "@/lib/codigo-cifrado";
 import { emailConfigurado } from "@/lib/email";
 import { gerarHashSenha } from "@/lib/senha";
 
@@ -33,10 +35,21 @@ import { enviarCodigoDeConfirmacao } from "./mensagens";
 // vence em 24 horas e pode ser refeito a qualquer momento), e ninguém usa uma conta com o e-mail
 // de outra pessoa. Contas antigas, criadas antes da confirmação obrigatória, recebem o código ao
 // entrar com a senha certa (src/servicos/sessao.ts).
+//
+// Um código por vez: enquanto o código vale (não usado, não vencido, com tentativas sobrando),
+// "Reenviar", um novo login ou refazer o cadastro mandam o MESMO código, então todo e-mail que
+// chegar traz o mesmo número e não há o que adivinhar. Para isso o código fica cifrado na linha
+// (src/lib/codigo-cifrado.ts) só enquanto vale; a conferência continua pelo HMAC. As tentativas
+// não zeram no reenvio (senão cada reenvio daria mais 5 chutes no mesmo código). Outro envio em
+// menos de 30 segundos não sai (clique duplo, tela recarregada).
 
 export const TAMANHO_CODIGO = 6;
-export const VALIDADE_CODIGO_MS = 15 * 60 * 1000;
-export const ESPERA_REENVIO_MS = 60 * 1000;
+/** Validade do código (2 horas desde que foi gerado; os reenvios mandam o mesmo, sem estender). */
+export const VALIDADE_CODIGO_MS = 2 * 60 * 60 * 1000;
+/** Teto absoluto da validade de um código, mesmo com reenvios. */
+export const TETO_CODIGO_MS = 2 * 60 * 60 * 1000;
+/** Outro envio antes disso não sai (o mesmo código acabou de ser mandado). */
+export const ESPERA_REENVIO_MS = 30 * 1000;
 export const MAXIMO_TENTATIVAS_CODIGO = 5;
 /** O cadastro pendente (e o código de uma conta antiga) some depois disso. */
 export const VALIDADE_CADASTRO_PENDENTE_MS = 24 * 60 * 60 * 1000;
@@ -88,13 +101,41 @@ export function segundosParaReenviar(linha: Pick<CodigoEmail, "enviadoEm">, agor
 }
 
 export type ResultadoEnvioCodigo =
-  | { ok: true }
+  | {
+      ok: true;
+      /** `true`: mandou de novo o mesmo código que já valia; `false`: código novo. */
+      mesmo: boolean;
+      enviadoEm: number;
+      expiraEm: number;
+    }
   | { ok: false; motivo: "espera"; segundos: number }
   | { ok: false; motivo: "limite" | "indisponivel" | "sem_cadastro" };
 
+const FINALIDADE = "confirmacao-email";
+
 /**
- * Gera e manda um código novo para o e-mail. Respeita a espera de 60 segundos desde o último
- * envio (o código anterior continua valendo) e os limites por e-mail e por IP.
+ * O código desta linha ainda pode ser reenviado? Não usado (a linha existe), não vencido, com
+ * tentativas sobrando, dentro do teto, do mesmo dono e com o cifrado legível e conferindo com o
+ * HMAC. Devolve o código em claro (só em memória) e quando foi gerado.
+ */
+function codigoReaproveitavel(
+  linha: CodigoEmail,
+  usuarioId: string | null,
+  agora: number,
+): { codigo: string; geradoEm: number } | null {
+  if (linha.tentativas >= MAXIMO_TENTATIVAS_CODIGO) return null;
+  if (linha.codigoExpiraEm <= agora) return null;
+  if (linha.codigoGeradoEm === null || linha.codigoGeradoEm + TETO_CODIGO_MS <= agora) return null;
+  if (linha.usuarioId !== usuarioId) return null;
+  const codigo = decifrarCodigo(linha.codigoCifrado, FINALIDADE, linha.email);
+  if (!codigo || !mesmoHash(linha.codigoHash, hashDoCodigo(linha.email, codigo))) return null;
+  return { codigo, geradoEm: linha.codigoGeradoEm };
+}
+
+/**
+ * Manda o código para o e-mail: o MESMO, se o anterior ainda vale; senão, um novo. Outro envio em
+ * menos de 30 segundos não sai (`espera`: o código acabou de ser mandado). Respeita os limites
+ * por e-mail e por IP, que contam também o reenvio do mesmo código (cota de e-mails).
  */
 async function enviarCodigo(
   alvo: {
@@ -118,25 +159,50 @@ async function enviarCodigo(
     limiteDoIpAtingido("codigo_email_envio_ip"),
   ]);
   if (porEmail || porIp) return { ok: false, motivo: "limite" };
+  const espera = { ok: false, motivo: "espera", segundos: ESPERA_REENVIO_MS / 1000 } as const;
 
-  const codigo = gerarCodigo();
-  const gravou = await gravarCodigoEmail({
-    email: alvo.email,
-    usuarioId: alvo.usuarioId,
-    cadastro: alvo.cadastro,
-    codigoHash: hashDoCodigo(alvo.email, codigo),
-    codigoExpiraEm: agora + VALIDADE_CODIGO_MS,
-    agora,
-    esperaMs: ESPERA_REENVIO_MS,
-    renovar: alvo.renovar,
-  });
-  // Outro envio ao mesmo tempo (clique duplo) gravou e mandou o código.
-  if (!gravou) return { ok: false, motivo: "espera", segundos: ESPERA_REENVIO_MS / 1000 };
-  if (!(await enviarCodigoDeConfirmacao(alvo.email, alvo.nome, codigo))) {
-    await liberarReenvioDoCodigo(alvo.email);
+  const email = alvo.email.trim().toLowerCase();
+  const mesmo = anterior ? codigoReaproveitavel(anterior, alvo.usuarioId, agora) : null;
+  let codigo: string;
+  let expiraEm: number;
+  if (mesmo && anterior) {
+    codigo = mesmo.codigo;
+    expiraEm = Math.min(agora + VALIDADE_CODIGO_MS, mesmo.geradoEm + TETO_CODIGO_MS);
+    const renovou = await renovarEnvioDoCodigoEmail({
+      email,
+      codigoHash: anterior.codigoHash,
+      usuarioId: alvo.usuarioId,
+      cadastro: alvo.cadastro,
+      codigoExpiraEm: expiraEm,
+      agora,
+      esperaMs: ESPERA_REENVIO_MS,
+      maximoTentativas: MAXIMO_TENTATIVAS_CODIGO,
+      renovar: alvo.renovar,
+    });
+    // Outro envio ao mesmo tempo (clique duplo) já mandou o mesmo código.
+    if (!renovou) return espera;
+  } else {
+    codigo = gerarCodigo();
+    expiraEm = agora + VALIDADE_CODIGO_MS;
+    const gravou = await gravarCodigoEmail({
+      email,
+      usuarioId: alvo.usuarioId,
+      cadastro: alvo.cadastro,
+      codigoHash: hashDoCodigo(email, codigo),
+      codigoCifrado: cifrarCodigo(codigo, FINALIDADE, email),
+      codigoExpiraEm: expiraEm,
+      agora,
+      esperaMs: ESPERA_REENVIO_MS,
+      renovar: alvo.renovar,
+    });
+    // Outro envio ao mesmo tempo (clique duplo) gravou e mandou o código.
+    if (!gravou) return espera;
+  }
+  if (!(await enviarCodigoDeConfirmacao(email, alvo.nome, codigo, expiraEm))) {
+    await liberarReenvioDoCodigo(email);
     return { ok: false, motivo: "indisponivel" };
   }
-  return { ok: true };
+  return { ok: true, mesmo: Boolean(mesmo), enviadoEm: agora, expiraEm };
 }
 
 export type ResultadoInicioCadastro =
@@ -144,8 +210,8 @@ export type ResultadoInicioCadastro =
 
 /**
  * Cadastro com senha: guarda os dados como pendentes e manda o código. A conta só nasce com o
- * código certo (conferirCodigo). Refazer o cadastro troca os dados; dentro dos 60 segundos do
- * último envio, mantém o código já enviado.
+ * código certo (conferirCodigo). Refazer o cadastro troca os dados e manda o mesmo código, se ainda
+ * vale (dentro dos 30 segundos do último envio, não manda outro e-mail).
  */
 export async function iniciarCadastro(
   dados: { nome: string; email: string; senha: string; papel: "cliente" | "fotografo" },
@@ -170,7 +236,7 @@ export async function iniciarCadastro(
 
 /**
  * Conta antiga ainda não confirmada que acabou de acertar a senha: manda o código (se já não
- * mandou nos últimos 60 segundos).
+ * mandou nos últimos 30 segundos): o mesmo, se o anterior ainda vale.
  */
 export async function enviarCodigoParaConta(
   usuario: Pick<Usuario, "id" | "email" | "nome">,

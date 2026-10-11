@@ -17,7 +17,8 @@ const inicial: EstadoCodigoEmail = {};
 /**
  * Código de 6 dígitos da confirmação do e-mail (/cadastro/codigo). O campo aceita o
  * preenchimento automático do celular (`one-time-code`) e envia sozinho ao completar os 6
- * dígitos. "Reenviar código" só libera depois da espera de 60 segundos.
+ * dígitos. "Reenviar código" manda o mesmo código enquanto ele vale (src/servicos/
+ * confirmacao-email.ts) e só libera depois da espera que o servidor mandar.
  */
 export function FormularioCodigoEmail({ esperaInicial }: { esperaInicial: number }) {
   const [estado, acao, enviando] = useActionState(confirmarCodigoEmailAcao, inicial);
@@ -55,7 +56,7 @@ export function FormularioCodigoEmail({ esperaInicial }: { esperaInicial: number
             }}
           />
           <p id="codigo-ajuda" className="text-sm text-muted-foreground">
-            6 números. O código vale por 15 minutos.
+            6 números. Os reenvios trazem o mesmo código.
           </p>
         </div>
         <Button type="submit" size="touch" disabled={enviando}>

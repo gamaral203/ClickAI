@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { papelEscolhido, type PapelCadastro } from "@/lib/cadastro";
+import { formatarHora } from "@/lib/formatar";
 import { podeComprar } from "@/lib/navegacao";
 import { caminhoSeguro, destinoDoCadastro } from "@/lib/redirecionamento";
 import { senhaNovaSchema } from "@/lib/regras-senha";
@@ -122,16 +123,15 @@ export async function confirmarCodigoLoginAcao(
 /** "Reenviar código" de /entrar/codigo (código por e-mail do gestor). */
 export async function reenviarCodigoLoginAcao(): Promise<EstadoCodigoLogin> {
   const resultado = await reenviarCodigoDoLoginPendente();
-  if (resultado.ok) return { aviso: "Enviamos um código novo. Confira também o spam.", espera: 60 };
+  if (resultado.ok) {
+    return { aviso: resultado.enviou ? avisoDoEnvio(resultado) : JA_ENVIADO, espera: 30 };
+  }
   switch (resultado.motivo) {
     case "espera":
-      return {
-        erro: `Espere ${resultado.segundos} segundos para pedir outro código.`,
-        espera: resultado.segundos,
-      };
+      return { aviso: JA_ENVIADO, espera: resultado.segundos };
     case "reenvios":
       return {
-        erro: "Você já pediu 3 códigos novos neste acesso. Use o último que chegou ou entre de novo com a senha.",
+        erro: "Você já pediu 3 reenvios neste acesso. Use o código que chegou (é o mesmo em todos os e-mails) ou entre de novo com a senha.",
       };
     case "limite":
       return {
@@ -263,18 +263,25 @@ export async function confirmarCodigoEmailAcao(
   );
 }
 
+const JA_ENVIADO = "Já enviamos o código; confira o e-mail e o spam.";
+
+/** Aviso do reenvio: o mesmo código (o caso comum) ou um novo, com a hora e a validade. */
+function avisoDoEnvio(envio: { mesmo: boolean; enviadoEm: number; expiraEm: number }) {
+  const horas = `às ${formatarHora(envio.enviadoEm)}. Ele vale até ${formatarHora(envio.expiraEm)}`;
+  return envio.mesmo
+    ? `Reenviamos o mesmo código ${horas}. Confira também o spam.`
+    : `Enviamos um código novo ${horas}; os anteriores não valem mais. Confira também o spam.`;
+}
+
 /** "Reenviar código" da tela /cadastro/codigo. */
 export async function reenviarCodigoEmailAcao(): Promise<EstadoCodigoEmail> {
   const email = await emailAguardandoConfirmacao();
   if (!email) redirect("/cadastro/codigo");
   const resultado = await reenviarCodigo(email);
-  if (resultado.ok) return { aviso: "Enviamos um código novo. Confira também o spam.", espera: 60 };
+  if (resultado.ok) return { aviso: avisoDoEnvio(resultado), espera: 30 };
   switch (resultado.motivo) {
     case "espera":
-      return {
-        erro: `Espere ${resultado.segundos} segundos para pedir outro código.`,
-        espera: resultado.segundos,
-      };
+      return { aviso: JA_ENVIADO, espera: resultado.segundos };
     case "sem_cadastro":
       redirect("/cadastro/codigo");
     default:
