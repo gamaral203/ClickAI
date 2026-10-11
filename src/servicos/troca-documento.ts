@@ -15,7 +15,7 @@ import { encerrarOutrasSessoes, type SessaoAtual } from "./sessao";
 //     há pouco (LOGIN_GOOGLE_RECENTE_MS);
 //   - a chave Pix volta a exigir confirmação;
 //   - sai um aviso por e-mail para a dona da conta;
-//   - os saques ficam bloqueados por 72 horas (src/servicos/saques.ts, saqueBloqueadoAte);
+//   - os saques ficam bloqueados por 24 horas (src/servicos/saques.ts, saqueBloqueadoAte);
 //   - as outras sessões da conta caem; esta continua.
 
 /** Login com o Google que vale como confirmação da identidade para trocar o documento. */
@@ -58,7 +58,7 @@ export async function trocarDocumento(
   const conta = await trocarDocumentoDoFotografo(sessao.usuario.id, documento, agora);
   if (!conta) return null;
   await encerrarOutrasSessoes(sessao.usuario.id);
-  // O aviso não pode desfazer a troca: se falhar, fica no log (o bloqueio de 72 horas vale).
+  // O aviso não pode desfazer a troca: se falhar, fica no log (o bloqueio de 24 horas vale).
   await avisarTrocaDeDocumento(
     sessao.usuario.email,
     sessao.usuario.nome,

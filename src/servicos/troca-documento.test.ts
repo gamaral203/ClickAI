@@ -177,7 +177,7 @@ describe("troca de CPF/CNPJ do fotógrafo", () => {
     expect(await usuarioAtual()).toBeNull();
   });
 
-  it("bloqueia saques por 72 horas depois da troca e libera depois", async () => {
+  it("bloqueia saques por 24 horas depois da troca e libera depois", async () => {
     const { usuario, sessao } = await fotografoLogado();
     await trocarDocumento(sessao, CPF_NOVO);
     // Confirma a chave nova (o mesmo que o botão "Usar meu CPF/CNPJ como chave Pix").
@@ -192,15 +192,15 @@ describe("troca de CPF/CNPJ do fotógrafo", () => {
     const trocadoEm = new Date(conta.documentoTrocadoEm!).getTime();
     expect(ate - trocadoEm).toBe(BLOQUEIO_SAQUE_APOS_TROCA_MS);
 
-    // Ainda bloqueado com 71 horas; liberado com 72.
-    expect(saqueBloqueadoAte(conta, trocadoEm + 71 * HORA)).not.toBeNull();
-    expect(saqueBloqueadoAte(conta, trocadoEm + 72 * HORA)).toBeNull();
+    // Ainda bloqueado com 23 horas; liberado com 24.
+    expect(saqueBloqueadoAte(conta, trocadoEm + 23 * HORA)).not.toBeNull();
+    expect(saqueBloqueadoAte(conta, trocadoEm + 24 * HORA)).toBeNull();
 
-    // A troca foi há 73 horas: o saque sai (simulado, sem Mercado Pago).
+    // A troca foi há 25 horas: o saque sai (simulado, sem Mercado Pago).
     const banco = await obterBanco();
     await banco
       .update(t.fotografos)
-      .set({ documentoTrocadoEm: new Date(Date.now() - 73 * HORA) })
+      .set({ documentoTrocadoEm: new Date(Date.now() - 25 * HORA) })
       .where(eq(t.fotografos.id, conta.id));
     conta = (await buscarContaDoFotografo(usuario.id))!;
     const liberado = await solicitarSaque(conta, usuario, false);

@@ -50,10 +50,10 @@ export function saqueAutomatico() {
 /** Os gateways não enviam Pix abaixo de R$ 1,00. */
 export const SAQUE_MINIMO_CENTAVOS = 100;
 /**
- * Saques bloqueados por 72 horas depois de trocar o CPF/CNPJ (a chave Pix): quem invadir a conta
+ * Saques bloqueados por 24 horas depois de trocar o CPF/CNPJ (a chave Pix): quem invadir a conta
  * e trocar o documento não saca antes de a dona ver o aviso por e-mail (docs/riscos.md).
  */
-export const BLOQUEIO_SAQUE_APOS_TROCA_MS = 72 * 60 * 60 * 1000;
+export const BLOQUEIO_SAQUE_APOS_TROCA_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Até quando os saques estão bloqueados pela troca do CPF/CNPJ (ISO), ou `null` se liberados.
@@ -227,7 +227,7 @@ export const MENSAGEM_PENDENCIA_RECEBIMENTO = {
 
 /** Texto da tela de saques enquanto o bloqueio da troca de CPF/CNPJ vale. */
 export function mensagemDeBloqueio(bloqueadoAte: string) {
-  return `Por segurança, os saques ficam bloqueados por 72 horas depois da troca do CPF/CNPJ. Você poderá sacar a partir de ${formatarDataEHora(bloqueadoAte)}.`;
+  return `Por segurança, os saques ficam bloqueados por 24 horas depois da troca do CPF/CNPJ. Você poderá sacar a partir de ${formatarDataEHora(bloqueadoAte)}.`;
 }
 
 export type ResultadoSaque =
@@ -319,7 +319,7 @@ export async function solicitarSaque(
   antecipado: boolean,
 ): Promise<ResultadoSaque> {
   if (!chavePixValida(conta) || !conta.chavePix) return { ok: false, motivo: "sem_chave" };
-  // CPF/CNPJ trocado há menos de 72 horas: nenhum saque, nem com a liberação de teste.
+  // CPF/CNPJ trocado há menos de 24 horas: nenhum saque, nem com a liberação de teste.
   const bloqueadoAte = saqueBloqueadoAte(conta, Date.now());
   if (bloqueadoAte) return { ok: false, motivo: "documento_trocado", bloqueadoAte };
   // Saque automático na produção sem as credenciais do gateway: recusa antes de reservar o saldo

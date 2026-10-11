@@ -109,7 +109,7 @@ export function FormularioPerfil({
         valor={inicial.cpfCnpj}
         erro={erros.cpfCnpj}
         modoTeclado="numeric"
-        ajuda="Usado só para o repasse das vendas. Não aparece no perfil público. Trocar o CPF/CNPJ bloqueia os saques por 72 horas."
+        ajuda="Usado só para o repasse das vendas. Não aparece no perfil público. Trocar o CPF/CNPJ bloqueia os saques por 24 horas."
       />
       {temSenha && (
         <div className="flex flex-col gap-2">
