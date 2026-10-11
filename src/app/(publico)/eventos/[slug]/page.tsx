@@ -14,6 +14,7 @@ import {
   Navigation,
 } from "lucide-react";
 
+import { AvisoMarcaDagua } from "@/components/galeria/aviso-marca-dagua";
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
 import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { contarItens } from "@/components/galeria/cartao-evento";
@@ -205,6 +206,7 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       <p className="-mt-4 text-sm text-muted-foreground">
         Toque numa foto para ver maior e comprar.
       </p>
+      <AvisoMarcaDagua />
       {situacao.tipo === "aberta" && situacao.proximaLiberacao && (
         <p className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
           <Clock aria-hidden="true" className="size-4 shrink-0" />

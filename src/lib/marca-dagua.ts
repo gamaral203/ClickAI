@@ -66,7 +66,7 @@ export function ehModeloMarca(valor: unknown): valor is ModeloMarca {
  * fura o cache do navegador e da CDN (as prévias são gravadas com cache "immutable").
  *   1: até out. 2026, prévia de 1600 px (WebP 72) e o padrão de logos.
  *   2: prévia de 800 px (WebP 55), marca principal forte ("ClicouAí" e "PRÉVIA · NÃO
- *      AUTORIZADA") sobre o maior rosto, grade de texto, linhas e faixas, tudo variando por
+ *      TIRE PRINT") sobre o maior rosto, grade de texto, linhas e faixas, tudo variando por
  *      foto, contra a remoção por IA (docs/riscos.md). Depois do cadastro dos rostos no envio,
  *      a chave ganha "-r" (`...-r-v2.webp`): a prévia foi refeita com a marca sobre eles.
  */

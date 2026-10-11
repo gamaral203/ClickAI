@@ -20,12 +20,12 @@ import type { CaixaDoRosto } from "@/lib/reconhecimento";
 // inútil. A prévia é pequena (800 px no lado maior) e comprimida (WebP 55): o que sobra depois de
 // limpar não serve para imprimir nem para postar em boa qualidade. A marca (versão 2,
 // VERSAO_DA_MARCA em src/lib/marca-dagua.ts) tem, de baixo para cima:
-//   1. uma grade diagonal densa do texto "ClicouAí", com linhas claras e escuras alternadas
+//   1. uma grade diagonal densa do texto "ClicouAí" (e, a cada 4 linhas, "NÃO TIRE PRINT"), com linhas claras e escuras alternadas
 //      (aparece em fundo claro e escuro), a 30–40% de opacidade;
 //   2. uma malha de linhas finas em dois ângulos (vão de ~24 a 40 px, 20–30% de opacidade),
 //      claras e escuras, com vão, espessura e ângulo irregulares, e algumas faixas largas
 //      semitransparentes (~15–20%) atravessando a foto, com hachura por dentro;
-//   3. a marca principal: "ClicouAí" grande e "PRÉVIA · NÃO AUTORIZADA" embaixo, preenchimento
+//   3. a marca principal: "ClicouAí" grande e "PRÉVIA · NÃO TIRE PRINT" embaixo, preenchimento
 //      claro com contorno escuro (aparece em qualquer fundo), a 65–75% de opacidade, cobrindo
 //      ~70% da largura e levemente girada. Quando a posição dos rostos é conhecida (tabela
 //      `rostos`), ela fica sobre o MAIOR rosto e o tronco, e os outros rostos grandes ganham uma
@@ -63,7 +63,8 @@ const LADO_DE_REFERENCIA = 800;
 
 /** Textos já desenhados (PNG branco): não dependem de fonte instalada no servidor. */
 const CAMINHO_NOME = path.join(process.cwd(), "public", "marca-clicouai.png");
-const CAMINHO_AVISO = path.join(process.cwd(), "public", "marca-nao-autorizada.png");
+const CAMINHO_AVISO = path.join(process.cwd(), "public", "marca-nao-tire-print.png");
+const CAMINHO_GRADE_AVISO = path.join(process.cwd(), "public", "marca-grade-nao-tire-print.png");
 
 /** Inclinação da grade de texto, em graus; cada foto usa uma. */
 const INCLINACOES_DA_GRADE = [-32, -24, -16, 22] as const;
@@ -294,25 +295,31 @@ function ladrilho(larguraTexto: number, modelo: ModeloMarca, escala: number) {
   const { grade } = ESTILOS[modelo];
   return lembrarComLimite(ladrilhos, 12, `${modelo}:${larguraTexto}`, async () => {
     const espessura = Math.max(1, Math.round(1.2 * escala));
+    const opcoes = (clara: boolean) => ({
+      clara,
+      opacidade: grade.opacidade,
+      opacidadeContorno: grade.opacidade * (clara ? 0.7 : 0.6),
+      espessura,
+    });
     const [claro, escuro] = await Promise.all([
-      letreiro(CAMINHO_NOME, larguraTexto, {
-        clara: true,
-        opacidade: grade.opacidade,
-        opacidadeContorno: grade.opacidade * 0.7,
-        espessura,
-      }),
-      letreiro(CAMINHO_NOME, larguraTexto, {
-        clara: false,
-        opacidade: grade.opacidade,
-        opacidadeContorno: grade.opacidade * 0.6,
-        espessura,
-      }),
+      letreiro(CAMINHO_NOME, larguraTexto, opcoes(true)),
+      letreiro(CAMINHO_NOME, larguraTexto, opcoes(false)),
     ]);
+    // A cada 4 linhas, uma de "NÃO TIRE PRINT" (escura) no lugar de uma de "ClicouAí".
+    const aviso = await letreiro(CAMINHO_GRADE_AVISO, claro.largura * 0.85, opcoes(false));
     const passoX = Math.round(claro.largura * (1 + grade.espacoX));
     const passoY = Math.round(claro.altura * (1 + grade.espacoY) * 0.5) * 2;
-    const tile = vazio(passoX, passoY);
+    const tile = vazio(passoX, passoY * 2);
     colar(tile, claro, 0, 0, true);
     colar(tile, escuro, Math.round(passoX / 2), passoY / 2, true);
+    colar(tile, claro, 0, passoY, true);
+    colar(
+      tile,
+      aviso,
+      Math.round(passoX / 2 + (claro.largura - aviso.largura) / 2),
+      Math.round(passoY * 1.5 + (claro.altura - aviso.altura) / 2),
+      true,
+    );
     return tile;
   });
 }
@@ -452,7 +459,7 @@ function svgDaFoto(largura: number, altura: number, estilo: Estilo, semente: num
 // ---------------------------------------------------------------- 3. Marca principal
 
 /**
- * "ClicouAí" grande com "PRÉVIA · NÃO AUTORIZADA" embaixo: preenchimento claro e contorno escuro,
+ * "ClicouAí" grande com "PRÉVIA · NÃO TIRE PRINT" embaixo: preenchimento claro e contorno escuro,
  * sem rotação. Por largura do "ClicouAí" (múltiplos de 8 px) e opacidade.
  */
 const principais = new Map<string, Promise<Pixels>>();
