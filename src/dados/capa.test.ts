@@ -20,6 +20,7 @@ import {
 import { eventos, fotografos, fotos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
+import { textoSemCapa } from "@/lib/capa";
 import { urlPublica } from "@/lib/url-publica";
 
 const [lia, pedro, clique] = fotografos;
@@ -190,5 +191,47 @@ describe("capa enviada pelo dono", () => {
       motivo: "evento",
     });
     expect((await capaAgora())?.enviada).toBe(false);
+  });
+});
+
+describe("capa com a galeria fechada", () => {
+  async function mudarEvento(valores: Partial<typeof t.eventos.$inferInsert>) {
+    const banco = await obterBanco();
+    await banco.update(t.eventos).set(valores).where(eq(t.eventos.id, ibirapuera.id));
+  }
+  async function cartao() {
+    return (await listarEventosPublicados()).find((e) => e.id === ibirapuera.id)!;
+  }
+
+  it("só após a busca: a foto não vira capa, mas a imagem enviada aparece", async () => {
+    await mudarEvento({ fotosSoAposBusca: true });
+    try {
+      // Capa de foto (automática ou escolhida): fica de fora, para não mostrar foto de ninguém.
+      const foto = (await capaAgora())!.fotoId!;
+      expect(await definirCapaDoEvento(ibirapuera.id, lia.id, foto)).toEqual({ ok: true });
+      let atual = await cartao();
+      expect(atual.situacaoGaleria.tipo).toBe("so_apos_busca");
+      expect(atual.capaMiniatura).toBeNull();
+      expect(textoSemCapa(atual)).toBe("Encontre suas fotos pela busca");
+      expect((await buscarEventoPublicado(ibirapuera.slug))?.capaMiniatura).toBeNull();
+
+      // O cartaz enviado pelo dono não é foto à venda: aparece no cartão e na página.
+      const chave = "eventos/teste/cartaz.webp";
+      expect(await definirCapaEnviada(ibirapuera.id, lia.id, chave)).toEqual({ ok: true });
+      atual = await cartao();
+      expect(atual.capaMiniatura?.urlMiniatura).toBe(urlPublica(chave));
+      expect((await buscarEventoPublicado(ibirapuera.slug))?.capaMiniatura?.urlPrevia).toBe(
+        urlPublica(chave),
+      );
+
+      // Com senha, nem o cartaz aparece para quem não a digitou.
+      await mudarEvento({ visibilidade: "senha" });
+      atual = await cartao();
+      expect(atual.capaMiniatura).toBeNull();
+      expect(textoSemCapa(atual)).toBe("Fotos protegidas");
+    } finally {
+      await definirCapaDoEvento(ibirapuera.id, lia.id, null);
+      await mudarEvento({ fotosSoAposBusca: false, visibilidade: "publico", capa: null });
+    }
   });
 });

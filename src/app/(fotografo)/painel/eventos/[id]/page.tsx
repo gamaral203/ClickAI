@@ -37,7 +37,7 @@ import {
   topCliquesDoEvento,
   totaisDoEvento,
 } from "@/dados";
-import { podeSerCapa } from "@/lib/capa";
+import { motivoDaCapaForaDoSite, podeSerCapa } from "@/lib/capa";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { urlDoSite } from "@/lib/endereco";
@@ -118,6 +118,14 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   ]);
   const capaAtual = capas.get(evento.id) ?? null;
   const capaFotoId = evento.capaFotoId ?? null;
+  // Capa que o dono vê (foto pronta, mesmo não liberada) mas o site ainda não mostra.
+  const motivoCapa =
+    evento.capaMiniatura &&
+    motivoDaCapaForaDoSite({
+      ...evento,
+      capaEnviada: evento.capa !== null,
+      liberadas: liberacao.liberadas,
+    });
   const itens = itensDoPainel ?? [];
   const regraPadrao = (faixasPadrao ?? [])
     .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
@@ -183,6 +191,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             </span>
           )}
         </p>
+        {motivoCapa && (
+          <p className="text-sm text-muted-foreground">
+            A capa ainda não aparece no site: {motivoCapa}.
+          </p>
+        )}
         {totais && totais.pedidos > 0 && (
           <p className="text-sm">
             <strong className="tabular-nums">{formatarPreco(totais.faturamentoCentavos)}</strong>{" "}
