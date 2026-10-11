@@ -27,7 +27,7 @@ Arquitetura completa: [Arquitetura — Plataforma de Venda de Fotos](arquitetura
 | Processamento | Worker estoura memória ou tempo ao processar vídeo | Testar cedo com vídeos reais de 500 MB; limitar duração a 5 minutos; fila com concorrência controlada | Média |
 | Processamento | Prévia girada ou com cores lavadas | Aplicar a rotação do EXIF e converter para sRGB | Média |
 | Privacidade | GPS e dados da câmera expostos nas prévias públicas | Remover metadados EXIF das prévias e miniaturas | Média |
-| Privacidade | Busca facial mostra fotos de outra pessoa (falso positivo), inclusive em eventos com fotos visíveis só após a busca | Limiar de similaridade alto; rate limit por IP na busca; canal de remoção | Média |
+| Privacidade | Busca facial mostra fotos de outra pessoa (falso positivo) | Limiar de similaridade alto; rate limit por IP na busca; canal de remoção | Média |
 | Custos | Provedor de reconhecimento cobra por foto indexada e por busca, e a conta cresce com eventos grandes | Indexar cada foto uma vez só no job; não reindexar ao mover de pasta; alerta de gasto no provedor | Média |
 | Busca | Filtro por horário errado porque a câmera estava com hora errada ou o EXIF não tem fuso | Assumir horário de Brasília e avisar o fotógrafo para sincronizar as câmeras; filtro desligado por padrão | Média |
 | Pagamento | Cupom com limite de usos usado além do limite em compras simultâneas | Somar o uso no webhook, na mesma transação do `pago`, com `usos < usos_max` na condição | Média |

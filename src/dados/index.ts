@@ -172,7 +172,6 @@ function situacaoGaleria(
     return { tipo: "aguardando_liberacao", liberaEm: liberacao.proximaEm };
   }
   if (evento.visibilidade === "senha" && !senhaAceita) return { tipo: "senha" };
-  if (evento.fotosSoAposBusca) return { tipo: "so_apos_busca" };
   return { tipo: "aberta", proximaLiberacao: liberacao?.proximaEm ?? null };
 }
 
@@ -327,7 +326,7 @@ async function resumir(
   );
   // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
   // A imagem enviada pelo dono (um cartaz, não foto à venda) vale também com a galeria fechada
-  // (só após a busca, aguardando liberação), menos no evento com senha para quem não a digitou.
+  // (aguardando liberação), menos no evento com senha para quem não a digitou.
   // Uma consulta para todos os eventos (src/dados/capa.ts).
   const [capasDeFoto, cartazes] = await Promise.all([
     capasDosEventos(
@@ -629,7 +628,7 @@ export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaler
 
 /**
  * Itens da galeria aberta de um evento, paginados por cursor (docs/riscos.md: galeria lenta).
- * Se a galeria não está aberta (aguardando liberação, com senha ou só após a busca), devolve
+ * Se a galeria não está aberta (aguardando liberação ou com senha), devolve
  * vazio. O cursor é o id do último item da página anterior.
  */
 export async function listarFotosDoEvento(
@@ -682,8 +681,6 @@ export function precoDoItem(foto: Pick<Foto, "precoCentavos" | "tipo">, evento: 
 /**
  * Item de evento publicado aberto pelo link direto, ou `null`.
  * - Galeria aberta: com anterior e próxima.
- * - Só após a busca: abre (o id veio do resultado da busca e não dá para adivinhar), mas sem
- *   navegação, que mostraria as fotos de outras pessoas.
  * - Aguardando liberação ou com senha: não abre.
  */
 export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | null> {
@@ -703,9 +700,6 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
   if (situacao === "aguardando_liberacao" || situacao === "senha") return null;
 
   const base = { foto, evento: resumo, precoCentavos: precoDoItem(foto, evento) };
-  if (situacao === "so_apos_busca") {
-    return { ...base, posicao: null, anteriorId: null, proximaId: null };
-  }
   const itens = await chavesVisiveisDoEvento(evento, instante);
   const indice = itens.findIndex((f) => f.id === foto.id);
   return {
@@ -719,14 +713,14 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
 // ---------------------------------------------------------------- Busca
 
 /**
- * Evento publicado onde a busca vale: galeria aberta ou "só após a busca". Aguardando
- * liberação ou com senha (sem a senha aceita) não abrem nem pela busca.
+ * Evento publicado onde a busca vale: galeria aberta. Aguardando liberação ou com senha (sem
+ * a senha aceita) não abrem nem pela busca.
  */
 async function eventoBuscavel(eventoId: string, instante: number) {
   const evento = await eventoPorId(eventoId);
   if (!evento) return null;
   const situacao = (await situacaoParaVisitante(evento, instante)).tipo;
-  return situacao === "aberta" || situacao === "so_apos_busca" ? evento : null;
+  return situacao === "aberta" ? evento : null;
 }
 
 /** Itens visíveis do evento entre os ids encontrados pela busca, na ordem da galeria. */

@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Removida a opção "Mostrar as fotos só depois da busca por selfie ou número de peito" (tirava as fotos do ar sem servir para nada): o checkbox saiu do formulário e dos modelos, o servidor não lê nem grava o campo e a galeria fica aberta em todo evento público e publicado, mesmo com `fotos_so_apos_busca` em true no banco (senha e liberação continuam valendo)
 - [x] Um código por vez no e-mail (relato: "chegam vários códigos e o fotógrafo tem que adivinhar"): na confirmação do cadastro e no acesso do gestor, reenviar, entrar de novo ou refazer o cadastro manda o **mesmo** código enquanto ele vale (confirmação: 2 horas; gestor: 10 minutos por envio, teto de 2 horas); muda só depois de usado, vencido ou com as tentativas esgotadas, que o reenvio não zera. Código cifrado (AES-256-GCM, chave do `APP_SECRET`) só durante a validade, conferência pelo HMAC (migração 0025); outro envio em menos de 30 segundos não sai; assunto "Seu código ClicouAí (vale até HH:MM)", sem o código; a tela mostra o e-mail mascarado, a hora do envio e a validade. Na verificação em duas etapas (TOTP), a lista de códigos de recuperação virou "Códigos de emergência (não são para entrar agora)", com Copiar, Baixar .txt e "Guardei meus códigos", e o login pede claramente o código de 6 números do app, com "Usar um código de emergência" à parte ([seguranca.md](seguranca.md), "Códigos por e-mail")
 - [x] Documento de arquitetura ([arquitetura.md](arquitetura.md))
 - [x] Mapa de riscos ([riscos.md](riscos.md))
@@ -32,7 +33,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Prévias servidas sem otimização da Vercel (`next/image` sem otimizador) — custo `[Baixa]`
 - [x] Prévia e miniatura com marca d'água gravada nos pixels, com Sharp (`src/servicos/imagens.ts`); fotos de exemplo geradas com ela (`npm run exemplos:gerar`)
 - [x] Aplicar rotação do EXIF, converter para sRGB e remover metadados das prévias `[Média]`
-- [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca"
+- [x] Tipos e dados de exemplo no modelo novo (vídeo, pastas, visibilidade, liberação, colaboradores, cupons, descontos, pacote, loja, denúncia), com a galeria respeitando liberação, senha e "só após a busca" (essa opção foi removida depois)
 - [x] Carrinho no navegador, com itens de vários eventos e preços recalculados no servidor a cada vez
 - [x] Servidor recalcula o total a partir dos dados, nunca do navegador `[R-alta]`
 - [x] Divisão da venda entre dono do evento e colaborador, com a sobra de centavos para o autor; a comissão da plataforma sai no saque `[Média]`
@@ -63,7 +64,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Busca por número de peito
 - [x] Correção: a busca por número de peito recusava todo número no servidor (regex sem `\d`)
 - [x] Testes automatizados com Vitest (`npm run test`): divisão da venda, saque e saldo, conversão de reais, CPF/CNPJ e validação dos filtros
-- [x] Visibilidade do evento: tela de senha (cookie HttpOnly por evento, token guardado só como hash, limite de tentativas por IP; trocar a senha derruba os acessos antigos) e fotos todas ou só após a busca
+- [x] Visibilidade do evento: tela de senha (cookie HttpOnly por evento, token guardado só como hash, limite de tentativas por IP; trocar a senha derruba os acessos antigos) e fotos todas ou só após a busca (essa opção foi removida depois)
 - [x] Liberação automática, manual e agendada, com contagem regressiva que recarrega a galeria ao chegar a hora
 - [x] Ordenação por envio, captura, nome do arquivo ou aleatória
 - [x] Filtros por categoria e cidade na lista de eventos
@@ -205,6 +206,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   7. Conferir o ciclo de vida dos buckets do R2 ([deploy.md](deploy.md), item 7). O CORS do `fotos-originais` já está feito (ver **Concluído**).
   8. ~~Conferir no GitHub os segredos `APP_URL` e `CRON_SECRET` do job de pedidos~~: feito; o `APP_URL` aponta para https://www.clicouai.com e o Run workflow passou.
   9. Lembrar: o plano gratuito do Supabase pausa o projeto depois de 7 dias sem uso; antes do lançamento, passar para o Pro (backups diários).
+- [ ] Apagar a coluna `eventos.fotos_so_apos_busca` (sem uso desde que a opção saiu; ficou no banco para não rodar migração durante um evento ao vivo): tirar do `src/db/schema.ts` e de `paraEvento`, gerar a migração com `npm run db:gerar`
 - [ ] Busca e recursos do evento (Fase 7): faltam só os vídeos na galeria (junto com o worker de vídeo da Fase 12)
 
 ## Decisões de produto em aberto

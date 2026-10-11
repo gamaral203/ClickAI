@@ -63,7 +63,8 @@ export function paraFotografo(r: typeof t.fotografos.$inferSelect): FotografoCon
 }
 
 export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {
-  const e = omitir(r, "senhaHash");
+  // `fotosSoAposBusca` ficou sem uso (a opção saiu): a coluna segue no banco até ser removida.
+  const e = omitir(r, "senhaHash", "fotosSoAposBusca");
   return {
     ...e,
     inicioEm: iso(e.inicioEm),

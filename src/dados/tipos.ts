@@ -119,8 +119,6 @@ export type Evento = {
   visibilidade: Visibilidade;
   /** Aparece nas listagens e no sitemap. */
   listado: boolean;
-  /** A galeria aberta fica vazia; só os resultados da busca aparecem. */
-  fotosSoAposBusca: boolean;
   /** Liberação padrão dos próximos envios ao evento (cada foto guarda a sua em `liberarEm`). */
   liberacao: Liberacao;
   /** Horário padrão da liberação agendada (só vale com `liberacao` agendada). */
@@ -198,7 +196,6 @@ export type ConfigModelo = Pick<
   | "precoFotoCentavos"
   | "precoVideoCentavos"
   | "visibilidade"
-  | "fotosSoAposBusca"
   | "liberacao"
   | "filtroHorario"
   | "listarNaoIdentificadas"
@@ -488,7 +485,6 @@ export type SituacaoGaleria =
   | { tipo: "aberta"; proximaLiberacao?: string | null }
   /** Nenhuma foto liberada ainda; `liberaEm` é o próximo horário agendado (`null`: manual). */
   | { tipo: "aguardando_liberacao"; liberaEm: string | null }
-  | { tipo: "so_apos_busca" }
   | { tipo: "senha" };
 
 export type PaginaDeFotos = {

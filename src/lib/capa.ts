@@ -5,14 +5,13 @@ export function podeSerCapa(item: { tipo?: "foto" | "video"; status: string }) {
 
 /**
  * Texto do cartão público sem capa. Com senha, "Fotos protegidas" (mesmo enquanto aguarda a
- * liberação); só após a busca, a busca; senão, a liberação que ainda vem.
+ * liberação); senão, a liberação que ainda vem.
  */
 export function textoSemCapa(evento: {
   visibilidade: string;
   situacaoGaleria: { tipo: string };
 }): string {
   if (evento.visibilidade === "senha") return "Fotos protegidas";
-  if (evento.situacaoGaleria.tipo === "so_apos_busca") return "Encontre suas fotos pela busca";
   return "Fotos em breve";
 }
 
@@ -24,7 +23,6 @@ export function textoSemCapa(evento: {
 export function motivoDaCapaForaDoSite(evento: {
   status: string;
   visibilidade: string;
-  fotosSoAposBusca: boolean;
   /** Há imagem enviada pelo dono (`eventos.capa`). */
   capaEnviada: boolean;
   /** Fotos prontas já liberadas (ver `resumoDaLiberacao`). */
@@ -34,8 +32,5 @@ export function motivoDaCapaForaDoSite(evento: {
   if (evento.visibilidade === "senha") return "o evento tem senha";
   if (evento.capaEnviada) return null;
   if (evento.liberadas === 0) return "nenhuma foto foi liberada ainda";
-  if (evento.fotosSoAposBusca) {
-    return "as fotos só aparecem pela busca (envie uma imagem como capa para mostrá-la)";
-  }
   return null;
 }

@@ -108,7 +108,6 @@ const padrao = {
   status: "publicado",
   visibilidade: "publico",
   listado: true,
-  fotosSoAposBusca: false,
   liberacao: "automatica",
   liberadoEm: null,
   filtroHorario: false,
@@ -231,7 +230,7 @@ const eventosBase: EventoBase[] = [
     quantidadeFotos: 0,
   },
   {
-    // Fotos só após a busca: a galeria aberta fica vazia.
+    // Galeria aberta, em outra cidade.
     ...padrao,
     fotografoId: lia.id,
     categoriaId: corrida.id,
@@ -244,7 +243,6 @@ const eventosBase: EventoBase[] = [
     estado: "RS",
     precoFotoCentavos: 1790,
     precoVideoCentavos: 3490,
-    fotosSoAposBusca: true,
     quantidadeFotos: 60,
   },
   {

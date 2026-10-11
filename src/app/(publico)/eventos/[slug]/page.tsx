@@ -12,7 +12,6 @@ import {
   Images,
   MapPin,
   Navigation,
-  ScanFace,
 } from "lucide-react";
 
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
@@ -191,18 +190,6 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       podeComprar={podeComprar(usuario)}
     />
   );
-  if (situacao.tipo === "so_apos_busca") {
-    return (
-      <>
-        {busca}
-        <AvisoGaleria icone={ScanFace} titulo="As fotos aparecem só pela busca">
-          Para proteger quem foi fotografado, neste evento cada pessoa vê só as próprias fotos. Use
-          a selfie ou o número de peito acima.
-        </AvisoGaleria>
-      </>
-    );
-  }
-
   const [primeiraPagina, opcoes] = await Promise.all([
     listarFotosDoEvento(evento.id, { limite: FOTOS_POR_PAGINA, filtro }),
     listarOpcoesGaleria(evento.id),

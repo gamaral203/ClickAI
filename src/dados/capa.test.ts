@@ -15,6 +15,7 @@ import {
   excluirItem,
   imagemDeCapaDoEvento,
   listarEventosPublicados,
+  listarFotosDoEvento,
 } from "@/dados";
 // Os ids vêm dos dados de exemplo: são os mesmos que a semente grava no banco (PGlite).
 import { eventos, fotografos, fotos } from "@/dados/exemplo/dados";
@@ -203,22 +204,28 @@ describe("capa com a galeria fechada", () => {
     return (await listarEventosPublicados()).find((e) => e.id === ibirapuera.id)!;
   }
 
-  it("só após a busca: a foto não vira capa, mas a imagem enviada aparece", async () => {
+  it("a coluna antiga fotos_so_apos_busca em true não fecha mais a galeria", async () => {
+    // A opção "fotos só após a busca" saiu; eventos que ficaram com a coluna em true no banco
+    // mostram a galeria aberta, com as fotos e a capa de foto.
     await mudarEvento({ fotosSoAposBusca: true });
     try {
-      // Capa de foto (automática ou escolhida): fica de fora, para não mostrar foto de ninguém.
-      const foto = (await capaAgora())!.fotoId!;
-      expect(await definirCapaDoEvento(ibirapuera.id, lia.id, foto)).toEqual({ ok: true });
-      let atual = await cartao();
-      expect(atual.situacaoGaleria.tipo).toBe("so_apos_busca");
-      expect(atual.capaMiniatura).toBeNull();
-      expect(textoSemCapa(atual)).toBe("Encontre suas fotos pela busca");
-      expect((await buscarEventoPublicado(ibirapuera.slug))?.capaMiniatura).toBeNull();
+      const atual = await cartao();
+      expect(atual.situacaoGaleria.tipo).toBe("aberta");
+      expect(atual.capaMiniatura).not.toBeNull();
+      const evento = await buscarEventoPublicado(ibirapuera.slug);
+      expect(evento?.situacaoGaleria.tipo).toBe("aberta");
+      const pagina = await listarFotosDoEvento(ibirapuera.id);
+      expect(pagina.fotos.length).toBeGreaterThan(0);
+    } finally {
+      await mudarEvento({ fotosSoAposBusca: false });
+    }
+  });
 
-      // O cartaz enviado pelo dono não é foto à venda: aparece no cartão e na página.
+  it("com a galeria aberta a imagem enviada aparece; com senha, nem ela", async () => {
+    try {
       const chave = "eventos/teste/cartaz.webp";
       expect(await definirCapaEnviada(ibirapuera.id, lia.id, chave)).toEqual({ ok: true });
-      atual = await cartao();
+      let atual = await cartao();
       expect(atual.capaMiniatura?.urlMiniatura).toBe(urlPublica(chave));
       expect((await buscarEventoPublicado(ibirapuera.slug))?.capaMiniatura?.urlPrevia).toBe(
         urlPublica(chave),
@@ -230,8 +237,7 @@ describe("capa com a galeria fechada", () => {
       expect(atual.capaMiniatura).toBeNull();
       expect(textoSemCapa(atual)).toBe("Fotos protegidas");
     } finally {
-      await definirCapaDoEvento(ibirapuera.id, lia.id, null);
-      await mudarEvento({ fotosSoAposBusca: false, visibilidade: "publico", capa: null });
+      await mudarEvento({ visibilidade: "publico", capa: null });
     }
   });
 });

@@ -309,6 +309,10 @@ export const eventos = pgTable(
     visibilidade: visibilidade().notNull().default("publico"),
     senhaHash: text(),
     listado: boolean().notNull().default(true),
+    /**
+     * Sem uso: a opção "fotos só após a busca" foi removida e a galeria ignora a coluna, mesmo
+     * quando está `true`. Fica até a migração que a apaga (docs/tarefas.md).
+     */
     fotosSoAposBusca: boolean().notNull().default(false),
     liberacao: liberacao().notNull().default("automatica"),
     liberadoEm: data(),
