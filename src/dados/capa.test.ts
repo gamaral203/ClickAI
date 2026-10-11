@@ -11,6 +11,7 @@ import {
   buscarEventoPublicado,
   capasDosEventos,
   definirCapaDoEvento,
+  definirCapaEnviada,
   excluirItem,
   imagemDeCapaDoEvento,
   listarEventosPublicados,
@@ -19,6 +20,7 @@ import {
 import { eventos, fotografos, fotos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
+import { urlPublica } from "@/lib/url-publica";
 
 const [lia, pedro, clique] = fotografos;
 // Evento da Lia, liberação automática; o Pedro colabora (aceito nos dados de exemplo).
@@ -156,5 +158,37 @@ describe("capa do evento", () => {
       motivo: "foto",
     });
     expect((await buscarEventoPublicado(ibirapuera.slug))?.capaFotoId).toBeNull();
+  });
+});
+
+describe("capa enviada pelo dono", () => {
+  it("vale na frente de tudo, e escolher uma foto a substitui", async () => {
+    const automatica = await capaAgora();
+    const chave = "eventos/teste/capa-teste.webp";
+    expect(await definirCapaEnviada(ibirapuera.id, lia.id, chave)).toEqual({ ok: true });
+
+    const capa = await capaAgora();
+    expect(capa).toMatchObject({ fotoId: null, enviada: true, urlMiniatura: urlPublica(chave) });
+    const cartao = (await listarEventosPublicados()).find((e) => e.id === ibirapuera.id)!;
+    expect(cartao.capaMiniatura?.urlMiniatura).toBe(urlPublica(chave));
+    // A divulgação usa a imagem enviada.
+    expect(await imagemDeCapaDoEvento(ibirapuera.id)).toBe(chave);
+
+    // Escolher uma foto do evento tira a enviada; remover volta para a automática. (A automática
+    // é uma foto válida: outros testes já excluíram algumas das prontas.)
+    const foto = { id: automatica!.fotoId! };
+    expect(await definirCapaDoEvento(ibirapuera.id, lia.id, foto.id)).toEqual({ ok: true });
+    expect(await capaAgora()).toMatchObject({ fotoId: foto.id, enviada: false });
+    expect((await buscarEventoPublicado(ibirapuera.slug))?.capa).toBeNull();
+    expect(await definirCapaDoEvento(ibirapuera.id, lia.id, null)).toEqual({ ok: true });
+    expect(await capaAgora()).toEqual(automatica);
+  });
+
+  it("só o dono envia a capa", async () => {
+    expect(await definirCapaEnviada(ibirapuera.id, pedro.id, "x.webp")).toEqual({
+      ok: false,
+      motivo: "evento",
+    });
+    expect((await capaAgora())?.enviada).toBe(false);
   });
 });

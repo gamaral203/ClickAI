@@ -16,8 +16,11 @@ const LADO_MAXIMO: Record<ImagemDaLoja, number> = { capa: 1920, fotoPerfil: 400 
 /** Tipos aceitos no seletor de arquivo (o servidor regrava tudo em WebP). */
 export const TIPOS_DE_IMAGEM = "image/jpeg,image/png,image/webp";
 
-/** Reduz no navegador (canvas) para JPEG, baixando a qualidade até caber no limite. */
-async function reduzir(arquivo: File, ladoMaximo: number): Promise<Blob> {
+/**
+ * Reduz no navegador (canvas) para JPEG, baixando a qualidade até caber no limite da Server
+ * Action. Também usada pela capa do evento (src/components/painel/capa-do-evento.tsx).
+ */
+export async function reduzirImagem(arquivo: File, ladoMaximo: number): Promise<Blob> {
   const bitmap = await createImageBitmap(arquivo);
   const escala = Math.min(1, ladoMaximo / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
@@ -48,7 +51,7 @@ export function useImagemDaLoja(campo: ImagemDaLoja) {
     setOcupado(true);
     try {
       const dados = new FormData();
-      dados.set("arquivo", await reduzir(arquivo, LADO_MAXIMO[campo]), "imagem.jpg");
+      dados.set("arquivo", await reduzirImagem(arquivo, LADO_MAXIMO[campo]), "imagem.jpg");
       const resultado = await enviarImagemDaLojaAcao(campo, dados);
       if (resultado.ok) router.refresh();
       else setErro(resultado.erro);
