@@ -41,8 +41,13 @@ const sorteioFixo = sql`md5(${t.fotos.id}::text || ${t.fotos.eventoId}::text)`;
 /** Medidas da imagem enviada: o servidor grava sempre em 3:2, o formato dos cartões. */
 export const MEDIDAS_CAPA_ENVIADA = { largura: 1200, altura: 800 } as const;
 
-/** Imagens enviadas pelo dono (`eventos.capa`), já como capa pronta para os cartões. */
-async function capasEnviadas(eventoIds: string[]): Promise<Map<string, CapaDoEvento>> {
+/**
+ * Imagens enviadas pelo dono (`eventos.capa`), já como capa pronta para os cartões. Não é foto à
+ * venda, então vale também com a galeria fechada (só após a busca, aguardando liberação); quem
+ * chama só não passa o evento com senha.
+ */
+export async function capasEnviadas(eventoIds: string[]): Promise<Map<string, CapaDoEvento>> {
+  if (eventoIds.length === 0) return new Map();
   const banco = await obterBanco();
   const linhas = await banco
     .select({ id: t.eventos.id, capa: t.eventos.capa })

@@ -33,6 +33,8 @@ export type EventoDoPainel = Evento & {
   temSenha: boolean;
   totalItens: number;
   processando: number;
+  /** Fotos prontas já liberadas (aparecem no site com o evento publicado). */
+  liberadas: number;
   vendidos: number;
   /** Miniatura da capa (escolhida ou automática), ou `null` sem foto pronta. */
   capaMiniatura: { urlMiniatura: string; largura: number; altura: number } | null;
@@ -57,6 +59,7 @@ async function paraPainel(
         eventoId: t.fotos.eventoId,
         prontas: sql<number>`count(*) filter (where ${t.fotos.status} = 'pronta')::int`,
         processando: sql<number>`count(*) filter (where ${t.fotos.status} = 'processando')::int`,
+        liberadas: sql<number>`count(*) filter (where ${t.fotos.status} = 'pronta' and ${t.fotos.liberarEm} <= now())::int`,
       })
       .from(t.fotos)
       .where(and(inArray(t.fotos.eventoId, ids), isNull(t.fotos.excluidaEm), doAutor))
@@ -92,6 +95,7 @@ async function paraPainel(
       temSenha: l.senhaHash !== null,
       totalItens: contagem?.prontas ?? 0,
       processando: contagem?.processando ?? 0,
+      liberadas: contagem?.liberadas ?? 0,
       vendidos: vendidos.find((v) => v.eventoId === l.id)?.total ?? 0,
       capaMiniatura: capa
         ? { urlMiniatura: capa.urlMiniatura, largura: capa.largura, altura: capa.altura }

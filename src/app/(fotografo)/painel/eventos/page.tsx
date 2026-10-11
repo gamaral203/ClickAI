@@ -16,6 +16,7 @@ import {
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { buttonVariants } from "@/components/ui/button";
 import { horaDaRequisicao, listarMeusEventos } from "@/dados";
+import { motivoDaCapaForaDoSite } from "@/lib/capa";
 import { formatarPeriodo } from "@/lib/formatar";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -65,6 +66,11 @@ async function Lista() {
           ? `/painel/colaboracoes#colaboracao-${evento.id}`
           : `/painel/eventos/${evento.id}`;
         const rotuloAbrir = evento.colaboracao ? "Enviar fotos" : "Gerenciar";
+        // Só para o dono: no evento colaborado a capa do cartão já é a pública.
+        const motivoCapa =
+          !evento.colaboracao &&
+          evento.capaMiniatura &&
+          motivoDaCapaForaDoSite({ ...evento, capaEnviada: evento.capa !== null });
         return (
           <li
             key={evento.id}
@@ -131,6 +137,11 @@ async function Lista() {
                   · {evento.vendidos} {evento.vendidos === 1 ? "vendida" : "vendidas"} ·{" "}
                   {evento.categoria.nome}
                 </p>
+                {motivoCapa && (
+                  <p className="text-sm text-muted-foreground">
+                    A capa ainda não aparece no site: {motivoCapa}.
+                  </p>
+                )}
               </div>
               <div className="mt-auto flex flex-wrap gap-2">
                 <Link

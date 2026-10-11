@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Calendar, Camera, Images, Lock, MapPin } from "lucide-react";
 
 import type { EventoResumo } from "@/dados";
+import { textoSemCapa } from "@/lib/capa";
 import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
 
 /**
@@ -23,11 +24,11 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
             className="object-cover"
           />
         ) : (
-          // Sem capa: galeria ainda fechada (liberação, senha ou só após a busca).
+          // Sem capa: galeria ainda fechada (liberação, senha ou só após a busca) e sem imagem enviada.
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <Camera aria-hidden="true" className="size-6 sm:size-8" />
-            <span className="text-xs font-medium sm:text-sm">
-              {evento.visibilidade === "senha" ? "Fotos protegidas" : "Fotos em breve"}
+            <span className="px-2 text-center text-xs font-medium sm:text-sm">
+              {textoSemCapa(evento)}
             </span>
           </div>
         )}

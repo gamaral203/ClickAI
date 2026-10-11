@@ -21,7 +21,7 @@ import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlPublica } from "@/lib/url-publica";
 
-import { capasDosEventos } from "./capa";
+import { capasDosEventos, capasEnviadas } from "./capa";
 import { eventosDosCupons } from "./comum";
 import {
   deIso,
@@ -326,11 +326,20 @@ async function resumir(
     situacaoGaleria(evento, liberacoes.get(evento.id), senhasAceitas[i]),
   );
   // A capa só usa uma foto do evento se a galeria estiver aberta; senão mostraria o que não deve.
+  // A imagem enviada pelo dono (um cartaz, não foto à venda) vale também com a galeria fechada
+  // (só após a busca, aguardando liberação), menos no evento com senha para quem não a digitou.
   // Uma consulta para todos os eventos (src/dados/capa.ts).
-  const capas = await capasDosEventos(
-    eventosLista.filter((_, i) => situacoes[i].tipo === "aberta").map((e) => e.id),
-    instante,
-  );
+  const [capasDeFoto, cartazes] = await Promise.all([
+    capasDosEventos(
+      eventosLista.filter((_, i) => situacoes[i].tipo === "aberta").map((e) => e.id),
+      instante,
+    ),
+    capasEnviadas(
+      eventosLista
+        .filter((e, i) => e.visibilidade !== "senha" || senhasAceitas[i])
+        .map((e) => e.id),
+    ),
+  ]);
   return eventosLista.map((evento, i) => {
     const conta = contas.find((f) => f.id === evento.fotografoId);
     const categoria = cats.find((c) => c.id === evento.categoriaId);
@@ -339,7 +348,7 @@ async function resumir(
     }
     const situacao = situacoes[i];
     const contagem = contagens.find((c) => c.eventoId === evento.id);
-    const capa = capas.get(evento.id);
+    const capa = cartazes.get(evento.id) ?? capasDeFoto.get(evento.id);
     return {
       ...evento,
       fotografo: perfilPublico(paraFotografo(conta)),
