@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import {
+  conferirPagamentoAcao,
   reembolsarAcao,
   restaurarAcao,
   type ResultadoAcaoEstorno,
@@ -135,6 +136,37 @@ export function BotaoReembolsar({ pedidoId, total }: { pedidoId: string; total: 
           </div>
         </form>
       </dialog>
+    </span>
+  );
+}
+
+/**
+ * Pedido aguardando pagamento: confere a cobrança no Mercado Pago agora. Se estiver paga, o pedido
+ * vira pago na hora (fotos liberadas, e-mail de entrega), sem esperar o job de pedidos.
+ */
+export function BotaoConferirPagamento({ pedidoId }: { pedidoId: string }) {
+  const router = useRouter();
+  const [resultado, setResultado] = useState<ResultadoAcaoEstorno | null>(null);
+  const [pendente, startTransition] = useTransition();
+
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={pendente}
+        onClick={() => {
+          setResultado(null);
+          startTransition(async () => {
+            setResultado(await conferirPagamentoAcao(pedidoId).catch(() => FALHA));
+            router.refresh();
+          });
+        }}
+      >
+        {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
+        Conferir pagamento
+      </Button>
+      <Retorno resultado={resultado} />
     </span>
   );
 }

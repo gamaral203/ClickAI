@@ -92,6 +92,46 @@ export async function sincronizarPedido(pedido: PedidoInterno) {
   }
 }
 
+export type ConferenciaDoPedido =
+  | "pago"
+  | "pendente"
+  | "expirado"
+  | "divergente"
+  | "nao_pendente"
+  | "sem_cobranca"
+  | "sem_gateway"
+  | "inexistente"
+  | "falhou";
+
+/**
+ * Pelo gestor (/admin/vendas): confere agora no gateway um pedido que está aguardando pagamento
+ * e aplica o que a cobrança diz, sem o intervalo da página do pedido. Cobre o pagamento feito
+ * com o site fora do ar (o webhook falhou e o comprador fechou a página) sem esperar o job de
+ * pedidos, que só confere quando o Pix vence.
+ */
+export async function conferirCobrancaDoPedido(pedidoId: string): Promise<ConferenciaDoPedido> {
+  const encontrado = await buscarPedido(pedidoId);
+  if (!encontrado) return "inexistente";
+  const { pedido } = encontrado;
+  if (pedido.status !== "pendente") return "nao_pendente";
+  if (!pedido.gatewayId) return "sem_cobranca";
+  if (!gatewayConfigurado()) return "sem_gateway";
+
+  let cobranca: Cobranca;
+  try {
+    cobranca = await buscarCobranca(pedido.gatewayId);
+  } catch (erro) {
+    console.error("Falha ao conferir a cobrança no gateway", erro);
+    return "falhou";
+  }
+  if ((await aplicarOrder(cobranca)) === "pago") return "pago";
+  // Paga no gateway, mas não confirmada: valor diferente do pedido, estorno ou contestação. O
+  // motivo está no log (aplicarOrder); o gestor decide olhando a order.
+  if (cobranca.paga) return "divergente";
+  const status = (await buscarPedido(pedidoId))?.pedido.status;
+  return status === "expirado" ? "expirado" : "pendente";
+}
+
 /** Pedido com acesso conferido e já sincronizado com o Mercado Pago. */
 export async function buscarPedidoAtualizado(pedidoId: string, credencial: Credencial) {
   const encontrado = await buscarPedidoComAcesso(pedidoId, credencial);
