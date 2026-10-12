@@ -19,7 +19,7 @@ import { parteDoVendedorNaTaxa, taxaCartaoPct } from "@/lib/taxas";
 
 import { autorizarDownload } from "./downloads";
 import { reembolsarPedido, restaurarContestacao } from "./estornos";
-import { processarNotificacaoDeOrder } from "./pagamentos";
+import { conferirCobrancaDoPedido, processarNotificacaoDeOrder } from "./pagamentos";
 import { confirmarPagamento } from "./pedidos";
 import { calcularSaque } from "./saques";
 
@@ -402,5 +402,67 @@ describe("webhook: reembolso e chargeback lidos na order", () => {
     });
     await processarNotificacaoDeOrder(orderId);
     expect(await statusDo(id)).toBe("pago");
+  });
+});
+
+describe("conferência do pagamento pelo gestor (/admin/vendas)", () => {
+  const novaOrderId = () => `ORD${randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()}`;
+
+  it("order paga: o pedido vira pago e os lançamentos são criados", async () => {
+    ligarMercadoPago();
+    const orderId = novaOrderId();
+    const { id } = await criarPedidoDeTeste(orderId);
+    orders.set(orderId, { pedidoId: id, status: "processed", status_detail: "accredited" });
+    expect(await conferirCobrancaDoPedido(id)).toBe("pago");
+    expect(await statusDo(id)).toBe("pago");
+    expect(await lancamentosDoPedido(id)).toHaveLength(2);
+    // Conferir de novo não faz nada: o pedido já não está aguardando.
+    expect(await conferirCobrancaDoPedido(id)).toBe("nao_pendente");
+  });
+
+  it("order ainda aguardando: o pedido continua pendente", async () => {
+    ligarMercadoPago();
+    const orderId = novaOrderId();
+    const { id } = await criarPedidoDeTeste(orderId);
+    orders.set(orderId, {
+      pedidoId: id,
+      status: "action_required",
+      status_detail: "waiting_payment",
+    });
+    expect(await conferirCobrancaDoPedido(id)).toBe("pendente");
+    expect(await statusDo(id)).toBe("pendente");
+    expect(await lancamentosDoPedido(id)).toHaveLength(0);
+  });
+
+  it("order paga com valor diferente do pedido: divergente, sem confirmar", async () => {
+    ligarMercadoPago();
+    const orderId = novaOrderId();
+    const { id } = await criarPedidoDeTeste(orderId);
+    orders.set(orderId, {
+      pedidoId: id,
+      status: "processed",
+      status_detail: "accredited",
+      total_amount: "15.00",
+    });
+    expect(await conferirCobrancaDoPedido(id)).toBe("divergente");
+    expect(await statusDo(id)).toBe("pendente");
+  });
+
+  it("sem cobrança, pedido inexistente e falha na API do Mercado Pago", async () => {
+    ligarMercadoPago();
+    const semCobranca = await criarPedidoDeTeste();
+    expect(await conferirCobrancaDoPedido(semCobranca.id)).toBe("sem_cobranca");
+    expect(await conferirCobrancaDoPedido(randomUUID())).toBe("inexistente");
+    // Order que a API não encontra (404): nada muda no pedido.
+    const { id } = await criarPedidoDeTeste(novaOrderId());
+    expect(await conferirCobrancaDoPedido(id)).toBe("falhou");
+    expect(await statusDo(id)).toBe("pendente");
+  });
+
+  it("sem o Mercado Pago configurado, não consulta", async () => {
+    vi.stubEnv("MP_ACCESS_TOKEN", "");
+    const { id } = await criarPedidoDeTeste(novaOrderId());
+    expect(await conferirCobrancaDoPedido(id)).toBe("sem_gateway");
+    expect(await statusDo(id)).toBe("pendente");
   });
 });

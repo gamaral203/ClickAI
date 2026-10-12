@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { BotaoReembolsar, BotaoRestaurar } from "@/components/admin/acoes-estorno";
+import {
+  BotaoConferirPagamento,
+  BotaoReembolsar,
+  BotaoRestaurar,
+} from "@/components/admin/acoes-estorno";
 import { Celula, Tabela } from "@/components/admin/tabela";
 import {
   listarEstornosDoAdmin,
@@ -100,6 +104,8 @@ async function Conteudo() {
                 <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
               ) : p.status === "contestado" ? (
                 <BotaoRestaurar pedidoId={p.id} />
+              ) : p.status === "pendente" && p.gatewayId ? (
+                <BotaoConferirPagamento pedidoId={p.id} />
               ) : null}
             </Celula>
           </tr>
