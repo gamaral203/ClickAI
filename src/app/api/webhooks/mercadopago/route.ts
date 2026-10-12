@@ -34,7 +34,16 @@ export async function POST(request: NextRequest) {
     requestId: request.headers.get("x-request-id"),
     assinatura: request.headers.get("x-signature"),
   });
-  if (!valida) return resposta(401);
+  if (!valida) {
+    // Sem segredos nem o corpo no log: só o que ajuda a achar a causa (chave secreta trocada,
+    // URL errada no painel, aviso sem `data.id` na query).
+    console.warn("Webhook do Mercado Pago recusado: assinatura inválida", {
+      temDataId: dataId !== null,
+      temRequestId: request.headers.has("x-request-id"),
+      temAssinatura: request.headers.has("x-signature"),
+    });
+    return resposta(401);
+  }
 
   const dados = corpo.safeParse(await request.json().catch(() => null));
   // Outros tipos de evento, ou corpo que não bate com o id assinado: confirma o recebimento e
