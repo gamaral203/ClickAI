@@ -83,3 +83,29 @@ export function criarCliente(url: string, { maximo = 5 }: { maximo?: number } = 
   pool.on("error", (erro) => console.error("[db] conexão ociosa caiu:", erro.message));
   return pool;
 }
+
+/**
+ * Roda `tentar` de novo se falhar, esperando `esperasMs[i]` antes de cada nova tentativa. Para a
+ * primeira conexão de uma instância nova na Vercel: o pooler pode recusar de passagem (cheio por
+ * um instante, TLS lento) e uma falha dessas não pode derrubar a primeira requisição. Só a
+ * última falha sobe.
+ */
+export async function comNovaTentativa<T>(
+  tentar: () => Promise<T>,
+  esperasMs: number[] = [300, 900],
+  dormir: (ms: number) => Promise<void> = (ms) => new Promise((ok) => setTimeout(ok, ms)),
+): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await tentar();
+    } catch (erro) {
+      if (i >= esperasMs.length) throw erro;
+      console.warn(`[db] conexão falhou (tentativa ${i + 1}); tentando de novo:`, erroCurto(erro));
+      await dormir(esperasMs[i]);
+    }
+  }
+}
+
+function erroCurto(erro: unknown) {
+  return erro instanceof Error ? erro.message : String(erro);
+}

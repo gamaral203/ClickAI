@@ -2,10 +2,17 @@ import "server-only";
 
 import path from "node:path";
 
+import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { connection } from "next/server";
 
-import { criarCliente, emProducao, ERRO_SEM_BANCO_EM_PRODUCAO, urlDoBanco } from "./conexao";
+import {
+  comNovaTentativa,
+  criarCliente,
+  emProducao,
+  ERRO_SEM_BANCO_EM_PRODUCAO,
+  urlDoBanco,
+} from "./conexao";
 import * as schema from "./schema";
 import { sincronizarGestores } from "./semente";
 
@@ -57,7 +64,16 @@ export async function obterBanco(): Promise<Banco> {
     const url = urlDoBanco();
     if (!url && emProducao()) throw new Error(ERRO_SEM_BANCO_EM_PRODUCAO);
     const banco = url ? await conectarPostgres(url) : await conectarPglite();
-    await sincronizarGestores(banco);
+    // A primeira consulta abre a conexão de verdade: com nova tentativa, porque na Vercel a
+    // instância nova pode ser recusada de passagem pelo pooler, e isso derrubava a primeira
+    // requisição de cada instância ("Algo deu errado"; a seguinte passava).
+    if (url) await comNovaTentativa(() => banco.execute(sql`select 1`));
+    // Os gestores de GESTORES: útil, mas não pode derrubar o site se falhar (fica no log).
+    try {
+      await sincronizarGestores(banco);
+    } catch (erro) {
+      console.error("[db] falha ao sincronizar os gestores de GESTORES:", erro);
+    }
     return banco;
   })().catch((erro) => {
     // Falhou ao conectar: a próxima requisição tenta de novo, em vez de ficar presa no erro.

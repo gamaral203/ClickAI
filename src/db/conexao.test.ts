@@ -4,7 +4,14 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { criarCliente, limparUrl, opcoesTls, urlDoBanco, urlParaMigracoes } from "./conexao";
+import {
+  comNovaTentativa,
+  criarCliente,
+  limparUrl,
+  opcoesTls,
+  urlDoBanco,
+  urlParaMigracoes,
+} from "./conexao";
 
 describe("URL do banco", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -140,5 +147,46 @@ describe("cliente do banco com o pooler em modo transaction", () => {
       await cliente.end();
       await servidor.fechar();
     }
+  });
+});
+
+describe("nova tentativa na primeira conexão", () => {
+  it("passa na segunda tentativa sem subir o primeiro erro", async () => {
+    const esperas: number[] = [];
+    let chamadas = 0;
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const resultado = await comNovaTentativa(
+      async () => {
+        chamadas++;
+        if (chamadas === 1) throw new Error("MaxClientsInSessionMode");
+        return "ok";
+      },
+      [300, 900],
+      async (ms) => {
+        esperas.push(ms);
+      },
+    );
+    expect(resultado).toBe("ok");
+    expect(chamadas).toBe(2);
+    expect(esperas).toEqual([300]);
+    expect(aviso).toHaveBeenCalledTimes(1);
+    aviso.mockRestore();
+  });
+
+  it("depois da última espera, o erro sobe", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let chamadas = 0;
+    await expect(
+      comNovaTentativa(
+        async () => {
+          chamadas++;
+          throw new Error("recusado");
+        },
+        [1, 1],
+        async () => {},
+      ),
+    ).rejects.toThrow("recusado");
+    expect(chamadas).toBe(3);
+    aviso.mockRestore();
   });
 });
