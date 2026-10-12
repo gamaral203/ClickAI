@@ -60,6 +60,7 @@ describe("linksDoCabecalho", () => {
       "/painel",
       "/painel/eventos",
       "/painel/vendas",
+      "/painel/clientes",
       "/painel/desempenho",
       "/painel/loja",
     ]);
@@ -67,6 +68,7 @@ describe("linksDoCabecalho", () => {
       "/painel",
       "/painel/eventos",
       "/painel/vendas",
+      "/painel/clientes",
       "/painel/desempenho",
       "/painel/loja",
       "/painel/metas",
@@ -88,6 +90,7 @@ describe("linksDoCabecalho", () => {
       "/painel",
       "/painel/eventos",
       "/painel/vendas",
+      "/painel/clientes",
       "/painel/desempenho",
       "/painel/loja",
       "/admin",
@@ -142,6 +145,7 @@ describe("linkAtivo", () => {
     expect(marcados("/painel")).toEqual(["Início"]);
     expect(marcados("/painel/eventos/123")).toEqual(["Meus eventos"]);
     expect(marcados("/painel/vendas")).toEqual(["Financeiro"]);
+    expect(marcados("/painel/clientes")).toEqual(["Meus clientes"]);
     expect(marcados("/painel/perfil")).toEqual([]);
   });
 });

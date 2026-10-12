@@ -214,6 +214,7 @@ export async function fotosDoAutorNoEvento(eventoId: string, fotografoId: string
       id: t.fotos.id,
       nomeArquivo: t.fotos.nomeArquivo,
       urlMiniatura: t.fotos.urlMiniatura,
+      urlPrevia: t.fotos.urlPrevia,
     })
     .from(t.fotos)
     .where(
@@ -226,7 +227,11 @@ export async function fotosDoAutorNoEvento(eventoId: string, fotografoId: string
       ),
     )
     .orderBy(asc(t.fotos.ordem));
-  return linhas.map((l) => ({ ...l, urlMiniatura: urlPublica(l.urlMiniatura) }));
+  return linhas.map((l) => ({
+    ...l,
+    urlMiniatura: urlPublica(l.urlMiniatura),
+    urlPrevia: urlPublica(l.urlPrevia),
+  }));
 }
 
 /** Registra um lote (ou uma foto) entregue ao autor (auditoria): sem URLs nem chaves. */

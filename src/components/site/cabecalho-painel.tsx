@@ -15,8 +15,9 @@ import { AtalhosDoPainel, LogoDoPainel } from "./nav-painel";
 /**
  * Cabeçalho de quem vende (fotógrafo e gestor), em todas as páginas: mais sóbrio que o do site de
  * compra. Faixa fina no topo (azul que termina em limão), fundo branco, atalhos de trabalho (Início, Meus eventos,
- * Financeiro, Desempenho, Minha loja; o gestor também tem Gestão), o perfil e o Sair, tudo numa
- * linha só. Quem tem conta de fotógrafo (o gestor que também vende, inclusive), em tela larga,
+ * Financeiro, Meus clientes, Desempenho, Minha loja; o gestor também tem Gestão), o perfil e o Sair
+ * (só o ícone), tudo numa linha só. A partir de xl a linha passa da largura das páginas (7xl): com o
+ * cartão da meta e a Gestão, os atalhos não cabiam na de 6xl. Quem tem conta de fotógrafo (o gestor que também vende, inclusive), em tela larga,
  * vê o cartão da meta com a foto de perfil no lugar do nome. Sem carrinho nem vitrine: conta de fotógrafo não compra. Os itens vêm de
  * `linksDoCabecalho`; a mesma altura do cabeçalho do site, para a troca não deslocar a página.
  */
@@ -32,7 +33,7 @@ export function CabecalhoPainel({
   return (
     <header className="border-b bg-background print:hidden">
       <div aria-hidden="true" className="h-1 bg-linear-to-r from-primary from-55% to-highlight" />
-      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-3 px-4">
+      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-3 px-4 xl:max-w-7xl">
         {/* O logo nunca encolhe: se faltar espaço, é o lado direito que aperta. */}
         <div className="flex shrink-0 items-center gap-3">
           <LogoDoPainel papel={usuario.papel} />
@@ -73,10 +74,11 @@ export function CabecalhoPainel({
           <form action={sairAcao} className="hidden lg:block">
             <button
               type="submit"
-              className="inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              aria-label="Sair"
+              title="Sair"
+              className="inline-flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               <LogOut aria-hidden="true" className="size-4" />
-              Sair
             </button>
           </form>
           <MenuCelular

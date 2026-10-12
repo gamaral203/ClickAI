@@ -138,9 +138,10 @@ async function baixarComoAutor(usuario: Usuario | null, eventoId: string, fotoId
   return originalIndividual(usuario, { fotoId, liberacao }, "203.0.113.7");
 }
 
-async function chamarRota(fotoId: string, liberacao: string | null) {
+async function chamarRota(fotoId: string, liberacao: string | null, formato?: "json") {
   const url = new URL(`http://localhost/api/painel/original/${fotoId}`);
   if (liberacao) url.searchParams.set("liberacao", liberacao);
+  if (formato) url.searchParams.set("formato", formato);
   return rotaDoOriginal(new NextRequest(url), {
     params: Promise.resolve({ fotoId }),
   } as RouteContext<"/api/painel/original/[fotoId]">);
@@ -383,5 +384,26 @@ describe("rota /api/painel/original/[fotoId]", () => {
     const visitante = await chamarRota(f.pedro, liberado.liberacao);
     expect(visitante.status).toBe(404);
     expect(visitante.headers.get("location")).toBeNull();
+  });
+
+  it("com formato=json, devolve a URL assinada ou o erro em JSON, sem redirecionar", async () => {
+    sessao.usuario = usuarioPedro;
+    const liberado = await liberarOriginaisDoAutor(usuarioPedro, evento.id, undefined);
+    if (!liberado.ok) throw new Error();
+    const resposta = await chamarRota(f.pedro, liberado.liberacao, "json");
+    expect(resposta.status).toBe(200);
+    expect(resposta.headers.get("cache-control")).toBe("no-store");
+    expect(resposta.headers.get("location")).toBeNull();
+    const { url } = (await resposta.json()) as { url: string };
+    expect(new URL(url).hostname).toBe("fotos-originais.conta-teste.r2.cloudflarestorage.com");
+
+    const semLiberacao = await chamarRota(f.pedro, null, "json");
+    expect(semLiberacao.status).toBe(403);
+    expect(await semLiberacao.json()).toEqual({
+      erro: "A liberação do download venceu. Volte ao painel e clique em Baixar original de novo.",
+    });
+    const deOutro = await chamarRota(f.lia, liberado.liberacao, "json");
+    expect(deOutro.status).toBe(404);
+    expect(await deOutro.json()).toEqual({ erro: "Foto não encontrada." });
   });
 });

@@ -28,12 +28,19 @@ export type ImpedimentosDaExclusao = {
 export const NOME_CONTA_EXCLUIDA = "Conta excluída";
 export const NOME_FOTOGRAFO_REMOVIDO = "Fotógrafo removido";
 
+const DOMINIO_DA_CONTA_EXCLUIDA = "@clicouai.invalid";
+
 /**
  * E-mail de marcação de uma conta excluída. O domínio `.invalid` é reservado (RFC 2606): nunca
  * recebe e-mail e ninguém consegue se cadastrar e confirmar com ele.
  */
 export function emailDaContaExcluida(usuarioId: string) {
-  return `excluida-${usuarioId}@clicouai.invalid`;
+  return `excluida-${usuarioId}${DOMINIO_DA_CONTA_EXCLUIDA}`;
+}
+
+/** O e-mail do pedido é o marcador de uma conta excluída: não há mais a quem escrever. */
+export function ehEmailDeContaExcluida(email: string) {
+  return email.endsWith(DOMINIO_DA_CONTA_EXCLUIDA);
 }
 
 export async function impedimentosDaExclusao(usuarioId: string): Promise<ImpedimentosDaExclusao> {

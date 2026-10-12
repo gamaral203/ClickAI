@@ -93,6 +93,7 @@ const ATALHOS_PAINEL: ItemNavegacao[] = [
   { href: "/painel", rotulo: "Início", exato: true },
   { href: "/painel/eventos", rotulo: "Meus eventos" },
   { href: "/painel/vendas", rotulo: "Financeiro" },
+  { href: "/painel/clientes", rotulo: "Meus clientes" },
   { href: "/painel/desempenho", rotulo: "Desempenho" },
   { href: "/painel/loja", rotulo: "Minha loja" },
 ];
