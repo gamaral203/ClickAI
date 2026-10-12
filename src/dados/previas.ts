@@ -1,5 +1,5 @@
 // Regeração das prévias antigas (src/servicos/regerar-previas.ts). A versão da marca de cada foto
-// está na própria chave da prévia (`...-v2.webp`; src/lib/marca-dagua.ts): sem coluna nova, a
+// está na própria chave da prévia (`...-v3.webp`; src/lib/marca-dagua.ts): sem coluna nova, a
 // troca da chave no banco é o que marca a foto como feita.
 
 import "server-only";

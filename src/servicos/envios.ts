@@ -29,7 +29,6 @@ import {
   reservarFotoParaProcessar,
   salvarRostos,
   situacaoDaFoto,
-  trocarPreviaDaFoto,
   type ChavesDaFoto,
 } from "@/dados";
 import { emParalelo, Orcamento } from "@/lib/concorrencia";
@@ -55,7 +54,6 @@ import {
   modoEnvio,
   moverOriginal,
   removerOriginal,
-  removerPublico,
   urlDaParte,
   urlDeEnvio,
 } from "@/lib/r2";
@@ -78,7 +76,7 @@ import {
   type FormatoAceito,
 } from "@/lib/tipos-imagem";
 
-import { copiaParaRostos, gerarVersoes, type VersoesDaFoto } from "./imagens";
+import { copiaParaRostos, gerarVersoes } from "./imagens";
 
 export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
@@ -127,10 +125,6 @@ export function chavesDaFoto(
     // Prévia e miniatura levam a versão da marca na chave (src/lib/marca-dagua.ts).
     previa: `previas/${caminho}${SUFIXO_DA_VERSAO}`,
     miniatura: `miniaturas/${caminho}${SUFIXO_DA_VERSAO}`,
-    // Depois do cadastro dos rostos, prévia e miniatura são regeradas com a marca sobre eles
-    // numa chave própria: a primeira pode já estar no cache "immutable" do navegador e da CDN.
-    previaComRostos: `previas/${caminho}-r${SUFIXO_DA_VERSAO}`,
-    miniaturaComRostos: `miniaturas/${caminho}-r${SUFIXO_DA_VERSAO}`,
   };
 }
 
@@ -513,11 +507,11 @@ export async function confirmarEnvio(
     const modelo = await modeloMarcaDoEvento(foto.eventoId);
     let versoes;
     try {
-      versoes = await gerarVersoes(original, modelo, foto.id);
+      versoes = await gerarVersoes(original, modelo);
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }
-    const { previa, miniatura, paraRostos, comRostos } = versoes;
+    const { previa, miniatura, paraRostos } = versoes;
     medir("versoesMs");
     // As três gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
     await Promise.all([
@@ -540,14 +534,11 @@ export async function confirmarEnvio(
     if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
-    // A foto já está pronta (à venda); os rostos servem à busca por selfie e, achados, levam a
-    // marca d'água para cima deles (da mesma base já decodificada: sem ler o original de novo).
-    const remarcar = (rostos: RostoIndexado[]) =>
-      remarcarSobreOsRostos(foto.id, chaves, comRostos, rostos);
+    // A foto já está pronta (à venda); os rostos servem à busca por selfie.
     if (opcoes.depois) {
-      opcoes.depois(() => indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos, remarcar));
+      opcoes.depois(() => indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos));
     } else {
-      await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos, remarcar);
+      await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
       medir("rostosMs");
     }
     return { eventoId: foto.eventoId };
@@ -710,36 +701,4 @@ export async function indexarRostosDaFoto(
     );
   }
   return "indexada";
-}
-
-/**
- * Regera prévia e miniatura com a marca principal sobre o maior rosto e marcas menores sobre os
- * outros rostos grandes (src/servicos/imagens.ts), grava nas chaves `-r`, troca no banco só se
- * a foto ainda estiver com as do envio e então apaga as do envio. Sem rosto com posição, nada
- * muda (a marca do envio, no centro, continua). Custo: só a geração das duas versões (~0,1 s),
- * da base decodificada no envio; o original não é lido de novo.
- */
-async function remarcarSobreOsRostos(
-  fotoId: string,
-  chaves: ReturnType<typeof chavesDaFoto>,
-  comRostos: VersoesDaFoto["comRostos"],
-  rostos: RostoIndexado[],
-) {
-  const caixas = rostos.flatMap((r) => (r.caixa ? [r.caixa] : []));
-  if (caixas.length === 0) return;
-  const { previa, miniatura } = await comRostos(caixas);
-  await Promise.all([
-    gravarPublico(chaves.previaComRostos, previa.buffer, "image/webp"),
-    gravarPublico(chaves.miniaturaComRostos, miniatura.buffer, "image/webp"),
-  ]);
-  const trocou = await trocarPreviaDaFoto(
-    fotoId,
-    { urlPrevia: chaves.previa, urlMiniatura: chaves.miniatura },
-    { urlPrevia: chaves.previaComRostos, urlMiniatura: chaves.miniaturaComRostos },
-  );
-  // Trocou: as do envio saem do bucket. Não trocou (a foto mudou no meio): as novas saem.
-  const apagar = trocou
-    ? [chaves.previa, chaves.miniatura]
-    : [chaves.previaComRostos, chaves.miniaturaComRostos];
-  await Promise.all(apagar.map((chave) => removerPublico(chave).catch(() => {})));
 }

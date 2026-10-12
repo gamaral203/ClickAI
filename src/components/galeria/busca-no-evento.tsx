@@ -14,7 +14,6 @@ import {
 import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { enviarMetrica } from "@/components/metricas/registrar";
 import { DialogoBuscaFacial } from "@/components/galeria/dialogo-busca-facial";
-import { AvisoMarcaDagua } from "@/components/galeria/aviso-marca-dagua";
 import { GaleriaFotos } from "@/components/galeria/galeria-fotos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -237,7 +236,6 @@ export function BuscaNoEvento({
               <AdicionarTodas fotoIds={resultado.fotos.map((f) => f.id)} />
             )
           )}
-          {resultado.fotos.length > 0 && <AvisoMarcaDagua />}
           {resultado.fotos.length > 0 && (
             <GaleriaFotos
               key={resultado.fotos.map((f) => f.id).join()}
