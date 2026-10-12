@@ -15,7 +15,6 @@ import {
 
 import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
-import { AvisoMarcaDagua } from "@/components/galeria/aviso-marca-dagua";
 import { LinkOutraFoto, VoltarParaGaleria } from "@/components/galeria/navegacao-da-foto";
 import { SemMenuDeContexto } from "@/components/galeria/sem-menu-de-contexto";
 import { RegistrarVisita } from "@/components/metricas/registrar";
@@ -107,8 +106,8 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
               {autor?.nome ?? evento.fotografo.nomePublico}
             </span>
           </SemMenuDeContexto>
-          <figcaption>
-            <AvisoMarcaDagua />
+          <figcaption className="text-sm text-muted-foreground">
+            Prévia com marca d&apos;água. O original sai sem marca e em alta resolução.
           </figcaption>
         </figure>
 
