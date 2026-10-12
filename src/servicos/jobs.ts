@@ -6,9 +6,9 @@ import {
   apagarRedefinicoesVencidas,
   apagarSessoesRevogadasVencidas,
   apagarTentativasAntigas,
-  buscarPedido,
   listarExpiradosSemLembrete,
   listarFotografosComSaqueProcessando,
+  listarPendentesComCobranca,
   listarPendentesVencidos,
   listarPixParaLembrar,
   marcarLembreteEnviado,
@@ -20,7 +20,7 @@ import { gatewayConfigurado } from "@/lib/gateway";
 import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
 import { PRAZO_DO_JOB_MS, revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
-import { sincronizarPedido } from "./pagamentos";
+import { conferirCobrancaDoPedido, type ConferenciaDoPedido } from "./pagamentos";
 import { regerarPrevias, type ResultadoRegeracao } from "./regerar-previas";
 import { conferirSaques } from "./saques";
 
@@ -39,8 +39,17 @@ const ESPERA_LEMBRETE_PIX_MS = 20 * 60 * 1000;
  * limite; precisa ser maior que a maior janela de src/servicos/limites.ts (1 hora).
  */
 const VALIDADE_TENTATIVAS_MS = 24 * 60 * 60 * 1000;
+/**
+ * Pendentes com cobrança conferidos no gateway por execução (os mais recentes primeiro). Cada um
+ * é uma leitura da order na API; o job roda a cada 10 minutos.
+ */
+const PENDENTES_CONFERIDOS_POR_VEZ = 100;
+/** Falhas seguidas na API do gateway que fazem o job parar de conferir nesta execução. */
+const FALHAS_SEGUIDAS_PARA_PARAR = 3;
 
 export type ResultadoJobPedidos = {
+  /** Pendentes com cobrança conferidos no gateway nesta execução. */
+  conferidos: number;
   expirados: number;
   pagos: number;
   lembretes: number;
@@ -52,6 +61,7 @@ export type ResultadoJobPedidos = {
 export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
   const agora = Date.now();
   const resultado: ResultadoJobPedidos = {
+    conferidos: 0,
     expirados: 0,
     pagos: 0,
     lembretes: 0,
@@ -59,28 +69,52 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     avisosLiberacao: 0,
   };
 
-  // 0. Lembrete do Pix ainda dentro do prazo, uma vez por pedido.
+  // 0. Reconciliação: confere no gateway todo pendente com cobrança, no prazo ou vencido, pelo
+  // mesmo caminho do webhook (lê a order na API, confere referência e valor, confirma de forma
+  // idempotente). Sem isso, o Pix pago cujo webhook não chegou só era confirmado se o comprador
+  // voltasse à página do pedido ou depois que o Pix vencia (docs/riscos.md, prioridade alta).
+  const conferidos = new Set<string>();
+  let gatewayIndisponivel = false;
+  const contar = (conferencia: ConferenciaDoPedido) => {
+    resultado.conferidos++;
+    if (conferencia === "pago") resultado.pagos++;
+    if (conferencia === "expirado") resultado.expirados++;
+  };
+  if (gatewayConfigurado()) {
+    let falhasSeguidas = 0;
+    for (const pedido of await listarPendentesComCobranca(PENDENTES_CONFERIDOS_POR_VEZ)) {
+      const conferencia = await conferirCobrancaDoPedido(pedido.id);
+      conferidos.add(pedido.id);
+      contar(conferencia);
+      // Gateway fora do ar ou limitando (429): para e tenta de novo na próxima execução.
+      falhasSeguidas = conferencia === "falhou" ? falhasSeguidas + 1 : 0;
+      if (falhasSeguidas >= FALHAS_SEGUIDAS_PARA_PARAR) {
+        gatewayIndisponivel = true;
+        break;
+      }
+    }
+  }
+
+  // 1. Lembrete do Pix ainda dentro do prazo, uma vez por pedido. Vem depois da reconciliação
+  // para não lembrar de pagar quem já pagou.
   for (const pedido of await listarPixParaLembrar(agora, ESPERA_LEMBRETE_PIX_MS)) {
     if (!(await marcarLembretePix(pedido.id))) continue;
     await enviarLembretePix(pedido, agora);
     resultado.lembretesPix++;
   }
 
-  // 1. Expira os pendentes vencidos. Com cobrança no gateway, confere lá antes: o
-  // pagamento pode ter chegado sem o webhook (docs/riscos.md, prioridade alta).
+  // 2. Expira os pendentes vencidos. Com cobrança no gateway, confere lá antes (se a
+  // reconciliação ainda não conferiu): o pagamento pode ter chegado sem o webhook.
   for (const pedido of await listarPendentesVencidos(agora)) {
     if (pedido.gatewayId) {
-      if (!gatewayConfigurado()) continue;
-      await sincronizarPedido(pedido);
-      const status = (await buscarPedido(pedido.id))?.pedido.status;
-      if (status === "pago") resultado.pagos++;
-      if (status === "expirado") resultado.expirados++;
+      if (!gatewayConfigurado() || gatewayIndisponivel || conferidos.has(pedido.id)) continue;
+      contar(await conferirCobrancaDoPedido(pedido.id));
       continue;
     }
     if (await mudarStatusPedido(pedido.id, "pendente", "expirado")) resultado.expirados++;
   }
 
-  // 2. Lembrete de carrinho abandonado, uma vez por pedido.
+  // 3. Lembrete de carrinho abandonado, uma vez por pedido.
   for (const pedido of await listarExpiradosSemLembrete()) {
     if (agora - new Date(pedido.criadoEm).getTime() > JANELA_LEMBRETE_MS) continue;
     if (!(await marcarLembreteEnviado(pedido.id))) continue;
@@ -88,7 +122,7 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     resultado.lembretes++;
   }
 
-  // 3. Aviso de lote agendado liberado. As fotos já apareceram no minuto certo (a galeria compara
+  // 4. Aviso de lote agendado liberado. As fotos já apareceram no minuto certo (a galeria compara
   // o horário na consulta); o job só avisa, uma vez por lote. Uma falha aqui não para o resto.
   try {
     resultado.avisosLiberacao = await avisarLotesLiberados(agora);

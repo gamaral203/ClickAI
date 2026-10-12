@@ -301,7 +301,7 @@ O fotógrafo pode marcar o local do evento num mapa, além de escrever o local �
 4. O servidor cria o `pedido` como `pendente`. No Pix, já cria a order no Mercado Pago (`POST /v1/orders`, chave de idempotência pelo id do pedido) e guarda o QR Code no pedido; o Pix expira em 1 hora, no Mercado Pago e em `pedidos.expira_em`.
 5. No cartão, a página do pedido mostra o Card Payment Brick do Mercado Pago: os campos do cartão são iframes deles, e o navegador só entrega ao servidor um token de uso único. O servidor cria a order à vista (1 parcela) com o total do pedido; se for recusada, o cliente tenta outro cartão no mesmo pedido.
 6. O Mercado Pago chama o webhook (`/api/webhooks/mercadopago`, evento "Order"). O webhook valida a assinatura (`x-signature`, HMAC-SHA256, recusando `ts` com mais de ~5 minutos de diferença do relógio do servidor), lê a order na API (o corpo da notificação não vale), confere `external_reference` e `total_amount` com o pedido, marca como `pago` e soma o uso do cupom numa única transação (só se ainda estiver `pendente`) e depois cria os `lancamentos` de cada fotógrafo.
-7. A página do pedido se atualiza a cada 5 segundos enquanto espera e confere a order na API do Mercado Pago (no máximo uma consulta a cada 5 segundos por pedido). Isso cobre o webhook que atrasou ou nunca chegou, e o ambiente local, onde o Mercado Pago não alcança o webhook. O gestor também confere na hora, em `/admin/vendas` ("Conferir pagamento" num pedido aguardando pagamento), pelo mesmo caminho do webhook: serve para o pagamento feito enquanto o site estava fora do ar, sem esperar o job de pedidos, que só confere a order quando o Pix vence.
+7. A página do pedido se atualiza a cada 5 segundos enquanto espera e confere a order na API do Mercado Pago (no máximo uma consulta a cada 5 segundos por pedido). Isso cobre o webhook que atrasou ou nunca chegou, e o ambiente local, onde o Mercado Pago não alcança o webhook. O gestor também confere na hora, em `/admin/vendas` ("Conferir pagamento" num pedido aguardando pagamento), pelo mesmo caminho do webhook: serve para o pagamento feito enquanto o site estava fora do ar, sem esperar o job de pedidos. O job de pedidos (a cada 10 minutos) também reconcilia: confere no Mercado Pago todo pedido `pendente` com order, no prazo ou vencido (até 100 por execução, os mais recentes primeiro, parando após 3 falhas seguidas da API), pelo mesmo caminho do webhook. Assim o Pix pago sem webhook é confirmado em até ~10 minutos, mesmo com o comprador fora da página, e o lembrete do Pix não vai para quem já pagou.
 8. Um job envia o e-mail com o link de downloads e, se o cliente aceitou, a mensagem de WhatsApp com o mesmo link.
 
 **Login e papéis**
@@ -349,7 +349,7 @@ Para cada item vendido: se o item foi enviado por um colaborador, o dono do even
 
 **Carrinho abandonado**
 
-Um job de hora em hora marca como `expirado` os pedidos `pendente` com `expira_em` vencido e confere no gateway antes de expirar. Para os expirados que ainda não receberam lembrete, envia um e-mail (e WhatsApp, se aceito) com o link para refazer a compra e preenche `lembrete_enviado_em`.
+O job de pedidos (a cada 10 minutos) marca como `expirado` os pedidos `pendente` com `expira_em` vencido; com order no Mercado Pago, só expira depois de ler a order e vê-la encerrada (paga, confirma). Para os expirados que ainda não receberam lembrete, envia um e-mail (e WhatsApp, se aceito) com o link para refazer a compra e preenche `lembrete_enviado_em`.
 
 **Download**
 

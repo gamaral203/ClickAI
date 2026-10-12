@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Pix pago que ficava "pendente": o job de pedidos (a cada 10 minutos) reconcilia todo pedido pendente com order no Mercado Pago, no prazo ou vencido, pelo mesmo caminho do webhook (lê a order, confere referência e valor, confirma de forma idempotente), antes do lembrete do Pix; o webhook registra no log o motivo de uma assinatura recusada
 - [x] Removida a opção "Mostrar as fotos só depois da busca por selfie ou número de peito" (tirava as fotos do ar sem servir para nada): o checkbox saiu do formulário e dos modelos, o servidor não lê nem grava o campo e a galeria fica aberta em todo evento público e publicado, mesmo com `fotos_so_apos_busca` em true no banco (senha e liberação continuam valendo)
 - [x] Um código por vez no e-mail (relato: "chegam vários códigos e o fotógrafo tem que adivinhar"): na confirmação do cadastro e no acesso do gestor, reenviar, entrar de novo ou refazer o cadastro manda o **mesmo** código enquanto ele vale (confirmação: 2 horas; gestor: 10 minutos por envio, teto de 2 horas); muda só depois de usado, vencido ou com as tentativas esgotadas, que o reenvio não zera. Código cifrado (AES-256-GCM, chave do `APP_SECRET`) só durante a validade, conferência pelo HMAC (migração 0025); outro envio em menos de 30 segundos não sai; assunto "Seu código ClicouAí (vale até HH:MM)", sem o código; a tela mostra o e-mail mascarado, a hora do envio e a validade. Na verificação em duas etapas (TOTP), a lista de códigos de recuperação virou "Códigos de emergência (não são para entrar agora)", com Copiar, Baixar .txt e "Guardei meus códigos", e o login pede claramente o código de 6 números do app, com "Usar um código de emergência" à parte ([seguranca.md](seguranca.md), "Códigos por e-mail")
 - [x] Documento de arquitetura ([arquitetura.md](arquitetura.md))
@@ -203,7 +204,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [ ] **E-mail do encarregado de dados** em `clicouai.com`: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` (Fase 14). O Resend já está configurado e funcionando (ver **Concluído**).
 - [ ] **Colocar a produção em uso real** (`clickai-hazel.vercel.app`). O banco e o deploy já estão no ar; falta conferir e configurar:
   1. Conferir no site o login de um gestor e uma compra com Pix paga. A página do pedido Pix já foi conferida por mais de 10 segundos (ver **Concluído**).
-  2. Cadastrar e confirmar o webhook do Mercado Pago ([deploy.md](deploy.md), item 6; o prazo de liberação do cartão fica na Fase 13).
+  2. Cadastrar e confirmar o webhook do Mercado Pago em `https://www.clicouai.com/api/webhooks/mercadopago` (com `www`), na aplicação do token de produção ([deploy.md](deploy.md), item 6; o prazo de liberação do cartão fica na Fase 13). Em 12/10 nenhuma notificação chegava ao site nos logs da Vercel `[R-alta]`.
   3. ~~Resend~~: feito (domínio verificado, `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel). Falta só o e-mail do encarregado (primeiro item desta seção).
   4. Google OAuth: cadastrar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
   5. Sentry: cadastrar `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN`.
