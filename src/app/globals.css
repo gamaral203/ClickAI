@@ -170,3 +170,14 @@
     transform: translateY(0) rotate(4deg);
   }
 }
+
+/*
+ * Prévias e miniaturas na galeria e na página da foto: sem arrastar, sem o menu de "salvar
+ * imagem" do toque longo no iPhone e sem seleção. Só atrapalha o caso casual; a proteção real é
+ * a marca nos pixels e a prévia pequena (docs/riscos.md, "Marca d'água removida com IA").
+ */
+@utility imagem-protegida {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}

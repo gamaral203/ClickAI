@@ -15,7 +15,9 @@ import {
 
 import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
+import { AvisoMarcaDagua } from "@/components/galeria/aviso-marca-dagua";
 import { LinkOutraFoto, VoltarParaGaleria } from "@/components/galeria/navegacao-da-foto";
+import { SemMenuDeContexto } from "@/components/galeria/sem-menu-de-contexto";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -80,7 +82,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <figure className="flex flex-col gap-3">
-          <div
+          <SemMenuDeContexto
             className="relative mx-auto w-full overflow-hidden rounded-xl bg-muted"
             style={{ aspectRatio: `${foto.largura} / ${foto.altura}`, maxHeight: "75vh" }}
           >
@@ -89,17 +91,18 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
               alt={descricao}
               fill
               loading="eager"
+              draggable={false}
               sizes="(min-width: 1024px) 800px, 100vw"
-              className="object-contain"
+              className="object-contain imagem-protegida"
             />
             {/* Quem fez a foto, no canto inferior esquerdo (eventos com vários fotógrafos). */}
             <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1.5 truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
               <Camera aria-hidden="true" className="size-3.5 shrink-0" />
               {autor?.nome ?? evento.fotografo.nomePublico}
             </span>
-          </div>
-          <figcaption className="text-sm text-muted-foreground">
-            Prévia com marca d&apos;água. O original sai sem marca e em alta resolução.
+          </SemMenuDeContexto>
+          <figcaption>
+            <AvisoMarcaDagua />
           </figcaption>
         </figure>
 

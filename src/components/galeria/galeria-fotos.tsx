@@ -136,6 +136,7 @@ export function GaleriaFotos({
         {fotos.map((foto, i) => (
           <li key={foto.id} data-foto={foto.id}>
             <Link
+              onContextMenu={(e) => e.preventDefault()}
               href={`/fotos/${foto.id}`}
               onClick={() => aoAbrirFoto(foto.id)}
               className="group relative block aspect-square overflow-hidden rounded-lg bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -146,8 +147,9 @@ export function GaleriaFotos({
                   src={foto.urlPrevia}
                   alt={`Foto ${i + 1} de ${tituloEvento}, ampliada no seu rosto`}
                   fill
+                  draggable={false}
                   sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                  className="object-cover"
+                  className="object-cover imagem-protegida"
                   style={estiloDoRecorte(recortes[foto.id])}
                 />
               ) : (
@@ -155,8 +157,9 @@ export function GaleriaFotos({
                   src={foto.urlMiniatura}
                   alt={`Foto ${i + 1} de ${tituloEvento}`}
                   fill
+                  draggable={false}
                   sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                  className="object-cover transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                  className="object-cover transition-transform duration-200 imagem-protegida group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                 />
               )}
             </Link>

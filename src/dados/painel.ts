@@ -526,6 +526,9 @@ export async function concluirFoto(
   fotoId: string,
   dados: {
     chaveOriginal: string;
+    /** Chaves da prévia e da miniatura gravadas agora (com a versão atual da marca). */
+    urlPrevia?: string;
+    urlMiniatura?: string;
     largura: number;
     altura: number;
     capturadaEm: Date | null;

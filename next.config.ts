@@ -59,15 +59,20 @@ const nextConfig: NextConfig = {
       ...dominioPublicoDoR2(),
     ],
   },
-  // A marca d'água das prévias usa public/logo.png, lida do disco por src/servicos/imagens.ts
-  // onde as fotos são processadas (rota de processamento do envio, job de revisão e ações do
-  // painel); sem isto, o arquivo não vai para a função da Vercel.
+  // A marca d'água das prévias usa public/marca-clicouai.png e public/marca-nao-tire-print.png
+  // (textos já desenhados), lidas do disco por src/servicos/imagens.ts onde as fotos são
+  // processadas (rota de processamento do envio, jobs de revisão e de regeração das prévias e
+  // ações do painel); sem isto, os arquivos não vão para a função da Vercel.
   outputFileTracingIncludes: {
-    "/painel/**": ["./public/logo.png"],
+    "/painel/**": ["./public/marca-clicouai.png", "./public/marca-nao-tire-print.png", "./public/marca-grade-nao-tire-print.png"],
     // Foto de exemplo das amostras de marca d'água (src/servicos/imagens.ts, amostraDaMarca).
-    "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],
-    "/api/envios/**": ["./public/logo.png"],
-    "/api/jobs/**": ["./public/logo.png"],
+    "/painel/marca-dagua/**": [
+      "./public/marca-clicouai.png",
+      "./public/marca-nao-tire-print.png", "./public/marca-grade-nao-tire-print.png",
+      "./public/inicio/ensaio-casal.webp",
+    ],
+    "/api/envios/**": ["./public/marca-clicouai.png", "./public/marca-nao-tire-print.png", "./public/marca-grade-nao-tire-print.png"],
+    "/api/jobs/**": ["./public/marca-clicouai.png", "./public/marca-nao-tire-print.png", "./public/marca-grade-nao-tire-print.png"],
   },
   outputFileTracingExcludes: buildComBancoReal
     ? {

@@ -29,6 +29,7 @@ import {
   reservarFotoParaProcessar,
   salvarRostos,
   situacaoDaFoto,
+  trocarPreviaDaFoto,
   type ChavesDaFoto,
 } from "@/dados";
 import { emParalelo, Orcamento } from "@/lib/concorrencia";
@@ -44,6 +45,7 @@ import {
   tamanhoDaParte,
 } from "@/lib/limites-envio";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
+import { SUFIXO_DA_VERSAO } from "@/lib/marca-dagua";
 import {
   abrirEnvioEmPartes,
   ERRO_SEM_ARMAZENAMENTO,
@@ -53,6 +55,7 @@ import {
   modoEnvio,
   moverOriginal,
   removerOriginal,
+  removerPublico,
   urlDaParte,
   urlDeEnvio,
 } from "@/lib/r2";
@@ -61,6 +64,7 @@ import {
   indexarRostos,
   nomeDoErro,
   provedorFacial,
+  type RostoIndexado,
 } from "@/lib/reconhecimento";
 import {
   BYTES_PARA_DETECTAR,
@@ -74,7 +78,7 @@ import {
   type FormatoAceito,
 } from "@/lib/tipos-imagem";
 
-import { copiaParaRostos, gerarVersoes } from "./imagens";
+import { copiaParaRostos, gerarVersoes, type VersoesDaFoto } from "./imagens";
 
 export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
@@ -120,8 +124,13 @@ export function chavesDaFoto(
   return {
     temporaria: `envios/${caminho}.${ext}`,
     original: `originais/${caminho}.${ext}`,
-    previa: `previas/${caminho}.webp`,
-    miniatura: `miniaturas/${caminho}.webp`,
+    // Prévia e miniatura levam a versão da marca na chave (src/lib/marca-dagua.ts).
+    previa: `previas/${caminho}${SUFIXO_DA_VERSAO}`,
+    miniatura: `miniaturas/${caminho}${SUFIXO_DA_VERSAO}`,
+    // Depois do cadastro dos rostos, prévia e miniatura são regeradas com a marca sobre eles
+    // numa chave própria: a primeira pode já estar no cache "immutable" do navegador e da CDN.
+    previaComRostos: `previas/${caminho}-r${SUFIXO_DA_VERSAO}`,
+    miniaturaComRostos: `miniaturas/${caminho}-r${SUFIXO_DA_VERSAO}`,
   };
 }
 
@@ -333,6 +342,11 @@ class ArquivoRecusado extends Error {}
 export const ORCAMENTO_DE_MEMORIA_BYTES = 600 * 1024 * 1024;
 const memoria = new Orcamento(ORCAMENTO_DE_MEMORIA_BYTES);
 
+/** Reserva memória do mesmo orçamento do envio (a regeração das prévias também abre originais). */
+export function reservarMemoriaDoProcessamento(bytes: number) {
+  return memoria.reservar(bytes);
+}
+
 /** Como o Sharp chama cada formato aceito (o AVIF é lido pelo libheif, como "heif"). */
 const FORMATO_NO_SHARP: Record<FormatoAceito, string> = {
   jpeg: "jpeg",
@@ -499,11 +513,11 @@ export async function confirmarEnvio(
     const modelo = await modeloMarcaDoEvento(foto.eventoId);
     let versoes;
     try {
-      versoes = await gerarVersoes(original, modelo);
+      versoes = await gerarVersoes(original, modelo, foto.id);
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }
-    const { previa, miniatura, paraRostos } = versoes;
+    const { previa, miniatura, paraRostos, comRostos } = versoes;
     medir("versoesMs");
     // As três gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
     await Promise.all([
@@ -514,6 +528,9 @@ export async function confirmarEnvio(
 
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
+      // As chaves da versão atual da marca (a foto pode ter sido registrada antes de ela mudar).
+      urlPrevia: chaves.previa,
+      urlMiniatura: chaves.miniatura,
       // Medidas como a foto aparece (já girada pelo EXIF), para a grade da galeria.
       largura: info.autoOrient.width,
       altura: info.autoOrient.height,
@@ -523,11 +540,14 @@ export async function confirmarEnvio(
     if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
-    // A foto já está pronta (à venda); os rostos só servem à busca por selfie.
+    // A foto já está pronta (à venda); os rostos servem à busca por selfie e, achados, levam a
+    // marca d'água para cima deles (da mesma base já decodificada: sem ler o original de novo).
+    const remarcar = (rostos: RostoIndexado[]) =>
+      remarcarSobreOsRostos(foto.id, chaves, comRostos, rostos);
     if (opcoes.depois) {
-      opcoes.depois(() => indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos));
+      opcoes.depois(() => indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos, remarcar));
     } else {
-      await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
+      await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos, remarcar);
       medir("rostosMs");
     }
     return { eventoId: foto.eventoId };
@@ -665,14 +685,16 @@ export async function indexarRostosDaFoto(
   eventoId: string,
   fotoId: string,
   original: Buffer | (() => Promise<Buffer>),
+  depoisDeSalvar?: (rostos: RostoIndexado[]) => Promise<void>,
 ): Promise<IndexacaoDeRostos> {
   if (provedorFacial() !== "rekognition") return "desligado";
+  let rostos: RostoIndexado[];
   try {
     // No envio, a cópia reduzida já vem da decodificação das prévias (gerarVersoes).
     const imagem =
       typeof original === "function" ? await original() : await copiaParaRostos(original);
-    await salvarRostos(fotoId, await indexarRostos(eventoId, fotoId, imagem));
-    return "indexada";
+    rostos = await indexarRostos(eventoId, fotoId, imagem);
+    await salvarRostos(fotoId, rostos);
   } catch (erro) {
     // Só o id da foto e o nome do erro (ex.: UnrecognizedClientException): nada da imagem.
     console.error(
@@ -681,4 +703,43 @@ export async function indexarRostosDaFoto(
     );
     return ehErroDeCredencial(erro) ? "falha_credencial" : "falha";
   }
+  if (depoisDeSalvar) {
+    // Os rostos já estão gravados: uma falha daqui em diante não muda o resultado do cadastro.
+    await depoisDeSalvar(rostos).catch((erro) =>
+      console.error(`[envios] falha ao pôr a marca sobre os rostos da foto ${fotoId}`, erro),
+    );
+  }
+  return "indexada";
+}
+
+/**
+ * Regera prévia e miniatura com a marca principal sobre o maior rosto e marcas menores sobre os
+ * outros rostos grandes (src/servicos/imagens.ts), grava nas chaves `-r`, troca no banco só se
+ * a foto ainda estiver com as do envio e então apaga as do envio. Sem rosto com posição, nada
+ * muda (a marca do envio, no centro, continua). Custo: só a geração das duas versões (~0,1 s),
+ * da base decodificada no envio; o original não é lido de novo.
+ */
+async function remarcarSobreOsRostos(
+  fotoId: string,
+  chaves: ReturnType<typeof chavesDaFoto>,
+  comRostos: VersoesDaFoto["comRostos"],
+  rostos: RostoIndexado[],
+) {
+  const caixas = rostos.flatMap((r) => (r.caixa ? [r.caixa] : []));
+  if (caixas.length === 0) return;
+  const { previa, miniatura } = await comRostos(caixas);
+  await Promise.all([
+    gravarPublico(chaves.previaComRostos, previa.buffer, "image/webp"),
+    gravarPublico(chaves.miniaturaComRostos, miniatura.buffer, "image/webp"),
+  ]);
+  const trocou = await trocarPreviaDaFoto(
+    fotoId,
+    { urlPrevia: chaves.previa, urlMiniatura: chaves.miniatura },
+    { urlPrevia: chaves.previaComRostos, urlMiniatura: chaves.miniaturaComRostos },
+  );
+  // Trocou: as do envio saem do bucket. Não trocou (a foto mudou no meio): as novas saem.
+  const apagar = trocou
+    ? [chaves.previa, chaves.miniatura]
+    : [chaves.previaComRostos, chaves.miniaturaComRostos];
+  await Promise.all(apagar.map((chave) => removerPublico(chave).catch(() => {})));
 }
