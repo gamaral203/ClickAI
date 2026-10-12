@@ -180,4 +180,13 @@
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
   user-select: none;
+  transition: filter 50ms linear;
+}
+
+/*
+ * Na hora do print, as prévias ficam desfocadas: o <html> ganha `protegido` quando o navegador dá
+ * sinais de print (src/components/galeria/protecao-contra-print.tsx). Fricção, não bloqueio.
+ */
+html.protegido .imagem-protegida {
+  filter: blur(18px);
 }
