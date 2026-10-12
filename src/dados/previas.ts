@@ -22,7 +22,9 @@ export type FotoComPreviaAntiga = {
 
 /**
  * Condição das fotos com prévia de versão anterior: fotos (não vídeos) prontas, com o original
- * no R2 (`originais/`) e a prévia no bucket público (`previas/`) sem o sufixo da versão atual.
+ * no R2 (`originais/`) e a prévia no bucket público (`previas/`) com uma versão na chave
+ * (`-vN.webp`) diferente da atual. As da versão 1 (sem sufixo) ficam de fora: têm o mesmo
+ * desenho da versão atual (src/lib/marca-dagua.ts), então regerar só gastaria tempo e R2.
  * Inclui as excluídas: quem comprou ainda vê a miniatura no pedido. Fotos de exemplo (caminhos
  * `/exemplo/...`) ficam de fora.
  */
@@ -32,6 +34,7 @@ function comPreviaAntiga(eventoId?: string) {
     eq(t.fotos.status, "pronta"),
     like(t.fotos.chaveOriginal, "originais/%"),
     like(t.fotos.urlPrevia, "previas/%"),
+    like(t.fotos.urlPrevia, "%-v%.webp"),
     not(like(t.fotos.urlPrevia, `%${SUFIXO_DA_VERSAO}`)),
     eventoId ? eq(t.fotos.eventoId, eventoId) : undefined,
   );

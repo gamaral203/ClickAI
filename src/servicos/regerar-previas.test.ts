@@ -126,9 +126,10 @@ async function eventoComFotosAntigas(quantas: number) {
     const caminho = `${lia.id}/${evento.id}/${id}`;
     const original = await fotoDeTeste(3000, 2000);
     const antiga = {
-      // Chaves da versão 1 da marca (sem sufixo), como as fotos enviadas antes desta mudança.
-      urlPrevia: `previas/${caminho}.webp`,
-      urlMiniatura: `miniaturas/${caminho}.webp`,
+      // Chaves da versão 2 da marca (a pesada, revertida): são as que a regeração refaz. As da
+      // versão 1 (sem sufixo) têm o mesmo desenho da atual e ficam como estão.
+      urlPrevia: `previas/${caminho}-v2.webp`,
+      urlMiniatura: `miniaturas/${caminho}-v2.webp`,
     };
     objetos.set(nome(R2.R2_BUCKET_ORIGINAIS, `originais/${caminho}.jpg`), original);
     objetos.set(nome(R2.R2_BUCKET_PUBLICO, antiga.urlPrevia), Buffer.from("previa-antiga"));
@@ -206,7 +207,7 @@ describe("regeração das prévias antigas", () => {
       expect(linha.urlMiniatura).toBe(novas.miniatura);
       expect(linha.urlPrevia.endsWith(SUFIXO_DA_VERSAO)).toBe(true);
       expect(versaoDaChave(linha.urlPrevia)).toBe(VERSAO_DA_MARCA);
-      expect(versaoDaChave(foto.antiga.urlPrevia)).toBe(1);
+      expect(versaoDaChave(foto.antiga.urlPrevia)).toBe(2);
       // A prévia nova existe e é pequena; a antiga saiu do bucket.
       const nova = objetos.get(nome(R2.R2_BUCKET_PUBLICO, novas.previa))!;
       const meta = await sharp(nova).metadata();
