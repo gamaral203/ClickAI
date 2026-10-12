@@ -38,7 +38,7 @@ import { formatarPeriodo, formatarDataEHora, formatarPreco } from "@/lib/formata
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { linkComoChegar, linkVerNoOpenStreetMap, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
-import { lerFiltroGaleria } from "@/lib/validacao";
+import { lerFiltroGaleria, lerPagina } from "@/lib/validacao";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export async function generateMetadata({
@@ -81,7 +81,9 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
   const { slug } = await params;
   const evento = await buscarEventoPublicado(slug);
   if (!evento) notFound();
-  const filtro = lerFiltroGaleria(await searchParams);
+  const busca = await searchParams;
+  const filtro = lerFiltroGaleria(busca);
+  const pagina = lerPagina(busca.pagina);
 
   return (
     <>
@@ -145,7 +147,7 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
         </div>
       </header>
 
-      <Galeria evento={evento} filtro={filtro} />
+      <Galeria evento={evento} filtro={filtro} pagina={pagina} />
 
       <Onde evento={evento} />
 
@@ -160,7 +162,15 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
   );
 }
 
-async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: FiltroGaleria }) {
+async function Galeria({
+  evento,
+  filtro,
+  pagina,
+}: {
+  evento: EventoResumo;
+  filtro: FiltroGaleria;
+  pagina: number;
+}) {
   const situacao = evento.situacaoGaleria;
 
   if (situacao.tipo === "aguardando_liberacao") {
@@ -191,12 +201,11 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       podeComprar={podeComprar(usuario)}
     />
   );
-  const [primeiraPagina, opcoes] = await Promise.all([
-    listarFotosDoEvento(evento.id, { limite: FOTOS_POR_PAGINA, filtro }),
+  const [paginaDeFotos, opcoes] = await Promise.all([
+    listarFotosDoEvento(evento.id, { pagina, limite: FOTOS_POR_PAGINA, filtro }),
     listarOpcoesGaleria(evento.id),
   ]);
   const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
-  const chaveDaLista = `${filtro.hora ?? ""}|${filtro.naoIdentificadas ? 1 : 0}|${filtro.pasta ?? ""}`;
   return (
     <>
       {busca}
@@ -216,13 +225,15 @@ async function Galeria({ evento, filtro }: { evento: EventoResumo; filtro: Filtr
       )}
       <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
       <GaleriaFotos
-        // Novo filtro, nova lista: sem a chave, a galeria manteria as fotos do filtro anterior.
-        key={chaveDaLista}
-        restaurar={chaveDaLista}
         slug={evento.slug}
         tituloEvento={evento.titulo}
-        paginaInicial={primeiraPagina}
-        filtro={filtro}
+        fotos={paginaDeFotos.fotos}
+        paginacao={{
+          pagina: paginaDeFotos.pagina,
+          totalPaginas: paginaDeFotos.totalPaginas,
+          total: paginaDeFotos.total,
+          filtro,
+        }}
         vazio={
           filtrando
             ? {

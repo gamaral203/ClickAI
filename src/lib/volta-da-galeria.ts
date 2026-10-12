@@ -1,17 +1,17 @@
-import type { Foto } from "@/dados/tipos";
-
 /**
  * Volta da página da foto para a galeria do evento no mesmo ponto em que a pessoa estava.
  *
- * Ao tocar numa foto, a galeria guarda (na aba, em sessionStorage) de onde a pessoa saiu: o
- * evento, a foto e, na galeria principal, as fotos já carregadas. Com isso:
+ * A página da galeria fica na URL (`?pagina=N`), então o histórico já sabe para onde voltar. Ao
+ * tocar numa foto, a galeria guarda (na aba, em sessionStorage) só de onde a pessoa saiu: o
+ * evento, a foto aberta e os ids das fotos que estavam na tela. Com isso:
  * - o botão "Voltar" da foto volta no histórico (como o voltar do navegador ou o gesto do
- *   celular) quando a pessoa veio da galeria, em vez de abrir a galeria de novo no topo;
- * - se a galeria for montada do zero na volta (o Next guarda só as últimas rotas com
- *   `<Activity>`, ou a página foi recarregada), ela recupera as fotos carregadas pelo
- *   "Carregar mais" e rola até a foto tocada.
+ *   celular) quando a foto aberta ainda é uma das que estavam na tela, em vez de abrir a
+ *   galeria de novo no topo;
+ * - se "Anterior"/"Próxima" levaram para uma foto de outra página (ou a foto foi aberta pelo
+ *   link direto), "Voltar" vai pelo link para a página da galeria em que a foto está;
+ * - na volta, a galeria rola até a foto que estava aberta, se ela estiver na página.
  *
- * Nada aqui é sensível: só ids e URLs públicas de prévia, que já estavam na tela.
+ * Nada aqui é sensível: só ids de fotos públicas, que já estavam na tela.
  */
 
 const CHAVE = "clicouai:volta-da-galeria";
@@ -22,10 +22,8 @@ export type OrigemDaFoto = {
   slug: string;
   /** Foto aberta agora (muda com "Anterior" e "Próxima", que substituem a entrada no histórico). */
   fotoAtual: string;
-  /** Foto tocada na galeria: é até ela que a galeria rola na volta. */
-  fotoClicada: string;
-  /** Galeria principal (com filtro): o que restaurar se ela for montada do zero. */
-  galeria?: { chave: string; fotos: Foto[]; cursor: string | null };
+  /** Fotos que estavam na tela da galeria (a página ou o resultado da busca). */
+  ids: string[];
   em: number;
 };
 
@@ -47,7 +45,14 @@ export function lerOrigem(
     const bruto = guarda?.getItem(CHAVE);
     if (!bruto) return null;
     const origem = JSON.parse(bruto) as OrigemDaFoto;
-    if (typeof origem?.slug !== "string" || typeof origem.em !== "number") return null;
+    if (
+      typeof origem?.slug !== "string" ||
+      typeof origem.fotoAtual !== "string" ||
+      !Array.isArray(origem.ids) ||
+      typeof origem.em !== "number"
+    ) {
+      return null;
+    }
     if (agora - origem.em > VALIDADE_MS) return null;
     return origem;
   } catch {
@@ -63,13 +68,7 @@ export function guardarOrigem(
   try {
     guarda?.setItem(CHAVE, JSON.stringify({ ...origem, em: agora }));
   } catch {
-    // Sem espaço ou sem sessionStorage: o "Voltar" cai no link da galeria.
-    try {
-      guarda?.setItem(
-        CHAVE,
-        JSON.stringify({ ...origem, galeria: undefined, em: agora } satisfies OrigemDaFoto),
-      );
-    } catch {}
+    // Sem espaço ou sem sessionStorage: o "Voltar" cai no link da página da galeria.
   }
 }
 
@@ -93,8 +92,9 @@ export function trocarFotoAtual(
 }
 
 /**
- * A pessoa chegou a esta foto vindo da galeria do evento nesta aba? Então "Voltar" é voltar no
- * histórico. Quem abriu o link compartilhado não tem origem e vai para a galeria por link.
+ * Voltar no histórico leva de volta à galeria com esta foto na tela? Só quando a pessoa chegou
+ * aqui pela galeria do evento nesta aba e a foto aberta é uma das que estavam na tela. Quem abriu
+ * o link compartilhado, ou atravessou para outra página com "Anterior"/"Próxima", vai pelo link.
  */
 export function veioDaGaleria(
   slug: string,
@@ -103,5 +103,22 @@ export function veioDaGaleria(
   guarda: Armazenamento | null = armazenamento(),
 ) {
   const origem = lerOrigem(agora, guarda);
-  return origem?.slug === slug && origem.fotoAtual === fotoId;
+  return origem?.slug === slug && origem.fotoAtual === fotoId && origem.ids.includes(fotoId);
+}
+
+/**
+ * Na galeria que acaba de aparecer: a foto até a qual rolar (a que estava aberta), se ela está
+ * entre as fotos na tela. Consome a origem nesse caso; se não, deixa-a para outra lista da
+ * mesma página (a busca e a galeria aparecem juntas).
+ */
+export function fotoParaRolar(
+  slug: string,
+  idsNaTela: string[],
+  agora = Date.now(),
+  guarda: Armazenamento | null = armazenamento(),
+): string | null {
+  const origem = lerOrigem(agora, guarda);
+  if (!origem || origem.slug !== slug || !idsNaTela.includes(origem.fotoAtual)) return null;
+  esquecerOrigem(guarda);
+  return origem.fotoAtual;
 }

@@ -1,23 +1,31 @@
-// Originais do evento para o dono baixar (src/servicos/originais-do-dono.ts). Só o dono: toda
-// consulta junta `eventos` e confere `eventos.fotografo_id` no WHERE, então colaborador, outro
-// fotógrafo ou id trocado na requisição dão lista vazia (sem IDOR).
+// Originais para o AUTOR baixar (src/servicos/originais-do-dono.ts). Regra: só quem enviou a
+// foto (`fotos.enviada_por` = conta de fotógrafo do usuário) baixa o original dela, mesmo num
+// evento colaborativo. Toda consulta prende `fotos.enviada_por` no WHERE, então foto de outro
+// autor, de outro evento ou id trocado na requisição dá lista vazia (sem IDOR).
 //
-// Duas opções:
-//   - "vendidas": itens do evento que estão em pelo menos um pedido `pago`, de qualquer autor
-//     (o dono vê o evento inteiro, inclusive as vendas dos colaboradores; docs/arquitetura.md,
-//     "Desempenho do evento"). Pendente, expirado, cancelado, estornado e contestado não contam.
-//     Foto excluída depois da venda continua (quem comprou também continua baixando);
+// Lotes do dono do evento (a consulta também confere `eventos.fotografo_id`):
+//   - "vendidas": fotos que o próprio dono enviou e estão em pelo menos um pedido `pago`. As
+//     vendas dos colaboradores ficam de fora (só o autor baixa). Pendente, expirado, cancelado,
+//     estornado e contestado não contam. Foto excluída depois da venda continua;
 //   - "minhas": tudo o que o próprio dono enviou ao evento e ficou pronto, inclusive o que ele
 //     excluiu (vem marcado, para a tela avisar e separar numa pasta).
+//
+// Foto individual ("individual"): o autor, dono ou colaborador, baixa uma foto que ele enviou e
+// ficou pronta (excluída também), em qualquer evento.
 
 import "server-only";
 
-import { and, asc, eq, exists, gt, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
+import { urlPublica } from "@/lib/url-publica";
 
+/** Opção registrada na auditoria (inclui a foto individual). */
 export type ModoOriginais = (typeof t.modoOriginaisDoDono.enumValues)[number];
+
+/** Opções do download em lote do dono do evento. */
+export type ModoLoteOriginais = Exclude<ModoOriginais, "individual">;
 
 export type EventoDoDono = { id: string; slug: string; titulo: string };
 
@@ -50,16 +58,18 @@ export async function eventoDoDono(
   return evento ?? null;
 }
 
-/** Condição do WHERE para o modo; sempre presa ao evento e ao dono. */
-function condicoes(eventoId: string, fotografoId: string, modo: ModoOriginais): SQL {
+/**
+ * Condição do WHERE para o modo; sempre presa ao evento, ao dono e ao autor (o dono só baixa,
+ * em qualquer opção, as fotos que ele mesmo enviou).
+ */
+function condicoes(eventoId: string, fotografoId: string, modo: ModoLoteOriginais): SQL {
   const base = and(
     eq(t.fotos.eventoId, eventoId),
     eq(t.eventos.fotografoId, fotografoId),
+    eq(t.fotos.enviadaPor, fotografoId),
     isNotNull(t.fotos.chaveOriginal),
   )!;
-  if (modo === "minhas") {
-    return and(base, eq(t.fotos.enviadaPor, fotografoId), eq(t.fotos.status, "pronta"))!;
-  }
+  if (modo === "minhas") return and(base, eq(t.fotos.status, "pronta"))!;
   return base;
 }
 
@@ -75,7 +85,7 @@ async function vendidaEmPedidoPago() {
   );
 }
 
-async function filtro(eventoId: string, fotografoId: string, modo: ModoOriginais) {
+async function filtro(eventoId: string, fotografoId: string, modo: ModoLoteOriginais) {
   const onde = condicoes(eventoId, fotografoId, modo);
   return modo === "vendidas" ? and(onde, await vendidaEmPedidoPago())! : onde;
 }
@@ -84,7 +94,7 @@ async function filtro(eventoId: string, fotografoId: string, modo: ModoOriginais
 export async function resumoOriginaisDoDono(
   eventoId: string,
   fotografoId: string,
-  modo: ModoOriginais,
+  modo: ModoLoteOriginais,
 ): Promise<ResumoOriginais> {
   const banco = await obterBanco();
   const [linha] = await banco
@@ -111,7 +121,7 @@ export async function resumoOriginaisDoDono(
 export async function loteOriginaisDoDono(opcoes: {
   eventoId: string;
   fotografoId: string;
-  modo: ModoOriginais;
+  modo: ModoLoteOriginais;
   limite: number;
   depois?: string | null;
   ids?: string[];
@@ -147,7 +157,79 @@ export async function loteOriginaisDoDono(opcoes: {
   }));
 }
 
-/** Registra um lote entregue ao dono (auditoria): sem URLs nem chaves. */
+/**
+ * Original de uma foto, se este fotógrafo for o autor dela (quem a enviou) e ela estiver pronta
+ * (excluída também vale); senão `null`. Não importa se ele é o dono do evento ou colaborador.
+ */
+export async function originalDoAutor(
+  fotoId: string,
+  fotografoId: string,
+): Promise<(OriginalDoDono & { eventoId: string }) | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({
+      id: t.fotos.id,
+      eventoId: t.fotos.eventoId,
+      chave: t.fotos.chaveOriginal,
+      nomeArquivo: t.fotos.nomeArquivo,
+      tamanhoBytes: t.fotos.tamanhoBytes,
+      excluidaEm: t.fotos.excluidaEm,
+    })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.id, fotoId),
+        eq(t.fotos.enviadaPor, fotografoId),
+        eq(t.fotos.status, "pronta"),
+        isNotNull(t.fotos.chaveOriginal),
+      ),
+    );
+  if (!linha) return null;
+  return {
+    id: linha.id,
+    eventoId: linha.eventoId,
+    chave: linha.chave!,
+    nomeArquivo: linha.nomeArquivo,
+    tamanhoBytes: linha.tamanhoBytes,
+    excluida: linha.excluidaEm !== null,
+  };
+}
+
+/** O fotógrafo enviou alguma foto a este evento (pode liberar o download das fotos dele). */
+export async function autorNoEvento(eventoId: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.fotos.id })
+    .from(t.fotos)
+    .where(and(eq(t.fotos.eventoId, eventoId), eq(t.fotos.enviadaPor, fotografoId)))
+    .limit(1);
+  return linha !== undefined;
+}
+
+/** Fotos prontas e não excluídas que o fotógrafo enviou ao evento (para a tela do colaborador). */
+export async function fotosDoAutorNoEvento(eventoId: string, fotografoId: string) {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      id: t.fotos.id,
+      nomeArquivo: t.fotos.nomeArquivo,
+      urlMiniatura: t.fotos.urlMiniatura,
+    })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.eventoId, eventoId),
+        eq(t.fotos.enviadaPor, fotografoId),
+        eq(t.fotos.status, "pronta"),
+        isNull(t.fotos.excluidaEm),
+        isNotNull(t.fotos.chaveOriginal),
+      ),
+    )
+    .orderBy(asc(t.fotos.ordem));
+  return linhas.map((l) => ({ ...l, urlMiniatura: urlPublica(l.urlMiniatura) }));
+}
+
+/** Registra um lote (ou uma foto) entregue ao autor (auditoria): sem URLs nem chaves. */
 export async function registrarLoteDoDono(registro: {
   eventoId: string;
   fotografoId: string;

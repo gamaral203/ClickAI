@@ -1,0 +1,1 @@
+ALTER TYPE "public"."modo_originais_do_dono" ADD VALUE 'individual';

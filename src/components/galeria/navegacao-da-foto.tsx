@@ -11,27 +11,32 @@ function cliqueSimples(e: React.MouseEvent) {
 }
 
 /**
- * "Voltar para o evento": quem veio da galeria nesta aba volta no histórico, para o mesmo ponto
- * da galeria (igual ao voltar do navegador ou ao gesto do celular). Quem abriu o link da foto
- * direto vai para a galeria do evento pelo link.
+ * "Voltar para o evento": quem veio da galeria nesta aba e ainda está numa foto daquela tela
+ * volta no histórico, para a mesma página e o mesmo ponto da galeria (igual ao voltar do
+ * navegador ou ao gesto do celular). Quem abriu o link da foto direto, ou passou para uma foto
+ * de outra página, vai pelo link (`href`) para a página da galeria em que a foto está, com a
+ * âncora da foto (o navegador rola até ela, mesmo sem JavaScript).
  */
 export function VoltarParaGaleria({
   slug,
   fotoId,
+  href,
   className,
   children,
 }: {
   slug: string;
   fotoId: string;
+  href: string;
   className?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   return (
     <Link
-      href={`/eventos/${slug}`}
+      href={href}
       className={className}
       onClick={(e) => {
+        // Pelo link, a âncora `#foto-<id>` do endereço leva até a foto na grade.
         if (!cliqueSimples(e) || !veioDaGaleria(slug, fotoId)) return;
         e.preventDefault();
         router.back();
@@ -44,7 +49,8 @@ export function VoltarParaGaleria({
 
 /**
  * "Anterior"/"Próxima": troca a foto sem empilhar no histórico, para o voltar (do botão, do
- * navegador ou do gesto) levar de volta à galeria e não foto por foto.
+ * navegador ou do gesto) levar de volta à galeria e não foto por foto. Atravessa o limite da
+ * página da galeria normalmente (a ordem é a da galeria inteira).
  */
 export function LinkOutraFoto({
   slug,

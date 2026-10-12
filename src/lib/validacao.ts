@@ -45,10 +45,19 @@ export function lerFiltroGaleria(params: Record<string, ValorDeBusca>) {
   };
 }
 
-/** Cursor de paginação: o id de uma foto, ou `null` se ausente ou inválido. */
-export function lerCursor(valor: ValorDeBusca) {
-  const cursor = idSchema.safeParse(primeiro(valor));
-  return cursor.success ? cursor.data : null;
+const paginaSchema = z
+  .string()
+  .regex(/^\d{1,6}$/)
+  .transform(Number)
+  .pipe(z.int().min(1));
+
+/**
+ * Página da galeria (`?pagina=6`). Ausente ou inválida vira 1; acima da última, o servidor leva
+ * para a última (ele é quem sabe quantas há).
+ */
+export function lerPagina(valor: ValorDeBusca) {
+  const pagina = paginaSchema.safeParse(primeiro(valor));
+  return pagina.success ? pagina.data : 1;
 }
 
 export function ehIdValido(valor: string) {

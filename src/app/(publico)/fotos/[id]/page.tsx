@@ -23,6 +23,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { autoresPorId, buscarFotoPublica } from "@/dados";
 import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
+import { enderecoDaGaleria } from "@/lib/galeria";
 import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -60,7 +61,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   const { id } = await params;
   const dados = await carregar(id);
   if (!dados) notFound();
-  const { foto, evento, precoCentavos, posicao, anteriorId, proximaId } = dados;
+  const { foto, evento, precoCentavos, posicao, paginaNaGaleria, anteriorId, proximaId } = dados;
   // Crédito ao autor: quem fez a foto, que pode não ser o dono do evento (evento colaborativo).
   // Quem vende vê a página como o cliente, mas sem o botão de compra (conta de fotógrafo não compra).
   const [autores, usuario] = await Promise.all([autoresPorId([foto.enviadaPor]), usuarioAtual()]);
@@ -70,10 +71,15 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   return (
     <div className="flex flex-col gap-6">
       <RegistrarVisita fotoId={foto.id} />
-      {/* Veio da galeria: volta no histórico, no mesmo ponto; link direto: abre a galeria. */}
+      {/* Veio da galeria: volta no histórico, no mesmo ponto; senão, abre a página da galeria. */}
       <VoltarParaGaleria
         slug={evento.slug}
         fotoId={foto.id}
+        href={enderecoDaGaleria(
+          evento.slug,
+          {},
+          { pagina: paginaNaGaleria, ancora: `foto-${foto.id}` },
+        )}
         className="inline-flex h-11 w-fit items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />

@@ -15,6 +15,8 @@ import { centavosParaCampo } from "@/lib/dinheiro";
 import { formatarPreco } from "@/lib/formatar";
 import { rotuloDaLiberacao, type EstadoLiberacao } from "@/lib/liberacao";
 
+import { BaixarOriginal } from "./baixar-original";
+
 export type ItemDoPainel = {
   id: string;
   urlMiniatura: string;
@@ -33,6 +35,11 @@ export type ItemDoPainel = {
   /** Liberação da foto, calculada no servidor (src/lib/liberacao.ts). */
   estadoLiberacao: EstadoLiberacao;
   liberarEm: string | null;
+  /**
+   * A foto foi enviada pelo próprio usuário: só nela aparece "Baixar original" (o servidor
+   * confere a autoria de novo). Foto de colaborador fica sem o botão.
+   */
+  doAutor?: boolean;
 };
 
 /** Seleção de fotos para liberar ou agendar (só o dono do evento). */
@@ -53,12 +60,15 @@ export type EscolhaDeCapa = {
 type PastaOpcao = { id: string; nome: string };
 
 export function GradeFotosPainel({
+  eventoId,
   itens,
   pastas,
   selecao,
   capa,
   vazio = "Nenhuma foto enviada ainda.",
 }: {
+  /** Com o evento, a grade oferece "Baixar original" nas fotos do próprio usuário. */
+  eventoId?: string;
   itens: ItemDoPainel[];
   pastas: PastaOpcao[];
   selecao?: SelecaoDeFotos;
@@ -91,7 +101,14 @@ export function GradeFotosPainel({
     <div className="flex flex-col items-center gap-4">
       <ul className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {itens.slice(0, mostrando).map((item) => (
-          <Cartao key={item.id} item={item} pastas={pastas} selecao={selecao} capa={capa} />
+          <Cartao
+            key={item.id}
+            eventoId={eventoId}
+            item={item}
+            pastas={pastas}
+            selecao={selecao}
+            capa={capa}
+          />
         ))}
       </ul>
       {restantes > 0 && (
@@ -108,11 +125,13 @@ const POR_VEZ = 24;
 const ATUALIZAR_A_CADA_MS = 15_000;
 
 function Cartao({
+  eventoId,
   item,
   pastas,
   selecao,
   capa,
 }: {
+  eventoId?: string;
   item: ItemDoPainel;
   pastas: PastaOpcao[];
   selecao?: SelecaoDeFotos;
@@ -203,6 +222,9 @@ function Cartao({
           )}
           Usar como capa
         </Button>
+      )}
+      {eventoId && item.doAutor && item.status === "pronta" && (
+        <BaixarOriginal eventoId={eventoId} fotoId={item.id} nomeArquivo={item.nomeArquivo} />
       )}
       <Preco item={item} />
       {pastas.length > 0 && <SeletorPasta item={item} pastas={pastas} />}

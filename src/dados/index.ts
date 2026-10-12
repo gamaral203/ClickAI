@@ -17,6 +17,7 @@ import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { avatarPadrao } from "@/lib/avatares";
+import { FOTOS_POR_PAGINA, limitarPagina, paginaDaPosicao } from "@/lib/galeria";
 import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlPublica } from "@/lib/url-publica";
@@ -627,36 +628,40 @@ export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaler
 }
 
 /**
- * Itens da galeria aberta de um evento, paginados por cursor (docs/riscos.md: galeria lenta).
- * Se a galeria não está aberta (aguardando liberação ou com senha), devolve
- * vazio. O cursor é o id do último item da página anterior.
+ * Uma página da galeria aberta de um evento (docs/riscos.md: galeria lenta). Se a galeria não
+ * está aberta (aguardando liberação ou com senha), devolve vazio.
+ *
+ * Lê só as chaves dos itens visíveis (uma consulta pelo índice de `fotos.evento_id`), ordena na
+ * ordem estável do evento e corta a página; os dados completos saem só das fotos da página. A
+ * contagem total vem da mesma lista, então página e total nunca discordam. Página fora do
+ * intervalo vira 1 ou a última.
  */
 export async function listarFotosDoEvento(
   eventoId: string,
   {
-    cursor,
-    limite = 48,
+    pagina = 1,
+    limite = FOTOS_POR_PAGINA,
     filtro = {},
-  }: { cursor?: string | null; limite?: number; filtro?: FiltroGaleria } = {},
+  }: { pagina?: number; limite?: number; filtro?: FiltroGaleria } = {},
 ): Promise<PaginaDeFotos> {
   const instante = await agora();
   const evento = await eventoPorId(eventoId);
   if (!evento || (await situacaoParaVisitante(evento, instante)).tipo !== "aberta") {
-    return { fotos: [], proximoCursor: null };
+    return { fotos: [], pagina: 1, totalPaginas: 1, total: 0 };
   }
   const itens = await filtrarGaleria(
     await chavesVisiveisDoEvento(evento, instante),
     evento,
     filtro,
   );
-  // Cursor desconhecido dá findIndex -1, então começa do início em vez de dar página vazia.
-  const inicio = cursor ? itens.findIndex((f) => f.id === cursor) + 1 : 0;
-  const pagina = itens.slice(inicio, inicio + limite);
-  const ultima = pagina.at(-1);
-  const temMais = ultima !== undefined && itens.at(-1)?.id !== ultima.id;
+  const totalPaginas = Math.max(1, Math.ceil(itens.length / limite));
+  const atual = limitarPagina(pagina, totalPaginas);
+  const inicio = (atual - 1) * limite;
   return {
-    fotos: await fotosPorIds(pagina.map((f) => f.id)),
-    proximoCursor: temMais ? ultima.id : null,
+    fotos: await fotosPorIds(itens.slice(inicio, inicio + limite).map((f) => f.id)),
+    pagina: atual,
+    totalPaginas,
+    total: itens.length,
   };
 }
 
@@ -667,6 +672,8 @@ export type FotoPublica = {
   precoCentavos: number;
   /** Posição na galeria, começando em 1; `null` quando não há navegação. */
   posicao: number | null;
+  /** Página da galeria (sem filtro) em que o item está; 1 quando não há navegação. */
+  paginaNaGaleria: number;
   anteriorId: string | null;
   proximaId: string | null;
 };
@@ -705,6 +712,7 @@ export async function buscarFotoPublica(fotoId: string): Promise<FotoPublica | n
   return {
     ...base,
     posicao: indice + 1,
+    paginaNaGaleria: paginaDaPosicao(indice + 1),
     anteriorId: itens[indice - 1]?.id ?? null,
     proximaId: itens[indice + 1]?.id ?? null,
   };

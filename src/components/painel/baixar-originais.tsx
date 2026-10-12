@@ -47,7 +47,7 @@ const OPCOES: { modo: Modo; titulo: string; descricao: (r: Resumo) => string }[]
     modo: "vendidas",
     titulo: "Fotos vendidas",
     descricao: () =>
-      "Todas as fotos deste evento em pedidos pagos, inclusive as dos colaboradores.",
+      "As fotos que você enviou e foram vendidas em pedidos pagos. As dos colaboradores ficam com quem as enviou.",
   },
   {
     modo: "minhas",
@@ -77,8 +77,8 @@ function nadaMuda() {
 }
 
 /**
- * "Baixar originais" do painel do evento, só para o dono (o servidor confere de novo em cada
- * lote). Os arquivos vêm direto do R2 por URL assinada; nada passa pelo servidor do site.
+ * "Baixar originais" do painel do evento, só para o dono e só das fotos que ele mesmo enviou (o
+ * servidor confere de novo em cada lote). Os arquivos vêm direto do R2 por URL assinada; nada passa pelo servidor do site.
  */
 export function BaixarOriginais({
   eventoId,
@@ -275,7 +275,8 @@ export function BaixarOriginais({
           Baixar originais
         </h2>
         <p className="text-sm text-muted-foreground">
-          Os arquivos originais, como foram enviados. Só você, que criou o evento, vê esta opção.
+          Os arquivos originais das fotos que você enviou, como chegaram. Só o autor baixa o
+          original: as fotos dos colaboradores ficam com quem as enviou.
         </p>
       </div>
 
@@ -477,7 +478,7 @@ export function BaixarOriginais({
       {nada && (
         <p className="text-sm text-muted-foreground">
           {modo === "vendidas"
-            ? "Nenhuma foto deste evento foi vendida ainda."
+            ? "Nenhuma foto sua deste evento foi vendida ainda."
             : "Você ainda não tem fotos prontas neste evento."}
         </p>
       )}

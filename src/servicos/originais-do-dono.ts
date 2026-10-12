@@ -8,7 +8,9 @@ import {
   registrarLoteDoDono,
   resumoOriginaisDoDono,
   type EventoDoDono,
-  type ModoOriginais,
+  autorNoEvento,
+  originalDoAutor,
+  type ModoLoteOriginais,
   type OriginalDoDono,
   type ResumoOriginais,
   type Usuario,
@@ -22,26 +24,34 @@ import { limiteAtingido } from "./limites";
 import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "./mfa";
 import { contaDoPainel } from "./sessao";
 
-// Download dos originais pelo dono do evento (docs/CLAUDE.md, exceção à regra "nenhum original
-// sem pedido pago"; docs/arquitetura.md, "Originais do dono").
+// Download dos originais pelo AUTOR da foto (docs/CLAUDE.md, exceção à regra "nenhum original
+// sem pedido pago"; docs/arquitetura.md, "Originais do autor").
 //
-// Quem: só o fotógrafo dono do evento (`eventos.fotografo_id` = conta de fotógrafo do usuário
-// logado), conferido no servidor em cada lote. Colaborador, outro fotógrafo e cliente não passam.
-// O gestor usa o painel com a própria conta de fotógrafo (não é personificação): baixa só os
-// eventos que essa conta criou, nunca os de outro fotógrafo.
+// Regra: só a conta de fotógrafo que enviou a foto (`fotos.enviada_por`) baixa o original dela
+// sem pedido pago, mesmo num evento colaborativo. Conferido no servidor a cada pedido.
 //
-// Como: o navegador pede lotes de até 50 URLs assinadas de GET (~15 min, com Content-Disposition
-// de anexo) e baixa direto do R2; os arquivos nunca passam pelo Next.js. Cada lote conta no
-// limite `originais_dono_usuario` e fica registrado em `downloads_do_dono` (quem, evento, opção,
-// quantos, IP; sem URLs). Com a verificação em duas etapas ligada, o código é pedido uma vez para
-// liberar o download do evento, e a liberação (token assinado, preso ao usuário e ao evento) vale
-// por 3 horas, para um evento grande terminar sem pedir de novo a cada lote.
+// Duas formas:
+//   - em lote, no evento que ele criou: só o dono do evento (`eventos.fotografo_id`), e só as
+//     fotos dele ("vendidas" e "minhas"; as dos colaboradores ficam de fora);
+//   - uma foto só ("individual"): o autor, dono ou colaborador, pela rota
+//     /api/painel/original/[fotoId], que responde 302 para a URL assinada.
+// Outro fotógrafo, cliente e gestor não passam. O gestor usa o painel com a própria conta de
+// fotógrafo (não é personificação): baixa só as fotos que essa conta enviou.
+//
+// Como: URLs assinadas de GET (~15 min, com Content-Disposition de anexo), direto do R2; os
+// arquivos nunca passam pelo Next.js. Cada lote ou foto conta num limite por usuário e fica
+// registrado em `downloads_do_dono` (quem, evento, opção, quantos, IP; sem URLs). Com a
+// verificação em duas etapas ligada, o código é pedido uma vez por evento, e a liberação (token
+// assinado, preso ao usuário e ao evento) vale por 3 horas, para os lotes e as fotos individuais.
 
 export const ORIGINAIS_POR_LOTE = 50;
 export const VALIDADE_LIBERACAO_MS = 3 * 60 * 60 * 1000;
 const PROPOSITO = "originais-do-dono";
 
-export const MODOS_ORIGINAIS = ["vendidas", "minhas"] as const satisfies readonly ModoOriginais[];
+export const MODOS_ORIGINAIS = [
+  "vendidas",
+  "minhas",
+] as const satisfies readonly ModoLoteOriginais[];
 
 export type ItemParaBaixar = {
   id: string;
@@ -80,7 +90,7 @@ export async function donoDoEvento(
 export async function resumoParaODono(
   usuario: Usuario | null,
   eventoId: string,
-): Promise<Record<ModoOriginais, ResumoOriginais> | null> {
+): Promise<Record<ModoLoteOriginais, ResumoOriginais> | null> {
   const dono = await donoDoEvento(usuario, eventoId);
   if (!dono) return null;
   const [vendidas, minhas] = await Promise.all(
@@ -102,6 +112,34 @@ export async function liberarOriginais(
 ): Promise<{ ok: true; liberacao: string } | { ok: false; erro: string; pedeCodigo?: boolean }> {
   const dono = await donoDoEvento(usuario, eventoId);
   if (!dono || !usuario) return { ok: false, erro: ERROS.nao_encontrado };
+  return emitirLiberacao(usuario, eventoId, codigo);
+}
+
+/**
+ * Libera o download individual das fotos que o usuário enviou ao evento (dono ou colaborador):
+ * mesma liberação dos lotes, mas basta ser autor de alguma foto do evento. Cada foto é conferida
+ * de novo na entrega (`originalIndividual`).
+ */
+export async function liberarOriginaisDoAutor(
+  usuario: Usuario | null,
+  eventoId: string,
+  codigo: unknown,
+): Promise<{ ok: true; liberacao: string } | { ok: false; erro: string; pedeCodigo?: boolean }> {
+  if (!usuario || !z.uuid().safeParse(eventoId).success) {
+    return { ok: false, erro: ERROS.nao_encontrado };
+  }
+  const conta = await contaDoPainel(usuario);
+  if (!conta || !(await autorNoEvento(eventoId, conta.id))) {
+    return { ok: false, erro: ERROS.nao_encontrado };
+  }
+  return emitirLiberacao(usuario, eventoId, codigo);
+}
+
+async function emitirLiberacao(
+  usuario: Usuario,
+  eventoId: string,
+  codigo: unknown,
+): Promise<{ ok: true; liberacao: string } | { ok: false; erro: string; pedeCodigo?: boolean }> {
   const resultado = await exigirCodigoSeLigado(usuario, codigo);
   if (resultado !== "ok") {
     return { ok: false, erro: MENSAGENS_CODIGO[resultado], pedeCodigo: true };
@@ -142,7 +180,7 @@ export function nomeDoOriginal(item: Pick<OriginalDoDono, "id" | "nomeArquivo" |
 async function enderecoDoOriginal(
   item: OriginalDoDono,
   nome: string,
-  contexto: { eventoId: string; modo: ModoOriginais; liberacao: string },
+  contexto: { eventoId: string; modo: ModoLoteOriginais; liberacao: string },
 ) {
   if (item.chave.startsWith("originais/")) {
     if (!r2Configurado()) return null;
@@ -242,4 +280,65 @@ export async function originalDeExemploParaODono(
   });
   if (!item || !/^https:\/\//.test(item.chave)) return null;
   return { url: item.chave, nome: nomeDoOriginal(item) };
+}
+
+export type ResultadoIndividual =
+  | {
+      ok: true;
+      /** URL assinada de GET do R2 (~15 min), ou a imagem de exemplo fora da produção. */
+      url: string;
+      nome: string;
+      /** Dado de exemplo: a rota entrega a imagem (o CSP não deixa buscar o host direto). */
+      exemplo: boolean;
+    }
+  | { ok: false; motivo: "nao_encontrado" | "liberacao" | "limite" | "indisponivel" };
+
+/**
+ * Original de uma foto para o AUTOR dela (dono do evento ou colaborador), um por vez: confere a
+ * sessão, que a conta de fotógrafo do usuário enviou a foto, a liberação do evento (verificação
+ * em duas etapas) e o limite por usuário; registra na auditoria com o modo "individual". Foto de
+ * outro autor, ainda em envio ou inexistente dá `nao_encontrado` (sem dizer qual).
+ */
+export async function originalIndividual(
+  usuario: Usuario | null,
+  entrada: { fotoId: unknown; liberacao: unknown },
+  ip: string | null,
+): Promise<ResultadoIndividual> {
+  const fotoId = z.uuid().safeParse(entrada.fotoId);
+  if (!usuario || !fotoId.success) return { ok: false, motivo: "nao_encontrado" };
+  const conta = await contaDoPainel(usuario);
+  if (!conta) return { ok: false, motivo: "nao_encontrado" };
+  const foto = await originalDoAutor(fotoId.data, conta.id);
+  if (!foto) return { ok: false, motivo: "nao_encontrado" };
+  const liberacao = z.string().min(20).max(1000).safeParse(entrada.liberacao);
+  if (!liberacao.success || !liberacaoConfere(liberacao.data, usuario.id, foto.eventoId)) {
+    return { ok: false, motivo: "liberacao" };
+  }
+  if (await limiteAtingido("original_autor_usuario", usuario.id)) {
+    return { ok: false, motivo: "limite" };
+  }
+
+  const nome = nomeDoOriginal(foto);
+  let url: string | null = null;
+  let exemplo = false;
+  if (foto.chave.startsWith("originais/")) {
+    if (r2Configurado()) {
+      const formato = formatoDaChave(foto.chave) ?? "jpeg";
+      url = await urlDeDownload(foto.chave, nome, DADOS_DO_FORMATO[formato].mime);
+    }
+  } else if (/^https:\/\//.test(foto.chave) && !emProducao()) {
+    url = foto.chave;
+    exemplo = true;
+  }
+  if (!url) return { ok: false, motivo: "indisponivel" };
+
+  await registrarLoteDoDono({
+    eventoId: foto.eventoId,
+    fotografoId: conta.id,
+    usuarioId: usuario.id,
+    modo: "individual",
+    quantidade: 1,
+    ip,
+  });
+  return { ok: true, url, nome, exemplo };
 }
