@@ -1,4 +1,3 @@
-import { ProtecaoContraPrint } from "@/components/galeria/protecao-contra-print";
 import { Cabecalho } from "@/components/site/cabecalho";
 import { Rodape } from "@/components/site/rodape";
 
@@ -8,8 +7,6 @@ export default function LayoutPublico({ children }: LayoutProps<"/">) {
       <Cabecalho />
       <main className="flex-1">{children}</main>
       <Rodape />
-      {/* Desfoca as prévias da galeria e da página da foto quando a pessoa vai tirar print. */}
-      <ProtecaoContraPrint />
     </>
   );
 }
