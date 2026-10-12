@@ -32,7 +32,6 @@ let n = 0;
 async function novoEvento(
   extra: Partial<{
     visibilidade: "publico" | "senha";
-    fotosSoAposBusca: boolean;
     ordenacao: "envio" | "captura";
   }> = {},
 ) {
@@ -50,7 +49,6 @@ async function novoEvento(
     precoVideoCentavos: 3000,
     visibilidade: extra.visibilidade ?? "publico",
     listado: true,
-    fotosSoAposBusca: extra.fotosSoAposBusca ?? false,
     liberacao: "automatica",
     liberadoEm: null,
     filtroHorario: false,
@@ -169,14 +167,10 @@ describe("galeria em páginas numeradas", () => {
     expect(await pagina(evento.id, 1)).toMatchObject({ totalPaginas: 1, total: 47 });
   });
 
-  it("com senha (sem acesso) ou só após a busca, nenhuma página", async () => {
+  it("com senha (sem acesso), nenhuma página", async () => {
     const comSenha = await novoEvento({ visibilidade: "senha" });
     await enviar(comSenha.id, 3);
     expect(await pagina(comSenha.id, 1)).toMatchObject({ fotos: [], total: 0 });
-
-    const soBusca = await novoEvento({ fotosSoAposBusca: true });
-    await enviar(soBusca.id, 3);
-    expect(await pagina(soBusca.id, 1)).toMatchObject({ fotos: [], total: 0 });
   });
 
   it("aguenta um evento grande (4.000 fotos) com folga", async () => {

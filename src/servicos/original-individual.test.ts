@@ -72,7 +72,6 @@ async function novoEvento(fotografoId: string, titulo = "Evento do original") {
     precoVideoCentavos: 3000,
     visibilidade: "publico",
     listado: true,
-    fotosSoAposBusca: false,
     liberacao: "automatica",
     liberadoEm: null,
     filtroHorario: false,
