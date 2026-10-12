@@ -1061,6 +1061,22 @@ export async function listarPendentesVencidos(instante: number): Promise<PedidoI
   return linhas.map(paraPedido);
 }
 
+/**
+ * Pedidos `pendente` com cobrança no gateway (no prazo ou vencidos), os mais recentes primeiro,
+ * até `limite`. O job de pedidos confere cada um no gateway: é o que pega o Pix pago cujo
+ * webhook não chegou, sem esperar o comprador voltar à página do pedido.
+ */
+export async function listarPendentesComCobranca(limite: number): Promise<PedidoInterno[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.pedidos)
+    .where(and(eq(t.pedidos.status, "pendente"), isNotNull(t.pedidos.gatewayId)))
+    .orderBy(desc(t.pedidos.criadoEm))
+    .limit(limite);
+  return linhas.map(paraPedido);
+}
+
 /** Pedidos expirados que ainda não receberam o lembrete de carrinho abandonado. */
 export async function listarExpiradosSemLembrete(): Promise<PedidoInterno[]> {
   const banco = await obterBanco();

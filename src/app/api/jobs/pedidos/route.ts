@@ -6,6 +6,9 @@ import { rodarJobDePedidos } from "@/servicos/jobs";
 // Dispara o job de pedidos (expirar e lembrar). Protegido por CRON_SECRET, no formato que o cron
 // da Vercel usa (Authorization: Bearer …). Sem CRON_SECRET, só roda em desenvolvimento.
 
+// A reconciliação confere até 100 pedidos no Mercado Pago por execução.
+export const maxDuration = 120;
+
 export async function GET(request: NextRequest) {
   if (!chamadaDeJobAutorizada(request)) {
     return Response.json({ erro: "Não autorizado." }, { status: 401 });

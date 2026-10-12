@@ -104,10 +104,10 @@ export type ConferenciaDoPedido =
   | "falhou";
 
 /**
- * Pelo gestor (/admin/vendas): confere agora no gateway um pedido que está aguardando pagamento
- * e aplica o que a cobrança diz, sem o intervalo da página do pedido. Cobre o pagamento feito
- * com o site fora do ar (o webhook falhou e o comprador fechou a página) sem esperar o job de
- * pedidos, que só confere quando o Pix vence.
+ * Confere agora no gateway um pedido que está aguardando pagamento e aplica o que a cobrança
+ * diz, sem o intervalo da página do pedido. Usado pelo gestor (/admin/vendas) e pela
+ * reconciliação do job de pedidos, que confere todo pendente com cobrança a cada execução: cobre
+ * o Pix pago cujo webhook não chegou e cujo comprador fechou a página.
  */
 export async function conferirCobrancaDoPedido(pedidoId: string): Promise<ConferenciaDoPedido> {
   const encontrado = await buscarPedido(pedidoId);
