@@ -104,6 +104,12 @@ const REGRAS = {
    */
   original_autor_usuario: { limite: 60, janelaMs: 10 * MINUTO },
   /**
+   * Miniaturas sem marca d'água das fotos do próprio autor (Meus clientes), por usuário. Cada uma
+   * lê o original e o reduz; o navegador guarda a pronta por 7 dias. 600 em 10 minutos cobre abrir
+   * muitos clientes seguidos, mas segura um script.
+   */
+  sem_marca_usuario: { limite: 600, janelaMs: 10 * MINUTO },
+  /**
    * Códigos da verificação em duas etapas, por usuário (login, saque, troca de CPF/CNPJ). O
    * código tem 6 dígitos: 6 tentativas a cada 15 minutos deixam a chance de acertar no chute
    * perto de zero. Código certo zera a contagem.

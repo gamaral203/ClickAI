@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, ChartColumn, CheckCircle2, ChevronDown, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChartColumn, CheckCircle2, ExternalLink } from "lucide-react";
 
 import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { SecoesDoEvento } from "@/components/painel/secoes-do-evento";
@@ -257,6 +257,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                   itens={itens.map((i) => ({
                     id: i.id,
                     urlMiniatura: i.urlMiniatura,
+                    urlPrevia: i.urlPrevia,
                     nomeArquivo: i.nomeArquivo,
                     tipo: i.tipo,
                     status: i.status,

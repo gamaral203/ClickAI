@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 
 // "Baixar original" de uma foto, só nas fotos que o próprio usuário enviou (dono ou
 // colaborador). O servidor confere tudo de novo na rota /api/painel/original/[fotoId], que
-// responde 302 para a URL assinada do R2 (como anexo): a página não sai do lugar.
+// devolve a URL assinada do R2 (como anexo): o navegador baixa e a página não sai do lugar.
 //
 // A liberação do evento (token assinado de 3 horas, com o código da verificação em duas etapas
 // se ligada) fica guardada só na memória desta aba, para o código ser pedido uma vez por evento.
@@ -24,26 +24,71 @@ function liberacaoGuardada(eventoId: string) {
   return guardada.token;
 }
 
-function baixar(fotoId: string, token: string) {
-  // Link comum (não é uma página do app): o 302 leva ao R2, que responde como anexo, e o
-  // navegador só baixa, sem sair do painel.
-  const busca = new URLSearchParams({ liberacao: token });
+export type LiberacaoDoEvento =
+  { ok: true; token: string } | { ok: false; erro: string; pedeCodigo: boolean };
+
+/** Liberação do evento: a guardada nesta aba ou uma nova (com o código do app, se o MFA pedir). */
+export async function liberarEvento(eventoId: string, codigo?: string): Promise<LiberacaoDoEvento> {
+  const guardada = liberacaoGuardada(eventoId);
+  if (guardada) return { ok: true, token: guardada };
+  const resultado = await liberarOriginalDoAutorAcao(eventoId, codigo).catch(() => null);
+  if (!resultado) {
+    return {
+      ok: false,
+      erro: "Não foi possível liberar o download. Tente de novo.",
+      pedeCodigo: false,
+    };
+  }
+  if (!resultado.ok) {
+    return { ok: false, erro: resultado.erro, pedeCodigo: Boolean(resultado.pedeCodigo) };
+  }
+  liberacoes.set(eventoId, { token: resultado.liberacao, ate: Date.now() + VALIDADE_LOCAL_MS });
+  return { ok: true, token: resultado.liberacao };
+}
+
+/**
+ * Baixa o original de uma foto: pede à rota a URL assinada (em JSON, para o erro aparecer na tela
+ * em vez de trocar de página) e abre o link, que o R2 entrega como anexo: o navegador só baixa,
+ * sem sair do painel. Devolve a mensagem de erro, ou `null`.
+ */
+export async function baixarOriginal(
+  eventoId: string,
+  fotoId: string,
+  token: string,
+): Promise<string | null> {
+  const busca = new URLSearchParams({ liberacao: token, formato: "json" });
+  let resposta: Response;
+  try {
+    resposta = await fetch(`/api/painel/original/${fotoId}?${busca}`, { cache: "no-store" });
+  } catch {
+    return "Sem conexão. Tente de novo.";
+  }
+  const dados = (await resposta.json().catch(() => null)) as { url?: string; erro?: string } | null;
+  if (!resposta.ok || !dados?.url) {
+    // Liberação vencida no servidor: esquece a guardada, para o próximo clique pedir outra.
+    if (resposta.status === 403) liberacoes.delete(eventoId);
+    return dados?.erro ?? "Não foi possível baixar. Tente de novo.";
+  }
   const link = document.createElement("a");
-  link.href = `/api/painel/original/${fotoId}?${busca}`;
-  link.rel = "noopener";
+  link.href = dados.url;
+  link.rel = "noopener noreferrer";
   document.body.appendChild(link);
   link.click();
   link.remove();
+  return null;
 }
 
 export function BaixarOriginal({
   eventoId,
   fotoId,
   nomeArquivo,
+  rotulo = "Baixar original",
 }: {
   eventoId: string;
   fotoId: string;
   nomeArquivo: string;
+  /** Texto do botão (o nome acessível sempre diz que é o original, sem marca d'água). */
+  rotulo?: string;
 }) {
   const ids = useId();
   const [pedeCodigo, setPedeCodigo] = useState(false);
@@ -53,24 +98,18 @@ export function BaixarOriginal({
 
   function liberarEBaixar(comCodigo?: string) {
     setErro(null);
-    const guardada = liberacaoGuardada(eventoId);
-    if (guardada) return baixar(fotoId, guardada);
     startTransition(async () => {
-      const resultado = await liberarOriginalDoAutorAcao(eventoId, comCodigo).catch(() => ({
-        ok: false as const,
-        erro: "Não foi possível liberar o download. Tente de novo.",
-        pedeCodigo: undefined,
-      }));
-      if (!resultado.ok) {
-        if (resultado.pedeCodigo) setPedeCodigo(true);
+      const liberacao = await liberarEvento(eventoId, comCodigo);
+      if (!liberacao.ok) {
+        if (liberacao.pedeCodigo) setPedeCodigo(true);
         // Sem código digitado ainda, o campo aparece sem mensagem de erro.
-        if (!resultado.pedeCodigo || comCodigo) setErro(resultado.erro);
+        if (!liberacao.pedeCodigo || comCodigo) setErro(liberacao.erro);
         return;
       }
-      liberacoes.set(eventoId, { token: resultado.liberacao, ate: Date.now() + VALIDADE_LOCAL_MS });
       setPedeCodigo(false);
       setCodigo("");
-      baixar(fotoId, resultado.liberacao);
+      const falha = await baixarOriginal(eventoId, fotoId, liberacao.token);
+      if (falha) setErro(falha);
     });
   }
 
@@ -141,7 +180,7 @@ export function BaixarOriginal({
         ) : (
           <Download aria-hidden="true" />
         )}
-        Baixar original
+        {rotulo}
       </Button>
       {erro && (
         <p role="alert" className="text-xs text-destructive">

@@ -11,6 +11,10 @@ import { usuarioAtual } from "@/servicos/sessao";
 // etapas, limite por usuário) e a resposta é um 302 para a URL assinada do R2 (~15 min, como
 // anexo): o arquivo nunca passa pelo Next.js. Só os dados de exemplo, fora da produção, saem por
 // aqui (o CSP não deixa o navegador buscar o host de exemplo direto).
+//
+// Com `formato=json` (os botões do painel), a resposta é a URL em JSON, ou o erro em JSON com o
+// mesmo status: o navegador abre o link e baixa sem sair da página, e um erro aparece na tela em
+// vez de numa página de texto.
 
 const MENSAGENS = {
   nao_encontrado: { status: 404, texto: "Foto não encontrada." },
@@ -21,6 +25,8 @@ const MENSAGENS = {
   limite: { status: 429, texto: "Muitos downloads seguidos. Espere alguns minutos." },
   indisponivel: { status: 404, texto: "O original desta foto não está disponível." },
 } as const;
+
+const SEM_CACHE = { "Cache-Control": "no-store" };
 
 function texto(status: number, corpo: string) {
   return new Response(corpo, {
@@ -34,14 +40,25 @@ export async function GET(
   { params }: RouteContext<"/api/painel/original/[fotoId]">,
 ) {
   const { fotoId } = await params;
+  const liberacao = request.nextUrl.searchParams.get("liberacao");
+  const json = request.nextUrl.searchParams.get("formato") === "json";
   const resultado = await originalIndividual(
     await usuarioAtual(),
-    { fotoId, liberacao: request.nextUrl.searchParams.get("liberacao") },
+    { fotoId, liberacao },
     await ipDaRequisicao(),
   );
   if (!resultado.ok) {
     const { status, texto: corpo } = MENSAGENS[resultado.motivo];
-    return texto(status, corpo);
+    return json
+      ? Response.json({ erro: corpo }, { status, headers: SEM_CACHE })
+      : texto(status, corpo);
+  }
+  if (json) {
+    // O exemplo sai por esta mesma rota, sem o formato, que entrega a imagem como anexo.
+    const url = resultado.exemplo
+      ? `${request.nextUrl.pathname}?${new URLSearchParams({ liberacao: liberacao ?? "" })}`
+      : resultado.url;
+    return Response.json({ url }, { headers: SEM_CACHE });
   }
   if (!resultado.exemplo) {
     return new Response(null, {

@@ -11,7 +11,10 @@ const FAIXAS = {
   "lg-e-xl": "lg:inline-flex",
 } as const;
 
-/** Avatar (ou foto de perfil) e primeiro nome levando ao perfil, no cabeçalho do painel. */
+/**
+ * Avatar (ou foto de perfil) levando ao perfil, no cabeçalho do painel. O primeiro nome aparece só
+ * de xl em diante: entre lg e xl, o espaço fica com os atalhos (o nome segue para leitor de tela).
+ */
 export function LinkDoPerfil({
   perfil,
   primeiroNome,
@@ -32,7 +35,7 @@ export function LinkDoPerfil({
       <span className="relative size-7 shrink-0 overflow-hidden rounded-full bg-accent">
         <Image src={avatar} alt="" fill sizes="28px" className="object-cover" />
       </span>
-      <span className="max-w-32 truncate">{primeiroNome}</span>
+      <span className="sr-only xl:not-sr-only xl:max-w-32 xl:truncate">{primeiroNome}</span>
       <span className="sr-only">: {perfil.rotulo.toLowerCase()}</span>
     </Link>
   );

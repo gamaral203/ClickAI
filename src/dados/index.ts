@@ -1608,3 +1608,4 @@ export * from "./capa";
 export * from "./suporte";
 export * from "./originais-do-dono";
 export * from "./previas";
+export * from "./clientes";

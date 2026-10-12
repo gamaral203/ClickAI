@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { ImageIcon, Loader2, Pencil, Star, Trash2 } from "lucide-react";
 
 import { excluirItemAcao } from "@/app/(fotografo)/painel/eventos/acoes";
@@ -16,10 +16,13 @@ import { formatarPreco } from "@/lib/formatar";
 import { rotuloDaLiberacao, type EstadoLiberacao } from "@/lib/liberacao";
 
 import { BaixarOriginal } from "./baixar-original";
+import { VisualizadorFoto, type FotoParaVer } from "./visualizador-foto";
 
 export type ItemDoPainel = {
   id: string;
   urlMiniatura: string;
+  /** Prévia grande, para o visualizador (sem ela, ele usa a miniatura). */
+  urlPrevia?: string;
   nomeArquivo: string;
   /** Só foto pode ser capa (a prévia do vídeo é o próprio vídeo). Sem o campo, vale foto. */
   tipo?: "foto" | "video";
@@ -78,6 +81,21 @@ export function GradeFotosPainel({
   // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
   // celular, eram dezenas de milhares de pixels) nem pesada de carregar.
   const [mostrando, setMostrando] = useState(POR_VEZ);
+  // Foto aberta no visualizador (clique na miniatura): a prévia grande e, nas fotos do próprio
+  // usuário, "Baixar sem marca d'água". Navega por todas as prontas, não só as já mostradas.
+  const [aberta, setAberta] = useState<string | null>(null);
+  const prontas = useMemo(() => itens.filter((item) => item.status === "pronta"), [itens]);
+  const paraVer = useMemo<FotoParaVer[]>(
+    () =>
+      prontas.map((item) => ({
+        id: item.id,
+        nomeArquivo: item.nomeArquivo,
+        urlPrevia: item.urlPrevia ?? item.urlMiniatura,
+        doAutor: Boolean(item.doAutor),
+        detalhe: item.vendido ? "Vendida" : undefined,
+      })),
+    [prontas],
+  );
   const router = useRouter();
   const processando = itens.some((item) => item.status === "processando");
   // Fotos que ainda não ficaram prontas (o servidor as termina em segundo plano): atualiza a
@@ -97,6 +115,7 @@ export function GradeFotosPainel({
     );
   }
   const restantes = itens.length - mostrando;
+  const indiceAberto = aberta ? prontas.findIndex((item) => item.id === aberta) : -1;
   return (
     <div className="flex flex-col items-center gap-4">
       <ul className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -108,6 +127,7 @@ export function GradeFotosPainel({
             pastas={pastas}
             selecao={selecao}
             capa={capa}
+            aoAbrir={() => setAberta(item.id)}
           />
         ))}
       </ul>
@@ -116,6 +136,13 @@ export function GradeFotosPainel({
           Mostrar mais {Math.min(POR_VEZ, restantes)} de {restantes}
         </Button>
       )}
+      <VisualizadorFoto
+        eventoId={eventoId}
+        fotos={paraVer}
+        indice={indiceAberto >= 0 ? indiceAberto : null}
+        aoMudar={(i) => setAberta(prontas[i]?.id ?? null)}
+        aoFechar={() => setAberta(null)}
+      />
     </div>
   );
 }
@@ -130,12 +157,15 @@ function Cartao({
   pastas,
   selecao,
   capa,
+  aoAbrir,
 }: {
   eventoId?: string;
   item: ItemDoPainel;
   pastas: PastaOpcao[];
   selecao?: SelecaoDeFotos;
   capa?: EscolhaDeCapa;
+  /** Abre a foto no visualizador (só a foto pronta tem prévia). */
+  aoAbrir: () => void;
 }) {
   const ehCapa = capa?.fotoId === item.id;
   const router = useRouter();
@@ -157,7 +187,14 @@ function Cartao({
     <li className="flex flex-col gap-2 rounded-lg border p-2">
       <div className="relative aspect-square overflow-hidden rounded-md bg-muted">
         {item.status === "pronta" ? (
-          <Image src={item.urlMiniatura} alt="" fill sizes="200px" className="object-cover" />
+          <button
+            type="button"
+            onClick={aoAbrir}
+            aria-label={`Abrir ${item.nomeArquivo}`}
+            className="absolute inset-0 cursor-zoom-in focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset"
+          >
+            <Image src={item.urlMiniatura} alt="" fill sizes="200px" className="object-cover" />
+          </button>
         ) : item.status === "processando" ? (
           // A miniatura só existe depois que a foto fica pronta. Enquanto isso, um espaço
           // esmaecido, sem rótulo: o progresso do envio fica no círculo da tela de envio.
@@ -170,7 +207,7 @@ function Cartao({
             <ImageIcon aria-hidden="true" className="size-8" />
           </div>
         )}
-        <div className="absolute top-1.5 left-1.5 flex flex-wrap gap-1">
+        <div className="pointer-events-none absolute top-1.5 left-1.5 flex flex-wrap gap-1">
           {ehCapa && (
             <span className="flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
               <Star aria-hidden="true" className="size-3 fill-current" />
