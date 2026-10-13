@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-pagina: var(--pagina);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-jakarta);
@@ -59,6 +60,8 @@
  */
 :root {
   --background: #ffffff;
+  /* Fundo da página: cinza claro, para os cartões, botões e valores (brancos) se destacarem. */
+  --pagina: #f2f4f8;
   --foreground: #0f1729;
   --card: #ffffff;
   --card-foreground: #0f1729;
@@ -96,6 +99,7 @@
 
 .dark {
   --background: #0b1120;
+  --pagina: #0b1120;
   --foreground: #eef2fa;
   --card: #131b2e;
   --card-foreground: #eef2fa;
@@ -135,7 +139,12 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-pagina text-foreground;
+  }
+  /* Cartões (bloco com borda e cantos arredondados) sem fundo próprio ficam brancos sobre o cinza
+     da página. :where não soma especificidade: um bg-* escrito no elemento continua valendo. */
+  main :where(.rounded-lg.border, .rounded-xl.border, .rounded-2xl.border) {
+    background-color: var(--card);
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -189,4 +198,30 @@
  */
 html.protegido .imagem-protegida {
   filter: blur(18px);
+}
+
+/*
+ * Cabeçalho escuro do painel (fotógrafo e gestão): azul-marinho, com o logo claro. Só os botões,
+ * links e textos do próprio cabeçalho clareiam; o menu e os pop-ups que eles abrem (dentro de
+ * .bg-popover ou de <dialog>) e o cartão da meta (.manter-claro) continuam como no resto do site.
+ * Fora de camada de propósito: vence as classes de cor escritas nos componentes.
+ */
+.cabecalho-escuro {
+  background-color: #0b1530;
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.08);
+}
+.cabecalho-escuro
+  :is(a, button, .text-muted-foreground):not(
+    :where(.bg-popover *, dialog *, .manter-claro, .manter-claro *)
+  ) {
+  color: rgb(255 255 255 / 0.8);
+}
+.cabecalho-escuro
+  :is(a, button):not(:where(.bg-popover *, dialog *, .manter-claro, .manter-claro *)):hover {
+  color: #fff;
+  background-color: rgb(255 255 255 / 0.08);
+}
+.cabecalho-escuro a[aria-current="page"]:not(:where(.bg-popover *)) {
+  color: #fff;
 }

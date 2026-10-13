@@ -31,12 +31,12 @@ export function CabecalhoPainel({
   const primeiroNome = usuario.nome.split(" ")[0];
   const perfil = navegacao.perfil;
   return (
-    <header className="border-b bg-background print:hidden">
+    <header className="cabecalho-escuro border-b print:hidden">
       <div aria-hidden="true" className="h-1 bg-linear-to-r from-primary from-55% to-highlight" />
       <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-3 px-4 xl:max-w-7xl">
         {/* O logo nunca encolhe: se faltar espaço, é o lado direito que aperta. */}
         <div className="flex shrink-0 items-center gap-3">
-          <LogoDoPainel papel={usuario.papel} />
+          <LogoDoPainel papel={usuario.papel} claro />
           {/* No computador, os atalhos já dizem onde a pessoa está: o rótulo dá lugar a eles. */}
           <span className="hidden border-l pl-3 text-xs font-semibold tracking-wider whitespace-nowrap text-muted-foreground uppercase sm:inline lg:hidden">
             {usuario.papel === "admin" ? "Painel e gestão" : "Painel do fotógrafo"}
@@ -49,8 +49,11 @@ export function CabecalhoPainel({
 
         <div className="flex items-center gap-1">
           <BotaoAprenda />
-          <BotaoTema />
-          <BotaoSugestao />
+          {/* No celular, o modo noturno e a sugestão ficam no menu: o cabeçalho fica limpo. */}
+          <span className="hidden lg:contents">
+            <BotaoTema />
+            <BotaoSugestao />
+          </span>
           {/* Em tela larga, quem tem conta de fotógrafo (o gestor que também vende, inclusive) vê o
               cartão da meta com a foto ou o avatar no lugar do nome (entre lg e xl, o avatar e o
               nome); quem não tem, o avatar e o nome. Enquanto carrega, um bloco do mesmo tamanho,
@@ -86,6 +89,12 @@ export function CabecalhoPainel({
             logado
             nome={primeiroNome}
             itens={navegacao.celular}
+            extras={
+              <>
+                <BotaoTema comoItem />
+                <BotaoSugestao comoItem />
+              </>
+            }
           />
         </div>
       </div>

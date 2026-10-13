@@ -11,7 +11,14 @@ import { Button } from "@/components/ui/button";
  * Foguete no cabeçalho do painel: abre um popup para o fotógrafo mandar uma sugestão de melhoria
  * do site. Usa o <dialog> nativo (foco preso, Esc fecha, fundo escurecido).
  */
-export function BotaoSugestao() {
+export function BotaoSugestao({
+  className = "",
+  comoItem = false,
+}: {
+  className?: string;
+  /** Como linha de menu (no menu do celular), com o nome escrito. */
+  comoItem?: boolean;
+}) {
   const reduzir = useReducedMotion();
   const dialogo = useRef<HTMLDialogElement>(null);
   const [aberto, setAberto] = useState(false);
@@ -47,15 +54,26 @@ export function BotaoSugestao() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={abrir}
-        title="Sugerir uma melhoria"
-        className="inline-flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-      >
-        <Rocket aria-hidden="true" className="size-5" />
-        <span className="sr-only">Sugerir uma melhoria</span>
-      </button>
+      {comoItem ? (
+        <button
+          type="button"
+          onClick={abrir}
+          className="flex h-11 w-full items-center gap-2 rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground"
+        >
+          <Rocket aria-hidden="true" className="size-4" />
+          Sugerir uma melhoria
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={abrir}
+          title="Sugerir uma melhoria"
+          className={`inline-flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${className}`}
+        >
+          <Rocket aria-hidden="true" className="size-5" />
+          <span className="sr-only">Sugerir uma melhoria</span>
+        </button>
+      )}
 
       <dialog
         ref={dialogo}

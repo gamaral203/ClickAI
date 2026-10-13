@@ -27,6 +27,7 @@ export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
           itens={itens}
           raiz="/painel"
           suporte={linkWhatsappSuporte()}
+          semBarraNoCelular
         />
       </div>
       <div className="min-w-0">{children}</div>

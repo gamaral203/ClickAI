@@ -100,6 +100,12 @@ const ATALHOS_PAINEL: ItemNavegacao[] = [
 
 const GESTAO: ItemNavegacao = { href: "/admin", rotulo: "Gestão" };
 const METAS: ItemNavegacao = { href: "/painel/metas", rotulo: "Metas" };
+/** O resto do menu lateral do painel, que no celular fica só no menu do cabeçalho. */
+const MAIS_DO_PAINEL: ItemNavegacao[] = [
+  { href: "/painel/descontos", rotulo: "Descontos e cupons" },
+  { href: "/painel/colaboracoes", rotulo: "Colaborações" },
+  { href: "/painel/marca-dagua", rotulo: "Marca d'água" },
+];
 const PERFIL_PAINEL: ItemNavegacao = { href: "/painel/perfil", rotulo: "Perfil e recebimento" };
 const SEGURANCA: ItemNavegacao = { href: "/conta/seguranca", rotulo: "Senha e segurança" };
 const AJUDA: ItemNavegacao = { href: "/ajuda", rotulo: "Ajuda" };
@@ -128,7 +134,7 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
     return {
       variante: "painel",
       desktop: atalhos,
-      celular: [...atalhos, METAS, PERFIL_PAINEL, SEGURANCA, AJUDA],
+      celular: [...atalhos, METAS, ...MAIS_DO_PAINEL, PERFIL_PAINEL, SEGURANCA, AJUDA],
       perfil: PERFIL_PAINEL,
       carrinho: false,
       rodape: "curto",

@@ -11,7 +11,7 @@ import { destinoDoLogo, linkAtivo, type ItemNavegacao } from "@/lib/navegacao";
  * Logo do cabeçalho do painel. Leva ao início do painel; o gestor, dentro da gestão (/admin/*),
  * volta para a visão geral da gestão. Lê o endereço atual: por isso é componente do navegador.
  */
-export function LogoDoPainel({ papel }: { papel: Papel }) {
+export function LogoDoPainel({ papel, claro = false }: { papel: Papel; claro?: boolean }) {
   const href = destinoDoLogo(papel, usePathname());
   return (
     <Link
@@ -19,7 +19,7 @@ export function LogoDoPainel({ papel }: { papel: Papel }) {
       className="flex h-11 shrink-0 items-center rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <Image
-        src="/logo.png"
+        src={claro ? "/logo-clara.png" : "/logo.png"}
         alt={href === "/admin" ? "ClicouAí — gestão" : "ClicouAí — início do painel"}
         width={544}
         height={160}

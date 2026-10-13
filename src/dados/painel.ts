@@ -36,6 +36,8 @@ export type EventoDoPainel = Evento & {
   /** Fotos prontas já liberadas (aparecem no site com o evento publicado). */
   liberadas: number;
   vendidos: number;
+  /** O que os clientes pagaram pelas fotos do evento (preço menos desconto), em pedidos pagos. */
+  vendidoCentavos: number;
   /** Miniatura da capa (escolhida ou automática), ou `null` sem foto pronta. */
   capaMiniatura: { urlMiniatura: string; largura: number; altura: number } | null;
 };
@@ -64,23 +66,18 @@ async function paraPainel(
       .from(t.fotos)
       .where(and(inArray(t.fotos.eventoId, ids), isNull(t.fotos.excluidaEm), doAutor))
       .groupBy(t.fotos.eventoId),
-    // Itens não excluídos que aparecem em algum pedido pago.
+    // Itens não excluídos que aparecem em algum pedido pago, e o valor vendido (com os excluídos:
+    // a venda aconteceu).
     banco
       .select({
         eventoId: t.fotos.eventoId,
-        total: sql<number>`count(distinct ${t.fotos.id})::int`,
+        total: sql<number>`count(distinct ${t.fotos.id}) filter (where ${t.fotos.excluidaEm} is null)::int`,
+        valor: sql<number>`coalesce(sum(${t.itensPedido.precoCentavos} - ${t.itensPedido.descontoCentavos}), 0)::int`,
       })
       .from(t.itensPedido)
       .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
       .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
-      .where(
-        and(
-          inArray(t.fotos.eventoId, ids),
-          eq(t.pedidos.status, "pago"),
-          isNull(t.fotos.excluidaEm),
-          doAutor,
-        ),
-      )
+      .where(and(inArray(t.fotos.eventoId, ids), eq(t.pedidos.status, "pago"), doAutor))
       .groupBy(t.fotos.eventoId),
     colaborador ? capasDosEventos(ids, colaborador.instante) : capasParaODono(ids),
   ]);
@@ -97,6 +94,7 @@ async function paraPainel(
       processando: contagem?.processando ?? 0,
       liberadas: contagem?.liberadas ?? 0,
       vendidos: vendidos.find((v) => v.eventoId === l.id)?.total ?? 0,
+      vendidoCentavos: vendidos.find((v) => v.eventoId === l.id)?.valor ?? 0,
       capaMiniatura: capa
         ? { urlMiniatura: capa.urlMiniatura, largura: capa.largura, altura: capa.altura }
         : null,
