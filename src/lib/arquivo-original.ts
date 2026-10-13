@@ -1,8 +1,21 @@
 // Tipo e nome do arquivo original no download, para foto ou vídeo: o tipo vem da extensão da
 // chave no R2 (a do formato real conferido no envio), e o nome ganha a extensão certa.
 
-import { DADOS_DO_FORMATO, formatoDaChave, nomeComExtensao } from "./tipos-imagem";
-import { DADOS_DO_VIDEO, videoDaChave } from "./tipos-video";
+import {
+  DADOS_DO_FORMATO,
+  formatoDaChave,
+  nomeComExtensao,
+  type FormatoAceito,
+} from "./tipos-imagem";
+import { DADOS_DO_VIDEO, ehFormatoDeVideo, videoDaChave, type FormatoDeVideo } from "./tipos-video";
+
+/**
+ * Tipo (mime) de um formato aceito no envio, foto ou vídeo. É o que o navegador declara no PUT ao
+ * R2 e tem de ser igual ao assinado no servidor.
+ */
+export function mimeDoFormato(formato: FormatoAceito | FormatoDeVideo) {
+  return ehFormatoDeVideo(formato) ? DADOS_DO_VIDEO[formato].mime : DADOS_DO_FORMATO[formato].mime;
+}
 
 /** Tipo (mime) e extensão do original pela chave. Sem extensão conhecida, vale JPEG. */
 export function tipoDoOriginal(chave: string) {

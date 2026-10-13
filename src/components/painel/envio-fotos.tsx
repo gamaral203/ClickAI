@@ -30,12 +30,12 @@ import {
 } from "@/lib/limites-envio";
 import {
   BYTES_PARA_DETECTAR,
-  DADOS_DO_FORMATO,
   detectarFormato,
   MENSAGEM_FORMATO,
   MENSAGEM_RAW,
   type FormatoAceito,
 } from "@/lib/tipos-imagem";
+import { mimeDoFormato } from "@/lib/arquivo-original";
 import {
   detectarVideo,
   DURACAO_MAXIMA_VIDEO_S,
@@ -659,7 +659,8 @@ export function EnvioFotos({
       const { status } = await putNoR2(
         destino.url!,
         item.arquivo,
-        DADOS_DO_FORMATO[item.formato as FormatoAceito].mime,
+        // Foto ou vídeo: o mesmo tipo assinado no servidor (src/servicos/envios.ts).
+        mimeDoFormato(item.formato as FormatoAceito | FormatoDeVideo),
         (bytes) => {
           item.enviados = bytes;
           redesenhar();
