@@ -1,4 +1,10 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import ffmpegPath from "ffmpeg-static";
 
 import {
   AbortMultipartUploadCommand,
@@ -47,6 +53,7 @@ import { dataDeCaptura } from "@/lib/exif";
 import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
 import { LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
 import { MENSAGEM_RAW, type FormatoAceito } from "@/lib/tipos-imagem";
+import { MENSAGEM_VIDEO_LONGO } from "@/lib/tipos-video";
 import { ERRO_SEM_ARMAZENAMENTO, modoEnvio, reiniciarClienteR2 } from "@/lib/r2";
 import { autorizarDownload } from "@/servicos/downloads";
 import {
@@ -108,9 +115,13 @@ beforeAll(() => {
     if (comando instanceof GetObjectCommand) {
       const objeto = objetos.get(nome(comando.input.Bucket, comando.input.Key));
       if (!objeto) throw naoEncontrado();
+      const faixa = /^bytes=(\d+)-(\d+)$/.exec(comando.input.Range ?? "");
+      const corpo = faixa
+        ? objeto.corpo.subarray(Number(faixa[1]), Number(faixa[2]) + 1)
+        : objeto.corpo;
       return {
-        ContentLength: objeto.corpo.length,
-        Body: { transformToByteArray: async () => new Uint8Array(objeto.corpo) },
+        ContentLength: corpo.length,
+        Body: { transformToByteArray: async () => new Uint8Array(corpo) },
       };
     }
     if (comando instanceof CopyObjectCommand) {
@@ -1162,4 +1173,106 @@ describe("situação das fotos entregues ao servidor (situacaoDoEnvioAcao)", () 
       erro: "Pedido inválido.",
     });
   });
+});
+
+// ---------------------------------------------------------------- Vídeos
+
+/** Vídeo MP4 de teste, gerado pelo próprio FFmpeg (barras de cor com som). */
+function mp4DeTeste(segundos: number, largura = 640, altura = 360) {
+  const pasta = mkdtempSync(path.join(tmpdir(), "video-envio-"));
+  const arquivo = path.join(pasta, "v.mp4");
+  const r = spawnSync(ffmpegPath!, [
+    "-hide_banner",
+    "-f",
+    "lavfi",
+    "-i",
+    `testsrc=size=${largura}x${altura}:rate=10:duration=${segundos}`,
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=duration=${segundos}`,
+    "-c:v",
+    "libx264",
+    "-preset",
+    "ultrafast",
+    "-c:a",
+    "aac",
+    "-shortest",
+    "-y",
+    arquivo,
+  ]);
+  if (r.status !== 0) throw new Error(String(r.stderr));
+  const corpo = readFileSync(arquivo);
+  rmSync(pasta, { recursive: true, force: true });
+  return corpo;
+}
+
+async function enviarVideo(corpo: Buffer, duracaoS: number) {
+  const resultado = await iniciarEnvio(lia.id, evento.id, [
+    {
+      nome: `VID_${semente}.mp4`,
+      tamanhoBytes: corpo.length,
+      hash: await impressao(corpo),
+      formato: "mp4",
+      duracaoS,
+    },
+  ]);
+  if ("erro" in resultado) throw new Error(resultado.erro);
+  const [item] = resultado.itens;
+  if ("repetida" in item) throw new Error("repetida");
+  const chave = chavesDaFoto(lia.id, evento.id, item.fotoId, "mp4").temporaria;
+  objetos.set(nome(R2.R2_BUCKET_ORIGINAIS, chave), { corpo, tipo: "video/mp4" });
+  return item.fotoId;
+}
+
+describe("vídeos de até 30 segundos (convertidos aqui com o FFmpeg)", () => {
+  it("o vídeo vira prévia MP4 com marca, miniatura e fica pronto", async () => {
+    const corpo = mp4DeTeste(3);
+    const fotoId = await enviarVideo(corpo, 3);
+    expect((await linhaDaFoto(fotoId)).tipo).toBe("video");
+
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ eventoId: evento.id });
+    const linha = await linhaDaFoto(fotoId);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    expect(linha).toMatchObject({
+      status: "pronta",
+      tipo: "video",
+      duracaoS: 3,
+      largura: 640,
+      altura: 360,
+      chaveOriginal: chaves.original,
+      previaVideo: chaves.previaVideo,
+    });
+    // O original fica intacto no bucket privado; a prévia e a miniatura no público.
+    expect(objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))?.corpo.equals(corpo)).toBe(
+      true,
+    );
+    const previa = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previaVideo));
+    expect(previa?.tipo).toBe("video/mp4");
+    expect(previa?.corpo.subarray(4, 8).toString()).toBe("ftyp");
+    expect(objetos.has(nome(R2.R2_BUCKET_PUBLICO, linha.urlMiniatura))).toBe(true);
+  }, 120_000);
+
+  it("vídeo com mais de 30 segundos é recusado e o original não fica guardado", async () => {
+    const corpo = mp4DeTeste(32, 160, 120);
+    // O navegador diria 30; o servidor confere a duração de verdade.
+    const fotoId = await enviarVideo(corpo, 30);
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ erro: MENSAGEM_VIDEO_LONGO });
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(false);
+    expect((await linhaDaFoto(fotoId)).status).toBe("erro");
+  }, 120_000);
+
+  it("arquivo com nome de vídeo que não é vídeo é recusado", async () => {
+    const falso = Buffer.concat([
+      Buffer.from([0, 0, 0, 24]),
+      Buffer.from("ftypisom"),
+      Buffer.alloc(4000),
+    ]);
+    const fotoId = await enviarVideo(falso, 5);
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ erro: "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie." });
+  }, 60_000);
 });

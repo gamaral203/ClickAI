@@ -22,7 +22,6 @@ import { PRAZO_DO_JOB_MS, revisarFotosPresas, type ResultadoFotosPresas } from "
 import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
 import { conferirCobrancaDoPedido, type ConferenciaDoPedido } from "./pagamentos";
 import { regerarPrevias, type ResultadoRegeracao } from "./regerar-previas";
-import { atualizarVideosNoStream } from "./videos";
 import { conferirSaques } from "./saques";
 
 // Job de pedidos (docs/arquitetura.md, "Carrinho abandonado"). Na Parte A roda pela rota
@@ -157,8 +156,6 @@ export type ResultadoJobRevisao = {
   fotos: ResultadoFotosPresas;
   /** Prévias regeradas com a marca atual (só quando houve alguma). */
   previas?: ResultadoRegeracao;
-  /** Vídeos que o Stream terminou de preparar nesta rodada (só quando houve algum). */
-  videos?: { prontos: number; comErro: number };
 };
 
 /**
@@ -202,10 +199,6 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
   } catch (erro) {
     console.error("[jobs] falha ao revisar as fotos presas", erro);
   }
-
-  // Vídeos esperando o Cloudflare Stream: os prontos ganham a miniatura e ficam à venda.
-  const videos = await atualizarVideosNoStream();
-  if (videos.prontos > 0 || videos.comErro > 0) resultado.videos = videos;
 
   // 3. Com o tempo que sobra, regera as prévias de versão anterior da marca, o evento mais
   // recente primeiro, até acabar (src/servicos/regerar-previas.ts).

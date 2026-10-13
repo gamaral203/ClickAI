@@ -370,8 +370,10 @@ export const fotos = pgTable(
     largura: integer().notNull(),
     altura: integer().notNull(),
     duracaoS: integer(),
-    /** Vídeo: id no Cloudflare Stream, onde fica a prévia com marca d'água (src/lib/stream.ts). */
+    /** Sem uso: era o id no Cloudflare Stream (os vídeos passaram a ser convertidos na Vercel). */
     streamUid: text(),
+    /** Vídeo: chave da prévia em MP4 com marca d'água no bucket público (src/servicos/video.ts). */
+    previaVideo: text(),
     tamanhoBytes: bigint({ mode: "number" }),
     hashConteudo: text(),
     capturadaEm: data(),

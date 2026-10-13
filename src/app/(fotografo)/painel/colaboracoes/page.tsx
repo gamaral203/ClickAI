@@ -17,7 +17,6 @@ import {
 import { descreverPadrao } from "@/lib/liberacao";
 import { formatarPeriodo } from "@/lib/formatar";
 import { modoEnvio } from "@/lib/r2";
-import { streamConfigurado } from "@/lib/stream";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -124,7 +123,7 @@ async function Conteudo() {
               <EnvioFotos
                 eventoId={c.evento.id}
                 modo={modo}
-                aceitaVideo={streamConfigurado()}
+                aceitaVideo
                 liberacao={{
                   modo: c.evento.liberacao,
                   em: "",

@@ -15,8 +15,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "senha:hash": "tsx --conditions=react-server scripts/gerar-hash-senha.ts",
     "db:gerar": "drizzle-kit generate",
-    "db:migrar": "tsx --conditions=react-server scripts/migrar.ts",
-    "stream:marca": "tsx --conditions=react-server scripts/criar-marca-stream.ts"
+    "db:migrar": "tsx --conditions=react-server scripts/migrar.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1147.0",
@@ -30,6 +29,7 @@
     "cn": "^0.4.0",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.3",
+    "ffmpeg-static": "^5.2.0",
     "heic-to": "1.6.5",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.52.0",
@@ -66,5 +66,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
+  },
+  "allowScripts": {
+    "ffmpeg-static@5.2.0": true
   }
 }

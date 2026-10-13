@@ -45,7 +45,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // O PGlite (banco em memória do desenvolvimento e dos testes) carrega os próprios arquivos
   // WebAssembly do node_modules: não pode ser empacotado.
-  serverExternalPackages: ["@electric-sql/pglite"],
+  // ffmpeg-static aponta para o executável pelo caminho do próprio pacote (prévia dos vídeos).
+  serverExternalPackages: ["@electric-sql/pglite", "ffmpeg-static"],
   // Já é o padrão do Next.js; fica explícito para ninguém ligar sem querer.
   productionBrowserSourceMaps: false,
   images: {
@@ -68,8 +69,8 @@ const nextConfig: NextConfig = {
     "/painel/eventos/[id]/divulgacao/**": ["./src/lib/artes/fontes/*.ttf"],
     // Foto de exemplo das amostras de marca d'água (src/servicos/imagens.ts, amostraDaMarca).
     "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],
-    "/api/envios/**": ["./public/logo.png"],
-    "/api/jobs/**": ["./public/logo.png"],
+    "/api/envios/**": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/jobs/**": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
   },
   outputFileTracingExcludes: buildComBancoReal
     ? {

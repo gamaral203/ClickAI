@@ -280,18 +280,6 @@ export async function lerTrecho(chave: string, inicio: number, fim: number): Pro
   return r.Body.transformToByteArray();
 }
 
-/**
- * URL assinada de leitura de um original, para um serviço de confiança buscar o arquivo (o
- * Cloudflare Stream busca o vídeo por ela). Vale 1 hora; não é entregue a navegador nenhum.
- */
-export async function urlDeLeitura(chave: string) {
-  const config = exigirConfig();
-  return getSignedUrl(
-    s3(config),
-    new GetObjectCommand({ Bucket: config.bucketOriginais, Key: chave }),
-    { expiresIn: 60 * 60 },
-  );
-}
 
 /** Grava no bucket público (prévias e miniaturas), com cache longo: a chave nunca muda. */
 export async function gravarPublico(chave: string, conteudo: Buffer, tipo: string) {

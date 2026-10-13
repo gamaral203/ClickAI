@@ -22,7 +22,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { autoresPorId, buscarFotoPublica } from "@/dados";
 import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
-import { urlDoPlayer } from "@/lib/stream";
 import { enderecoDaGaleria } from "@/lib/galeria";
 import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
@@ -92,14 +91,18 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             className="relative mx-auto w-full overflow-hidden rounded-xl bg-muted"
             style={{ aspectRatio: `${foto.largura} / ${foto.altura}`, maxHeight: "75vh" }}
           >
-            {foto.tipo === "video" && foto.streamUid ? (
-              // Vídeo: a prévia inteira, com a marca d'água do ClicouAí, pelo player do Stream.
-              <iframe
-                src={urlDoPlayer(foto.streamUid, foto.urlPrevia)}
-                title={`Prévia do vídeo de ${evento.titulo}`}
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 size-full border-0"
+            {foto.tipo === "video" && foto.previaVideo ? (
+              // Vídeo: a prévia inteira, com a marca d'água em todos os quadros.
+              <video
+                src={foto.previaVideo}
+                poster={foto.urlPrevia}
+                controls
+                playsInline
+                preload="metadata"
+                controlsList="nodownload noremoteplayback"
+                disablePictureInPicture
+                aria-label={`Prévia do vídeo de ${evento.titulo}`}
+                className="absolute inset-0 size-full bg-black object-contain"
               />
             ) : (
               <Image

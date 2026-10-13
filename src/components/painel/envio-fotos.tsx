@@ -425,7 +425,7 @@ export function EnvioFotos({
   eventoId: string;
   modo: ModoEnvio;
   liberacao?: LiberacaoDoEnvio;
-  /** Vídeos de até 30 segundos (com o Cloudflare Stream configurado). */
+  /** Aceita vídeos de até 30 segundos (MP4 e MOV). */
   aceitaVideo?: boolean;
 }) {
   const router = useRouter();

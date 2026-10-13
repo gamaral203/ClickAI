@@ -406,3 +406,16 @@ export async function copiaParaRostos(original: Buffer): Promise<Buffer> {
     .jpeg({ quality: 85 })
     .toBuffer();
 }
+
+/**
+ * Camada da marca d'água como PNG transparente do tamanho de um vídeo: o mesmo padrão das fotos
+ * (do modelo escolhido pelo dono do evento), posto sobre cada quadro pelo FFmpeg (src/servicos/
+ * video.ts). A logo tem a mesma proporção da prévia das fotos.
+ */
+export async function marcaDoVideo(largura: number, altura: number, modelo: ModeloMarca) {
+  const larguraLogo = Math.max(48, Math.round((300 * largura) / LARGURA_PREVIA));
+  const camada = await camadaDeMarcas(largura, altura, larguraLogo, modelo);
+  return sharp(camada.pixels, { raw: { width: largura, height: altura, channels: 4 } })
+    .png()
+    .toBuffer();
+}
