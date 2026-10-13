@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import { and, eq, gt, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -102,6 +102,59 @@ export async function vendasDoPedidoPorFotografo(pedidoId: string): Promise<Vend
     porFotografo.set(l.fotografoId, atual);
   }
   return [...porFotografo.values()];
+}
+
+// ---------------------------------------------------------------- Aviso de ranking
+
+/**
+ * Fotos vendidas num pedido, por evento e por autor (`itens_pedido.fotografo_id`), com o título
+ * e o dono de cada evento: a base dos avisos de ranking (src/servicos/avisos-ranking.ts).
+ */
+export async function vendidasDoPedidoPorEvento(pedidoId: string) {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      eventoId: t.eventos.id,
+      titulo: t.eventos.titulo,
+      dono: t.eventos.fotografoId,
+      fotografoId: t.itensPedido.fotografoId,
+    })
+    .from(t.itensPedido)
+    .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
+    .where(eq(t.itensPedido.pedidoId, pedidoId));
+  const eventos = new Map<
+    string,
+    { titulo: string; dono: string; vendidas: Map<string, number> }
+  >();
+  for (const l of linhas) {
+    const evento = eventos.get(l.eventoId) ?? {
+      titulo: l.titulo,
+      dono: l.dono,
+      vendidas: new Map(),
+    };
+    evento.vendidas.set(l.fotografoId, (evento.vendidas.get(l.fotografoId) ?? 0) + 1);
+    eventos.set(l.eventoId, evento);
+  }
+  return eventos;
+}
+
+/** Usuário, nome e e-mail da conta de cada fotógrafo. */
+export async function contatosDosFotografos(ids: string[]) {
+  if (ids.length === 0)
+    return new Map<string, { usuarioId: string; nome: string; email: string }>();
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      fotografoId: t.fotografos.id,
+      usuarioId: t.usuarios.id,
+      nome: t.usuarios.nome,
+      email: t.usuarios.email,
+    })
+    .from(t.fotografos)
+    .innerJoin(t.usuarios, eq(t.usuarios.id, t.fotografos.usuarioId))
+    .where(inArray(t.fotografos.id, ids));
+  return new Map(linhas.map((l) => [l.fotografoId, l]));
 }
 
 // ---------------------------------------------------------------- Tentativas (limite)

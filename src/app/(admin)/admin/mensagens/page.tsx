@@ -58,6 +58,7 @@ async function Conteudo() {
                       venda: "Aviso de venda",
                       seguranca: "Segurança da conta",
                       liberacao: "Fotos liberadas",
+                      ranking: "Ranking",
                     }[m.tipo]
                   }
                 </span>
