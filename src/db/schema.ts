@@ -78,6 +78,8 @@ export const tipoMensagem = pgEnum("tipo_mensagem", [
   "seguranca",
   /** Aviso ao dono e aos colaboradores de que um lote agendado foi liberado. */
   "liberacao",
+  /** Aviso à equipe do evento de que alguém passou outro no ranking (Top Cliques). */
+  "ranking",
 ]);
 export const tipoMetrica = pgEnum("tipo_metrica", ["visita_evento", "visita_foto", "carrinho"]);
 

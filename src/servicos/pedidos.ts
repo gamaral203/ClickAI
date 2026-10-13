@@ -23,6 +23,7 @@ import { podeComprar } from "@/lib/navegacao";
 import { acrescimoCartao, parteDoVendedorNaTaxa, taxaCartaoPct } from "@/lib/taxas";
 
 import { calcularCompra, mensagemCupom, type OpcoesCompra } from "./carrinho";
+import { avisarRanking } from "./avisos-ranking";
 import { avisarVenda, enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 
 // Regras de pedido (docs/arquitetura.md, "Compra e pagamento" e "Divisão da venda").
@@ -238,6 +239,9 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
   );
   await avisarVenda(pedidoId).catch((erro) =>
     console.error(`Falha ao avisar a venda do pedido ${pedidoId}`, erro),
+  );
+  await avisarRanking(pedidoId).catch((erro) =>
+    console.error(`Falha ao avisar o ranking do pedido ${pedidoId}`, erro),
   );
   return true;
 }

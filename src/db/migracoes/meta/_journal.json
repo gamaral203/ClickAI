@@ -197,6 +197,13 @@
       "when": 1791861316801,
       "tag": "0027_suporte_cliente",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791862120001,
+      "tag": "0028_aviso_ranking",
+      "breakpoints": true
     }
   ]
 }
