@@ -444,6 +444,8 @@ Todo pagamento cai na conta Mercado Pago da plataforma. O fotógrafo saca pelo p
 4. Fotógrafo: perfil público apagado ("Fotógrafo removido", endereço novo), eventos arquivados, fotos (dele ou dos eventos dele) com exclusão lógica, rostos e números apagados do banco e da coleção do Rekognition, cupons desligados, loja desativada (sem domínio próprio, GA e GTM), modelos de evento apagados. O CPF/CNPJ fica, com o histórico de saques (obrigação legal, LGPD art. 16, I). Quem comprou continua baixando.
 5. A versão da sessão passa a ser `null` para conta excluída: todo cookie de sessão, em qualquer aparelho, deixa de valer na hora.
 
+**Chat de ajuda** (`src/components/suporte/chat-suporte.tsx`, `src/dados/suporte.ts`). Botão flutuante no painel (fotógrafo e gestor) e no site (cliente logado e visitante sem conta), com o WhatsApp do suporte dentro. Uma conversa por conta (`conversas_suporte.usuario_id`) ou por visitante: um cookie aleatório `clicouai_suporte` (httpOnly, 1 ano) diz qual é a conversa neste navegador, e no banco fica só o hash (`visitante_id`, migração 0027). Cada mensagem grava o tipo de quem escreveu (`tipo`: fotógrafo, gestor, cliente ou visitante), que a gestão vê como etiqueta em `/admin/suporte`. Limites: `suporte_usuario` para quem tem conta e `suporte_ip` para o visitante. A resposta da equipe chega no chat, por e-mail e, para quem tem conta, por notificação; o link leva ao painel (fotógrafo e gestor) ou ao site (`/?ajuda=1`), que já abre o chat.
+
 ## Segurança, LGPD e backups
 
 O original é o ativo que se vende, então a regra central é: nenhum original fica acessível sem um pedido pago.

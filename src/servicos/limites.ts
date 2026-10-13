@@ -122,6 +122,8 @@ const REGRAS = {
   metricas_ip: { limite: 300, janelaMs: 10 * MINUTO },
   /** Mensagens do chat de ajuda por usuário (cada uma avisa a gestão por e-mail e notificação). */
   suporte_usuario: { limite: 30, janelaMs: 60 * MINUTO },
+  /** Mensagens do chat de ajuda de visitantes sem conta, por IP (cada uma avisa a gestão). */
+  suporte_ip: { limite: 20, janelaMs: 60 * MINUTO },
   /** Sugestões de melhoria por usuário. */
   sugestao_usuario: { limite: 10, janelaMs: 60 * MINUTO },
   /**

@@ -190,6 +190,13 @@
       "when": 1791759974660,
       "tag": "0026_original_individual",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791861316801,
+      "tag": "0027_suporte_cliente",
+      "breakpoints": true
     }
   ]
 }
