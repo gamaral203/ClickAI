@@ -9,13 +9,15 @@ import { Button } from "@/components/ui/button";
  * Compartilha a página do evento. No celular abre o compartilhamento do sistema (WhatsApp,
  * Instagram…); onde não há, copia o link.
  */
-export function BotaoCompartilhar({ url, titulo }: { url: string; titulo: string }) {
+export function BotaoCompartilhar({ url }: { url: string; titulo?: string }) {
   const [copiado, setCopiado] = useState(false);
 
   async function compartilhar() {
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: titulo, text: `Fotos de ${titulo}`, url });
+        // Só o endereço: com título e texto, o WhatsApp e outros apps colavam o nome do evento
+        // antes do link.
+        await navigator.share({ url });
         return;
       } catch (erro) {
         // Fechou a janela de compartilhar: não faz nada. Outro erro: tenta copiar.
