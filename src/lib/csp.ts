@@ -89,7 +89,14 @@ export function politicaDeSeguranca({
       // Recarregamento ao vivo do next dev.
       ...(desenvolvimento ? ["ws:", "wss:"] : []),
     ],
-    "frame-src": ["'self'", ...MERCADO_PAGO, "https://www.googletagmanager.com"],
+    "frame-src": [
+      "'self'",
+      ...MERCADO_PAGO,
+      "https://www.googletagmanager.com",
+      // Player do Cloudflare Stream (prévia dos vídeos com marca d'água).
+      "https://iframe.videodelivery.net",
+      "https://*.cloudflarestream.com",
+    ],
     "media-src": ["'self'", "blob:", "https:"],
     "worker-src": ["'self'", "blob:"],
     "object-src": ["'none'"],

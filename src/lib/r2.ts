@@ -17,6 +17,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -248,6 +249,48 @@ export async function lerEnviado(chave: string, limite: number): Promise<Arquivo
   const conteudo = Buffer.from(await resposta.Body.transformToByteArray());
   if (conteudo.length > limite) return { situacao: "grande", tamanho: conteudo.length };
   return { situacao: "ok", conteudo };
+}
+
+/** Tamanho do objeto no bucket de originais (sem baixar), ou `null` se ele não existe. */
+export async function tamanhoDoEnviado(chave: string): Promise<number | null> {
+  const config = exigirConfig();
+  try {
+    const r = await s3(config).send(
+      new HeadObjectCommand({ Bucket: config.bucketOriginais, Key: chave }),
+    );
+    return r.ContentLength ?? null;
+  } catch (erro) {
+    if (naoExiste(erro)) return null;
+    throw erro;
+  }
+}
+
+/** Um trecho do objeto (bytes `inicio` até `fim`, sem incluir), sem baixar o arquivo inteiro. */
+export async function lerTrecho(chave: string, inicio: number, fim: number): Promise<Uint8Array> {
+  if (fim <= inicio) return new Uint8Array();
+  const config = exigirConfig();
+  const r = await s3(config).send(
+    new GetObjectCommand({
+      Bucket: config.bucketOriginais,
+      Key: chave,
+      Range: `bytes=${inicio}-${fim - 1}`,
+    }),
+  );
+  if (!r.Body) throw new Error("Objeto sem conteúdo");
+  return r.Body.transformToByteArray();
+}
+
+/**
+ * URL assinada de leitura de um original, para um serviço de confiança buscar o arquivo (o
+ * Cloudflare Stream busca o vídeo por ela). Vale 1 hora; não é entregue a navegador nenhum.
+ */
+export async function urlDeLeitura(chave: string) {
+  const config = exigirConfig();
+  return getSignedUrl(
+    s3(config),
+    new GetObjectCommand({ Bucket: config.bucketOriginais, Key: chave }),
+    { expiresIn: 60 * 60 },
+  );
 }
 
 /** Grava no bucket público (prévias e miniaturas), com cache longo: a chave nunca muda. */

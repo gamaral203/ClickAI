@@ -24,6 +24,7 @@ import {
   hashesDoEvento,
   listarFotosParadas,
   marcarFotoComErro,
+  marcarVideoNoStream,
   modeloMarcaDoEvento,
   registrarFotosEmEnvio,
   reservarFotoParaProcessar,
@@ -51,11 +52,14 @@ import {
   fecharEnvioEmPartes,
   gravarPublico,
   lerEnviado,
+  lerTrecho,
   modoEnvio,
   moverOriginal,
   removerOriginal,
+  tamanhoDoEnviado,
   urlDaParte,
   urlDeEnvio,
+  urlDeLeitura,
 } from "@/lib/r2";
 import {
   ehErroDeCredencial,
@@ -76,6 +80,22 @@ import {
   type FormatoAceito,
 } from "@/lib/tipos-imagem";
 
+import { copiarParaStream, streamConfigurado } from "@/lib/stream";
+import {
+  DADOS_DO_VIDEO,
+  detectarVideo,
+  DURACAO_MAXIMA_VIDEO_S,
+  ehFormatoDeVideo,
+  FOLGA_DURACAO_S,
+  FORMATOS_DE_VIDEO,
+  LIMITE_VIDEO_BYTES,
+  LIMITE_VIDEO_TEXTO,
+  MENSAGEM_FORMATO_VIDEO,
+  MENSAGEM_VIDEO_LONGO,
+  videoDaChave,
+  type FormatoDeVideo,
+} from "@/lib/tipos-video";
+
 import { copiaParaRostos, gerarVersoes } from "./imagens";
 
 export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
@@ -91,19 +111,32 @@ const lote = z
         .min(1)
         .max(200)
         .refine((n) => !ehNomeDeRaw(n), MENSAGEM_RAW),
-      tamanhoBytes: z
-        .number()
-        .int()
-        .positive()
-        .max(LIMITE_FOTO_BYTES, `Até ${LIMITE_FOTO_TEXTO} por foto.`),
+      tamanhoBytes: z.number().int().positive().max(LIMITE_VIDEO_BYTES),
       /** Impressão do arquivo (src/lib/impressao-arquivo.ts), conferida na confirmação. */
       hash: impressao,
       /** Formato real, detectado no navegador pelo conteúdo; conferido de novo no servidor. */
-      formato: z.enum(FORMATOS_ACEITOS),
+      formato: z.enum([...FORMATOS_ACEITOS, ...FORMATOS_DE_VIDEO]),
+      /** Vídeo: duração lida no navegador (o Stream confere de novo). */
+      duracaoS: z
+        .number()
+        .positive()
+        .max(DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S)
+        .optional(),
     }),
   )
   .min(1)
-  .max(FOTOS_POR_LOTE);
+  .max(FOTOS_POR_LOTE)
+  .superRefine((itens, ctx) => {
+    for (const [i, a] of itens.entries()) {
+      const video = ehFormatoDeVideo(a.formato);
+      if (!video && a.tamanhoBytes > LIMITE_FOTO_BYTES) {
+        ctx.addIssue({ code: "custom", path: [i], message: `Até ${LIMITE_FOTO_TEXTO} por foto.` });
+      }
+      if (video && !a.duracaoS) {
+        ctx.addIssue({ code: "custom", path: [i], message: MENSAGEM_VIDEO_LONGO });
+      }
+    }
+  });
 
 const idFoto = z.uuid();
 
@@ -115,10 +148,12 @@ export function chavesDaFoto(
   fotografoId: string,
   eventoId: string,
   fotoId: string,
-  formato: FormatoAceito = "jpeg",
+  formato: FormatoAceito | FormatoDeVideo = "jpeg",
 ) {
   const caminho = `${fotografoId}/${eventoId}/${fotoId}`;
-  const ext = DADOS_DO_FORMATO[formato].extensao;
+  const ext = ehFormatoDeVideo(formato)
+    ? DADOS_DO_VIDEO[formato].extensao
+    : DADOS_DO_FORMATO[formato].extensao;
   return {
     temporaria: `envios/${caminho}.${ext}`,
     original: `originais/${caminho}.${ext}`,
@@ -163,11 +198,18 @@ export async function iniciarEnvio(
   const dados = lote.safeParse(lista);
   if (!dados.success) {
     if (dados.error.issues.some((i) => i.message === MENSAGEM_RAW)) return { erro: MENSAGEM_RAW };
+    if (dados.error.issues.some((i) => i.message === MENSAGEM_VIDEO_LONGO)) {
+      return { erro: MENSAGEM_VIDEO_LONGO };
+    }
     return {
       erro:
         `Envie as fotos em lotes de até ${FOTOS_POR_LOTE}, em JPEG, PNG, WebP, TIFF ou AVIF ` +
-        `de até ${LIMITE_FOTO_TEXTO} cada. Se o erro continuar, atualize a página.`,
+        `de até ${LIMITE_FOTO_TEXTO} cada (vídeos em MP4 ou MOV de até ${LIMITE_VIDEO_TEXTO} e ` +
+        `${DURACAO_MAXIMA_VIDEO_S} segundos). Se o erro continuar, atualize a página.`,
     };
+  }
+  if (dados.data.some((a) => ehFormatoDeVideo(a.formato)) && !streamConfigurado()) {
+    return { erro: "O envio de vídeos ainda não está disponível." };
   }
 
   const jaNoEvento = await hashesDoEvento(
@@ -185,7 +227,10 @@ export async function iniciarEnvio(
   const ids = await registrarFotosEmEnvio(
     eventoId,
     fotografoId,
-    novos,
+    novos.map((a) => ({
+      ...a,
+      tipo: ehFormatoDeVideo(a.formato) ? ("video" as const) : ("foto" as const),
+    })),
     (fotoId, i): ChavesDaFoto => chavesDaFoto(fotografoId, eventoId, fotoId, novos[i].formato),
     escolha.data,
   );
@@ -194,7 +239,9 @@ export async function iniciarEnvio(
   const destinos = await Promise.all(
     novos.map(async (a, i): Promise<ItemDoEnvio> => {
       const chave = chavesDaFoto(fotografoId, eventoId, ids[i], a.formato).temporaria;
-      const tipo = DADOS_DO_FORMATO[a.formato].mime;
+      const tipo = ehFormatoDeVideo(a.formato)
+        ? DADOS_DO_VIDEO[a.formato].mime
+        : DADOS_DO_FORMATO[a.formato].mime;
       if (a.tamanhoBytes < MULTIPART_A_PARTIR_DE) {
         return { fotoId: ids[i], url: await urlDeEnvio(chave, a.tamanhoBytes, tipo) };
       }
@@ -221,14 +268,14 @@ async function fotoEmEnvio(fotografoId: string, fotoId: string) {
   if (!idFoto.safeParse(fotoId).success) return null;
   const foto = await buscarFotoEmEnvio(fotoId, fotografoId);
   if (!foto?.chaveTemporaria || !foto.hash) return null;
-  const formato = formatoDaChave(foto.chaveTemporaria);
+  const formato = formatoDaChave(foto.chaveTemporaria) ?? videoDaChave(foto.chaveTemporaria);
   if (!formato) return null;
   const chaves = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato);
   if (foto.chaveTemporaria !== chaves.temporaria) return null;
   return { foto, chaves, formato };
 }
 
-const MAXIMO_DE_PARTES = quantasPartes(LIMITE_FOTO_BYTES);
+const MAXIMO_DE_PARTES = quantasPartes(Math.max(LIMITE_FOTO_BYTES, LIMITE_VIDEO_BYTES));
 const uploadId = z
   .string()
   .min(1)
@@ -424,12 +471,21 @@ export async function confirmarEnvio(
     const situacao = idFoto.safeParse(fotoId).success
       ? await situacaoDaFoto(fotoId, fotografoId)
       : null;
-    if (situacao?.status === "pronta") return { emAndamento: true };
+    // "processando" sem arquivo temporário: vídeo já entregue ao Stream (src/servicos/videos.ts).
+    if (
+      situacao?.status === "pronta" ||
+      (situacao?.status === "processando" && situacao.streamUid)
+    ) {
+      return { emAndamento: true };
+    }
     if (situacao?.status === "erro" && situacao.erroMensagem)
       return { erro: situacao.erroMensagem };
     return { erro: "Foto não encontrada." };
   }
-  const { foto, chaves, formato } = valida;
+  if (ehFormatoDeVideo(valida.formato)) {
+    return confirmarVideo(fotografoId, { ...valida, formato: valida.formato }, opcoes);
+  }
+  const { foto, chaves, formato } = { ...valida, formato: valida.formato as FormatoAceito };
 
   let marco = performance.now();
   const medir = (etapa: keyof TemposDoProcessamento) => {
@@ -559,6 +615,68 @@ export async function confirmarEnvio(
 }
 
 const ERRO_PROCESSAMENTO = "Não foi possível processar a foto. Envie de novo.";
+
+/**
+ * Vídeo que terminou de subir (docs/arquitetura.md, "Vídeos"): confere o tamanho, o formato pelo
+ * conteúdo e a impressão lendo só trechos do arquivo (nada de carregar o vídeo na memória), move
+ * o original para `originais/` e pede ao Cloudflare Stream para buscar o vídeo e preparar a
+ * prévia com marca d'água. O vídeo segue em `processando` até o Stream terminar; quem o deixa
+ * pronto é src/servicos/videos.ts.
+ */
+async function confirmarVideo(
+  fotografoId: string,
+  valida: {
+    foto: NonNullable<Awaited<ReturnType<typeof buscarFotoEmEnvio>>>;
+    chaves: ReturnType<typeof chavesDaFoto>;
+    formato: FormatoDeVideo;
+  },
+  opcoes: OpcoesDoProcessamento,
+): Promise<ResultadoDoProcessamento> {
+  const { foto, chaves, formato } = valida;
+  if (!streamConfigurado()) return { erro: "O envio de vídeos ainda não está disponível." };
+  const agora = Date.now();
+  const reservou = await reservarFotoParaProcessar(
+    foto.id,
+    fotografoId,
+    new Date(agora),
+    new Date(agora + RESERVA_DO_PROCESSAMENTO_MS),
+  );
+  if (!reservou) return { emAndamento: true };
+  try {
+    const tamanho = await tamanhoDoEnviado(chaves.temporaria);
+    if (tamanho === null) {
+      const inicio = opcoes.inicioDoEnvio;
+      if (inicio && agora - inicio.getTime() < ENVIO_PODE_ESTAR_SUBINDO_MS) {
+        await devolverReserva(foto.id, inicio);
+        return { aguardando: true };
+      }
+      throw new ArquivoRecusado("O arquivo não chegou ao armazenamento. Envie de novo.");
+    }
+    if (tamanho > LIMITE_VIDEO_BYTES) throw new ArquivoRecusado(`Maior que ${LIMITE_VIDEO_TEXTO}.`);
+    if (foto.tamanhoBytes && tamanho !== foto.tamanhoBytes)
+      throw new ArquivoRecusado(ERRO_DIFERENTE);
+    const inicio = await lerTrecho(chaves.temporaria, 0, Math.min(tamanho, BYTES_PARA_DETECTAR));
+    if (detectarVideo(inicio) !== formato) throw new ArquivoRecusado(MENSAGEM_FORMATO_VIDEO);
+    const conferida = await impressaoDoArquivo(tamanho, (a, b) =>
+      lerTrecho(chaves.temporaria, a, b),
+    );
+    if (conferida !== foto.hash) throw new ArquivoRecusado(ERRO_DIFERENTE);
+
+    await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
+    const uid = await copiarParaStream(await urlDeLeitura(chaves.original), foto.id, foto.id);
+    await marcarVideoNoStream(foto.id, chaves.original, uid);
+    return { eventoId: foto.eventoId };
+  } catch (erro) {
+    if (erro instanceof ArquivoRecusado) {
+      await marcarFotoComErro(foto.id, erro.message);
+      await removerOriginal(chaves.temporaria).catch(() => {});
+      return { erro: erro.message };
+    }
+    await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
+    console.error(`[envios] falha ao processar o vídeo ${foto.id}`, erro);
+    return { erro: "Não foi possível processar o vídeo. Tente de novo." };
+  }
+}
 
 /**
  * Fotos processadas ao mesmo tempo por uma chamada em segundo plano ou pelo job. A memória já é

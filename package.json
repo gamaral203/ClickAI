@@ -15,7 +15,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "senha:hash": "tsx --conditions=react-server scripts/gerar-hash-senha.ts",
     "db:gerar": "drizzle-kit generate",
-    "db:migrar": "tsx --conditions=react-server scripts/migrar.ts"
+    "db:migrar": "tsx --conditions=react-server scripts/migrar.ts",
+    "stream:marca": "tsx --conditions=react-server scripts/criar-marca-stream.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1147.0",

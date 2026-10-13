@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Play } from "lucide-react";
 import { useEffect } from "react";
 
 import { Paginacao } from "@/components/galeria/paginacao";
 import type { FiltroGaleria } from "@/dados";
 import type { Foto } from "@/dados/tipos";
+import { formatarDuracao } from "@/lib/tipos-video";
 import { FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { fotoParaRolar, guardarOrigem } from "@/lib/volta-da-galeria";
 
@@ -149,6 +151,23 @@ export function GaleriaFotos({
                   sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
                   className="object-cover transition-transform duration-200 imagem-protegida group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                 />
+              )}
+              {foto.tipo === "video" && (
+                // Vídeo: o play no meio e a duração no canto.
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 m-auto flex size-12 items-center justify-center rounded-full bg-black/55 text-white"
+                  >
+                    <Play className="ml-0.5 size-6 fill-current" />
+                  </span>
+                  {foto.duracaoS ? (
+                    <span className="absolute right-1.5 bottom-1.5 rounded-md bg-black/65 px-1.5 py-0.5 text-xs font-semibold text-white tabular-nums">
+                      {formatarDuracao(foto.duracaoS)}
+                    </span>
+                  ) : null}
+                  <span className="sr-only">Vídeo</span>
+                </>
               )}
             </Link>
           </li>

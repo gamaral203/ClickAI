@@ -31,6 +31,7 @@ export function enderecoDaGaleria(
   if (filtro.hora) params.set("hora", filtro.hora);
   if (filtro.naoIdentificadas) params.set("nao-identificadas", "1");
   if (filtro.pasta) params.set("pasta", filtro.pasta);
+  if (filtro.tipo === "video") params.set("tipo", "video");
   if (pagina > 1) params.set("pagina", String(pagina));
   const busca = params.toString();
   return `/eventos/${slug}${busca ? `?${busca}` : ""}${ancora ? `#${ancora}` : ""}`;

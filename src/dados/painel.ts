@@ -424,7 +424,14 @@ export type ChavesDaFoto = {
 export async function registrarFotosEmEnvio(
   eventoId: string,
   fotografoId: string,
-  arquivos: { nome: string; tamanhoBytes: number; hash: string }[],
+  arquivos: {
+    nome: string;
+    tamanhoBytes: number;
+    hash: string;
+    /** Vídeo: o tipo e a duração lida no navegador (o Stream confere de novo). */
+    tipo?: "foto" | "video";
+    duracaoS?: number;
+  }[],
   chaves: (fotoId: string, indice: number) => ChavesDaFoto,
   escolha: EscolhaLiberacao | null = null,
 ): Promise<string[] | null> {
@@ -468,6 +475,9 @@ export async function registrarFotosEmEnvio(
       nomeArquivo: arquivo.nome,
       tamanhoBytes: arquivo.tamanhoBytes,
       hashConteudo: arquivo.hash,
+      tipo: arquivo.tipo ?? ("foto" as const),
+      duracaoS: arquivo.duracaoS ? Math.round(arquivo.duracaoS) : null,
+      streamUid: null,
       status: "processando" as const,
       envioIniciadoEm: new Date(agora),
       erroMensagem: null,
@@ -482,7 +492,6 @@ export async function registrarFotosEmEnvio(
         id,
         eventoId,
         enviadaPor: fotografoId,
-        tipo: "foto",
         // Lidas do arquivo quando ele é processado.
         largura: 0,
         altura: 0,
@@ -530,6 +539,8 @@ export async function concluirFoto(
     largura: number;
     altura: number;
     capturadaEm: Date | null;
+    /** Vídeo: a duração conferida pelo Stream. */
+    duracaoS?: number;
   },
 ): Promise<boolean> {
   const banco = await obterBanco();
