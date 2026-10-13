@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Download, ImageDown, MessageCircle, QrCode } from "lucide-react";
+import { Check, Copy, Download, MessageCircle, Palette, QrCode } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Visibilidade } from "@/dados/tipos";
@@ -143,21 +143,9 @@ export function CompartilharEvento({
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Material para redes sociais e impressão</p>
           <div className="flex flex-wrap gap-2">
-            <a
-              href={`/painel/eventos/${eventoId}/divulgacao/story`}
-              download={`${slug}-story.png`}
-              className={buttonVariants({ variant: "outline", size: "touch" })}
-            >
-              <ImageDown aria-hidden="true" data-icon="inline-start" />
-              Story (1080×1920)
-            </a>
-            <a
-              href={`/painel/eventos/${eventoId}/divulgacao/feed`}
-              download={`${slug}-feed.png`}
-              className={buttonVariants({ variant: "outline", size: "touch" })}
-            >
-              <ImageDown aria-hidden="true" data-icon="inline-start" />
-              Feed (1080×1350)
+            <a href="#design" className={buttonVariants({ variant: "outline", size: "touch" })}>
+              <Palette aria-hidden="true" data-icon="inline-start" />
+              Criar artes (story, feed e banner)
             </a>
             <a
               href={qrPngDataUrl}
@@ -169,7 +157,7 @@ export function CompartilharEvento({
             </a>
           </div>
           <p className="text-xs text-muted-foreground">
-            As imagens saem nas cores do ClicouAí, com o nome do evento, a data e o QR Code.
+            Na aba Design: vários modelos, cores e a sua própria imagem, com o QR Code do evento.
           </p>
         </div>
       </div>
