@@ -60,6 +60,11 @@ type PropsMenu = {
   raiz: string;
   /** Link de suporte (WhatsApp), no fim da lista; abre em outra aba. */
   suporte?: string;
+  /**
+   * Sem a barra do celular: o menu do cabeçalho (sanduíche) já tem as mesmas opções, e as duas
+   * juntas repetiam o nome da página.
+   */
+  semBarraNoCelular?: boolean;
 };
 
 /**
@@ -82,7 +87,14 @@ function MenuNaPagina(props: PropsMenu) {
   return <CorpoMenu {...props} caminho={usePathname()} />;
 }
 
-function CorpoMenu({ titulo, itens, raiz, suporte, caminho }: PropsMenu & { caminho: string }) {
+function CorpoMenu({
+  titulo,
+  itens,
+  raiz,
+  suporte,
+  semBarraNoCelular,
+  caminho,
+}: PropsMenu & { caminho: string }) {
   // Guarda em qual página a lista foi aberta: ao trocar de página, ela fecha sozinha.
   const [abertoEm, setAbertoEm] = useState<string | null>(null);
   const aberto = abertoEm === caminho;
@@ -130,7 +142,10 @@ function CorpoMenu({ titulo, itens, raiz, suporte, caminho }: PropsMenu & { cami
   return (
     <>
       {/* Celular: barra fixa no topo do conteúdo, com a página atual. */}
-      <nav aria-label={titulo} className="sticky top-0 z-30 -mx-4 border-b bg-background md:hidden">
+      <nav
+        aria-label={titulo}
+        className={`sticky top-0 z-30 -mx-4 border-b bg-background md:hidden ${semBarraNoCelular ? "hidden" : ""}`}
+      >
         <div className="flex h-14 items-center justify-between gap-3 px-4">
           <span className="flex min-w-0 flex-col">
             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">

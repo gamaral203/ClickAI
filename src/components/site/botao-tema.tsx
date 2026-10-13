@@ -10,10 +10,32 @@ import { COOKIE_TEMA } from "@/lib/tema";
  * o Tailwind usa (src/app/globals.css). O ícone certo é escolhido por CSS (`dark:`), então o
  * botão não precisa saber o tema e renderiza igual no servidor e no navegador.
  */
-export function BotaoTema({ className = "" }: { className?: string }) {
+export function BotaoTema({
+  className = "",
+  comoItem = false,
+}: {
+  className?: string;
+  /** Como linha de menu (no menu do celular), com o nome escrito. */
+  comoItem?: boolean;
+}) {
   function alternar() {
     const escuro = document.documentElement.classList.toggle("dark");
     document.cookie = `${COOKIE_TEMA}=${escuro ? "escuro" : "claro"}; path=/; max-age=31536000; SameSite=Lax`;
+  }
+
+  if (comoItem) {
+    return (
+      <button
+        type="button"
+        onClick={alternar}
+        className="flex h-11 w-full items-center gap-2 rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground"
+      >
+        <Moon aria-hidden="true" className="size-4 dark:hidden" />
+        <Sun aria-hidden="true" className="hidden size-4 dark:block" />
+        <span className="dark:hidden">Modo noturno</span>
+        <span className="hidden dark:inline">Modo dia</span>
+      </button>
+    );
   }
 
   return (

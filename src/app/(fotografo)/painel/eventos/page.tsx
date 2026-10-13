@@ -1,23 +1,14 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import {
-  Calendar,
-  CalendarPlus,
-  Camera,
-  ChartColumn,
-  Images,
-  MapPin,
-  Upload,
-  Users,
-} from "lucide-react";
+import { CirclePlus } from "lucide-react";
 
-import { StatusEventoSelo } from "@/components/painel/status-evento";
+import { ListaMeusEventos } from "@/components/painel/lista-meus-eventos";
 import { buttonVariants } from "@/components/ui/button";
 import { horaDaRequisicao, listarMeusEventos } from "@/dados";
 import { motivoDaCapaForaDoSite } from "@/lib/capa";
-import { formatarPeriodo } from "@/lib/formatar";
+import { urlDoSite } from "@/lib/endereco";
+import { formatarData } from "@/lib/formatar";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export const metadata: Metadata = {
@@ -27,11 +18,22 @@ export const metadata: Metadata = {
 
 export default function PaginaEventosDoPainel() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Meus eventos</h1>
-        <Link href="/painel/eventos/novo" className={buttonVariants({ size: "touch" })}>
-          <CalendarPlus aria-hidden="true" data-icon="inline-start" />
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+            Painel do fotógrafo
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Meus eventos</h1>
+          <p className="text-sm text-muted-foreground">
+            Gerencie, acompanhe e impulsione suas vendas.
+          </p>
+        </div>
+        <Link
+          href="/painel/eventos/novo"
+          className={buttonVariants({ size: "touch", className: "rounded-xl" })}
+        >
+          <CirclePlus aria-hidden="true" data-icon="inline-start" />
           Novo evento
         </Link>
       </div>
@@ -58,116 +60,33 @@ async function Lista() {
   }
 
   return (
-    // Cartões com a capa, como numa vitrine: 1 por linha no celular, 2 no tablet, 3 no computador.
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {eventos.map((evento) => {
-        // O colaborador não gerencia o evento do dono: abre Colaborações, onde envia as fotos.
-        const abrir = evento.colaboracao
-          ? `/painel/colaboracoes#colaboracao-${evento.id}`
-          : `/painel/eventos/${evento.id}`;
-        const rotuloAbrir = evento.colaboracao ? "Enviar fotos" : "Gerenciar";
+    <ListaMeusEventos
+      eventos={eventos.map((e, posicao) => ({
+        id: e.id,
+        slug: e.slug,
+        titulo: e.titulo,
+        status: e.status,
+        cidade: e.cidade,
+        estado: e.estado,
+        local: e.local,
+        quando: formatarData(e.inicioEm),
+        inicioEm: e.inicioEm,
+        posicao,
+        categoria: e.categoria.nome,
+        capa: e.capaMiniatura?.urlMiniatura ?? null,
+        processando: e.processando,
+        totalItens: e.totalItens,
+        vendidos: e.vendidos,
+        vendidoCentavos: e.vendidoCentavos,
+        donoNome: e.colaboracao?.donoNome ?? null,
         // Só para o dono: no evento colaborado a capa do cartão já é a pública.
-        const motivoCapa =
-          !evento.colaboracao &&
-          evento.capaMiniatura &&
-          motivoDaCapaForaDoSite({ ...evento, capaEnviada: evento.capa !== null });
-        return (
-          <li
-            key={evento.id}
-            className="flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
-          >
-            <Link
-              href={abrir}
-              aria-label={`${rotuloAbrir}: ${evento.titulo}`}
-              className="relative block aspect-[3/2] bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              {evento.capaMiniatura ? (
-                <Image
-                  src={evento.capaMiniatura.urlMiniatura}
-                  alt=""
-                  fill
-                  sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-                  className="object-cover"
-                />
-              ) : (
-                <span className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                  <Camera aria-hidden="true" className="size-8" />
-                  <span className="text-sm font-medium">
-                    {evento.processando > 0 ? "Processando as fotos…" : "Sem fotos ainda"}
-                  </span>
-                </span>
-              )}
-              <span className="absolute top-3 left-3">
-                <StatusEventoSelo status={evento.status} />
-              </span>
-            </Link>
-            <div className="flex flex-1 flex-col gap-3 p-4">
-              <div className="flex flex-col gap-1.5">
-                <Link href={abrir} className="text-lg leading-tight font-semibold hover:underline">
-                  {evento.titulo}
-                </Link>
-                {evento.colaboracao && (
-                  <p className="flex w-fit items-center gap-1.5 rounded-md bg-highlight px-2 py-1 text-xs font-semibold text-highlight-foreground">
-                    <Users aria-hidden="true" className="size-3.5 shrink-0" />
-                    Colaboração · evento de {evento.colaboracao.donoNome}
-                  </p>
-                )}
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin aria-hidden="true" className="size-4 shrink-0" />
-                  <span className="truncate">
-                    {evento.local ? `${evento.local} · ` : ""}
-                    {evento.cidade}, {evento.estado}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar aria-hidden="true" className="size-4 shrink-0" />
-                  {formatarPeriodo(evento.inicioEm, evento.fimEm)}
-                </p>
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Images aria-hidden="true" className="size-4 shrink-0" />
-                  {/* No evento colaborado, os números são só das fotos que ele enviou. */}
-                  {evento.totalItens}{" "}
-                  {evento.colaboracao
-                    ? evento.totalItens === 1
-                      ? "foto sua"
-                      : "fotos suas"
-                    : evento.totalItens === 1
-                      ? "foto"
-                      : "fotos"}{" "}
-                  · {evento.vendidos} {evento.vendidos === 1 ? "vendida" : "vendidas"} ·{" "}
-                  {evento.categoria.nome}
-                </p>
-                {motivoCapa && (
-                  <p className="text-sm text-muted-foreground">
-                    A capa ainda não aparece no site: {motivoCapa}.
-                  </p>
-                )}
-              </div>
-              <div className="mt-auto flex flex-wrap gap-2">
-                <Link
-                  href={`/painel/eventos/${evento.id}/desempenho`}
-                  aria-label={`Desempenho de ${evento.titulo}`}
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "touch",
-                    className: "flex-1",
-                  })}
-                >
-                  <ChartColumn aria-hidden="true" data-icon="inline-start" />
-                  Desempenho
-                </Link>
-                <Link
-                  href={abrir}
-                  className={buttonVariants({ size: "touch", className: "min-w-[8.5rem] flex-1" })}
-                >
-                  {evento.colaboracao && <Upload aria-hidden="true" data-icon="inline-start" />}
-                  {rotuloAbrir}
-                </Link>
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+        avisoCapa:
+          (!e.colaboracao &&
+            e.capaMiniatura &&
+            motivoDaCapaForaDoSite({ ...e, capaEnviada: e.capa !== null })) ||
+          null,
+        urlPublica: urlDoSite(`/eventos/${e.slug}`),
+      }))}
+    />
   );
 }

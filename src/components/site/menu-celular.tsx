@@ -18,12 +18,15 @@ export function MenuCelular({
   logado,
   nome,
   esconderEm = "sm:hidden",
+  extras,
 }: {
   itens: { href: string; rotulo: string; exato?: boolean }[];
   logado: boolean;
   nome?: string;
   /** A partir de qual tela o menu some (os links passam para o cabeçalho). */
   esconderEm?: "sm:hidden" | "lg:hidden";
+  /** Botões extras no fim da lista (ex.: modo noturno, sugestão), antes do Sair. */
+  extras?: React.ReactNode;
 }) {
   const caminho = usePathname();
   // Guarda em qual página o menu foi aberto: ao trocar de página, ele fecha sozinho.
@@ -83,6 +86,7 @@ export function MenuCelular({
                 </Link>
               </li>
             ))}
+            {extras && <li className="mt-1 flex flex-col border-t pt-1">{extras}</li>}
             {logado && (
               <li className="mt-1 border-t pt-1">
                 <form action={sairAcao}>
