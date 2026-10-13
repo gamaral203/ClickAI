@@ -1,6 +1,11 @@
 import "server-only";
 
-import { gestoresParaAviso, type ConversaSuporte, type Sugestao } from "@/dados";
+import {
+  gestoresParaAviso,
+  ROTULO_CONTATO_SUPORTE,
+  type ConversaSuporte,
+  type Sugestao,
+} from "@/dados";
 import { enviarEmail } from "@/lib/email";
 import { urlDoSite } from "@/lib/endereco";
 import { enviarPush } from "@/lib/push";
@@ -20,13 +25,20 @@ export async function avisarMensagemDeSuporte(conversa: ConversaSuporte, texto: 
     const url = `/admin/suporte/${conversa.id}`;
     await enviarPush(
       gestores.map((g) => g.id),
-      { titulo: `Chat de ajuda: ${conversa.nome}`, corpo: resumo(texto), url },
+      {
+        titulo: `Chat de ajuda: ${conversa.nome} (${ROTULO_CONTATO_SUPORTE[conversa.tipo]})`,
+        corpo: resumo(texto),
+        url,
+      },
     );
     for (const gestor of gestores) {
       await enviarEmail({
         para: gestor.email,
         assunto: `Nova mensagem no chat de ajuda: ${conversa.nome}`,
-        paragrafos: [`${conversa.nome} (${conversa.email}) escreveu:`, texto],
+        paragrafos: [
+          `${conversa.nome} (${conversa.email}), ${ROTULO_CONTATO_SUPORTE[conversa.tipo].toLowerCase()}, escreveu:`,
+          texto,
+        ],
         botao: { texto: "Responder", url: urlDoSite(url) },
       });
     }
@@ -39,21 +51,30 @@ export async function avisarMensagemDeSuporte(conversa: ConversaSuporte, texto: 
 }
 
 export async function avisarRespostaDeSuporte(conversa: ConversaSuporte, texto: string) {
+  // Fotógrafo e gestor conversam pelo painel; cliente e visitante, pelo site.
+  const doPainel = conversa.tipo === "fotografo" || conversa.tipo === "gestor";
+  const caminho = doPainel ? "/painel?ajuda=1" : "/?ajuda=1";
   try {
-    await enviarPush([conversa.usuarioId], {
-      titulo: "Resposta da equipe ClicouAí 💬",
-      corpo: resumo(texto),
-      url: "/painel?ajuda=1",
-    });
+    if (conversa.usuarioId) {
+      await enviarPush([conversa.usuarioId], {
+        titulo: "Resposta da equipe ClicouAí 💬",
+        corpo: resumo(texto),
+        url: caminho,
+      });
+    }
     await enviarEmail({
       para: conversa.email,
       assunto: "Respondemos a sua mensagem no ClicouAí",
       paragrafos: [
         `Oi, ${conversa.nome}! A nossa equipe respondeu no chat de ajuda:`,
         texto,
-        "Para continuar a conversa, abra o chat no seu painel.",
+        doPainel
+          ? "Para continuar a conversa, abra o chat no seu painel."
+          : conversa.tipo === "visitante"
+            ? "Para continuar a conversa, abra o chat no site, no mesmo celular ou computador em que você escreveu, ou responda pelo WhatsApp."
+            : "Para continuar a conversa, abra o chat no site.",
       ],
-      botao: { texto: "Abrir o chat", url: urlDoSite("/painel?ajuda=1") },
+      botao: { texto: "Abrir o chat", url: urlDoSite(caminho) },
     });
   } catch (erro) {
     console.error("Falha ao avisar a resposta de suporte", { conversa: conversa.id, erro });

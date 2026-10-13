@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { RespostaSuporte } from "@/components/suporte/resposta-suporte";
+import { SeloContato } from "@/components/suporte/selo-contato";
 import { abrirConversaNaGestao } from "@/dados";
 import { formatarDataEHora } from "@/lib/formatar";
 import { ehIdValido } from "@/lib/validacao";
@@ -38,7 +39,10 @@ async function Conversa({ params }: { params: PageProps<"/admin/suporte/[id]">["
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">{conversa.nome}</h1>
+        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight">
+          {conversa.nome}
+          <SeloContato tipo={conversa.tipo} />
+        </h1>
         <p className="text-sm text-muted-foreground">
           <a href={`mailto:${conversa.email}`} className="hover:underline">
             {conversa.email}

@@ -7,5 +7,5 @@ import { ChatSuporte } from "./chat-suporte";
 export async function ChatDoPainel() {
   const usuario = await usuarioAtual();
   if (!usuario || !podeUsarPainel(usuario)) return null;
-  return <ChatSuporte novidade={await temRespostaNaoLida(usuario.id)} />;
+  return <ChatSuporte novidade={await temRespostaNaoLida({ usuarioId: usuario.id })} />;
 }

@@ -1,4 +1,4 @@
-// Chat de ajuda do painel (uma conversa por usuário) e sugestões de melhoria.
+// Chat de ajuda (uma conversa por usuário, ou por visitante sem conta) e sugestões de melhoria.
 
 import "server-only";
 
@@ -8,6 +8,9 @@ import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 
 import { iso } from "./mapas";
+import type { TipoContatoSuporte } from "./suporte-tipos";
+
+export { ROTULO_CONTATO_SUPORTE, type TipoContatoSuporte } from "./suporte-tipos";
 
 export type AutorMensagemSuporte = "usuario" | "equipe";
 
@@ -18,9 +21,19 @@ export type MensagemSuporte = {
   criadoEm: string;
 };
 
+/** De quem é a conversa: a conta, ou o visitante sem conta (hash do cookie do chat). */
+export type DonoDaConversa = { usuarioId: string } | { visitanteId: string };
+
+function doDono(dono: DonoDaConversa) {
+  return "usuarioId" in dono
+    ? eq(t.conversasSuporte.usuarioId, dono.usuarioId)
+    : eq(t.conversasSuporte.visitanteId, dono.visitanteId);
+}
+
 export type ConversaSuporte = {
   id: string;
-  usuarioId: string;
+  usuarioId: string | null;
+  tipo: TipoContatoSuporte;
   nome: string;
   email: string;
   naoLidaPelaEquipe: boolean;
@@ -30,7 +43,10 @@ export type ConversaSuporte = {
 };
 
 function paraConversa(r: typeof t.conversasSuporte.$inferSelect): ConversaSuporte {
-  return { ...r, criadoEm: iso(r.criadoEm), atualizadoEm: iso(r.atualizadoEm) };
+  // O hash do visitante fica só no banco.
+  const { visitanteId, ...resto } = r;
+  void visitanteId;
+  return { ...resto, criadoEm: iso(r.criadoEm), atualizadoEm: iso(r.atualizadoEm) };
 }
 
 function paraMensagem(r: typeof t.mensagensSuporte.$inferSelect): MensagemSuporte {
@@ -47,31 +63,23 @@ async function mensagensDaConversa(conversaId: string): Promise<MensagemSuporte[
   return linhas.map(paraMensagem);
 }
 
-/** A conversa do usuário com as mensagens, ou `null` se ele nunca escreveu. */
+/** A conversa com as mensagens, ou `null` se a pessoa nunca escreveu. */
 export async function conversaDoUsuario(
-  usuarioId: string,
+  dono: DonoDaConversa,
 ): Promise<{ conversa: ConversaSuporte; mensagens: MensagemSuporte[] } | null> {
   const banco = await obterBanco();
-  const [linha] = await banco
-    .select()
-    .from(t.conversasSuporte)
-    .where(eq(t.conversasSuporte.usuarioId, usuarioId));
+  const [linha] = await banco.select().from(t.conversasSuporte).where(doDono(dono));
   if (!linha) return null;
   return { conversa: paraConversa(linha), mensagens: await mensagensDaConversa(linha.id) };
 }
 
 /** Tem resposta da equipe que o usuário ainda não viu? (Bolinha no botão do chat.) */
-export async function temRespostaNaoLida(usuarioId: string) {
+export async function temRespostaNaoLida(dono: DonoDaConversa) {
   const banco = await obterBanco();
   const [linha] = await banco
     .select({ id: t.conversasSuporte.id })
     .from(t.conversasSuporte)
-    .where(
-      and(
-        eq(t.conversasSuporte.usuarioId, usuarioId),
-        eq(t.conversasSuporte.naoLidaPeloUsuario, true),
-      ),
-    );
+    .where(and(doDono(dono), eq(t.conversasSuporte.naoLidaPeloUsuario, true)));
   return linha !== undefined;
 }
 
@@ -80,8 +88,8 @@ export async function temRespostaNaoLida(usuarioId: string) {
  * `primeira` diz se a conversa acabou de ser aberta.
  */
 export async function registrarMensagemDoUsuario(
-  usuarioId: string,
-  contato: { nome: string; email: string },
+  dono: DonoDaConversa,
+  contato: { nome: string; email: string; tipo: TipoContatoSuporte },
   texto: string,
 ): Promise<{ conversa: ConversaSuporte; primeira: boolean }> {
   const banco = await obterBanco();
@@ -89,12 +97,12 @@ export async function registrarMensagemDoUsuario(
     const [existente] = await tx
       .select({ id: t.conversasSuporte.id })
       .from(t.conversasSuporte)
-      .where(eq(t.conversasSuporte.usuarioId, usuarioId));
+      .where(doDono(dono));
     const [conversa] = await tx
       .insert(t.conversasSuporte)
-      .values({ usuarioId, ...contato, naoLidaPelaEquipe: true })
+      .values({ ...dono, ...contato, naoLidaPelaEquipe: true })
       .onConflictDoUpdate({
-        target: t.conversasSuporte.usuarioId,
+        target: "usuarioId" in dono ? t.conversasSuporte.usuarioId : t.conversasSuporte.visitanteId,
         set: { ...contato, naoLidaPelaEquipe: true, atualizadoEm: sql`now()` },
       })
       .returning();
@@ -105,17 +113,12 @@ export async function registrarMensagemDoUsuario(
   });
 }
 
-export async function marcarLidaPeloUsuario(usuarioId: string) {
+export async function marcarLidaPeloUsuario(dono: DonoDaConversa) {
   const banco = await obterBanco();
   await banco
     .update(t.conversasSuporte)
     .set({ naoLidaPeloUsuario: false })
-    .where(
-      and(
-        eq(t.conversasSuporte.usuarioId, usuarioId),
-        eq(t.conversasSuporte.naoLidaPeloUsuario, true),
-      ),
-    );
+    .where(and(doDono(dono), eq(t.conversasSuporte.naoLidaPeloUsuario, true)));
 }
 
 export type ConversaNaLista = ConversaSuporte & { ultima: MensagemSuporte | null };

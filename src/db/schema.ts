@@ -867,16 +867,27 @@ export const statusSugestao = pgEnum("status_sugestao", [
 ]);
 
 /**
- * Conversa do chat de ajuda do painel: uma por usuário, como um fio de WhatsApp. Os dois
+ * Conversa do chat de ajuda (painel e site): uma por usuário ou por visitante sem conta, como um
+ * fio de WhatsApp. Os dois
  * "não lida" acendem o aviso de mensagem nova de cada lado.
  */
+export const tipoContatoSuporte = pgEnum("tipo_contato_suporte", [
+  "fotografo",
+  "gestor",
+  "cliente",
+  "visitante",
+]);
+
 export const conversasSuporte = pgTable(
   "conversas_suporte",
   {
     id: uuid().primaryKey().defaultRandom(),
-    usuarioId: uuid()
-      .notNull()
-      .references(() => usuarios.id, { onDelete: "cascade" }),
+    /** Quem tem conta. Visitante sem conta fica em `visitanteId`. */
+    usuarioId: uuid().references(() => usuarios.id, { onDelete: "cascade" }),
+    /** Visitante sem conta: hash do cookie do chat (src/servicos/suporte-visitante.ts). */
+    visitanteId: text(),
+    /** Quem escreveu por último: a gestão vê se é fotógrafo, gestor, cliente ou visitante. */
+    tipo: tipoContatoSuporte().notNull().default("fotografo"),
     /** Nome e e-mail que a pessoa informou no chat (podem diferir dos da conta). */
     nome: text().notNull(),
     email: text().notNull(),
@@ -885,7 +896,11 @@ export const conversasSuporte = pgTable(
     criadoEm: momento(),
     atualizadoEm: momento(),
   },
-  (t) => [uniqueIndex().on(t.usuarioId), index().on(t.atualizadoEm)],
+  (t) => [
+    uniqueIndex().on(t.usuarioId),
+    uniqueIndex().on(t.visitanteId),
+    index().on(t.atualizadoEm),
+  ],
 ).enableRLS();
 
 export const mensagensSuporte = pgTable(

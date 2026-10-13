@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { MessageCircle } from "lucide-react";
 
 import { BotaoNotificacoes } from "@/components/notificacoes/botao-notificacoes";
+import { SeloContato } from "@/components/suporte/selo-contato";
 import { listarConversasSuporte } from "@/dados";
 import { formatarDataEHora } from "@/lib/formatar";
 import { exigirGestor } from "@/servicos/sessao";
@@ -19,8 +20,9 @@ export default function PaginaSuporte() {
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight">Chat de ajuda</h1>
         <p className="text-muted-foreground">
-          Conversas dos fotógrafos pelo chat do painel. A resposta chega para eles no chat, por
-          notificação e por e-mail.
+          Conversas do chat de ajuda: fotógrafos pelo painel, clientes e visitantes pelo site. A
+          etiqueta diz quem é. A resposta chega no chat e por e-mail (e notificação, para quem tem
+          conta).
         </p>
       </div>
       <BotaoNotificacoes contexto="mensagens do chat" />
@@ -61,6 +63,7 @@ async function Conversas() {
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex flex-wrap items-center gap-x-2">
                 <span className={c.naoLidaPelaEquipe ? "font-bold" : "font-medium"}>{c.nome}</span>
+                <SeloContato tipo={c.tipo} />
                 <span className="text-sm text-muted-foreground">{c.email}</span>
                 {c.naoLidaPelaEquipe && (
                   <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">
