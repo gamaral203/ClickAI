@@ -22,10 +22,11 @@ describe("linksDoCabecalho", () => {
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil).toBeNull();
     expect(nav.rodape).toBe("completo");
-    expect(hrefs(nav.desktop)).toEqual(["/", "/eventos"]);
+    expect(hrefs(nav.desktop)).toEqual(["/", "/eventos", "/recuperar-compras"]);
     expect(hrefs(nav.celular)).toEqual([
       "/",
       "/eventos",
+      "/recuperar-compras",
       "/entrar",
       "/cadastro",
       "/cadastro?tipo=fotografo",

@@ -124,6 +124,9 @@ const REGRAS = {
   suporte_usuario: { limite: 30, janelaMs: 60 * MINUTO },
   /** Mensagens do chat de ajuda de visitantes sem conta, por IP (cada uma avisa a gestão). */
   suporte_ip: { limite: 20, janelaMs: 60 * MINUTO },
+  /** "Recuperar minhas compras": pedidos por IP e por e-mail (cada um pode mandar um e-mail). */
+  recuperar_compras_ip: { limite: 10, janelaMs: 60 * MINUTO },
+  recuperar_compras_email: { limite: 3, janelaMs: 60 * MINUTO },
   /** Sugestões de melhoria por usuário. */
   sugestao_usuario: { limite: 10, janelaMs: 60 * MINUTO },
   /**

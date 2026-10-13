@@ -6,6 +6,7 @@ import { z } from "zod";
 import { buscarPedido } from "@/dados";
 import { formatarPreco } from "@/lib/formatar";
 import { reembolsarPedido, restaurarContestacao } from "@/servicos/estornos";
+import { enviarEntrega } from "@/servicos/mensagens";
 import { conferirCobrancaDoPedido, type ConferenciaDoPedido } from "@/servicos/pagamentos";
 import { exigirGestor } from "@/servicos/sessao";
 
@@ -119,4 +120,23 @@ export async function conferirPagamentoAcao(pedidoId: string): Promise<Resultado
   const resultado = await conferirCobrancaDoPedido(id.data);
   revalidatePath("/admin", "layout");
   return RESULTADO_CONFERENCIA[resultado];
+}
+
+/**
+ * Reenvia ao comprador o e-mail de entrega (o link das fotos), para quem fechou a página e não
+ * achou o e-mail. Só pedido pago, sem reembolso pedido; o link é o mesmo assinado de sempre.
+ */
+export async function reenviarEntregaAcao(pedidoId: string): Promise<ResultadoAcaoEstorno> {
+  await exigirGestor("/admin/vendas");
+  const id = z.uuid().safeParse(pedidoId);
+  if (!id.success) return { ok: false, erro: "Pedido inválido." };
+  const encontrado = await buscarPedido(id.data);
+  if (!encontrado) return { ok: false, erro: "Pedido não encontrado." };
+  const { pedido } = encontrado;
+  if (pedido.status !== "pago" || pedido.reembolsoSolicitadoEm) {
+    return { ok: false, erro: "Só pedido pago tem fotos para entregar." };
+  }
+  await enviarEntrega(pedido);
+  revalidatePath("/admin/mensagens");
+  return { ok: true, mensagem: `Link das fotos reenviado para ${pedido.emailComprador}.` };
 }

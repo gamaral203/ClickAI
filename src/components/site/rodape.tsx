@@ -8,6 +8,7 @@ const links = [
   { href: "/como-funciona", rotulo: "Como funciona" },
   { href: "/eventos", rotulo: "Eventos" },
   { href: "/cadastro?tipo=fotografo", rotulo: "Venda suas fotos" },
+  { href: "/recuperar-compras", rotulo: "Recuperar minhas compras" },
   { href: "/ajuda", rotulo: "Ajuda" },
   { href: "/termos", rotulo: "Termos de uso" },
   { href: "/privacidade", rotulo: "Privacidade" },

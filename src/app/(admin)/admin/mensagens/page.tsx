@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ChevronDown, Mail, MessageCircle } from "lucide-react";
 
+import { BotaoReenviarLink } from "@/components/admin/acoes-estorno";
 import { listarMensagens } from "@/dados";
 import { formatarDataCurta } from "@/lib/formatar";
 import { exigirGestor } from "@/servicos/sessao";
@@ -75,6 +76,11 @@ async function Conteudo() {
             <p className="border-t px-3 py-2 text-sm break-words whitespace-pre-line text-muted-foreground">
               {m.texto}
             </p>
+            {m.tipo === "entrega" && m.canal === "email" && m.pedidoId && (
+              <div className="border-t px-3 py-2">
+                <BotaoReenviarLink pedidoId={m.pedidoId} />
+              </div>
+            )}
           </details>
         </li>
       ))}

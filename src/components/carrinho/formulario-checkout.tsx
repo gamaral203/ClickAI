@@ -13,6 +13,8 @@ import {
 } from "@/app/(cliente)/checkout/acoes";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+import { CampoEmailCheckout } from "./campo-email-checkout";
 import { Label } from "@/components/ui/label";
 import { formatarPreco } from "@/lib/formatar";
 import { acrescimoCartao, acrescimoCartaoPct } from "@/lib/taxas";
@@ -149,18 +151,10 @@ export function FormularioCheckout({
             ajuda="Enviamos para ele o link para baixar as fotos."
             erro={erros.email}
           >
-            <Input
-              id="email"
-              name="email"
-              defaultValue={inicial?.email}
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              required
-              maxLength={254}
-              aria-invalid={Boolean(erros.email)}
-              aria-describedby={erros.email ? "email-erro" : "email-ajuda"}
-              className="h-11"
+            <CampoEmailCheckout
+              valorInicial={inicial?.email}
+              invalido={Boolean(erros.email)}
+              descritoPor={erros.email ? "email-erro" : "email-ajuda"}
             />
           </Campo>
           <Campo
