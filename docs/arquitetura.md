@@ -444,6 +444,8 @@ Todo pagamento cai na conta Mercado Pago da plataforma. O fotógrafo saca pelo p
 4. Fotógrafo: perfil público apagado ("Fotógrafo removido", endereço novo), eventos arquivados, fotos (dele ou dos eventos dele) com exclusão lógica, rostos e números apagados do banco e da coleção do Rekognition, cupons desligados, loja desativada (sem domínio próprio, GA e GTM), modelos de evento apagados. O CPF/CNPJ fica, com o histórico de saques (obrigação legal, LGPD art. 16, I). Quem comprou continua baixando.
 5. A versão da sessão passa a ser `null` para conta excluída: todo cookie de sessão, em qualquer aparelho, deixa de valer na hora.
 
+**Aba Design do evento** (`src/components/painel/design-do-evento.tsx`). Na página do evento do dono, a seção Design tem três partes: Capa do evento (a escolha da capa, que saiu de Configurações), Editor de artes (story 1080×1920 e feed 1080×1350) e Banner (1200×630, para link de WhatsApp, Facebook e site). O fotógrafo escolhe entre 8 modelos verticais e 3 de banner (miniaturas estáticas em `public/artes/`), 4 cores e a imagem: a capa do evento ou uma enviada na hora (reduzida no navegador, mandada por POST e não guardada). A arte é gerada no servidor por `/painel/eventos/[id]/divulgacao/[formato]?modelo=&cor=` (`src/lib/artes/modelos.tsx`, com a fonte Plus Jakarta Sans em `src/lib/artes/fontes`, licença OFL), com o título, a data e a cidade, o nome do fotógrafo, o QR Code e o link do evento. Só o dono, e só de evento publicado.
+
 ## Segurança, LGPD e backups
 
 O original é o ativo que se vende, então a regra central é: nenhum original fica acessível sem um pedido pago.

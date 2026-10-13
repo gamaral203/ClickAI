@@ -14,6 +14,7 @@ import { EditorFaixas } from "@/components/painel/editor-faixas";
 import { FormularioPacote } from "@/components/painel/formulario-pacote";
 import { Pastas } from "@/components/painel/pastas";
 import { CompartilharEvento } from "@/components/painel/compartilhar-evento";
+import { DesignDoEvento } from "@/components/painel/design-do-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { FotosDoEvento } from "@/components/painel/fotos-do-evento";
 import { ReaproveitarEvento } from "@/components/painel/reaproveitar-evento";
@@ -300,6 +301,40 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
               ]
             : []),
           {
+            id: "design",
+            icone: "design",
+            rotulo: "Design",
+            conteudo: (
+              <DesignDoEvento
+                eventoId={evento.id}
+                slug={evento.slug}
+                publicado={evento.status === "publicado"}
+                capa={
+                  <CapaDoEvento
+                    eventoId={evento.id}
+                    escolhidaId={capaFotoId}
+                    capaEnviada={Boolean(evento.capa)}
+                    atual={
+                      capaAtual && {
+                        urlMiniatura: capaAtual.urlMiniatura,
+                        origem: capaAtual.enviada
+                          ? "enviada"
+                          : capaAtual.escolhida
+                            ? "escolhida"
+                            : "automatica",
+                      }
+                    }
+                    fotos={itens.filter(podeSerCapa).map((i) => ({
+                      id: i.id,
+                      urlMiniatura: i.urlMiniatura,
+                      nomeArquivo: i.nomeArquivo,
+                    }))}
+                  />
+                }
+              />
+            ),
+          },
+          {
             id: "ranking",
             icone: "ranking",
             rotulo: "Top Cliques",
@@ -456,26 +491,6 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
             rotulo: "Configurações",
             conteudo: (
               <>
-                <CapaDoEvento
-                  eventoId={evento.id}
-                  escolhidaId={capaFotoId}
-                  capaEnviada={Boolean(evento.capa)}
-                  atual={
-                    capaAtual && {
-                      urlMiniatura: capaAtual.urlMiniatura,
-                      origem: capaAtual.enviada
-                        ? "enviada"
-                        : capaAtual.escolhida
-                          ? "escolhida"
-                          : "automatica",
-                    }
-                  }
-                  fotos={itens.filter(podeSerCapa).map((i) => ({
-                    id: i.id,
-                    urlMiniatura: i.urlMiniatura,
-                    nomeArquivo: i.nomeArquivo,
-                  }))}
-                />
                 <FormularioEvento
                   eventoId={evento.id}
                   categorias={categorias}

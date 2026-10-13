@@ -12,6 +12,7 @@ import {
   Folder,
   Handshake,
   Images,
+  Palette,
   ScanFace,
   Settings,
   Share2,
@@ -23,6 +24,7 @@ import {
 const ICONES = {
   fotos: Images,
   divulgar: Share2,
+  design: Palette,
   ranking: Trophy,
   rostos: ScanFace,
   originais: Download,
