@@ -12,6 +12,7 @@ import {
   Images,
   MapPin,
   Navigation,
+  Video,
 } from "lucide-react";
 
 import { BotaoCompartilhar } from "@/components/galeria/botao-compartilhar";
@@ -34,7 +35,7 @@ import {
 } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPeriodo, formatarDataEHora, formatarPreco } from "@/lib/formatar";
-import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { enderecoDaGaleria, FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { linkComoChegar, linkVerNoOpenStreetMap, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
 import { lerFiltroGaleria, lerPagina } from "@/lib/validacao";
@@ -200,19 +201,60 @@ async function Galeria({
       podeComprar={podeComprar(usuario)}
     />
   );
+  // Evento com vídeos: duas abas, Fotos (padrão) e Vídeos, para achar os vídeos mais fácil.
+  const comVideos = evento.totalVideos > 0;
+  const aba = comVideos ? (filtro.tipo ?? "foto") : undefined;
+  const filtroDaAba = { ...filtro, tipo: aba };
   const [paginaDeFotos, opcoes] = await Promise.all([
-    listarFotosDoEvento(evento.id, { pagina, limite: FOTOS_POR_PAGINA, filtro }),
+    listarFotosDoEvento(evento.id, { pagina, limite: FOTOS_POR_PAGINA, filtro: filtroDaAba }),
     listarOpcoesGaleria(evento.id),
   ]);
   const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
+  const videos = aba === "video";
   return (
     <>
       {busca}
+      {comVideos && (
+        <nav
+          aria-label="Fotos ou vídeos"
+          className="flex w-fit gap-1 rounded-xl border bg-card p-1"
+        >
+          {(
+            [
+              ["foto", "Fotos", evento.totalFotos],
+              ["video", "Vídeos", evento.totalVideos],
+            ] as const
+          ).map(([tipo, rotulo, total]) => (
+            <Link
+              key={tipo}
+              href={enderecoDaGaleria(evento.slug, { tipo })}
+              aria-current={aba === tipo ? "page" : undefined}
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-muted-foreground hover:text-foreground aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground"
+            >
+              {tipo === "video" ? (
+                <Video aria-hidden="true" className="size-4" />
+              ) : (
+                <Images aria-hidden="true" className="size-4" />
+              )}
+              {rotulo}
+              <span className="tabular-nums opacity-80">{total}</span>
+            </Link>
+          ))}
+        </nav>
+      )}
       <h2 id="galeria" className="scroll-mt-4 text-lg font-semibold">
-        {filtrando ? "Fotos filtradas" : "Todas as fotos"}
+        {videos
+          ? filtrando
+            ? "Vídeos filtrados"
+            : "Todos os vídeos"
+          : filtrando
+            ? "Fotos filtradas"
+            : "Todas as fotos"}
       </h2>
       <p className="-mt-4 text-sm text-muted-foreground">
-        Toque numa foto para ver maior e comprar.
+        {videos
+          ? "Toque num vídeo para assistir e comprar."
+          : "Toque numa foto para ver maior e comprar."}
       </p>
       {situacao.tipo === "aberta" && situacao.proximaLiberacao && (
         <p className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
@@ -221,7 +263,7 @@ async function Galeria({
           <AtualizarNaHora alvo={situacao.proximaLiberacao} />
         </p>
       )}
-      <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtro} />
+      <FiltrosGaleria slug={evento.slug} opcoes={opcoes} filtro={filtroDaAba} />
       <GaleriaFotos
         slug={evento.slug}
         tituloEvento={evento.titulo}
@@ -230,12 +272,12 @@ async function Galeria({
           pagina: paginaDeFotos.pagina,
           totalPaginas: paginaDeFotos.totalPaginas,
           total: paginaDeFotos.total,
-          filtro,
+          filtro: filtroDaAba,
         }}
         vazio={
           filtrando
             ? {
-                titulo: "Nenhuma foto com esse filtro.",
+                titulo: videos ? "Nenhum vídeo com esse filtro." : "Nenhuma foto com esse filtro.",
                 detalhe: "Escolha outro filtro ou volte para todas as fotos.",
               }
             : undefined

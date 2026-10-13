@@ -36,6 +36,16 @@ import {
   MENSAGEM_RAW,
   type FormatoAceito,
 } from "@/lib/tipos-imagem";
+import {
+  detectarVideo,
+  DURACAO_MAXIMA_VIDEO_S,
+  FOLGA_DURACAO_S,
+  LIMITE_VIDEO_BYTES,
+  LIMITE_VIDEO_TEXTO,
+  MENSAGEM_FORMATO_VIDEO,
+  MENSAGEM_VIDEO_LONGO,
+  type FormatoDeVideo,
+} from "@/lib/tipos-video";
 
 // Envio de fotos do evento (docs/arquitetura.md, "Upload"). Sem limite de quantidade: o
 // fotógrafo escolhe quantas quiser (3.000 de uma vez) e o envio vai em três etapas que correm
@@ -110,7 +120,9 @@ type Partes = {
 type Item = {
   arquivo: File;
   /** Formato real, pelos primeiros bytes; HEIC vira JPEG antes do envio. */
-  formato: FormatoAceito | "heic" | null;
+  formato: FormatoAceito | FormatoDeVideo | "heic" | null;
+  /** Vídeo: duração lida no navegador, em segundos. */
+  duracaoS?: number;
   /** Veio de um HEIC convertido no navegador. */
   convertida: boolean;
   /** Impressão do arquivo (calculada na hora de enviar): a mesma foto tem a mesma impressão. */
@@ -177,6 +189,26 @@ function telemetriaVazia(): Telemetria {
 const EXTENSOES_ACEITAS = ".jpg,.jpeg,.png,.webp,.tif,.tiff,.avif";
 const TIPOS_ACEITOS = "image/jpeg,image/png,image/webp,image/tiff,image/avif";
 const HEIC_ACEITO = ",image/heic,image/heif,.heic,.heif";
+const VIDEO_ACEITO = ",video/mp4,video/quicktime,.mp4,.mov,.m4v";
+
+/** Duração do vídeo pelos metadados (o navegador lê só o cabeçalho), ou `null` se não abrir. */
+function duracaoDoVideo(arquivo: File): Promise<number | null> {
+  return new Promise((pronto) => {
+    const url = URL.createObjectURL(arquivo);
+    const video = document.createElement("video");
+    const fim = (valor: number | null) => {
+      URL.revokeObjectURL(url);
+      video.removeAttribute("src");
+      pronto(valor);
+    };
+    video.preload = "metadata";
+    video.muted = true;
+    video.onloadedmetadata = () => fim(Number.isFinite(video.duration) ? video.duration : null);
+    video.onerror = () => fim(null);
+    setTimeout(() => fim(null), 15_000);
+    video.src = url;
+  });
+}
 
 const semAssinatura = () => () => {};
 
@@ -189,7 +221,7 @@ function ehIos() {
 }
 
 /** Conferência rápida (sem ler o arquivo todo): tamanho e tipo real pelos primeiros bytes. */
-async function conferir(arquivo: File): Promise<Item> {
+async function conferir(arquivo: File, aceitaVideo: boolean): Promise<Item> {
   const item: Item = {
     arquivo,
     formato: null,
@@ -200,14 +232,33 @@ async function conferir(arquivo: File): Promise<Item> {
     estado: "aguardando",
     problema: null,
   };
-  if (arquivo.type.startsWith("video/")) {
-    return {
-      ...item,
-      estado: "recusada",
-      problema: "O envio de vídeos ainda não está disponível.",
-    };
-  }
   const inicio = new Uint8Array(await arquivo.slice(0, BYTES_PARA_DETECTAR).arrayBuffer());
+  const video = detectarVideo(inicio);
+  if (video || arquivo.type.startsWith("video/")) {
+    if (!aceitaVideo) {
+      return {
+        ...item,
+        estado: "recusada",
+        problema: "O envio de vídeos ainda não está disponível.",
+      };
+    }
+    if (!video) return { ...item, estado: "recusada", problema: MENSAGEM_FORMATO_VIDEO };
+    if (arquivo.size > LIMITE_VIDEO_BYTES) {
+      return { ...item, estado: "recusada", problema: `Maior que ${LIMITE_VIDEO_TEXTO}.` };
+    }
+    const duracao = await duracaoDoVideo(arquivo);
+    if (duracao === null) {
+      return {
+        ...item,
+        estado: "recusada",
+        problema: "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie.",
+      };
+    }
+    if (duracao > DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S) {
+      return { ...item, estado: "recusada", problema: MENSAGEM_VIDEO_LONGO };
+    }
+    return { ...item, formato: video, duracaoS: duracao };
+  }
   const formato = detectarFormato(inicio, arquivo.name);
   if (formato === "raw") return { ...item, estado: "recusada", problema: MENSAGEM_RAW };
   if (!formato) return { ...item, estado: "recusada", problema: MENSAGEM_FORMATO };
@@ -369,10 +420,13 @@ export function EnvioFotos({
   eventoId,
   modo,
   liberacao,
+  aceitaVideo = false,
 }: {
   eventoId: string;
   modo: ModoEnvio;
   liberacao?: LiberacaoDoEnvio;
+  /** Vídeos de até 30 segundos (com o Cloudflare Stream configurado). */
+  aceitaVideo?: boolean;
 }) {
   const router = useRouter();
   // Liberação deste lote: começa no padrão do evento; o dono pode trocar antes de enviar.
@@ -402,7 +456,12 @@ export function EnvioFotos({
   const [copiado, setCopiado] = useState(false);
   /** Tipos do seletor: sem HEIC no iPhone/iPad (o próprio sistema entrega o JPEG). */
   const ios = useSyncExternalStore(semAssinatura, ehIos, () => false);
-  const aceita = TIPOS_ACEITOS + "," + EXTENSOES_ACEITAS + (ios ? "" : HEIC_ACEITO);
+  const aceita =
+    TIPOS_ACEITOS +
+    "," +
+    EXTENSOES_ACEITAS +
+    (ios ? "" : HEIC_ACEITO) +
+    (aceitaVideo && modo === "r2" ? VIDEO_ACEITO : "");
 
   const indisponivel = modo === "indisponivel";
 
@@ -467,7 +526,9 @@ export function EnvioFotos({
     setMensagem(null);
     setConferindo(true);
     const lista = [...arquivos];
-    const conferidos = await emParalelo(lista, 16, conferir);
+    const conferidos = await emParalelo(lista, 16, (arquivo) =>
+      conferir(arquivo, aceitaVideo && modo === "r2"),
+    );
     itens.current = conferidos.map((r, i) =>
       r.ok
         ? r.valor
@@ -552,6 +613,7 @@ export function EnvioFotos({
         tamanhoBytes: itens.current[i].arquivo.size,
         hash: itens.current[i].hash,
         formato: itens.current[i].formato,
+        duracaoS: itens.current[i].duracaoS,
       })),
       escolhaDoEnvio.current,
     ).catch(() => ({ erro: "A conexão caiu. Tente de novo." }));

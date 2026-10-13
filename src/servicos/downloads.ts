@@ -3,7 +3,7 @@ import "server-only";
 import { buscarItemDoPedido, buscarOriginal, registrarDownload } from "@/dados";
 import { emProducao } from "@/db/conexao";
 import { r2Configurado, urlDeDownload } from "@/lib/r2";
-import { DADOS_DO_FORMATO, formatoDaChave, nomeComExtensao } from "@/lib/tipos-imagem";
+import { nomeDoArquivoOriginal, tipoDoOriginal } from "@/lib/arquivo-original";
 
 import { podeAcessar, type Credencial } from "./pedidos";
 
@@ -25,9 +25,8 @@ async function enderecoDoOriginal(fotoId: string): Promise<OriginalParaDownload 
     if (!r2Configurado()) return null;
     // O original sai no formato em que foi enviado (JPEG, PNG, WebP, TIFF ou AVIF): o tipo e a
     // extensão do nome vêm da chave, que tem a extensão do formato real conferido no envio.
-    const formato = formatoDaChave(chave) ?? "jpeg";
-    const nome = nomeComExtensao(nomeArquivo, formato);
-    const url = await urlDeDownload(chave, nome, DADOS_DO_FORMATO[formato].mime);
+    const nome = nomeDoArquivoOriginal(nomeArquivo, chave);
+    const url = await urlDeDownload(chave, nome, tipoDoOriginal(chave).mime);
     return { tipo: "r2", url, nomeArquivo: nome };
   }
   // Imagem de exemplo: só fora da produção. Na produção, só original enviado de verdade.

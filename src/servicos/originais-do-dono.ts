@@ -18,7 +18,7 @@ import {
 import { emProducao } from "@/db/conexao";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import { r2Configurado, urlDeDownload } from "@/lib/r2";
-import { DADOS_DO_FORMATO, formatoDaChave, nomeComExtensao } from "@/lib/tipos-imagem";
+import { nomeDoArquivoOriginal, tipoDoOriginal } from "@/lib/arquivo-original";
 
 import { limiteAtingido } from "./limites";
 import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "./mfa";
@@ -163,9 +163,8 @@ const pedidoDeLote = z.object({
 
 /** Nome do arquivo no disco: legível, sem caracteres problemáticos e único no evento. */
 export function nomeDoOriginal(item: Pick<OriginalDoDono, "id" | "nomeArquivo" | "chave">) {
-  const formato = formatoDaChave(item.chave) ?? "jpeg";
-  const completo = nomeComExtensao(item.nomeArquivo, formato);
-  const ext = DADOS_DO_FORMATO[formato].extensao;
+  const completo = nomeDoArquivoOriginal(item.nomeArquivo, item.chave);
+  const ext = tipoDoOriginal(item.chave).extensao;
   const base = completo
     .slice(0, completo.lastIndexOf(".") > 0 ? completo.lastIndexOf(".") : undefined)
     .normalize("NFD")
@@ -184,8 +183,7 @@ async function enderecoDoOriginal(
 ) {
   if (item.chave.startsWith("originais/")) {
     if (!r2Configurado()) return null;
-    const formato = formatoDaChave(item.chave) ?? "jpeg";
-    return urlDeDownload(item.chave, nome, DADOS_DO_FORMATO[formato].mime);
+    return urlDeDownload(item.chave, nome, tipoDoOriginal(item.chave).mime);
   }
   // Dados de exemplo (só fora da produção): a rota do painel confere tudo de novo e entrega a
   // imagem de exemplo (o CSP não deixa o navegador buscar outro host direto).
@@ -323,8 +321,7 @@ export async function originalIndividual(
   let exemplo = false;
   if (foto.chave.startsWith("originais/")) {
     if (r2Configurado()) {
-      const formato = formatoDaChave(foto.chave) ?? "jpeg";
-      url = await urlDeDownload(foto.chave, nome, DADOS_DO_FORMATO[formato].mime);
+      url = await urlDeDownload(foto.chave, nome, tipoDoOriginal(foto.chave).mime);
     }
   } else if (/^https:\/\//.test(foto.chave) && !emProducao()) {
     url = foto.chave;

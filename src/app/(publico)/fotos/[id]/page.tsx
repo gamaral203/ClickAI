@@ -22,6 +22,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { autoresPorId, buscarFotoPublica } from "@/dados";
 import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
+import { urlDoPlayer } from "@/lib/stream";
 import { enderecoDaGaleria } from "@/lib/galeria";
 import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
@@ -91,15 +92,26 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             className="relative mx-auto w-full overflow-hidden rounded-xl bg-muted"
             style={{ aspectRatio: `${foto.largura} / ${foto.altura}`, maxHeight: "75vh" }}
           >
-            <Image
-              src={foto.urlPrevia}
-              alt={descricao}
-              fill
-              loading="eager"
-              draggable={false}
-              sizes="(min-width: 1024px) 800px, 100vw"
-              className="object-contain imagem-protegida"
-            />
+            {foto.tipo === "video" && foto.streamUid ? (
+              // Vídeo: a prévia inteira, com a marca d'água do ClicouAí, pelo player do Stream.
+              <iframe
+                src={urlDoPlayer(foto.streamUid, foto.urlPrevia)}
+                title={`Prévia do vídeo de ${evento.titulo}`}
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+                className="absolute inset-0 size-full border-0"
+              />
+            ) : (
+              <Image
+                src={foto.urlPrevia}
+                alt={descricao}
+                fill
+                loading="eager"
+                draggable={false}
+                sizes="(min-width: 1024px) 800px, 100vw"
+                className="object-contain imagem-protegida"
+              />
+            )}
             {/* Quem fez a foto, no canto inferior esquerdo (eventos com vários fotógrafos). */}
             <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1.5 truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
               <Camera aria-hidden="true" className="size-3.5 shrink-0" />
@@ -107,7 +119,9 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             </span>
           </SemMenuDeContexto>
           <figcaption className="text-sm text-muted-foreground">
-            Prévia com marca d&apos;água. O original sai sem marca e em alta resolução.
+            {foto.tipo === "video"
+              ? "Prévia do vídeo inteiro com marca d'água. O original sai sem marca, no tamanho enviado."
+              : "Prévia com marca d'água. O original sai sem marca e em alta resolução."}
           </figcaption>
         </figure>
 

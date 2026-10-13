@@ -42,6 +42,12 @@ export function lerFiltroGaleria(params: Record<string, ValorDeBusca>) {
     hora: hora.success ? hora.data : undefined,
     pasta: pasta.success ? pasta.data : undefined,
     naoIdentificadas: primeiro(params["nao-identificadas"]) === "1" ? true : undefined,
+    tipo:
+      primeiro(params.tipo) === "video"
+        ? ("video" as const)
+        : primeiro(params.tipo) === "foto"
+          ? ("foto" as const)
+          : undefined,
   };
 }
 

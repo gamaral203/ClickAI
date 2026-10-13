@@ -539,6 +539,8 @@ export type FiltroGaleria = {
   naoIdentificadas?: boolean;
   /** Só os itens desta pasta do evento. */
   pasta?: string;
+  /** Aba da galeria: só fotos ou só vídeos (evento com vídeos). */
+  tipo?: "foto" | "video";
 };
 
 /** Itens do evento em que o reconhecimento achou rosto ou número. */
@@ -574,6 +576,7 @@ async function filtrarGaleria<T extends ChaveItem>(
     resultado = resultado.filter((f) => !identificados.has(f.id));
   }
   if (filtro.pasta) resultado = resultado.filter((f) => f.pastaId === filtro.pasta);
+  if (filtro.tipo) resultado = resultado.filter((f) => f.tipo === filtro.tipo);
   return resultado;
 }
 

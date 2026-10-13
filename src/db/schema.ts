@@ -370,6 +370,8 @@ export const fotos = pgTable(
     largura: integer().notNull(),
     altura: integer().notNull(),
     duracaoS: integer(),
+    /** Vídeo: id no Cloudflare Stream, onde fica a prévia com marca d'água (src/lib/stream.ts). */
+    streamUid: text(),
     tamanhoBytes: bigint({ mode: "number" }),
     hashConteudo: text(),
     capturadaEm: data(),
