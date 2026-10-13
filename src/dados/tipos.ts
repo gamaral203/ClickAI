@@ -143,8 +143,8 @@ export type StatusFoto = "processando" | "pronta" | "erro";
 /** Foto ou vídeo de um evento (a tabela `fotos` guarda os dois). */
 export type Foto = {
   id: string;
-  /** Vídeo: id no Cloudflare Stream (o player da prévia com marca d'água). */
-  streamUid?: string | null;
+  /** Vídeo: endereço da prévia em MP4 com a marca d'água. */
+  previaVideo?: string | null;
   eventoId: string;
   pastaId: string | null;
   /** Fotógrafo que enviou: o dono do evento ou um colaborador. */

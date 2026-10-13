@@ -74,9 +74,17 @@ export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {
 }
 
 export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
-  const f = omitir(r, "chaveOriginal", "tamanhoBytes", "hashConteudo", "avisoLiberacaoEm");
+  const f = omitir(
+    r,
+    "chaveOriginal",
+    "tamanhoBytes",
+    "hashConteudo",
+    "avisoLiberacaoEm",
+    "streamUid",
+  );
   return {
     ...f,
+    previaVideo: f.previaVideo ? urlPublica(f.previaVideo) : null,
     urlPrevia: urlPublica(f.urlPrevia),
     urlMiniatura: urlPublica(f.urlMiniatura),
     capturadaEm: iso(f.capturadaEm),

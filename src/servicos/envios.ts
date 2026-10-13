@@ -24,7 +24,6 @@ import {
   hashesDoEvento,
   listarFotosParadas,
   marcarFotoComErro,
-  marcarVideoNoStream,
   modeloMarcaDoEvento,
   registrarFotosEmEnvio,
   reservarFotoParaProcessar,
@@ -52,6 +51,7 @@ import {
   fecharEnvioEmPartes,
   gravarPublico,
   lerEnviado,
+  lerOriginal,
   lerTrecho,
   modoEnvio,
   moverOriginal,
@@ -59,7 +59,6 @@ import {
   tamanhoDoEnviado,
   urlDaParte,
   urlDeEnvio,
-  urlDeLeitura,
 } from "@/lib/r2";
 import {
   ehErroDeCredencial,
@@ -80,7 +79,6 @@ import {
   type FormatoAceito,
 } from "@/lib/tipos-imagem";
 
-import { copiarParaStream, streamConfigurado } from "@/lib/stream";
 import {
   DADOS_DO_VIDEO,
   detectarVideo,
@@ -97,6 +95,7 @@ import {
 } from "@/lib/tipos-video";
 
 import { copiaParaRostos, gerarVersoes } from "./imagens";
+import { prepararVideo, VideoIlegivel } from "./video";
 
 export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
@@ -116,7 +115,7 @@ const lote = z
       hash: impressao,
       /** Formato real, detectado no navegador pelo conteúdo; conferido de novo no servidor. */
       formato: z.enum([...FORMATOS_ACEITOS, ...FORMATOS_DE_VIDEO]),
-      /** Vídeo: duração lida no navegador (o Stream confere de novo). */
+      /** Vídeo: duração lida no navegador (o servidor confere de novo com o FFmpeg). */
       duracaoS: z
         .number()
         .positive()
@@ -160,6 +159,8 @@ export function chavesDaFoto(
     // Prévia e miniatura levam a versão da marca na chave (src/lib/marca-dagua.ts).
     previa: `previas/${caminho}${SUFIXO_DA_VERSAO}`,
     miniatura: `miniaturas/${caminho}${SUFIXO_DA_VERSAO}`,
+    /** Vídeo: a prévia em MP4 com a marca (no bucket público). */
+    previaVideo: `previas/${caminho}-video.mp4`,
   };
 }
 
@@ -207,9 +208,6 @@ export async function iniciarEnvio(
         `de até ${LIMITE_FOTO_TEXTO} cada (vídeos em MP4 ou MOV de até ${LIMITE_VIDEO_TEXTO} e ` +
         `${DURACAO_MAXIMA_VIDEO_S} segundos). Se o erro continuar, atualize a página.`,
     };
-  }
-  if (dados.data.some((a) => ehFormatoDeVideo(a.formato)) && !streamConfigurado()) {
-    return { erro: "O envio de vídeos ainda não está disponível." };
   }
 
   const jaNoEvento = await hashesDoEvento(
@@ -471,13 +469,7 @@ export async function confirmarEnvio(
     const situacao = idFoto.safeParse(fotoId).success
       ? await situacaoDaFoto(fotoId, fotografoId)
       : null;
-    // "processando" sem arquivo temporário: vídeo já entregue ao Stream (src/servicos/videos.ts).
-    if (
-      situacao?.status === "pronta" ||
-      (situacao?.status === "processando" && situacao.streamUid)
-    ) {
-      return { emAndamento: true };
-    }
+    if (situacao?.status === "pronta") return { emAndamento: true };
     if (situacao?.status === "erro" && situacao.erroMensagem)
       return { erro: situacao.erroMensagem };
     return { erro: "Foto não encontrada." };
@@ -618,10 +610,10 @@ const ERRO_PROCESSAMENTO = "Não foi possível processar a foto. Envie de novo."
 
 /**
  * Vídeo que terminou de subir (docs/arquitetura.md, "Vídeos"): confere o tamanho, o formato pelo
- * conteúdo e a impressão lendo só trechos do arquivo (nada de carregar o vídeo na memória), move
- * o original para `originais/` e pede ao Cloudflare Stream para buscar o vídeo e preparar a
- * prévia com marca d'água. O vídeo segue em `processando` até o Stream terminar; quem o deixa
- * pronto é src/servicos/videos.ts.
+ * conteúdo e a impressão lendo só trechos do arquivo, move o original para `originais/` e gera a
+ * prévia aqui mesmo com o FFmpeg (src/servicos/video.ts): um MP4 com a marca d'água das fotos em
+ * todos os quadros, mais a miniatura e a prévia em imagem a partir de um quadro. Vídeo com mais de
+ * 30 segundos é recusado. No fim, o vídeo fica `pronta`, como uma foto.
  */
 async function confirmarVideo(
   fotografoId: string,
@@ -633,15 +625,28 @@ async function confirmarVideo(
   opcoes: OpcoesDoProcessamento,
 ): Promise<ResultadoDoProcessamento> {
   const { foto, chaves, formato } = valida;
-  if (!streamConfigurado()) return { erro: "O envio de vídeos ainda não está disponível." };
-  const agora = Date.now();
-  const reservou = await reservarFotoParaProcessar(
-    foto.id,
-    fotografoId,
-    new Date(agora),
-    new Date(agora + RESERVA_DO_PROCESSAMENTO_MS),
+  // Arquivo, prévia e quadros na memória ao mesmo tempo: reserva com folga.
+  const liberar = await memoria.reservar(
+    Math.min(ORCAMENTO_DE_MEMORIA_BYTES, (foto.tamanhoBytes || LIMITE_VIDEO_BYTES) * 2),
   );
-  if (!reservou) return { emAndamento: true };
+  const agora = Date.now();
+  let reservou;
+  try {
+    reservou = await reservarFotoParaProcessar(
+      foto.id,
+      fotografoId,
+      new Date(agora),
+      new Date(agora + RESERVA_DO_PROCESSAMENTO_MS),
+    );
+  } catch (erro) {
+    liberar();
+    throw erro;
+  }
+  if (!reservou) {
+    liberar();
+    return { emAndamento: true };
+  }
+  let movido = false;
   try {
     const tamanho = await tamanhoDoEnviado(chaves.temporaria);
     if (tamanho === null) {
@@ -663,18 +668,54 @@ async function confirmarVideo(
     if (conferida !== foto.hash) throw new ArquivoRecusado(ERRO_DIFERENTE);
 
     await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
-    const uid = await copiarParaStream(await urlDeLeitura(chaves.original), foto.id, foto.id);
-    await marcarVideoNoStream(foto.id, chaves.original, uid);
+    movido = true;
+    const modelo = await modeloMarcaDoEvento(foto.eventoId);
+    let preparado;
+    try {
+      preparado = await prepararVideo(
+        await lerOriginal(chaves.original),
+        modelo,
+        (duracao) => duracao <= DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S,
+      );
+    } catch (erro) {
+      if (erro instanceof VideoIlegivel) {
+        console.error(`[envios] vídeo ${foto.id} ilegível: ${erro.message}`);
+        throw new ArquivoRecusado("Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie.");
+      }
+      throw erro;
+    }
+    if ("recusado" in preparado) throw new ArquivoRecusado(MENSAGEM_VIDEO_LONGO);
+
+    const { previa, miniatura } = await gerarVersoes(preparado.quadro, modelo);
+    await Promise.all([
+      gravarPublico(chaves.previa, previa.buffer, "image/webp"),
+      gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
+      gravarPublico(chaves.previaVideo, preparado.previa, "video/mp4"),
+    ]);
+    const concluiu = await concluirFoto(foto.id, {
+      chaveOriginal: chaves.original,
+      urlPrevia: chaves.previa,
+      urlMiniatura: chaves.miniatura,
+      previaVideo: chaves.previaVideo,
+      largura: preparado.largura,
+      altura: preparado.altura,
+      capturadaEm: null,
+      duracaoS: Math.max(1, Math.round(preparado.duracaoS)),
+    });
+    if (!concluiu) return { emAndamento: true };
     return { eventoId: foto.eventoId };
   } catch (erro) {
     if (erro instanceof ArquivoRecusado) {
       await marcarFotoComErro(foto.id, erro.message);
-      await removerOriginal(chaves.temporaria).catch(() => {});
+      // O arquivo recusado não fica guardado (nem o temporário, nem o original já movido).
+      await removerOriginal(movido ? chaves.original : chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
     await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
     console.error(`[envios] falha ao processar o vídeo ${foto.id}`, erro);
     return { erro: "Não foi possível processar o vídeo. Tente de novo." };
+  } finally {
+    liberar();
   }
 }
 

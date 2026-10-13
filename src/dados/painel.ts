@@ -428,7 +428,7 @@ export async function registrarFotosEmEnvio(
     nome: string;
     tamanhoBytes: number;
     hash: string;
-    /** Vídeo: o tipo e a duração lida no navegador (o Stream confere de novo). */
+    /** Vídeo: o tipo e a duração lida no navegador (o servidor confere de novo com o FFmpeg). */
     tipo?: "foto" | "video";
     duracaoS?: number;
   }[],
@@ -477,7 +477,7 @@ export async function registrarFotosEmEnvio(
       hashConteudo: arquivo.hash,
       tipo: arquivo.tipo ?? ("foto" as const),
       duracaoS: arquivo.duracaoS ? Math.round(arquivo.duracaoS) : null,
-      streamUid: null,
+      previaVideo: null,
       status: "processando" as const,
       envioIniciadoEm: new Date(agora),
       erroMensagem: null,
@@ -539,8 +539,9 @@ export async function concluirFoto(
     largura: number;
     altura: number;
     capturadaEm: Date | null;
-    /** Vídeo: a duração conferida pelo Stream. */
+    /** Vídeo: a duração lida pelo FFmpeg e a chave da prévia em MP4. */
     duracaoS?: number;
+    previaVideo?: string;
   },
 ): Promise<boolean> {
   const banco = await obterBanco();

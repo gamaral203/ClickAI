@@ -48,10 +48,8 @@ import { pontoDoEvento } from "@/lib/mapa";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
-import { streamConfigurado } from "@/lib/stream";
 import { provedorFacial } from "@/lib/reconhecimento";
 import { resumoParaODono } from "@/servicos/originais-do-dono";
-import { atualizarVideosNoStream } from "@/servicos/videos";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -104,8 +102,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     capas,
     originais,
   ] = await Promise.all([
-    // Vídeos que o Stream terminou de preparar entram prontos nesta mesma leitura.
-    atualizarVideosNoStream(evento.id).then(() => listarItensDoPainel(evento.id, conta.id)),
+    listarItensDoPainel(evento.id, conta.id),
     listarFaixas(conta.id, evento.id),
     listarFaixas(conta.id, null),
     buscarPacoteDoEvento(evento.id, conta.id),
@@ -244,7 +241,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                 <EnvioFotos
                   eventoId={evento.id}
                   modo={modoEnvio()}
-                  aceitaVideo={streamConfigurado()}
+                  aceitaVideo
                   liberacao={{
                     modo: evento.liberacao,
                     em:

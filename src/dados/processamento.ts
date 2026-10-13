@@ -11,7 +11,7 @@
 
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -66,7 +66,6 @@ export async function situacaoDaFoto(fotoId: string, fotografoId: string) {
     .select({
       status: t.fotos.status,
       erroMensagem: t.fotos.erroMensagem,
-      streamUid: t.fotos.streamUid,
     })
     .from(t.fotos)
     .where(
@@ -116,9 +115,6 @@ export async function listarFotosParadas(
       and(
         eq(t.fotos.status, "processando"),
         isNull(t.fotos.excluidaEm),
-        // Vídeo já entregue ao Stream não volta ao processamento: quem termina é
-        // atualizarVideosNoStream (src/servicos/videos.ts).
-        or(eq(t.fotos.tipo, "foto"), isNull(t.fotos.streamUid)),
         lt(inicioDoEnvio, antesDe),
       ),
     )
@@ -126,50 +122,4 @@ export async function listarFotosParadas(
     .limit(limite);
   // O coalesce volta como texto em alguns drivers: normaliza para Date.
   return linhas.map((l) => ({ ...l, inicio: new Date(l.inicio) }));
-}
-
-// ---------------------------------------------------------------- Vídeos no Stream
-
-/**
- * O vídeo chegou e foi entregue ao Cloudflare Stream: grava a chave do original e o id no Stream
- * e solta a reserva (a marca de início volta para agora). Ele segue em `processando` até o Stream
- * terminar a prévia com marca d'água.
- */
-export async function marcarVideoNoStream(
-  fotoId: string,
-  chaveOriginal: string,
-  streamUid: string,
-) {
-  const banco = await obterBanco();
-  await banco
-    .update(t.fotos)
-    .set({ chaveOriginal, streamUid, envioIniciadoEm: new Date() })
-    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
-}
-
-/** Vídeos esperando o Stream (de um evento, ou de todos), do mais antigo ao mais novo. */
-export async function videosNoStream(eventoId: string | null, limite: number) {
-  const banco = await obterBanco();
-  return banco
-    .select({
-      id: t.fotos.id,
-      eventoId: t.fotos.eventoId,
-      streamUid: t.fotos.streamUid,
-      chaveOriginal: t.fotos.chaveOriginal,
-      urlPrevia: t.fotos.urlPrevia,
-      urlMiniatura: t.fotos.urlMiniatura,
-      inicio: inicioDoEnvio,
-    })
-    .from(t.fotos)
-    .where(
-      and(
-        eq(t.fotos.tipo, "video"),
-        eq(t.fotos.status, "processando"),
-        isNull(t.fotos.excluidaEm),
-        isNotNull(t.fotos.streamUid),
-        eventoId ? eq(t.fotos.eventoId, eventoId) : undefined,
-      ),
-    )
-    .orderBy(asc(inicioDoEnvio))
-    .limit(limite);
 }
