@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import {
   conferirPagamentoAcao,
+  reenviarEntregaAcao,
   reembolsarAcao,
   restaurarAcao,
   type ResultadoAcaoEstorno,
@@ -165,6 +166,31 @@ export function BotaoConferirPagamento({ pedidoId }: { pedidoId: string }) {
       >
         {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
         Conferir pagamento
+      </Button>
+      <Retorno resultado={resultado} />
+    </span>
+  );
+}
+
+/** Reenvia ao comprador o e-mail com o link das fotos (pedido pago). */
+export function BotaoReenviarLink({ pedidoId }: { pedidoId: string }) {
+  const [resultado, setResultado] = useState<ResultadoAcaoEstorno | null>(null);
+  const [pendente, startTransition] = useTransition();
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={pendente}
+        onClick={() => {
+          setResultado(null);
+          startTransition(async () => {
+            setResultado(await reenviarEntregaAcao(pedidoId).catch(() => FALHA));
+          });
+        }}
+      >
+        {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
+        Reenviar link ao cliente
       </Button>
       <Retorno resultado={resultado} />
     </span>

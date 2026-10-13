@@ -93,11 +93,17 @@ const paraQuemCompra: Artigo[] = [
           baixadas quantas vezes quiser.
         </p>
         <p>
-          <strong>Perdeu o e-mail?</strong>{" "}
+          <strong>Fechou a página ou perdeu o e-mail?</strong> Em{" "}
+          <Link href="/recuperar-compras" className={classeLink}>
+            Recuperar minhas compras
+          </Link>
+          , digite o e-mail da compra: mandamos para ele o link com todas as suas fotos. Se você
+          comprou neste celular ou computador, o site também mostra no topo o atalho &quot;Você tem
+          fotos compradas&quot;. Com uma{" "}
           <Link href="/cadastro" className={classeLink}>
-            Crie uma conta
+            conta
           </Link>{" "}
-          com o mesmo e-mail da compra e confirme o endereço: as compras aparecem em Minhas compras.
+          no mesmo e-mail, as compras ficam em Minhas compras.
         </p>
       </>
     ),

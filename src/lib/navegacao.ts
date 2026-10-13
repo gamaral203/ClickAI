@@ -88,6 +88,8 @@ const PUBLICO: ItemNavegacao[] = [
   { href: "/", rotulo: "Início" },
   { href: "/eventos", rotulo: "Eventos" },
 ];
+/** Quem comprou sem conta e perdeu o link das fotos (src/servicos/recuperar-compras.ts). */
+const RECUPERAR: ItemNavegacao = { href: "/recuperar-compras", rotulo: "Minhas fotos compradas" };
 
 const ATALHOS_PAINEL: ItemNavegacao[] = [
   { href: "/painel", rotulo: "Início", exato: true },
@@ -115,9 +117,10 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
   if (!usuario) {
     return {
       variante: "publico",
-      desktop: PUBLICO,
+      desktop: [...PUBLICO, RECUPERAR],
       celular: [
         ...PUBLICO,
+        RECUPERAR,
         { href: "/entrar", rotulo: "Entrar" },
         { href: "/cadastro", rotulo: "Criar conta" },
         { href: "/cadastro?tipo=fotografo", rotulo: "Quero vender minhas fotos" },

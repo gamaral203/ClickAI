@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import {
   BotaoConferirPagamento,
+  BotaoReenviarLink,
   BotaoReembolsar,
   BotaoRestaurar,
 } from "@/components/admin/acoes-estorno";
@@ -101,7 +102,10 @@ async function Conteudo() {
                   <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
                 </span>
               ) : p.status === "pago" ? (
-                <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
+                <span className="flex flex-col items-start gap-1.5">
+                  <BotaoReenviarLink pedidoId={p.id} />
+                  <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
+                </span>
               ) : p.status === "contestado" ? (
                 <BotaoRestaurar pedidoId={p.id} />
               ) : p.status === "pendente" && p.gatewayId ? (

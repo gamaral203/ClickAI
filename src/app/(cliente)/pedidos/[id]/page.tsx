@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
 import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
+import { AcessoAoPedido } from "@/components/pagamento/acesso-ao-pedido";
 import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
 import { PagamentoPix } from "@/components/pagamento/pagamento-pix";
 import { AtualizadorDePagamento, BotaoGerarPix } from "@/components/pagamento/pix";
@@ -17,6 +18,7 @@ import { autoresPorId, contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { emProducao } from "@/db/conexao";
 import { provedorDePagamento } from "@/lib/gateway";
+import { linkDoPedido } from "@/servicos/mensagens";
 import { buscarPedidoAtualizado } from "@/servicos/pagamentos";
 import { usuarioAtual } from "@/servicos/sessao";
 
@@ -153,9 +155,20 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
             <h1 className="text-2xl font-bold tracking-tight">Pagamento confirmado</h1>
           </div>
           <p>
-            Obrigado, {pedido.nomeComprador.split(" ")[0]}! Suas fotos estão liberadas. Guarde este
-            link: ele é o seu acesso às fotos compradas.
+            Obrigado, {pedido.nomeComprador.split(" ")[0]}! Suas fotos estão liberadas, em alta
+            resolução e sem marca d&apos;água.
           </p>
+          <AcessoAoPedido
+            pedidoId={pedido.id}
+            link={linkDoPedido(pedido.id)}
+            email={pedido.emailComprador}
+            pagoEm={pedido.pagoEm ?? pedido.criadoEm}
+            eventos={[...new Set(detalhes.map((d) => d.eventoTitulo))]}
+            arquivos={detalhes.map(({ item, eventoTitulo }, i) => ({
+              url: linkDownload(item.id, dados.data.token),
+              nome: `${nomeDeArquivo(eventoTitulo)}-${String(i + 1).padStart(2, "0")}`,
+            }))}
+          />
         </section>
       )}
 
@@ -264,6 +277,19 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
         </p>
       </section>
     </>
+  );
+}
+
+/** Nome seguro para o arquivo dentro do ZIP: "Corrida 10K" vira "corrida-10k". */
+function nomeDeArquivo(texto: string) {
+  return (
+    texto
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "foto"
   );
 }
 
