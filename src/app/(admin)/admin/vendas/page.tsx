@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
+import { Search, X } from "lucide-react";
 
 import {
   BotaoConferirPagamento,
@@ -15,6 +17,7 @@ import {
   type StatusPedido,
 } from "@/dados";
 import { formatarDataCurta, formatarPreco } from "@/lib/formatar";
+import { buttonVariants } from "@/components/ui/button";
 import { exigirGestor } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Financeiro", robots: { index: false, follow: false } };
@@ -28,25 +31,152 @@ const STATUS: Record<StatusPedido, string> = {
   contestado: "Em contestação",
 };
 
-export default function PaginaVendasGestao() {
+type FiltroStatus = StatusPedido | "todos";
+
+/** Chips de status, na ordem em que a equipe mais procura. */
+const FILTROS: { id: FiltroStatus; rotulo: string }[] = [
+  { id: "todos", rotulo: "Todos" },
+  { id: "pago", rotulo: "Pagos" },
+  { id: "pendente", rotulo: "Aguardando pagamento" },
+  { id: "expirado", rotulo: "Expirados" },
+  { id: "estornado", rotulo: "Estornados" },
+  { id: "contestado", rotulo: "Em contestação" },
+  { id: "cancelado", rotulo: "Cancelados" },
+];
+
+function normalizar(texto: string) {
+  return texto
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Endereço da página com a busca e o status (sem os vazios). */
+function enderecoDoFiltro(busca: string, status: FiltroStatus) {
+  const p = new URLSearchParams();
+  if (busca) p.set("busca", busca);
+  if (status !== "todos") p.set("status", status);
+  const q = p.toString();
+  return q ? `/admin/vendas?${q}` : "/admin/vendas";
+}
+
+export default function PaginaVendasGestao({ searchParams }: PageProps<"/admin/vendas">) {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-3xl font-bold tracking-tight">Financeiro</h1>
       <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-muted" />}>
-        <Conteudo />
+        <Conteudo searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function Conteudo() {
+async function Conteudo({
+  searchParams,
+}: {
+  searchParams: PageProps<"/admin/vendas">["searchParams"];
+}) {
   await exigirGestor("/admin/vendas");
-  const [pedidos, estornos] = await Promise.all([listarPedidosDoAdmin(), listarEstornosDoAdmin()]);
+  const parametros = await searchParams;
+  const busca = typeof parametros.busca === "string" ? parametros.busca.trim().slice(0, 100) : "";
+  const statusPedido = typeof parametros.status === "string" ? parametros.status : "";
+  const status: FiltroStatus = FILTROS.some((f) => f.id === statusPedido)
+    ? (statusPedido as FiltroStatus)
+    : "todos";
+  const [todos, estornos] = await Promise.all([listarPedidosDoAdmin(), listarEstornosDoAdmin()]);
+
+  // Busca em nome, e-mail, vendedores, código do pagamento e número do pedido, sem acento.
+  const termo = normalizar(busca);
+  const achados = termo
+    ? todos.filter((p) =>
+        normalizar(
+          [p.nomeComprador, p.emailComprador, p.fotografos.join(" "), p.gatewayId ?? "", p.id].join(
+            " ",
+          ),
+        ).includes(termo),
+      )
+    : todos;
+  const contagem = new Map<FiltroStatus, number>([["todos", achados.length]]);
+  for (const p of achados) contagem.set(p.status, (contagem.get(p.status) ?? 0) + 1);
+  const pedidos = status === "todos" ? achados : achados.filter((p) => p.status === status);
 
   return (
     <>
-      <Estornos estornos={estornos} />
       <h2 className="text-xl font-semibold">Pedidos</h2>
+      <div className="flex flex-col gap-3">
+        <form action="/admin/vendas" className="flex gap-2">
+          {status !== "todos" && <input type="hidden" name="status" value={status} />}
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Buscar pedido</span>
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="search"
+              name="busca"
+              defaultValue={busca}
+              placeholder="Buscar por nome, e-mail, vendedor ou código do pagamento"
+              className="h-11 w-full rounded-xl border bg-card pr-3 pl-9 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </label>
+          <button
+            type="submit"
+            className={buttonVariants({ size: "touch", className: "rounded-xl" })}
+          >
+            Buscar
+          </button>
+          {busca && (
+            <Link
+              href={enderecoDoFiltro("", status)}
+              aria-label="Limpar a busca"
+              className={buttonVariants({
+                variant: "outline",
+                size: "touch",
+                className: "rounded-xl",
+              })}
+            >
+              <X aria-hidden="true" />
+            </Link>
+          )}
+        </form>
+        <nav
+          aria-label="Status do pedido"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
+        >
+          {FILTROS.map((f) => {
+            const quantos = contagem.get(f.id) ?? 0;
+            if (f.id !== "todos" && f.id !== status && quantos === 0) return null;
+            const ativo = f.id === status;
+            return (
+              <Link
+                key={f.id}
+                href={enderecoDoFiltro(busca, f.id)}
+                aria-current={ativo ? "page" : undefined}
+                className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-semibold ${
+                  ativo
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-card hover:bg-muted"
+                }`}
+              >
+                {f.rotulo}
+                <span
+                  className={`rounded-full px-1.5 text-xs tabular-nums ${ativo ? "bg-white/25" : "bg-muted text-muted-foreground"}`}
+                >
+                  {quantos}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+        {busca && (
+          <p className="text-sm text-muted-foreground">
+            {pedidos.length} {pedidos.length === 1 ? "pedido encontrado" : "pedidos encontrados"}{" "}
+            para &quot;{busca}&quot;.
+          </p>
+        )}
+      </div>
       <Tabela
         colunas={[
           { rotulo: "Pedido em" },
@@ -57,7 +187,9 @@ async function Conteudo() {
           { rotulo: "Total", direita: true },
           { rotulo: "Ações" },
         ]}
-        vazio="Nenhum pedido ainda."
+        vazio={
+          busca || status !== "todos" ? "Nenhum pedido com esse filtro." : "Nenhum pedido ainda."
+        }
       >
         {pedidos.map((p) => (
           <tr key={p.id}>
@@ -115,6 +247,7 @@ async function Conteudo() {
           </tr>
         ))}
       </Tabela>
+      <Estornos estornos={estornos} />
     </>
   );
 }
