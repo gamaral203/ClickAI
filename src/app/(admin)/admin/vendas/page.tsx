@@ -10,10 +10,12 @@ import {
   BotaoRestaurar,
 } from "@/components/admin/acoes-estorno";
 import { Celula, Tabela } from "@/components/admin/tabela";
+import { CodigoCopiavel } from "@/components/admin/codigo-copiavel";
 import {
   listarEstornosDoAdmin,
   listarPedidosDoAdmin,
   type EstornoDoAdmin,
+  type PedidoDoAdmin,
   type StatusPedido,
 } from "@/dados";
 import { formatarDataCurta, formatarPreco } from "@/lib/formatar";
@@ -177,86 +179,259 @@ async function Conteudo({
           </p>
         )}
       </div>
-      <Tabela
-        colunas={[
-          { rotulo: "Pedido em" },
-          { rotulo: "Comprador" },
-          { rotulo: "Vendedores" },
-          { rotulo: "Pagamento" },
-          { rotulo: "Status" },
-          { rotulo: "Total", direita: true },
-          { rotulo: "Ações" },
-        ]}
+      <ListaPedidos
+        pedidos={pedidos}
         vazio={
           busca || status !== "todos" ? "Nenhum pedido com esse filtro." : "Nenhum pedido ainda."
         }
-      >
-        {pedidos.map((p) => (
-          <tr key={p.id}>
-            <Celula>
-              <span className="flex flex-col">
-                {formatarDataCurta(p.criadoEm)}
-                <span className="text-xs text-muted-foreground">
-                  {p.itens} {p.itens === 1 ? "item" : "itens"}
-                </span>
-              </span>
-            </Celula>
-            <Celula>
-              <span className="flex flex-col">
-                {p.nomeComprador}
-                <span className="text-xs text-muted-foreground">{p.emailComprador}</span>
-              </span>
-            </Celula>
-            <Celula>{p.fotografos.join(", ")}</Celula>
-            <Celula>
-              <span className="flex flex-col">
-                {p.metodo === "pix" ? "Pix" : "Cartão"}
-                {p.gatewayId && <Codigo valor={p.gatewayId} />}
-              </span>
-            </Celula>
-            <Celula>
-              <span className="flex flex-col">
-                {STATUS[p.status]}
-                {p.pagoEm && (
-                  <span className="text-xs text-muted-foreground">
-                    {formatarDataCurta(p.pagoEm)}
-                  </span>
-                )}
-              </span>
-            </Celula>
-            <Celula direita forte>
-              {formatarPreco(p.totalCentavos)}
-            </Celula>
-            <Celula>
-              {p.status === "pago" && p.reembolsoSolicitadoEm ? (
-                <span className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
-                  Reembolso pedido em {formatarDataCurta(p.reembolsoSolicitadoEm)}
-                  <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
-                </span>
-              ) : p.status === "pago" ? (
-                <span className="flex flex-col items-start gap-1.5">
-                  <BotaoReenviarLink pedidoId={p.id} />
-                  <BotaoReembolsar pedidoId={p.id} total={formatarPreco(p.totalCentavos)} />
-                </span>
-              ) : p.status === "contestado" ? (
-                <BotaoRestaurar pedidoId={p.id} />
-              ) : p.status === "pendente" && p.gatewayId ? (
-                <BotaoConferirPagamento pedidoId={p.id} />
-              ) : null}
-            </Celula>
-          </tr>
-        ))}
-      </Tabela>
+      />
       <Estornos estornos={estornos} />
     </>
   );
 }
 
-/** Id da cobrança no gateway: curto na tela, inteiro ao passar o mouse (e dá para copiar). */
+/** "RYAN MENEZES DE ALMEIDA" → "Ryan Almeida". Só na exibição; o dado não muda. */
+function nomeCurto(nome: string) {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return nome;
+  const curto = partes.length > 2 ? [partes[0], partes[partes.length - 1]] : partes;
+  // Nome todo em maiúsculas (ou minúsculas) ganha capitalização normal; marcas como "Click CG" ficam.
+  const semCaixa = nome === nome.toUpperCase() || nome === nome.toLowerCase();
+  return curto
+    .map((p) =>
+      semCaixa ? p.charAt(0).toLocaleUpperCase("pt-BR") + p.slice(1).toLocaleLowerCase("pt-BR") : p,
+    )
+    .join(" ");
+}
+
+/** Os 2 primeiros vendedores encurtados e "+N"; a lista completa fica no `title`. */
+function Vendedores({ nomes }: { nomes: string[] }) {
+  if (nomes.length === 0) return <span className="text-muted-foreground">—</span>;
+  const visiveis = nomes.slice(0, 2);
+  const resto = nomes.length - visiveis.length;
+  return (
+    <span title={nomes.join(", ")} className="flex flex-wrap items-center gap-1">
+      {visiveis.map((n, i) => (
+        <span
+          key={`${n}-${i}`}
+          className="max-w-[11rem] truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium"
+        >
+          {nomeCurto(n)}
+        </span>
+      ))}
+      {resto > 0 && (
+        <span className="rounded-full border px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+          +{resto}
+          <span className="sr-only">: {nomes.slice(2).join(", ")}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+const COR_STATUS: Record<StatusPedido, string> = {
+  pago: "bg-emerald-50 text-emerald-800 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-200",
+  pendente: "bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-200",
+  expirado: "bg-muted text-muted-foreground ring-border",
+  cancelado: "bg-muted text-muted-foreground ring-border",
+  estornado: "bg-red-50 text-red-800 ring-red-600/20 dark:bg-red-950 dark:text-red-200",
+  contestado:
+    "bg-orange-50 text-orange-800 ring-orange-600/20 dark:bg-orange-950 dark:text-orange-200",
+};
+
+function Status({ p }: { p: PedidoDoAdmin }) {
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      <span
+        className={`rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${COR_STATUS[p.status]}`}
+      >
+        {STATUS[p.status]}
+      </span>
+      {p.pagoEm && (
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          {formatarDataCurta(p.pagoEm)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** As ações do pedido, as mesmas da tabela e dos cartões. */
+function AcoesDoPedido({ p }: { p: PedidoDoAdmin }) {
+  const total = formatarPreco(p.totalCentavos);
+  if (p.status === "pago" && p.reembolsoSolicitadoEm) {
+    return (
+      <span className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
+        Reembolso pedido em {formatarDataCurta(p.reembolsoSolicitadoEm)}
+        <BotaoReembolsar pedidoId={p.id} total={total} />
+      </span>
+    );
+  }
+  if (p.status === "pago") {
+    return (
+      <span className="flex flex-wrap items-start gap-1.5">
+        <BotaoReenviarLink pedidoId={p.id} />
+        <BotaoReembolsar pedidoId={p.id} total={total} />
+      </span>
+    );
+  }
+  if (p.status === "contestado") return <BotaoRestaurar pedidoId={p.id} />;
+  if (p.status === "pendente" && p.gatewayId) return <BotaoConferirPagamento pedidoId={p.id} />;
+  return null;
+}
+
+/** Mesmas condições de AcoesDoPedido: o cartão só ganha a faixa de ações quando há alguma. */
+function temAcoes(p: PedidoDoAdmin) {
+  return (
+    p.status === "pago" || p.status === "contestado" || (p.status === "pendente" && !!p.gatewayId)
+  );
+}
+
+function Pagamento({ p }: { p: PedidoDoAdmin }) {
+  return (
+    <span className="flex min-w-0 flex-col">
+      {p.metodo === "pix" ? "Pix" : "Cartão"}
+      {p.gatewayId && <CodigoCopiavel valor={p.gatewayId} />}
+    </span>
+  );
+}
+
+/**
+ * Pedidos: tabela a partir de 1024 px (rola dentro do quadro se não couber, nunca corta coluna);
+ * abaixo disso, um cartão por pedido.
+ */
+function ListaPedidos({ pedidos, vazio }: { pedidos: PedidoDoAdmin[]; vazio: string }) {
+  if (pedidos.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
+        {vazio}
+      </p>
+    );
+  }
+  const th = "px-4 py-3 font-medium whitespace-nowrap";
+  // Ações presas à direita: se a tabela rolar para o lado, os botões continuam à vista.
+  const fixaDireita =
+    "sticky right-0 z-10 shadow-[inset_1px_0_0_var(--border),-8px_0_8px_-8px_rgb(0_0_0/0.18)]";
+  return (
+    <>
+      <div className="hidden overflow-x-auto rounded-xl border lg:block">
+        <table className="w-full min-w-[62rem] text-sm">
+          <thead className="bg-muted text-left text-muted-foreground">
+            <tr>
+              <th scope="col" className={`${th} w-[8.5rem]`}>
+                Pedido em
+              </th>
+              <th scope="col" className={th}>
+                Comprador
+              </th>
+              <th scope="col" className={`${th} w-[10rem]`}>
+                Vendedores
+              </th>
+              <th scope="col" className={`${th} w-[10rem]`}>
+                Pagamento
+              </th>
+              <th scope="col" className={`${th} w-[8.5rem]`}>
+                Status
+              </th>
+              <th scope="col" className={`${th} w-[7rem] text-right`}>
+                Total
+              </th>
+              <th scope="col" className={`${th} ${fixaDireita} w-[11rem] bg-muted`}>
+                Ações
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {pedidos.map((p) => (
+              <tr key={p.id} className="align-top">
+                <td className="px-4 py-3">
+                  <span className="flex flex-col">
+                    <span className="whitespace-nowrap tabular-nums">
+                      {formatarDataCurta(p.criadoEm)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {p.itens} {p.itens === 1 ? "item" : "itens"}
+                    </span>
+                  </span>
+                </td>
+                <td className="min-w-[12rem] px-4 py-3">
+                  <span className="flex flex-col">
+                    <span className="max-w-[13rem] font-medium 2xl:max-w-[22rem]">
+                      {p.nomeComprador}
+                    </span>
+                    <span
+                      title={p.emailComprador}
+                      className="block max-w-[13rem] truncate text-xs text-muted-foreground 2xl:max-w-[22rem]"
+                    >
+                      {p.emailComprador}
+                    </span>
+                  </span>
+                </td>
+                <td className="min-w-[9rem] px-4 py-3">
+                  <Vendedores nomes={p.fotografos} />
+                </td>
+                <td className="max-w-[10rem] px-4 py-3">
+                  <Pagamento p={p} />
+                </td>
+                <td className="px-4 py-3">
+                  <Status p={p} />
+                </td>
+                <td className="px-4 py-3 text-right font-semibold whitespace-nowrap tabular-nums">
+                  {formatarPreco(p.totalCentavos)}
+                </td>
+                <td className={`${fixaDireita} min-w-[10rem] bg-background px-4 py-3`}>
+                  <AcoesDoPedido p={p} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="flex flex-col gap-3 lg:hidden">
+        {pedidos.map((p) => (
+          <li key={p.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex min-w-0 flex-col">
+                <span className="font-semibold [overflow-wrap:anywhere]">{p.nomeComprador}</span>
+                <span title={p.emailComprador} className="truncate text-xs text-muted-foreground">
+                  {p.emailComprador}
+                </span>
+              </span>
+              <span className="shrink-0 text-right text-base font-bold whitespace-nowrap tabular-nums">
+                {formatarPreco(p.totalCentavos)}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="tabular-nums">{formatarDataCurta(p.criadoEm)}</span>
+              <span>
+                {p.itens} {p.itens === 1 ? "item" : "itens"}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <Status p={p} />
+              <span className="max-w-[60%] text-sm">
+                <Pagamento p={p} />
+              </span>
+            </div>
+            <Vendedores nomes={p.fotografos} />
+            {temAcoes(p) && (
+              <div className="border-t pt-3">
+                <AcoesDoPedido p={p} />
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** Id da cobrança no gateway: curto na tela, inteiro no `title` e com botão de copiar. */
 function Codigo({ valor }: { valor: string }) {
   return (
-    <span title={valor} className="max-w-[12ch] truncate font-mono text-xs text-muted-foreground">
-      {valor}
+    <span className="block max-w-[11rem]">
+      <CodigoCopiavel valor={valor} />
     </span>
   );
 }

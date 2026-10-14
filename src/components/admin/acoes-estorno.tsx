@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 
 import {
   conferirPagamentoAcao,
@@ -182,6 +182,8 @@ export function BotaoReenviarLink({ pedidoId }: { pedidoId: string }) {
         variant="outline"
         size="sm"
         disabled={pendente}
+        title="Reenviar ao cliente o e-mail com o link das fotos"
+        aria-label="Reenviar link ao cliente"
         onClick={() => {
           setResultado(null);
           startTransition(async () => {
@@ -189,8 +191,12 @@ export function BotaoReenviarLink({ pedidoId }: { pedidoId: string }) {
           });
         }}
       >
-        {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
-        Reenviar link ao cliente
+        {pendente ? (
+          <Loader2 aria-hidden="true" className="animate-spin" />
+        ) : (
+          <Send aria-hidden="true" />
+        )}
+        Reenviar link
       </Button>
       <Retorno resultado={resultado} />
     </span>
@@ -209,6 +215,8 @@ export function BotaoRestaurar({ pedidoId }: { pedidoId: string }) {
         variant="outline"
         size="sm"
         disabled={pendente}
+        title="Contestação ganha: restaurar o pedido"
+        aria-label="Contestação ganha: restaurar o pedido"
         onClick={() => {
           if (
             !window.confirm(
@@ -225,7 +233,7 @@ export function BotaoRestaurar({ pedidoId }: { pedidoId: string }) {
         }}
       >
         {pendente && <Loader2 aria-hidden="true" className="animate-spin" />}
-        Contestação ganha: restaurar
+        Restaurar pedido
       </Button>
       <Retorno resultado={resultado} />
     </span>
