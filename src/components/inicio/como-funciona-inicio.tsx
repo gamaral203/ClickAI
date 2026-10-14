@@ -67,7 +67,7 @@ export function ComoFuncionaInicio() {
 
 /**
  * Faixa para os fotógrafos, em azul profundo. A taxa vem do sistema (a comissão padrão da conta
- * de fotógrafo, src/dados): "a partir de", porque o saque antecipado paga mais.
+ * de fotógrafo, src/dados).
  */
 export function BannerFotografos({ comissaoPct }: { comissaoPct: number }) {
   return (
@@ -94,7 +94,7 @@ export function BannerFotografos({ comissaoPct }: { comissaoPct: number }) {
               <span className="hidden md:inline">Publique suas fotos e aumente suas vendas.</span>
             </h2>
             <p className="text-sm text-pretty text-white/85 md:text-base">
-              Mais visibilidade, controle sobre suas fotos e uma taxa a partir de{" "}
+              Mais visibilidade, controle sobre suas fotos e uma taxa de apenas{" "}
               <strong className="font-semibold text-white">
                 {comissaoPct.toLocaleString("pt-BR")}%
               </strong>{" "}
