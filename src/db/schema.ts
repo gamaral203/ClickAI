@@ -937,3 +937,22 @@ export const sugestoes = pgTable(
   },
   (t) => [index().on(t.criadoEm)],
 ).enableRLS();
+
+/**
+ * Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"). Cada vez que um gestor liga ou
+ * desliga, entra uma linha nova: a mais recente é o estado atual e as anteriores são o histórico
+ * (quem mudou e quando). Sem nenhuma linha, a manutenção está desligada.
+ */
+export const modoManutencao = pgTable(
+  "modo_manutencao",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    ativa: boolean().notNull(),
+    /** Recado do gestor para o público (até 200 caracteres), mostrado na tela de manutenção. */
+    mensagem: text(),
+    alteradaEm: momento(),
+    /** Gestor que ligou ou desligou. */
+    alteradaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+  },
+  (t) => [index().on(t.alteradaEm)],
+).enableRLS();
