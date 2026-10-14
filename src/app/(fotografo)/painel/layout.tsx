@@ -14,6 +14,7 @@ const itens: ItemMenu[] = [
   { href: "/painel/colaboracoes", rotulo: "Colaborações", icone: "colaboracoes" },
   { href: "/painel/loja", rotulo: "Minha loja", icone: "loja" },
   { href: "/painel/marca-dagua", rotulo: "Marca d'água", icone: "marca" },
+  { href: "/painel/lightroom", rotulo: "Lightroom", icone: "lightroom" },
   { href: "/painel/perfil", rotulo: "Perfil e recebimento", icone: "perfil" },
 ];
 
