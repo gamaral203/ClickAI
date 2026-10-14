@@ -30,8 +30,10 @@ export type Cobranca = {
 };
 
 /**
- * Erro HTTP de um gateway. A resposta fica em `corpo`, não enumerável: o console.error(erro) e o
- * Sentry não a imprimem, porque ela pode trazer o CPF/CNPJ do pagador ou a chave Pix do fotógrafo.
+ * Erro HTTP de um gateway. A mensagem leva os códigos de erro da resposta (ex.: `unauthorized`),
+ * só os que parecem identificadores, para o log mostrar o motivo da recusa. A resposta inteira
+ * fica em `corpo`, não enumerável: o console.error(erro) e o Sentry não a imprimem, porque ela
+ * pode trazer o CPF/CNPJ do pagador ou a chave Pix do fotógrafo.
  */
 export class ErroGateway extends Error {
   declare readonly corpo: unknown;
@@ -41,7 +43,10 @@ export class ErroGateway extends Error {
     corpo: unknown,
     gateway: string,
   ) {
-    super(`${gateway} respondeu ${status}`);
+    const codigos = [...new Set(textosDoErro(corpo).codigos)]
+      .filter((c) => /^[\w.-]{1,80}$/.test(c))
+      .slice(0, 5);
+    super(`${gateway} respondeu ${status}${codigos.length ? ` (${codigos.join(", ")})` : ""}`);
     Object.defineProperty(this, "corpo", { value: corpo, enumerable: false });
   }
 }
