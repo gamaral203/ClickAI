@@ -9,11 +9,17 @@ import {
   Users,
 } from "lucide-react";
 
+import { CartaoManutencao } from "@/components/admin/cartao-manutencao";
 import { Celula, CartaoNumero, Tabela } from "@/components/admin/tabela";
 import { GraficoVendas } from "@/components/graficos/grafico-vendas";
-import { resumoGeral, resumoPorFotografo, vendasPorDiaDaPlataforma } from "@/dados";
-import { formatarPreco } from "@/lib/formatar";
-import { exigirGestor } from "@/servicos/sessao";
+import {
+  resumoGeral,
+  resumoPorFotografo,
+  situacaoDaManutencao,
+  vendasPorDiaDaPlataforma,
+} from "@/dados";
+import { formatarDataCurta, formatarPreco } from "@/lib/formatar";
+import { exigirGestor, usuarioAtual } from "@/servicos/sessao";
 
 export const metadata: Metadata = { title: "Gestão", robots: { index: false, follow: false } };
 
@@ -21,10 +27,33 @@ export default function PaginaGestao() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-3xl font-bold tracking-tight">Visão geral</h1>
+      <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted" />}>
+        <Manutencao />
+      </Suspense>
       <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-muted" />}>
         <Conteudo />
       </Suspense>
     </div>
+  );
+}
+
+/** Cartão do modo de manutenção: só existe para gestor (a página e a ação conferem também). */
+async function Manutencao() {
+  const usuario = await usuarioAtual();
+  if (usuario?.papel !== "admin") return null;
+  const situacao = await situacaoDaManutencao();
+  let descricao = "Desligado";
+  if (situacao.ativa) {
+    descricao = "Ligado";
+    if (situacao.desde) descricao += ` desde ${formatarDataCurta(situacao.desde)}`;
+    if (situacao.por) descricao += ` por ${situacao.por}`;
+  }
+  return (
+    <CartaoManutencao
+      ativa={situacao.ativa}
+      descricao={descricao}
+      mensagemAtual={situacao.mensagem}
+    />
   );
 }
 

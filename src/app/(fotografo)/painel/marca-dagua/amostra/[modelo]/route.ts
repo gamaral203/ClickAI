@@ -1,6 +1,7 @@
 import { ehModeloMarca, type ModeloMarca } from "@/lib/marca-dagua";
 import { amostraDaMarca } from "@/servicos/imagens";
 import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Amostra de cada modelo de marca d'água numa foto de exemplo (Painel > Marca d'água). Só para
 // quem usa o painel; cada modelo é desenhado uma vez por instância e fica em memória.
@@ -8,9 +9,12 @@ import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 const amostras = new Map<ModeloMarca, Promise<Buffer>>();
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: RouteContext<"/painel/marca-dagua/amostra/[modelo]">,
 ) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   const usuario = await usuarioAtual();
   if (!usuario || !podeUsarPainel(usuario)) return new Response(null, { status: 401 });
   const { modelo } = await params;

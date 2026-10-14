@@ -1,6 +1,7 @@
 "use server";
 
 import { ipDaRequisicao } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import {
   liberarOriginais,
   liberarOriginaisDoAutor,
@@ -15,11 +16,15 @@ import { usuarioAtual } from "@/servicos/sessao";
 
 /** Libera o download em lote do dono (pede o código da verificação em duas etapas, se ligada). */
 export async function liberarOriginaisAcao(eventoId: string, codigo?: string) {
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { ok: false as const, erro: manutencao };
   return liberarOriginais(await usuarioAtual(), eventoId, codigo);
 }
 
 /** Próximo lote de até 50 URLs assinadas (~15 min). */
 export async function loteDeOriginaisAcao(entrada: unknown): Promise<ResultadoLote> {
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { ok: false, motivo: "invalido", erro: manutencao };
   return loteDeOriginais(await usuarioAtual(), entrada, await ipDaRequisicao());
 }
 
@@ -28,5 +33,7 @@ export async function loteDeOriginaisAcao(entrada: unknown): Promise<ResultadoLo
  * foto em si é conferida de novo na rota /api/painel/original/[fotoId].
  */
 export async function liberarOriginalDoAutorAcao(eventoId: string, codigo?: string) {
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { ok: false as const, erro: manutencao };
   return liberarOriginaisDoAutor(await usuarioAtual(), eventoId, codigo);
 }

@@ -29,7 +29,7 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": ambiente.ip }),
 }));
 
-import { esqueciSenhaAcao } from "@/app/(cliente)/entrar/acoes";
+import { esqueciSenhaAcao } from "@/app/(acesso)/entrar/acoes";
 import { buscarUsuario, criarUsuario, listarMensagens } from "@/dados";
 import { gerarHashSenha } from "@/lib/senha";
 

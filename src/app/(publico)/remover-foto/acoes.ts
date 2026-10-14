@@ -11,6 +11,7 @@ import {
 import { lerLinkDoConteudo } from "@/lib/denuncias";
 import { somenteDigitos } from "@/lib/documentos";
 import { limiteDoIpAtingido } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 
 // Pedido de remoção de foto pela pessoa que aparece nela (LGPD; docs/arquitetura.md, "Denúncia").
 // Reaproveita a denúncia com o motivo "privacidade": cai na mesma fila de /admin/denuncias, onde
@@ -49,6 +50,9 @@ export async function pedirRemocaoAcao(
   _anterior: EstadoRemocao,
   dados: FormData,
 ): Promise<EstadoRemocao> {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   const validacao = formulario.safeParse(Object.fromEntries(dados));
   if (!validacao.success) {
     const erros: EstadoRemocao["erros"] = {};

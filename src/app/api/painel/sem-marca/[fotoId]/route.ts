@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { miniaturaSemMarca } from "@/servicos/miniatura-sem-marca";
 import { usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Miniatura sem marca d'água de uma foto, só para o autor dela (Meus clientes, no painel). Tudo é
 // conferido no servidor (src/servicos/miniatura-sem-marca.ts). A foto pronta não muda: o
@@ -10,9 +11,12 @@ import { usuarioAtual } from "@/servicos/sessao";
 const STATUS = { nao_encontrado: 404, limite: 429, indisponivel: 404 } as const;
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteContext<"/api/painel/sem-marca/[fotoId]">,
 ) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   const { fotoId } = await params;
   const resultado = await miniaturaSemMarca(await usuarioAtual(), fotoId);
   if (!resultado.ok) {

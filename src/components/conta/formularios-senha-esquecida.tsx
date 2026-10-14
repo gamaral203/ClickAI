@@ -9,7 +9,7 @@ import {
   redefinirSenhaAcao,
   type EstadoEsqueci,
   type EstadoNovaSenha,
-} from "@/app/(cliente)/entrar/acoes";
+} from "@/app/(acesso)/entrar/acoes";
 import { CampoSenha } from "@/components/conta/formulario-senha";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

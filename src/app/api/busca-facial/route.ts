@@ -10,6 +10,7 @@ import {
 import { BuscaFacialDesligada, buscarFotosPorSelfie } from "@/lib/reconhecimento";
 import { limiteDoIpAtingido } from "@/servicos/limites";
 import { ofertaDePacote } from "@/servicos/pacotes";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Busca por selfie (docs/arquitetura.md, "Galeria e busca"). A selfie é dado biométrico
 // (LGPD, dado pessoal sensível): só é aceita com consentimento, fica só na memória desta
@@ -41,6 +42,9 @@ function resposta(corpo: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   // Limite por IP no banco (vale entre todos os servidores), contado antes de ler o corpo: a
   // selfie não entra na chave nem é lida se a pessoa passou do limite.
   if (await limiteDoIpAtingido("busca_facial_ip")) {

@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
+import { Suspense } from "react";
 import "./globals.css";
 
+import { FaixaManutencaoGestor } from "@/components/site/manutencao";
 import { caminhoTemTemaNoturno, COOKIE_TEMA, temaDoCookie } from "@/lib/tema";
 
 // Plus Jakarta Sans em todo o site (docs/marca/marca.md): títulos em 800, texto em 400/500.
@@ -45,7 +47,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     .join(" ");
   return (
     <html lang="pt-BR" className={classes}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {/* Gestor logado com a manutenção ligada: faixa no topo de toda página. */}
+        <Suspense fallback={null}>
+          <FaixaManutencaoGestor />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { registrarMetrica } from "@/dados";
 import { limiteAtingido } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 
 // Métricas do painel do fotógrafo (visitas e carrinhos). Não guarda nada de quem visitou:
 // nem IP, nem cookie, nem usuário. O limite por IP fica no banco (regra `metricas_ip`, chave
@@ -16,6 +17,8 @@ const corpo = z.discriminatedUnion("tipo", [
 
 export async function POST(request: NextRequest) {
   // Mesmo recusando, responde 204: a métrica nunca atrapalha quem está navegando.
+  // Modo de manutenção: ignora em silêncio (docs/arquitetura.md, "Modo de manutenção").
+  if (await recusarSeEmManutencao()) return new Response(null, { status: 204 });
   const texto = await request.text().catch(() => "");
   if (texto.length > 500) return new Response(null, { status: 204 });
   let json: unknown = null;

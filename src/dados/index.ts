@@ -1638,3 +1638,4 @@ export * from "./originais-do-dono";
 export * from "./previas";
 export * from "./clientes";
 export * from "./compras-do-email";
+export * from "./manutencao";

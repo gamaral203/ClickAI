@@ -4,6 +4,7 @@ import { dispositionDeAnexo } from "@/lib/r2";
 import { ipDaRequisicao } from "@/servicos/limites";
 import { originalIndividual } from "@/servicos/originais-do-dono";
 import { usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Original de UMA foto para o autor dela (dono do evento ou colaborador), pelo botão "Baixar
 // original" do painel (docs/CLAUDE.md, exceção do autor; src/servicos/originais-do-dono.ts).
@@ -39,6 +40,9 @@ export async function GET(
   request: NextRequest,
   { params }: RouteContext<"/api/painel/original/[fotoId]">,
 ) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   const { fotoId } = await params;
   const liberacao = request.nextUrl.searchParams.get("liberacao");
   const json = request.nextUrl.searchParams.get("formato") === "json";

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { DonoDaChave } from "@/dados/chaves-api";
 import { donoDaRequisicao } from "@/servicos/chaves-api";
+import { respostaDaManutencaoPara } from "@/servicos/manutencao";
 
 // Partes comuns das rotas do plugin do Lightroom (/api/plugin/*, docs/arquitetura.md, "Plugin do
 // Lightroom"). O plugin não tem o cookie de sessão nem roda no navegador: entra pela chave de
@@ -33,5 +34,8 @@ export async function comChave(
 ): Promise<Response> {
   const dono = await donoDaRequisicao(request);
   if ("erro" in dono) return resposta({ erro: dono.erro }, dono.status);
+  // Modo de manutenção (docs/arquitetura.md): só a chave de um gestor continua funcionando.
+  const manutencao = await respostaDaManutencaoPara(dono);
+  if (manutencao) return manutencao;
   return fazer(dono);
 }

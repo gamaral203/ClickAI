@@ -5,6 +5,7 @@ import { z } from "zod";
 import { emProducao } from "@/db/conexao";
 import { gatewayConfigurado, provedorDePagamento } from "@/lib/gateway";
 import { limiteDoIpAtingido } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { iniciarCobrancaPix, pagarComCartao, type ResultadoCartao } from "@/servicos/pagamentos";
 import { buscarPedidoComAcesso, confirmarPagamento } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -24,6 +25,7 @@ export async function simularPagamento(pedidoId: string, token: string | null): 
   // Na produção, nunca: sem MP_ACCESS_TOKEN, qualquer comprador marcaria o próprio pedido como
   // pago e baixaria os originais sem pagar.
   if (emProducao() || gatewayConfigurado()) return false;
+  if (await recusarSeEmManutencao()) return false;
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success) return false;
   const encontrado = await buscarPedidoComAcesso(
@@ -38,6 +40,7 @@ export async function simularPagamento(pedidoId: string, token: string | null): 
 export async function gerarPix(pedidoId: string, token: string | null): Promise<boolean> {
   const dados = acesso.safeParse({ pedidoId, token });
   if (!dados.success || !gatewayConfigurado()) return false;
+  if (await recusarSeEmManutencao()) return false;
   if (await limiteDoIpAtingido("pix_ip")) return false;
   const encontrado = await buscarPedidoComAcesso(
     dados.data.pedidoId,
@@ -80,6 +83,8 @@ export async function pagarComCartaoAcao(
   if (!dados.success || !formulario.success || provedorDePagamento() !== "mercadopago") {
     return { ok: false, motivo: "indisponivel" };
   }
+  // Modo de manutenção: nenhuma cobrança nova (o webhook continua confirmando as já feitas).
+  if (await recusarSeEmManutencao()) return { ok: false, motivo: "indisponivel" };
   if (await limiteDoIpAtingido("cartao_ip")) return { ok: false, motivo: "limite" };
   const documento = formulario.data.payer?.identification;
   try {

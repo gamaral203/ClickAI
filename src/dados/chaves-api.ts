@@ -8,6 +8,8 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 
+import type { Papel } from "./tipos";
+
 /** Máximo de chaves ativas por fotógrafo (uma por computador com o Lightroom, com folga). */
 export const MAXIMO_DE_CHAVES_ATIVAS = 10;
 
@@ -76,7 +78,13 @@ export async function revogarChaveApi(chaveId: string, fotografoId: string): Pro
   return linhas.length > 0;
 }
 
-export type DonoDaChave = { chaveId: string; fotografoId: string; nome: string };
+export type DonoDaChave = {
+  chaveId: string;
+  fotografoId: string;
+  nome: string;
+  /** Papel do usuário dono da chave (o modo de manutenção só deixa o gestor passar). */
+  papel: Papel;
+};
 
 /**
  * Fotógrafo dono da chave com este hash, se ela vale: não revogada, de um usuário não excluído
@@ -91,6 +99,7 @@ export async function donoDaChaveApi(segredoHash: string): Promise<DonoDaChave |
       usadaEm: t.chavesApi.usadaEm,
       fotografoId: t.fotografos.id,
       nome: t.fotografos.nomePublico,
+      papel: t.usuarios.papel,
     })
     .from(t.chavesApi)
     .innerJoin(t.fotografos, eq(t.fotografos.id, t.chavesApi.fotografoId))
@@ -110,5 +119,10 @@ export async function donoDaChaveApi(segredoHash: string): Promise<DonoDaChave |
       .set({ usadaEm: new Date() })
       .where(eq(t.chavesApi.id, linha.chaveId));
   }
-  return { chaveId: linha.chaveId, fotografoId: linha.fotografoId, nome: linha.nome };
+  return {
+    chaveId: linha.chaveId,
+    fotografoId: linha.fotografoId,
+    nome: linha.nome,
+    papel: linha.papel,
+  };
 }

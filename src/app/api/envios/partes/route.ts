@@ -5,6 +5,7 @@ import { vemDoMesmoSite } from "@/lib/mesma-origem";
 import { assinarPartes, concluirPartes } from "@/servicos/envios";
 import { limiteAtingido } from "@/servicos/limites";
 import { contaDoPainel, usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Upload em partes (multipart) dos arquivos grandes (docs/arquitetura.md, "Upload"): assina de
 // novo as partes cuja URL venceu e fecha o upload com os ETags que o R2 devolveu ao navegador.
@@ -37,6 +38,9 @@ function resposta(dados: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   if (!vemDoMesmoSite(request)) return resposta({ erro: "Origem não permitida." }, 403);
   const usuario = await usuarioAtual();
   if (!usuario) return resposta({ erro: "Entre de novo para continuar o envio." }, 401);
