@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AtSign } from "lucide-react";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { EMPRESA } from "@/lib/empresa";
@@ -54,6 +55,9 @@ export function Rodape() {
 }
 
 async function RodapeDoPapel() {
+  // O ano do "©" vem do relógio (new Date()): sem isto, o Next reclama do valor instável ao
+  // pré-renderizar a página (/entrar, a 404) e enche o log de erros.
+  await connection();
   const { rodape } = linksDoCabecalho(await usuarioAtual());
   return rodape === "curto" ? <RodapeCurto /> : <RodapeCompleto />;
 }
