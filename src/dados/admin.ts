@@ -4,7 +4,7 @@
 
 import "server-only";
 
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, not, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
@@ -31,6 +31,12 @@ export type ResumoGeral = {
   usuariosPorPapel: Record<Papel, number>;
 };
 
+/**
+ * Lançamento de uma conta de demonstração (src/servicos/demonstracao.ts): vendas fictícias, fora
+ * dos números da gestão.
+ */
+const deDemonstracao = sql`${t.lancamentos.fotografoId} in (select ${t.fotografos.id} from ${t.fotografos} where ${t.fotografos.demonstracao})`;
+
 /** Lançamento ainda não pago num saque: sem saque, ou num saque que não está pago. */
 const naoSacado = sql`(${t.lancamentos.saqueId} is null or ${t.lancamentos.saqueId} not in (select ${t.saques.id} from ${t.saques} where ${t.saques.status} = 'pago'))`;
 
@@ -46,7 +52,8 @@ export async function resumoGeral(): Promise<ResumoGeral> {
         contestados: sql<number>`count(*) filter (where ${t.pedidos.status} = 'contestado')::int`,
         estornados: sql<number>`count(*) filter (where ${t.pedidos.status} = 'estornado')::int`,
       })
-      .from(t.pedidos),
+      .from(t.pedidos)
+      .where(eq(t.pedidos.demonstracao, false)),
     banco
       .select({
         saida: sql<number>`coalesce(sum(${t.saques.liquidoCentavos}) filter (where ${t.saques.status} = 'pago'), 0)::int`,
@@ -57,7 +64,7 @@ export async function resumoGeral(): Promise<ResumoGeral> {
     banco
       .select({ total: sql<number>`coalesce(sum(${t.lancamentos.valorCentavos}), 0)::int` })
       .from(t.lancamentos)
-      .where(naoSacado),
+      .where(and(naoSacado, not(deDemonstracao))),
     banco
       .select({ papel: t.usuarios.papel, total: sql<number>`count(*)::int` })
       .from(t.usuarios)
@@ -103,7 +110,8 @@ export async function resumoPorFotografo(): Promise<ResumoFotografo[]> {
         chavePix: t.fotografos.chavePix,
       })
       .from(t.fotografos)
-      .innerJoin(t.usuarios, eq(t.usuarios.id, t.fotografos.usuarioId)),
+      .innerJoin(t.usuarios, eq(t.usuarios.id, t.fotografos.usuarioId))
+      .where(eq(t.fotografos.demonstracao, false)),
     banco
       .select({
         id: t.lancamentos.fotografoId,
@@ -161,7 +169,11 @@ export async function listarPedidosDoAdmin(): Promise<PedidoDoAdmin[]> {
   await connection();
   const banco = await obterBanco();
   const [pedidos, itens] = await Promise.all([
-    banco.select().from(t.pedidos).orderBy(desc(t.pedidos.criadoEm)),
+    banco
+      .select()
+      .from(t.pedidos)
+      .where(eq(t.pedidos.demonstracao, false))
+      .orderBy(desc(t.pedidos.criadoEm)),
     banco
       .select({ pedidoId: t.itensPedido.pedidoId, nome: t.fotografos.nomePublico })
       .from(t.itensPedido)

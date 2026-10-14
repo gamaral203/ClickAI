@@ -6,6 +6,7 @@ import { Suspense, useState } from "react";
 import {
   BarChart3,
   BookUser,
+  Clapperboard,
   Flag,
   Gauge,
   Handshake,
@@ -50,6 +51,7 @@ const ICONES = {
   suporte: MessageCircle,
   sugestoes: Rocket,
   marca: Stamp,
+  demonstracao: Clapperboard,
   lightroom: KeyRound,
   uso: Gauge,
 } as const;

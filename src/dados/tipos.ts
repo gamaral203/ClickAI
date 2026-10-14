@@ -76,6 +76,8 @@ export type FotografoConta = Fotografo & {
   comissaoPct: number;
   /** Modelo de marca d'água das prévias (padrão quando ausente). */
   modeloMarca?: ModeloMarca;
+  /** Conta de demonstração: vendas fictícias, sem saque (src/servicos/demonstracao.ts). */
+  demonstracao?: boolean;
 };
 
 export type Categoria = {

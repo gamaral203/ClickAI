@@ -13,6 +13,7 @@ const itens: ItemMenu[] = [
   { href: "/admin/denuncias", rotulo: "Denúncias", icone: "denuncias" },
   { href: "/admin/mensagens", rotulo: "Mensagens", icone: "mensagens" },
   { href: "/admin/usuarios", rotulo: "Usuários", icone: "usuarios" },
+  { href: "/admin/demonstracao", rotulo: "Demonstração", icone: "demonstracao" },
 ];
 
 // O menu não decide quem entra: cada página e ação da gestão confere o papel (exigirGestor).

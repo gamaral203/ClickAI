@@ -356,7 +356,8 @@ export async function lerUsoInterno(periodo: Periodo, inicioHoje: string, hoje: 
       totalPago: sql<number>`coalesce(sum(${t.pedidos.totalCentavos}) filter (where ${t.pedidos.status} = 'pago' and ${noPeriodo(t.pedidos.pagoEm)}), 0)::float8`,
       criados: sql<number>`(count(*) filter (where ${noPeriodo(t.pedidos.criadoEm)}))::int`,
     })
-    .from(t.pedidos);
+    .from(t.pedidos)
+    .where(eq(t.pedidos.demonstracao, false));
 
   const uso: UsoInterno = {
     emails: {
