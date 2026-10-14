@@ -4,9 +4,11 @@ import { z } from "zod";
 import {
   buscarEventoPublicado,
   caixasDosRostos,
+  contarUso,
   fotosEncontradas,
   rostosDeExemploDoEvento,
 } from "@/dados";
+import { CONTADOR } from "@/lib/painel-de-uso";
 import { BuscaFacialDesligada, buscarFotosPorSelfie } from "@/lib/reconhecimento";
 import { limiteDoIpAtingido } from "@/servicos/limites";
 import { ofertaDePacote } from "@/servicos/pacotes";
@@ -83,6 +85,8 @@ export async function POST(request: NextRequest) {
     const { fotoIds, rostoIds } = await buscarFotosPorSelfie(evento.id, selfie, () =>
       rostosDeExemploDoEvento(evento.id),
     );
+    // Contador anônimo do Painel de uso: só "mais uma busca hoje", sem evento, IP nem selfie.
+    await contarUso(CONTADOR.buscaSelfie);
     const fotos = await fotosEncontradas(evento.id, fotoIds);
     // Onde está o rosto da pessoa em cada foto: a tela amplia a miniatura nele.
     // Só das fotos devolvidas: foto ainda não liberada não aparece nem pelo id.

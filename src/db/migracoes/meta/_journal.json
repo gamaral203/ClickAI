@@ -232,6 +232,13 @@
       "when": 1791949421836,
       "tag": "0032_modo_manutencao",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791978651727,
+      "tag": "0033_painel_de_uso",
+      "breakpoints": true
     }
   ]
 }

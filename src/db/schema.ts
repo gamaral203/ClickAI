@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
@@ -978,4 +979,78 @@ export const modoManutencao = pgTable(
     alteradaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
   },
   (t) => [index().on(t.alteradaEm)],
+).enableRLS();
+
+// ---------------------------------------------------------------- Painel de uso (gestão)
+
+export const categoriaAssinatura = pgEnum("categoria_assinatura", [
+  "hospedagem",
+  "banco",
+  "armazenamento",
+  "email",
+  "ia",
+  "dominio",
+  "pagamentos",
+  "outros",
+]);
+export const moedaAssinatura = pgEnum("moeda_assinatura", ["BRL", "USD"]);
+/** `uso`: pague pelo que usar; o valor é a estimativa por mês. */
+export const cicloAssinatura = pgEnum("ciclo_assinatura", ["mensal", "anual", "uso"]);
+
+/**
+ * Serviços que a plataforma assina (Vercel, Supabase, R2, Resend…), cadastrados à mão pela gestão
+ * em /admin/uso. A forma de pagamento é só um texto curto ("Mastercard final 9292"): o servidor
+ * recusa sequências de 12 ou mais dígitos, para nunca guardar o número de um cartão.
+ * `aviso_7d_em` e `aviso_1d_em` marcam o e-mail de vencimento já enviado (job de pedidos) e
+ * voltam a nulo quando `renova_em` muda.
+ */
+export const assinaturas = pgTable(
+  "assinaturas",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    nome: text().notNull(),
+    categoria: categoriaAssinatura().notNull(),
+    plano: text().notNull().default(""),
+    valorCentavos: integer().notNull(),
+    moeda: moedaAssinatura().notNull().default("BRL"),
+    ciclo: cicloAssinatura().notNull(),
+    assinadaEm: date({ mode: "string" }).notNull(),
+    renovaEm: date({ mode: "string" }),
+    ativa: boolean().notNull().default(true),
+    formaPagamento: text().notNull().default(""),
+    responsavel: text().notNull().default(""),
+    linkPainel: text(),
+    observacoes: text().notNull().default(""),
+    aviso7dEm: data(),
+    aviso1dEm: data(),
+    criadoEm: momento(),
+    atualizadoEm: momento(),
+    criadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+  },
+  (t) => [index().on(t.ativa, t.renovaEm)],
+).enableRLS();
+
+/**
+ * Configurações da gestão, chave e valor inteiro: a cotação do dólar em centavos (545 = R$ 5,45)
+ * e os limites do plano do Resend. Editadas à mão em /admin/uso.
+ */
+export const configuracoesGestao = pgTable("configuracoes_gestao", {
+  chave: text().primaryKey(),
+  valor: integer().notNull(),
+  atualizadoEm: momento(),
+  atualizadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+}).enableRLS();
+
+/**
+ * Contadores anônimos de uso por dia (horário de Brasília): e-mails aceitos pelo Resend e buscas
+ * por selfie. Só a chave e o total: nenhum dado de quem usou, nem a selfie, nem o destinatário.
+ */
+export const contadoresUso = pgTable(
+  "contadores_uso",
+  {
+    dia: date({ mode: "string" }).notNull(),
+    chave: text().notNull(),
+    total: integer().notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.dia, t.chave] })],
 ).enableRLS();

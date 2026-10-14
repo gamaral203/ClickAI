@@ -71,6 +71,7 @@ describe("semente", () => {
     const { pg } = await bancoSemeado();
     expect(await contar(pg, "categorias")).toBeGreaterThan(0);
     for (const tabela of TABELAS_DE_EXEMPLO) expect(await contar(pg, tabela), tabela).toBe(0);
+    expect(await contar(pg, "assinaturas")).toBe(0);
     await pg.close();
   });
 
@@ -98,13 +99,15 @@ describe("semente", () => {
     expect(lista.filter((u) => u.senha_hash !== null)).toEqual([]);
     expect(lista.filter((u) => u.email.endsWith("@exemplo.com"))).toEqual([]);
     expect(lista.filter((u) => u.papel !== "fotografo")).toEqual([]);
+    // Assinaturas de exemplo do Painel de uso: nunca num Postgres de verdade.
+    expect(await contar(pg, "assinaturas")).toBe(0);
     await pg.close();
   });
 
   it("no PGlite fora da produção, mantém os dados e as contas de exemplo, inclusive o gestor", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
     const { pg, banco } = await bancoSemeado({ contasComSenha: true });
-    for (const tabela of ["fotografos", "eventos", "fotos", "cupons", "lojas"]) {
+    for (const tabela of ["fotografos", "eventos", "fotos", "cupons", "lojas", "assinaturas"]) {
       expect(await contar(pg, tabela), tabela).toBeGreaterThan(0);
     }
     const lista = await usuarios(pg);

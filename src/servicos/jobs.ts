@@ -17,6 +17,7 @@ import {
 } from "@/dados";
 import { gatewayConfigurado } from "@/lib/gateway";
 
+import { avisarVencimentosDeAssinaturas } from "./avisos-assinaturas";
 import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
 import { PRAZO_DO_JOB_MS, revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
@@ -56,6 +57,8 @@ export type ResultadoJobPedidos = {
   lembretesPix: number;
   /** E-mails de lote agendado liberado (ao dono e aos colaboradores). */
   avisosLiberacao: number;
+  /** Assinaturas da plataforma no e-mail de vencimento aos gestores (Painel de uso). */
+  avisosAssinaturas: number;
 };
 
 export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
@@ -67,6 +70,7 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     lembretes: 0,
     lembretesPix: 0,
     avisosLiberacao: 0,
+    avisosAssinaturas: 0,
   };
 
   // 0. Reconciliação: confere no gateway todo pendente com cobrança, no prazo ou vencido, pelo
@@ -128,6 +132,13 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     resultado.avisosLiberacao = await avisarLotesLiberados(agora);
   } catch (erro) {
     console.error("[jobs] falha ao avisar os lotes liberados", erro);
+  }
+
+  // 5. Aviso de vencimento das assinaturas da plataforma (7 dias e 1 dia antes), um e-mail só.
+  try {
+    resultado.avisosAssinaturas = await avisarVencimentosDeAssinaturas(agora);
+  } catch (erro) {
+    console.error("[jobs] falha ao avisar o vencimento das assinaturas", erro);
   }
 
   await apagarTentativasAntigas(agora - VALIDADE_TENTATIVAS_MS);
