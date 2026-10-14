@@ -107,6 +107,7 @@ const MAIS_DO_PAINEL: ItemNavegacao[] = [
   { href: "/painel/descontos", rotulo: "Descontos e cupons" },
   { href: "/painel/colaboracoes", rotulo: "Colaborações" },
   { href: "/painel/marca-dagua", rotulo: "Marca d'água" },
+  { href: "/painel/lightroom", rotulo: "Lightroom" },
 ];
 const PERFIL_PAINEL: ItemNavegacao = { href: "/painel/perfil", rotulo: "Perfil e recebimento" };
 const SEGURANCA: ItemNavegacao = { href: "/conta/seguranca", rotulo: "Senha e segurança" };

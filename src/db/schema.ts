@@ -262,6 +262,29 @@ export const fotografos = pgTable(
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
 ).enableRLS();
 
+/**
+ * Chaves de acesso do plugin do Lightroom (src/servicos/chaves-api.ts): o fotógrafo gera em
+ * Painel > Lightroom e cola no plugin, que envia fotos sem o login do navegador. Só o SHA-256 da
+ * chave fica guardado (ela é aleatória, 256 bits); o `prefixo` (começo da chave) só identifica
+ * a chave na lista. Revogada, para de valer na hora.
+ */
+export const chavesApi = pgTable(
+  "chaves_api",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    fotografoId: uuid()
+      .notNull()
+      .references(() => fotografos.id, { onDelete: "cascade" }),
+    nome: text().notNull(),
+    prefixo: text().notNull(),
+    segredoHash: text().notNull(),
+    criadaEm: momento(),
+    usadaEm: data(),
+    revogadaEm: data(),
+  },
+  (t) => [uniqueIndex().on(t.segredoHash), index().on(t.fotografoId)],
+).enableRLS();
+
 export const categorias = pgTable(
   "categorias",
   {
