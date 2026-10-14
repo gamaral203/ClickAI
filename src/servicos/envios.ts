@@ -703,6 +703,13 @@ async function confirmarVideo(
       duracaoS: Math.max(1, Math.round(preparado.duracaoS)),
     });
     if (!concluiu) return { emAndamento: true };
+    // O vídeo já está à venda; os rostos dos quadros servem à busca por selfie.
+    const { quadrosParaRostos } = preparado;
+    if (opcoes.depois) {
+      opcoes.depois(() => indexarRostosDoVideo(foto.eventoId, foto.id, quadrosParaRostos));
+    } else {
+      await indexarRostosDoVideo(foto.eventoId, foto.id, quadrosParaRostos);
+    }
     return { eventoId: foto.eventoId };
   } catch (erro) {
     if (erro instanceof ArquivoRecusado) {
@@ -858,6 +865,37 @@ export async function indexarRostosDaFoto(
     await depoisDeSalvar(rostos).catch((erro) =>
       console.error(`[envios] falha ao pôr a marca sobre os rostos da foto ${fotoId}`, erro),
     );
+  }
+  return "indexada";
+}
+
+/**
+ * Cadastra os rostos de um vídeo a partir de alguns quadros (src/servicos/video.ts,
+ * quadrosParaRostos): cada quadro vai ao Rekognition com o id do vídeo, então a selfie de quem
+ * aparece em qualquer um deles acha o vídeo. Os rostos ficam sem posição gravada: a caixa vale
+ * só para aquele quadro, e o vídeo aparece inteiro no resultado (sem o zoom no rosto). Como a
+ * das fotos, nunca lança: o vídeo continua à venda mesmo se o cadastro falhar.
+ */
+export async function indexarRostosDoVideo(
+  eventoId: string,
+  fotoId: string,
+  quadros: Buffer[] | (() => Promise<Buffer[]>),
+): Promise<IndexacaoDeRostos> {
+  if (provedorFacial() !== "rekognition") return "desligado";
+  try {
+    const lista = typeof quadros === "function" ? await quadros() : quadros;
+    const rostos: RostoIndexado[] = [];
+    for (const quadro of lista) {
+      const encontrados = await indexarRostos(eventoId, fotoId, quadro);
+      rostos.push(...encontrados.map((r) => ({ rostoId: r.rostoId, caixa: null })));
+    }
+    await salvarRostos(fotoId, rostos);
+  } catch (erro) {
+    console.error(
+      `[envios] falha ao indexar os rostos do vídeo ${fotoId}: ${nomeDoErro(erro)}` +
+        (erro instanceof Error ? ` (${erro.message})` : ""),
+    );
+    return ehErroDeCredencial(erro) ? "falha_credencial" : "falha";
   }
   return "indexada";
 }

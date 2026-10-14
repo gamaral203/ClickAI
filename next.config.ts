@@ -66,6 +66,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/painel/**": ["./public/logo.png"],
     // Fontes das artes de divulgação (src/lib/artes/fontes, lidas pela rota da arte).
+    // O "Cadastrar rostos que faltam" tira os quadros dos vídeos com o FFmpeg.
+    "/painel/eventos/[id]": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
     "/painel/eventos/[id]/divulgacao/**": ["./src/lib/artes/fontes/*.ttf"],
     // Foto de exemplo das amostras de marca d'água (src/servicos/imagens.ts, amostraDaMarca).
     "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],

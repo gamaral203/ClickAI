@@ -11,11 +11,17 @@ import {
 import { ehIdValido } from "@/lib/validacao";
 import { lerOriginal, r2Configurado } from "@/lib/r2";
 import { apagarRostos, ehErroDeCredencial, nomeDoErro, provedorFacial } from "@/lib/reconhecimento";
-import { indexarRostosDaFoto } from "@/servicos/envios";
+import { indexarRostosDaFoto, indexarRostosDoVideo } from "@/servicos/envios";
 import { exigirFotografo } from "@/servicos/sessao";
+import { quadrosParaRostos } from "@/servicos/video";
 
 /** Fotos por chamada: cada uma lê o original no R2 e vai ao Rekognition (~1 s cada). */
 const POR_CHAMADA = 8;
+/**
+ * Um vídeo leva mais (baixar o original, tirar os quadros com o FFmpeg e mandar cada quadro):
+ * passado este tempo, a chamada para e devolve o `proximo`, longe do limite da função.
+ */
+const TEMPO_POR_CHAMADA_MS = 30_000;
 
 export type ResultadoIndexacao =
   | { ok: true; indexadas: number; falhas: number; proximo: string | null }
@@ -48,9 +54,13 @@ export async function indexarRostosDoEventoAcao(
   }
 
   const fotos = await fotosParaIndexar(evento.id, depoisDe, POR_CHAMADA);
+  const inicio = Date.now();
   let indexadas = 0;
   let falhas = 0;
-  for (const foto of fotos) {
+  for (const [i, foto] of fotos.entries()) {
+    if (i > 0 && Date.now() - inicio > TEMPO_POR_CHAMADA_MS) {
+      return { ok: true, indexadas, falhas, proximo: fotos[i - 1].id };
+    }
     if (!foto.chaveOriginal) continue;
     let original: Buffer;
     try {
@@ -60,7 +70,10 @@ export async function indexarRostosDoEventoAcao(
       falhas++;
       continue;
     }
-    const resultado = await indexarRostosDaFoto(evento.id, foto.id, original);
+    const resultado =
+      foto.tipo === "video"
+        ? await indexarRostosDoVideo(evento.id, foto.id, () => quadrosParaRostos(original))
+        : await indexarRostosDaFoto(evento.id, foto.id, original);
     if (resultado === "indexada") indexadas++;
     else if (resultado === "falha_credencial") {
       revalidatePath(`/painel/eventos/${evento.id}`);

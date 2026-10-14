@@ -115,7 +115,8 @@ export async function situacaoDosRostos(eventoId: string) {
     })
     .from(t.fotos)
     .where(
-      and(eq(t.fotos.eventoId, eventoId), eq(t.fotos.status, "pronta"), eq(t.fotos.tipo, "foto")),
+      // Fotos e vídeos: os vídeos têm os rostos dos quadros cadastrados (src/servicos/video.ts).
+      and(eq(t.fotos.eventoId, eventoId), eq(t.fotos.status, "pronta")),
     );
   return {
     prontas: linha?.prontas ?? 0,
@@ -132,13 +133,12 @@ export async function situacaoDosRostos(eventoId: string) {
 export async function fotosParaIndexar(eventoId: string, depoisDe: string | null, limite: number) {
   const banco = await obterBanco();
   return banco
-    .select({ id: t.fotos.id, chaveOriginal: t.fotos.chaveOriginal })
+    .select({ id: t.fotos.id, chaveOriginal: t.fotos.chaveOriginal, tipo: t.fotos.tipo })
     .from(t.fotos)
     .where(
       and(
         eq(t.fotos.eventoId, eventoId),
         eq(t.fotos.status, "pronta"),
-        eq(t.fotos.tipo, "foto"),
         isNull(t.fotos.rostosIndexadosEm),
         depoisDe ? gt(t.fotos.id, depoisDe) : undefined,
       ),

@@ -7,7 +7,7 @@ import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
-import { duracaoDaSaida, prepararVideo, VideoIlegivel } from "./video";
+import { duracaoDaSaida, prepararVideo, quadrosParaRostos, VideoIlegivel } from "./video";
 
 // Prévia dos vídeos com o FFmpeg: o vídeo de teste é gerado pelo próprio FFmpeg (barras de cor
 // com som), para conferir a duração, as medidas, a marca e o MP4 de saída.
@@ -59,6 +59,16 @@ describe("prévia do vídeo com o FFmpeg", () => {
     // MP4 de verdade: a caixa ftyp no começo e o moov na frente (faststart, toca antes de baixar).
     expect(r.previa.subarray(4, 8).toString()).toBe("ftyp");
     expect(r.previa.indexOf("moov")).toBeLessThan(r.previa.indexOf("mdat"));
+    // Um quadro a cada 3 s para a busca por selfie, sem marca e no tamanho do reconhecimento.
+    expect(r.quadrosParaRostos).toHaveLength(1);
+    expect((await sharp(r.quadrosParaRostos[0]).metadata()).format).toBe("jpeg");
+    expect((await sharp(r.quadrosParaRostos[0]).metadata()).width).toBe(1920);
+  }, 120_000);
+
+  it("tira um quadro a cada 3 segundos para os rostos, até 10", async () => {
+    expect(await quadrosParaRostos(videoDeTeste(7, 320, 240))).toHaveLength(3);
+    expect(await quadrosParaRostos(videoDeTeste(40, 160, 120))).toHaveLength(10);
+    expect(await quadrosParaRostos(Buffer.from("isto não é um vídeo"))).toEqual([]);
   }, 120_000);
 
   it("não aumenta vídeo pequeno e recusa o longo sem converter", async () => {
