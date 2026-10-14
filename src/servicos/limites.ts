@@ -86,6 +86,12 @@ const REGRAS = {
    */
   url_envio_usuario: { limite: 300, janelaMs: 10 * MINUTO },
   /**
+   * Chamadas do plugin do Lightroom por IP (src/servicos/chaves-api.ts), com ou sem chave certa.
+   * Cada foto publicada são duas ou três chamadas: 3.000 em 10 minutos passam de mil fotos, mais
+   * do que uma conexão comum sobe nesse tempo, e seguram quem tenta chaves ao acaso.
+   */
+  plugin_ip: { limite: 3000, janelaMs: 10 * MINUTO },
+  /**
    * URLs assinadas de download por IP. 600 em 10 minutos cobre quem baixa um pacote grande foto
    * a foto, mas não quem tenta varrer ids ou tokens.
    */
