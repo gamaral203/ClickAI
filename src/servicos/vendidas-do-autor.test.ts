@@ -242,12 +242,19 @@ describe("fotos vendidas: o que aparece", () => {
     expect(doColab.vendas[0].valorCentavos).toBe(1200);
   });
 
-  it("mascara o e-mail do comprador e filtra por comprador, evento e período", async () => {
+  it("mostra o e-mail inteiro do comprador e filtra por comprador, evento e período", async () => {
     const porNome = await listarVendidasDoAutor(dono.conta.id, { comprador: "joana" }, 1, 48);
     expect(porNome.vendas).toHaveLength(1);
     expect(porNome.vendas[0].compradorNome).toBe("Joana Silva");
-    expect(porNome.vendas[0].compradorEmail).toBe("jo***@exemplo.com");
-    expect(porNome.vendas[0].compradorEmail).not.toContain("silva");
+    expect(porNome.vendas[0].compradorEmail).toBe("joana.silva@exemplo.com");
+
+    const porEmail = await listarVendidasDoAutor(
+      dono.conta.id,
+      { comprador: "joana.silva@exemplo.com" },
+      1,
+      48,
+    );
+    expect(porEmail.vendas.map((v) => v.compradorNome)).toEqual(["Joana Silva"]);
 
     const porEvento = await listarVendidasDoAutor(
       dono.conta.id,
