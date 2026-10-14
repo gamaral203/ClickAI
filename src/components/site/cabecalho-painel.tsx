@@ -47,13 +47,12 @@ export function CabecalhoPainel({
           <AtalhosDoPainel itens={navegacao.desktop} />
         </nav>
 
-        <div className="flex items-center gap-1">
+        {/* Quatro ícones no celular: sem espaço entre eles, cabem com o logo em 320 px. */}
+        <div className="flex items-center sm:gap-1">
           <BotaoAprenda />
-          {/* No celular, o modo noturno e a sugestão ficam no menu: o cabeçalho fica limpo. */}
-          <span className="hidden lg:contents">
-            <BotaoTema />
-            <BotaoSugestao />
-          </span>
+          {/* O modo noturno e a sugestão ficam no topo também no celular, à mão. */}
+          <BotaoTema />
+          <BotaoSugestao />
           {/* Em tela larga, quem tem conta de fotógrafo (o gestor que também vende, inclusive) vê o
               cartão da meta com a foto ou o avatar no lugar do nome (entre lg e xl, o avatar e o
               nome); quem não tem, o avatar e o nome. Enquanto carrega, um bloco do mesmo tamanho,
@@ -89,12 +88,6 @@ export function CabecalhoPainel({
             logado
             nome={primeiroNome}
             itens={navegacao.celular}
-            extras={
-              <>
-                <BotaoTema comoItem />
-                <BotaoSugestao comoItem />
-              </>
-            }
           />
         </div>
       </div>
