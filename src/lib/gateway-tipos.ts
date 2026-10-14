@@ -30,8 +30,32 @@ export type Cobranca = {
 };
 
 /**
- * Erro HTTP de um gateway. A mensagem leva os códigos de erro da resposta (ex.: `unauthorized`),
- * só os que parecem identificadores, para o log mostrar o motivo da recusa. A resposta inteira
+ * Códigos para o log de um erro do gateway: `code`, `error` e `status_detail` em qualquer
+ * ponto da resposta (no 402 do Mercado Pago, o motivo vem em
+ * `data.transactions.payments[].status_detail`), só os que parecem identificadores. Nunca as
+ * mensagens, que podem citar dados do pagador.
+ */
+export function codigosParaLog(corpo: unknown): string[] {
+  const codigos = new Set<string>();
+  const visitar = (valor: unknown, nivel: number) => {
+    if (!valor || typeof valor !== "object" || nivel > 6) return;
+    if (Array.isArray(valor)) {
+      valor.slice(0, 10).forEach((v) => visitar(v, nivel + 1));
+      return;
+    }
+    for (const [chave, v] of Object.entries(valor)) {
+      if (["code", "error", "status_detail"].includes(chave)) {
+        if (typeof v === "string" && /^[\w.-]{1,80}$/.test(v)) codigos.add(v);
+      } else visitar(v, nivel + 1);
+    }
+  };
+  visitar(corpo, 0);
+  return [...codigos].slice(0, 6);
+}
+
+/**
+ * Erro HTTP de um gateway. A mensagem leva os códigos da resposta (`codigosParaLog`, ex.:
+ * `unauthorized`), para o log mostrar o motivo da recusa. A resposta inteira
  * fica em `corpo`, não enumerável: o console.error(erro) e o Sentry não a imprimem, porque ela
  * pode trazer o CPF/CNPJ do pagador ou a chave Pix do fotógrafo.
  */
@@ -43,9 +67,7 @@ export class ErroGateway extends Error {
     corpo: unknown,
     gateway: string,
   ) {
-    const codigos = [...new Set(textosDoErro(corpo).codigos)]
-      .filter((c) => /^[\w.-]{1,80}$/.test(c))
-      .slice(0, 5);
+    const codigos = codigosParaLog(corpo);
     super(`${gateway} respondeu ${status}${codigos.length ? ` (${codigos.join(", ")})` : ""}`);
     Object.defineProperty(this, "corpo", { value: corpo, enumerable: false });
   }
