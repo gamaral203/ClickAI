@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookUser,
   Flag,
+  Gauge,
   Handshake,
   Home,
   Images,
@@ -46,6 +47,7 @@ const ICONES = {
   sugestoes: Rocket,
   marca: Stamp,
   lightroom: KeyRound,
+  uso: Gauge,
 } as const;
 
 export type ItemMenu = {

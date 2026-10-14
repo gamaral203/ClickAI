@@ -4,8 +4,12 @@
 
 import "server-only";
 
+import { contarUso } from "@/dados/painel-de-uso";
+import { CONTADOR } from "@/lib/painel-de-uso";
+
 export type Email = {
-  para: string;
+  /** Um destinatário, ou vários num e-mail só (ex.: o aviso de vencimento aos gestores). */
+  para: string | string[];
   assunto: string;
   /** Parágrafos do corpo, em texto puro (viram HTML escapado). */
   paragrafos: string[];
@@ -63,7 +67,7 @@ export async function enviarEmail(email: Email): Promise<boolean> {
       },
       body: JSON.stringify({
         from: process.env.EMAIL_REMETENTE,
-        to: [email.para],
+        to: Array.isArray(email.para) ? email.para : [email.para],
         subject: email.assunto,
         html: html(email),
         text: [
@@ -77,6 +81,9 @@ export async function enviarEmail(email: Email): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!resposta.ok) console.error(`[email] Resend respondeu ${resposta.status}`);
+    // Contador anônimo do Painel de uso (/admin/uso): o que o Resend aceitou conta no limite
+    // (cada destinatário conta como um e-mail).
+    else await contarUso(CONTADOR.emailResend, Array.isArray(email.para) ? email.para.length : 1);
     return resposta.ok;
   } catch (erro) {
     console.error("[email] falha ao enviar", erro instanceof Error ? erro.name : "desconhecido");

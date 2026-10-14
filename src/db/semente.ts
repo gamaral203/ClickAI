@@ -134,6 +134,72 @@ export async function semear(banco: Banco, { contasComSenha = false }: OpcoesSem
   );
   if (cuponsEventos.length > 0) await banco.insert(t.cuponsEventos).values(cuponsEventos);
   await banco.insert(t.lojas).values(exemplo.lojas);
+
+  // Assinaturas de exemplo do Painel de uso (/admin/uso): só no banco de exemplo (PGlite, com as
+  // contas de senha pública), nunca num Postgres de verdade. Datas relativas a hoje, para o painel
+  // mostrar vencimentos próximos.
+  if (contasComSenha && !emProducao()) {
+    const daqui = (dias: number) => sql`current_date + ${dias}::int`;
+    const exemploAssinatura = {
+      ativa: true,
+      responsavel: "Equipe (exemplo)",
+      observacoes: "Exemplo do banco de desenvolvimento.",
+    };
+    await banco.insert(t.assinaturas).values([
+      {
+        ...exemploAssinatura,
+        nome: "Vercel (exemplo)",
+        categoria: "hospedagem",
+        plano: "Pro",
+        valorCentavos: 2000,
+        moeda: "USD",
+        ciclo: "mensal",
+        assinadaEm: sql`current_date - 90` as unknown as string,
+        renovaEm: daqui(5) as unknown as string,
+        formaPagamento: "Cartão final 0000",
+        linkPainel: "https://vercel.com/dashboard",
+      },
+      {
+        ...exemploAssinatura,
+        nome: "Supabase (exemplo)",
+        categoria: "banco",
+        plano: "Pro",
+        valorCentavos: 2500,
+        moeda: "USD",
+        ciclo: "mensal",
+        assinadaEm: sql`current_date - 60` as unknown as string,
+        renovaEm: daqui(18) as unknown as string,
+        formaPagamento: "Cartão final 0000",
+        linkPainel: "https://supabase.com/dashboard",
+      },
+      {
+        ...exemploAssinatura,
+        nome: "Domínio clicouai.com.br (exemplo)",
+        categoria: "dominio",
+        plano: "Registro.br",
+        valorCentavos: 4000,
+        moeda: "BRL",
+        ciclo: "anual",
+        assinadaEm: sql`current_date - 300` as unknown as string,
+        renovaEm: daqui(65) as unknown as string,
+        formaPagamento: "Pix",
+        linkPainel: "https://registro.br",
+      },
+      {
+        ...exemploAssinatura,
+        nome: "Cloudflare R2 (exemplo)",
+        categoria: "armazenamento",
+        plano: "Pague pelo uso",
+        valorCentavos: 300,
+        moeda: "USD",
+        ciclo: "uso",
+        assinadaEm: sql`current_date - 30` as unknown as string,
+        renovaEm: null,
+        formaPagamento: "Cartão final 0000",
+        linkPainel: "https://dash.cloudflare.com",
+      },
+    ]);
+  }
 }
 
 /**
