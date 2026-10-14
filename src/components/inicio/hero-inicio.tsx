@@ -41,18 +41,14 @@ export function HeroInicio() {
             grandes momentos
           </p>
 
-          <div className="grid grid-cols-[minmax(0,1fr)_7rem] items-stretch gap-3 min-[400px]:grid-cols-[minmax(0,1fr)_8.5rem] md:grid-cols-[minmax(0,1fr)_15rem] md:gap-8 lg:block">
+          <div className="grid grid-cols-[minmax(0,1fr)_8rem] items-stretch gap-3 min-[400px]:grid-cols-[minmax(0,1fr)_9rem] md:grid-cols-[minmax(0,1fr)_15rem] md:gap-8 lg:block">
             <div className="flex flex-col gap-3 md:gap-5">
               <h1
                 id="titulo-inicio"
                 className="text-[clamp(2rem,1rem+5vw,3.25rem)] leading-[1.06] font-extrabold tracking-tight text-balance lg:text-[clamp(2.75rem,0.4rem+3.6vw,3.75rem)] lg:text-wrap"
               >
                 As fotos do seu <br className="hidden lg:block" />
-                evento, <span className="text-highlight">a um </span>
-                <span className="relative inline-block text-highlight">
-                  clique.
-                  <TracoPincel />
-                </span>
+                evento, <span className="text-highlight">a um clique<span className="-ml-[0.1em]">.</span></span>
               </h1>
               <p className="text-[0.8125rem] leading-relaxed text-pretty text-white/90 md:text-lg lg:max-w-lg">
                 Fotógrafos publicam as fotos de corridas, festas, formaturas, vaquejadas, casamentos
@@ -65,16 +61,16 @@ export function HeroInicio() {
 
           <BuscaHero />
 
-          <ul className="grid grid-cols-3 divide-x divide-white/20 text-[0.75rem] leading-snug text-white/90 md:text-sm">
+          <ul className="grid grid-cols-3 divide-x lg:grid-cols-[1fr_1.5fr_1.1fr] divide-white/20 text-[0.75rem] leading-snug text-white/90 md:text-sm lg:text-[0.8125rem]">
             {beneficios.map(({ icone: Icone, texto }) => (
               <li
                 key={texto}
-                className="flex flex-col gap-1.5 px-2.5 first:pl-0 last:pr-0 md:flex-row md:items-center md:gap-2.5 md:px-4"
+                className="flex flex-col gap-1.5 px-2.5 first:pl-0 last:pr-0 md:flex-row md:items-center md:gap-2.5 md:px-4 lg:gap-2 lg:px-3"
               >
                 <Icone
                   aria-hidden="true"
                   strokeWidth={1.75}
-                  className="size-6 shrink-0 text-white"
+                  className="size-6 shrink-0 text-white lg:size-5"
                 />
                 <span className="text-pretty">{texto}</span>
               </li>
@@ -83,34 +79,6 @@ export function HeroInicio() {
         </div>
       </div>
     </section>
-  );
-}
-
-/** Traço de pincel limão embaixo de "clique.". */
-function TracoPincel() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 200 18"
-      preserveAspectRatio="none"
-      className="pointer-events-none absolute -bottom-[0.16em] left-[-2%] h-[0.2em] w-[104%] text-highlight"
-    >
-      <path
-        d="M3 12.5C30 6.5 58 4.8 88 7.6c22 2 38 4.6 62 2.6 15-1.2 31-4.2 47-6.7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="5.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M20 14.5c26-3.8 54-4.6 82-2.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        opacity="0.6"
-      />
-    </svg>
   );
 }
 
@@ -166,12 +134,12 @@ const CARTAO =
 /** Três cartões sobrepostos ao lado do título, no celular e no tablet. */
 function ColagemCelular() {
   const lugares: CSSProperties[] = [
-    { left: "4%", top: "0%", width: "78%", height: "56%", rotate: "-4deg", zIndex: 2 },
-    { left: "26%", top: "38%", width: "74%", height: "40%", rotate: "4deg", zIndex: 3 },
-    { left: "0%", top: "66%", width: "66%", height: "34%", rotate: "-2deg", zIndex: 1 },
+    { left: "4%", top: "0%", width: "78%", height: "44%", rotate: "-4deg", zIndex: 2 },
+    { left: "22%", top: "30%", width: "76%", height: "38%", rotate: "4deg", zIndex: 3 },
+    { left: "2%", top: "58%", width: "78%", height: "42%", rotate: "-2deg", zIndex: 1 },
   ];
   return (
-    <div className="relative min-h-44 lg:hidden">
+    <div className="relative min-h-56 lg:hidden">
       <div
         aria-hidden="true"
         className="absolute top-[6%] left-[16%] h-[48%] w-[78%] rotate-6 rounded-2xl border-2 border-highlight/80"
@@ -230,8 +198,7 @@ const LUGARES_COMPUTADOR: Record<LugarColagem, CSSProperties> = {
 };
 
 /**
- * Colagem do computador: fotos espalhadas em cartões arredondados, com molduras coloridas atrás e
- * um "brilho" limão no canto. Só o cartão principal é pré-carregado.
+ * Colagem do computador: fotos espalhadas em cartões arredondados, com molduras coloridas atrás.
  */
 function ColagemComputador() {
   const lugares = Object.entries(COLAGEM_HERO) as [LugarColagem, PainelMosaico][];
@@ -265,7 +232,7 @@ function ColagemComputador() {
   );
 }
 
-/** Retângulos arredondados atrás dos cartões e os três risquinhos de brilho. */
+/** Retângulos arredondados atrás dos cartões . */
 function MoldurasDecorativas() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -274,16 +241,6 @@ function MoldurasDecorativas() {
       <div className="absolute top-[15%] left-[75%] z-[5] h-[45%] w-[24%] rotate-[10deg] rounded-[1.75rem] border-[3px] border-sky-200/50" />
       <div className="absolute top-[55%] left-[68%] z-[5] h-[30%] w-[30%] -rotate-[4deg] rounded-[1.75rem] bg-highlight" />
       <div className="absolute top-[45%] left-[30%] z-[5] h-[36%] w-[30%] rotate-[6deg] rounded-[1.75rem] bg-sky-300/20" />
-      <svg
-        viewBox="0 0 48 48"
-        className="absolute top-[4%] left-[-2%] z-[5] size-14 text-highlight"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-      >
-        <path d="M24 6v11M8 16l8 7M40 16l-8 7" />
-      </svg>
     </div>
   );
 }
