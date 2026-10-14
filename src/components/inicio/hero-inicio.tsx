@@ -48,7 +48,7 @@ export function HeroInicio() {
                 className="text-[clamp(2rem,1rem+5vw,3.25rem)] leading-[1.06] font-extrabold tracking-tight text-balance lg:text-[clamp(2.75rem,0.4rem+3.6vw,3.75rem)] lg:text-wrap"
               >
                 As fotos do seu <br className="hidden lg:block" />
-                evento, <span className="text-highlight">a um clique<span className="-ml-[0.1em]">.</span></span>
+                evento<span className="-ml-[0.1em]">,</span> <span className="text-highlight">a um clique<span className="-ml-[0.1em]">.</span></span>
               </h1>
               <p className="text-[0.8125rem] leading-relaxed text-pretty text-white/90 md:text-lg lg:max-w-lg">
                 Fotógrafos publicam as fotos de corridas, festas, formaturas, vaquejadas, casamentos
@@ -61,16 +61,16 @@ export function HeroInicio() {
 
           <BuscaHero />
 
-          <ul className="grid grid-cols-3 divide-x lg:grid-cols-[1fr_1.5fr_1.1fr] divide-white/20 text-[0.75rem] leading-snug text-white/90 md:text-sm lg:text-[0.8125rem]">
+          <ul className="grid grid-cols-3 divide-x lg:max-xl:grid-cols-[1fr_1.5fr_1.1fr] divide-white/20 text-[0.75rem] leading-snug text-white/90 md:text-sm lg:max-xl:text-[0.8125rem]">
             {beneficios.map(({ icone: Icone, texto }) => (
               <li
                 key={texto}
-                className="flex flex-col gap-1.5 px-2.5 first:pl-0 last:pr-0 md:flex-row md:items-center md:gap-2.5 md:px-4 lg:gap-2 lg:px-3"
+                className="flex flex-col gap-1.5 px-2.5 first:pl-0 last:pr-0 md:flex-row md:items-center md:gap-2.5 md:px-4 lg:max-xl:gap-2 lg:max-xl:px-3"
               >
                 <Icone
                   aria-hidden="true"
                   strokeWidth={1.75}
-                  className="size-6 shrink-0 text-white lg:size-5"
+                  className="size-6 shrink-0 text-white lg:max-xl:size-5"
                 />
                 <span className="text-pretty">{texto}</span>
               </li>
