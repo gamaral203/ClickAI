@@ -48,7 +48,13 @@ const ICONES = {
   lightroom: KeyRound,
 } as const;
 
-export type ItemMenu = { href: string; rotulo: string; icone: keyof typeof ICONES };
+export type ItemMenu = {
+  href: string;
+  rotulo: string;
+  icone: keyof typeof ICONES;
+  /** Selo ao lado do nome (ex.: "Em breve"). */
+  selo?: string;
+};
 
 /** A página atual é este item? O início só quando o endereço é exatamente ele. */
 function ativo(caminho: string, href: string, raiz: string) {
@@ -120,6 +126,11 @@ function CorpoMenu({
             >
               <Icone aria-hidden="true" className="size-4 shrink-0" />
               {item.rotulo}
+              {item.selo && (
+                <span className="ml-auto rounded-full bg-highlight/25 px-2 py-0.5 text-xs font-semibold text-foreground">
+                  {item.selo}
+                </span>
+              )}
             </Link>
           </li>
         );
