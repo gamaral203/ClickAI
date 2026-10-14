@@ -224,9 +224,11 @@ describe("regeração das prévias antigas", () => {
     gravacoesPublicas.length = 0;
     const { evento, fotos } = await eventoComFotosAntigas(2);
     await regerarPrevias({ eventoId: evento.id, prazoMs: 60_000 });
-    expect(gravacoesPublicas.length).toBe(4);
+    // Por foto: prévia, prévia do celular e miniatura.
+    expect(gravacoesPublicas.length).toBe(6);
+    expect(gravacoesPublicas.filter((g) => g.chave.endsWith("-celular.webp"))).toHaveLength(2);
     for (const { chave, corpo } of gravacoesPublicas) {
-      expect(chave).toMatch(/^(previas|miniaturas)\/.+-v3\.webp$/);
+      expect(chave).toMatch(/^(previas|miniaturas)\/.+-v4(-celular)?\.webp$/);
       expect((await sharp(corpo).metadata()).format).toBe("webp");
       for (const foto of fotos) expect(corpo.equals(foto.original)).toBe(false);
       const meta = await sharp(corpo).metadata();

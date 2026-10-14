@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -105,14 +105,10 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
                 className="absolute inset-0 size-full bg-black object-contain"
               />
             ) : (
-              <Image
-                src={foto.urlPrevia}
-                alt={descricao}
-                fill
-                loading="eager"
-                draggable={false}
-                sizes="(min-width: 1024px) 800px, 100vw"
-                className="object-contain imagem-protegida"
+              <PreviaDaFoto
+                urlPrevia={foto.urlPrevia}
+                urlPreviaCelular={foto.urlPreviaCelular ?? null}
+                descricao={descricao}
               />
             )}
             {/* Quem fez a foto, no canto inferior esquerdo (eventos com vários fotógrafos). */}
@@ -223,5 +219,51 @@ function EsqueletoFoto() {
         <div className="h-40 animate-pulse rounded-xl bg-muted" />
       </div>
     </div>
+  );
+}
+
+/**
+ * Prévia da foto. No celular vai a versão de 1000 px (urlPreviaCelular): na tela fica igual, e
+ * uma cópia "limpa" por IA sai pequena demais para imprimir. As imagens não passam pelo
+ * otimizador (next.config), então a troca é por <picture>, que só baixa a versão da tela. Fotos
+ * sem a versão do celular (prévias antigas, exemplos) usam a prévia normal.
+ */
+function PreviaDaFoto({
+  urlPrevia,
+  urlPreviaCelular,
+  descricao,
+}: {
+  urlPrevia: string;
+  urlPreviaCelular: string | null;
+  descricao: string;
+}) {
+  const comum = {
+    alt: descricao,
+    fill: true,
+    loading: "eager" as const,
+    sizes: "(min-width: 1024px) 800px, 100vw",
+  };
+  if (!urlPreviaCelular) {
+    return (
+      <Image
+        {...comum}
+        alt={descricao}
+        src={urlPrevia}
+        draggable={false}
+        className="object-contain imagem-protegida"
+      />
+    );
+  }
+  const { props } = getImageProps({ ...comum, src: urlPreviaCelular });
+  return (
+    <picture>
+      <source media="(min-width: 768px)" srcSet={urlPrevia} />
+      <img
+        {...props}
+        alt={descricao}
+        draggable={false}
+        className="object-contain imagem-protegida"
+      />
+    </picture>
   );
 }

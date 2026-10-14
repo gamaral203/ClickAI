@@ -3,7 +3,7 @@
 // do original no R2) não saem daqui.
 
 import type * as t from "@/db/schema";
-import { ehModeloMarca, MODELO_MARCA_PADRAO } from "@/lib/marca-dagua";
+import { chaveDaPreviaCelular, ehModeloMarca, MODELO_MARCA_PADRAO } from "@/lib/marca-dagua";
 import { urlPublica } from "@/lib/url-publica";
 
 import type {
@@ -73,6 +73,12 @@ export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {
   };
 }
 
+/** URL da prévia do celular, se a foto tem (src/lib/marca-dagua.ts, chaveDaPreviaCelular). */
+function urlDaPreviaCelular(chavePrevia: string): string | null {
+  const chave = chaveDaPreviaCelular(chavePrevia);
+  return chave ? urlPublica(chave) : null;
+}
+
 export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
   const f = omitir(
     r,
@@ -86,6 +92,7 @@ export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
     ...f,
     previaVideo: f.previaVideo ? urlPublica(f.previaVideo) : null,
     urlPrevia: urlPublica(f.urlPrevia),
+    urlPreviaCelular: urlDaPreviaCelular(f.urlPrevia),
     urlMiniatura: urlPublica(f.urlMiniatura),
     capturadaEm: iso(f.capturadaEm),
     criadoEm: iso(f.criadoEm),

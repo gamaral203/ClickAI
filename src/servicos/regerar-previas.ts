@@ -9,7 +9,7 @@ import {
 } from "@/dados";
 import { emParalelo } from "@/lib/concorrencia";
 import { LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
-import type { ModeloMarca } from "@/lib/marca-dagua";
+import { chaveDaPreviaCelular, type ModeloMarca } from "@/lib/marca-dagua";
 import { gravarPublico, lerOriginal, modoEnvio, removerPublico } from "@/lib/r2";
 
 import { chavesDaFoto, PROCESSAMENTOS_NO_SERVIDOR, reservarMemoriaDoProcessamento } from "./envios";
@@ -86,9 +86,10 @@ async function regerarUma(foto: FotoComPreviaAntiga, modelo: ModeloMarca): Promi
   const liberar = await reservarMemoriaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   try {
     const original = await lerOriginal(foto.chaveOriginal);
-    const { previa, miniatura } = await gerarVersoes(original, modelo);
+    const { previa, previaCelular, miniatura } = await gerarVersoes(original, modelo);
     await Promise.all([
       gravarPublico(novas.previa, previa.buffer, "image/webp"),
+      gravarPublico(novas.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(novas.miniatura, miniatura.buffer, "image/webp"),
     ]);
   } finally {
@@ -103,8 +104,9 @@ async function regerarUma(foto: FotoComPreviaAntiga, modelo: ModeloMarca): Promi
   // A foto já aponta para as novas: as antigas (com a marca de outra versão) saem do bucket.
   // Uma falha aqui não desfaz a troca; a chave antiga já não aparece em nenhuma página.
   await Promise.all(
-    [foto.urlPrevia, foto.urlMiniatura]
-      .filter((chave) => chave !== novas.previa && chave !== novas.miniatura)
+    [foto.urlPrevia, chaveDaPreviaCelular(foto.urlPrevia), foto.urlMiniatura]
+      .filter((chave): chave is string => chave !== null)
+      .filter((chave) => !Object.values(novas).includes(chave))
       .map((chave) =>
         removerPublico(chave).catch((erro) =>
           console.error(`[previas] falha ao apagar a prévia antiga da foto ${foto.id}`, erro),

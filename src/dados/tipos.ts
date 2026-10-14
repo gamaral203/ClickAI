@@ -145,6 +145,11 @@ export type StatusFoto = "processando" | "pronta" | "erro";
 /** Foto ou vídeo de um evento (a tabela `fotos` guarda os dois). */
 export type Foto = {
   id: string;
+  /**
+   * Prévia menor, para o celular (desde a versão 4 da marca); `null` nas prévias antigas e nos
+   * dados de exemplo, que mostram a prévia normal.
+   */
+  urlPreviaCelular?: string | null;
   /** Vídeo: endereço da prévia em MP4 com a marca d'água. */
   previaVideo?: string | null;
   eventoId: string;

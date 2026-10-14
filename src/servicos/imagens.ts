@@ -24,12 +24,26 @@ import { MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
 // 16 bits de 60 MP (260 MB) em ~1,4 s e ~430 MB, quase todo o arquivo em si.
 
 export const LARGURA_PREVIA = 1600;
+/**
+ * Prévia do celular: na tela do telefone fica igual, e uma cópia "limpa" por IA a partir dela
+ * sai pequena demais para imprimir (docs/riscos.md, "Marca d'água removida com ferramentas de IA").
+ */
+export const LARGURA_PREVIA_CELULAR = 1000;
 export const LARGURA_MINIATURA = 400;
 /** Lado maior da cópia que vai ao reconhecimento facial (o Rekognition aceita até 5 MB). */
 export const LARGURA_ROSTOS = 1920;
 
 /** Desenho da logo usado como carimbo (vai no bundle das funções por outputFileTracingIncludes). */
 const CAMINHO_LOGO = path.join(process.cwd(), "public", "logo.png");
+/**
+ * Textos do modelo "Proteção forte", já em PNG (scripts/gerar-textos-da-marca.ts): o servidor
+ * não tem fontes para desenhar texto.
+ */
+const CAMINHO_FOTO_PROTEGIDA = path.join(process.cwd(), "public", "marca", "foto-protegida.png");
+const CAMINHO_NAO_TIRE_PRINT = path.join(process.cwd(), "public", "marca", "nao-tire-print.png");
+/** Cores da marca (src/app/globals.css: --primary e --highlight). */
+const AZUL_DA_MARCA = "#315cff";
+const LIMAO_DA_MARCA = "#b8ff32";
 
 /** Inclinação do padrão de marcas, em graus. */
 const INCLINACAO = -24;
@@ -38,7 +52,8 @@ const INCLINACAO = -24;
  * Desenho de cada modelo de marca d'água (src/lib/marca-dagua.ts). `escala` multiplica a largura
  * da logo de cada versão; `espacoX`/`espacoY` são o vão entre logos, em proporção à logo;
  * `centro` põe uma logo grande no meio (fração da largura da foto); `grade` cruza linhas finas
- * na diagonal (passo em fração da largura).
+ * na diagonal (passo em fração da largura); `protecao` soma os anéis grandes da marca (um sobre o
+ * centro, onde costuma estar a pessoa) e os avisos "Foto protegida" e "Não tire print".
  */
 type Estilo = {
   escala: number;
@@ -48,6 +63,7 @@ type Estilo = {
   espacoY: number;
   centro?: { largura: number; opacidade: number };
   grade?: { passo: number; opacidade: number };
+  protecao?: boolean;
 };
 
 const ESTILOS: Record<ModeloMarca, Estilo> = {
@@ -79,6 +95,16 @@ const ESTILOS: Record<ModeloMarca, Estilo> = {
     centro: { largura: 0.6, opacidade: 0.6 },
     grade: { passo: 0.16, opacidade: 0.5 },
   },
+  forte: {
+    escala: 0.8,
+    opacidade: 0.42,
+    sombra: 0.18,
+    espacoX: 0.6,
+    espacoY: 1.5,
+    centro: { largura: 0.42, opacidade: 0.6 },
+    grade: { passo: 0.24, opacidade: 0.42 },
+    protecao: true,
+  },
 };
 
 export type ImagemGerada = {
@@ -101,6 +127,11 @@ function lembrar<T>(cache: Map<string, Promise<T>>, chave: string, criar: () => 
 const logo = new Map<string, Promise<Buffer>>();
 function carregarLogo() {
   return lembrar(logo, CAMINHO_LOGO, () => readFile(CAMINHO_LOGO));
+}
+
+const textos = new Map<string, Promise<Buffer>>();
+function carregarTexto(caminho: string) {
+  return lembrar(textos, caminho, () => readFile(caminho));
 }
 
 /** Silhueta da logo numa cor só, com a transparência original multiplicada pela opacidade. */
@@ -209,6 +240,92 @@ function svgDaGrade(largura: number, altura: number, passo: number, opacidade: n
   );
 }
 
+/**
+ * Anéis grandes na cor da marca, com dois pontos em limão, em SVG do tamanho da foto: o maior
+ * cobre o centro (onde costuma estar a pessoa) e os outros encostam nas bordas. Posições em
+ * fração da foto; raio em fração do lado menor.
+ */
+function svgDosAneis(largura: number, altura: number) {
+  const menor = Math.min(largura, altura);
+  const espessura = Math.max(4, Math.round(menor * 0.05));
+  const aneis = [
+    [0.5, 0.48, 0.21],
+    [0.1, 0.12, 0.16],
+    [0.92, 0.84, 0.18],
+    [0.9, 0.16, 0.09],
+    [0.12, 0.86, 0.1],
+  ];
+  const pontos = [
+    [0.66, 0.33, 0.035],
+    [0.3, 0.68, 0.028],
+  ];
+  const circulo = ([x, y, r]: number[], resto: string) =>
+    `<circle cx="${Math.round(x * largura)}" cy="${Math.round(y * altura)}" r="${Math.round(r * menor)}" ${resto}/>`;
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">` +
+      aneis
+        .map((a) =>
+          circulo(
+            a,
+            `fill="none" stroke="${AZUL_DA_MARCA}" stroke-opacity="0.5" stroke-width="${espessura}"`,
+          ),
+        )
+        .join("") +
+      pontos.map((p) => circulo(p, `fill="${LIMAO_DA_MARCA}" fill-opacity="0.55"`)).join("") +
+      `</svg>`,
+  );
+}
+
+/**
+ * Os avisos do modelo "Proteção forte": "Foto protegida" na vertical, nas duas laterais, e
+ * "Não tire print" numa caixa abaixo do centro. Tamanhos em proporção à foto.
+ */
+async function avisosDeProtecao(largura: number, altura: number): Promise<OverlayOptions[]> {
+  const menor = Math.min(largura, altura);
+  const [protegida, print] = await Promise.all([
+    carregarTexto(CAMINHO_FOTO_PROTEGIDA),
+    carregarTexto(CAMINHO_NAO_TIRE_PRINT),
+  ]);
+  // "Foto protegida": altura do texto ~4% do lado menor, sem passar de 60% da altura da foto.
+  const alturaTexto = Math.max(10, Math.round(menor * 0.04));
+  const lateral = await sharp(protegida).resize({ height: alturaTexto }).png().toBuffer();
+  const { width: comprimento = 0 } = await sharp(lateral).metadata();
+  const encaixe =
+    comprimento > altura * 0.6
+      ? await sharp(lateral)
+          .resize({ width: Math.round(altura * 0.6) })
+          .png()
+          .toBuffer()
+      : lateral;
+  const [esquerda, direita] = await Promise.all([
+    sharp(encaixe).rotate(270).png().toBuffer({ resolveWithObject: true }),
+    sharp(encaixe).rotate(90).png().toBuffer({ resolveWithObject: true }),
+  ]);
+  const margem = Math.round(menor * 0.035);
+  // "Não tire print": até 42% da largura, a 72% da altura.
+  const caixa = await sharp(print)
+    .resize({ width: Math.max(40, Math.round(largura * 0.42)) })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  return [
+    {
+      input: esquerda.data,
+      left: margem,
+      top: Math.round((altura - esquerda.info.height) / 2),
+    },
+    {
+      input: direita.data,
+      left: largura - margem - direita.info.width,
+      top: Math.round((altura - direita.info.height) / 2),
+    },
+    {
+      input: caixa.data,
+      left: Math.round((largura - caixa.info.width) / 2),
+      top: Math.min(altura - caixa.info.height, Math.round(altura * 0.72)),
+    },
+  ];
+}
+
 /** Camada transparente do tamanho da foto, coberta pelo padrão inclinado de marcas. */
 async function desenharCamada(
   largura: number,
@@ -243,8 +360,9 @@ async function desenharCamada(
     .toBuffer();
   if (!estilo.centro && !estilo.grade) return { pixels, largura, altura };
 
-  // Por cima do padrão: a grade e a logo grande no meio, nos modelos que têm.
+  // Por cima do padrão: os anéis, a grade, a logo grande no meio e os avisos, nos modelos que têm.
   const extras: OverlayOptions[] = [];
+  if (estilo.protecao) extras.push({ input: svgDosAneis(largura, altura) });
   if (estilo.grade) {
     const passo = Math.max(24, Math.round(largura * estilo.grade.passo));
     extras.push({ input: svgDaGrade(largura, altura, passo, estilo.grade.opacidade) });
@@ -263,6 +381,7 @@ async function desenharCamada(
       { input: clara.buffer, left, top },
     );
   }
+  if (estilo.protecao) extras.push(...(await avisosDeProtecao(largura, altura)));
   const comExtras = await sharp(pixels, { raw: { width: largura, height: altura, channels: 4 } })
     .composite(extras)
     .raw()
@@ -348,6 +467,8 @@ async function versao(
 
 export type VersoesDaFoto = {
   previa: ImagemGerada;
+  /** A prévia menor, para o celular (LARGURA_PREVIA_CELULAR). */
+  previaCelular: ImagemGerada;
   miniatura: ImagemGerada;
   /** JPEG reduzido e já girado para o reconhecimento facial. Nunca vai ao bucket público. */
   paraRostos: () => Promise<Buffer>;
@@ -363,12 +484,14 @@ export async function gerarVersoes(
   modelo: ModeloMarca = MODELO_MARCA_PADRAO,
 ): Promise<VersoesDaFoto> {
   const base = await decodificar(original, LARGURA_ROSTOS);
-  const [previa, miniatura] = await Promise.all([
+  const [previa, previaCelular, miniatura] = await Promise.all([
     versao(base, LARGURA_PREVIA, 300, 72, modelo),
+    versao(base, LARGURA_PREVIA_CELULAR, 190, 70, modelo),
     versao(base, LARGURA_MINIATURA, 120, 70, modelo),
   ]);
   return {
     previa,
+    previaCelular,
     miniatura,
     paraRostos: () => daBase(base).jpeg({ quality: 85 }).toBuffer(),
   };

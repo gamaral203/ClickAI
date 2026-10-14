@@ -1,7 +1,15 @@
 // Modelos de marca d'água que o fotógrafo escolhe em Painel > Marca d'água. O desenho de cada um
 // fica em src/servicos/imagens.ts; aqui, só o que a tela e o banco precisam saber.
 
-export const MODELOS_MARCA = ["discreta", "padrao", "densa", "central", "grade", "maxima"] as const;
+export const MODELOS_MARCA = [
+  "discreta",
+  "padrao",
+  "densa",
+  "central",
+  "grade",
+  "maxima",
+  "forte",
+] as const;
 
 export type ModeloMarca = (typeof MODELOS_MARCA)[number];
 
@@ -53,6 +61,12 @@ export const INFO_MODELOS_MARCA: Record<ModeloMarca, InfoModeloMarca> = {
     visibilidade: 2,
     protecao: 5,
   },
+  forte: {
+    nome: "Proteção forte",
+    descricao: "Anéis grandes sobre a pessoa, linhas e avisos de foto protegida.",
+    visibilidade: 2,
+    protecao: 5,
+  },
 };
 
 export function ehModeloMarca(valor: unknown): valor is ModeloMarca {
@@ -69,11 +83,23 @@ export function ehModeloMarca(valor: unknown): valor is ModeloMarca {
  *      linhas e faixas. Revertida no dia seguinte: estragava a prévia para quem compra.
  *   3: 12/10/2026, o mesmo desenho da versão 1, em chave nova para a regeração trocar as prévias
  *      da versão 2 (as da versão 1 também são regeradas; saem iguais).
+ *   4: 14/10/2026, o mesmo desenho, mais a prévia do celular (1000 px, `chaveDaPreviaCelular`):
+ *      a regeração cria essa terceira versão nas fotos já enviadas.
  */
-export const VERSAO_DA_MARCA = 3;
+export const VERSAO_DA_MARCA = 4;
 
 /** Sufixo da chave da prévia e da miniatura na versão atual. */
 export const SUFIXO_DA_VERSAO = `-v${VERSAO_DA_MARCA}.webp`;
+
+/**
+ * Prévia menor, para o celular (src/servicos/imagens.ts, LARGURA_PREVIA_CELULAR), gravada ao lado
+ * da prévia desde a versão 4: a mesma chave com `-celular`. Serve a chave ou a URL completa;
+ * `null` nas prévias de versão anterior (e nos dados de exemplo), que não têm essa versão.
+ */
+export function chaveDaPreviaCelular(chavePrevia: string): string | null {
+  if (versaoDaChave(chavePrevia) < 4) return null;
+  return chavePrevia.replace(/\.webp$/, "-celular.webp");
+}
 
 /** Versão da marca de uma chave de prévia ou miniatura (sem sufixo: versão 1). */
 export function versaoDaChave(chave: string): number {
