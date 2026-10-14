@@ -76,6 +76,7 @@ describe("linksDoCabecalho", () => {
       "/painel/descontos",
       "/painel/colaboracoes",
       "/painel/marca-dagua",
+      "/painel/lightroom",
       "/painel/perfil",
       "/conta/seguranca",
       "/ajuda",

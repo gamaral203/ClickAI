@@ -50,6 +50,7 @@ import {
   emManutencaoParaEste,
   recusarSeEmManutencao,
   respostaDaManutencao,
+  respostaDaManutencaoPara,
 } from "./manutencao";
 import { concluirLoginComCodigo, entrar } from "./sessao";
 
@@ -259,6 +260,14 @@ describe("ações e rotas do público", () => {
       .at(-1)!;
     expect(await concluirLoginComCodigo(codigo)).toMatchObject({ ok: true });
     expect(await recusarSeEmManutencao()).toBeNull();
+  });
+
+  it("plugin do Lightroom: só a chave de um gestor passa", async () => {
+    await ligar(true);
+    expect((await respostaDaManutencaoPara({ papel: "fotografo" }))?.status).toBe(503);
+    expect(await respostaDaManutencaoPara({ papel: "admin" })).toBeNull();
+    await ligar(false);
+    expect(await respostaDaManutencaoPara({ papel: "fotografo" })).toBeNull();
   });
 
   it("rota fechada responde 503 com Retry-After; webhook e jobs seguem abertos", async () => {

@@ -1,5 +1,5 @@
 {
-  "id": "58386ccf-7de8-47a8-8461-a214cbecd986",
+  "id": "0c4e19e4-3643-4e7e-9f73-a7031cd92a27",
   "prevId": "4dbba966-e0f5-4817-9e5a-84261d56c393",
   "version": "7",
   "dialect": "postgresql",
@@ -143,6 +143,114 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.chaves_api": {
+      "name": "chaves_api",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "fotografo_id": {
+          "name": "fotografo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prefixo": {
+          "name": "prefixo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "segredo_hash": {
+          "name": "segredo_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criada_em": {
+          "name": "criada_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "usada_em": {
+          "name": "usada_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revogada_em": {
+          "name": "revogada_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "chaves_api_segredo_hash_index": {
+          "name": "chaves_api_segredo_hash_index",
+          "columns": [
+            {
+              "expression": "segredo_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "chaves_api_fotografo_id_index": {
+          "name": "chaves_api_fotografo_id_index",
+          "columns": [
+            {
+              "expression": "fotografo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "chaves_api_fotografo_id_fotografos_id_fk": {
+          "name": "chaves_api_fotografo_id_fotografos_id_fk",
+          "tableFrom": "chaves_api",
+          "tableTo": "fotografos",
+          "columnsFrom": [
+            "fotografo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -3038,81 +3146,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.modo_manutencao": {
-      "name": "modo_manutencao",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "ativa": {
-          "name": "ativa",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mensagem": {
-          "name": "mensagem",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "alterada_em": {
-          "name": "alterada_em",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "alterada_por": {
-          "name": "alterada_por",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "modo_manutencao_alterada_em_index": {
-          "name": "modo_manutencao_alterada_em_index",
-          "columns": [
-            {
-              "expression": "alterada_em",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "modo_manutencao_alterada_por_usuarios_id_fk": {
-          "name": "modo_manutencao_alterada_por_usuarios_id_fk",
-          "tableFrom": "modo_manutencao",
-          "tableTo": "usuarios",
-          "columnsFrom": [
-            "alterada_por"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

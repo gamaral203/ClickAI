@@ -52,8 +52,22 @@ export async function respostaDaManutencao(request: Request): Promise<Response |
   if (caminhoLiberadoNaManutencao(new URL(request.url).pathname)) return null;
   const mensagem = await recusarSeEmManutencao();
   if (!mensagem) return null;
+  return respostaRecusada();
+}
+
+/**
+ * Para as rotas que não usam a sessão (o plugin do Lightroom entra pela chave de acesso): a
+ * resposta 503 se a manutenção barra o dono da chave, ou `null` para seguir.
+ */
+export async function respostaDaManutencaoPara(
+  usuario: Pick<Usuario, "papel">,
+): Promise<Response | null> {
+  return (await emManutencaoParaEste(usuario)) ? respostaRecusada() : null;
+}
+
+function respostaRecusada() {
   return Response.json(
-    { erro: mensagem },
+    { erro: MENSAGEM_MANUTENCAO },
     {
       status: 503,
       headers: { "Cache-Control": "no-store", "Retry-After": String(ESPERA_MANUTENCAO_S) },

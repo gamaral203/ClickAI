@@ -128,12 +128,18 @@ describe("estrutura do app segue a lista de exceções", () => {
     expect(erradas).toEqual([]);
   });
 
+  it("o comChave do plugin do Lightroom recusa na manutenção", () => {
+    const comum = readFileSync(path.join(APP, "api/plugin/comum.ts"), "utf8");
+    expect(comum).toMatch(/respostaDaManutencaoPara\(dono\)/);
+  });
+
   it("toda rota fechada recusa na manutenção; webhooks, jobs e login não", () => {
     const erradas = rotas
       .map((r) => {
         const url = endereco(r);
         const codigo = readFileSync(r, "utf8");
-        const recusa = /respostaDaManutencao\(|recusarSeEmManutencao\(/.test(codigo);
+        // As rotas do plugin do Lightroom recusam dentro do comChave (api/plugin/comum.ts).
+        const recusa = /respostaDaManutencao\(|recusarSeEmManutencao\(|comChave\(/.test(codigo);
         return { url, aberta: caminhoLiberadoNaManutencao(url), recusa };
       })
       .filter(({ aberta, recusa }) => aberta === recusa)
