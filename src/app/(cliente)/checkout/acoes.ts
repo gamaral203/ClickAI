@@ -6,6 +6,7 @@ import { opcoesCompra } from "@/app/(cliente)/carrinho/validacao";
 import { gatewayConfigurado } from "@/lib/gateway";
 import { podeComprar } from "@/lib/navegacao";
 import { limiteDoIpAtingido } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { iniciarCobrancaPix } from "@/servicos/pagamentos";
 import { criarPedido } from "@/servicos/pedidos";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -36,6 +37,9 @@ const MENSAGEM_CONTA_SEM_COMPRA =
   "Conta de fotógrafo não compra fotos. Para comprar, saia da sua conta (ou use uma conta de cliente).";
 
 export async function finalizarCompra(dados: unknown): Promise<ResultadoCheckout> {
+  // Modo de manutenção: nenhum pedido novo (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { ok: false, erros: {}, mensagem: manutencao };
   // A regra vale no servidor: o botão some para quem vende, mas a ação é pública.
   const usuario = await usuarioAtual();
   if (!podeComprar(usuario)) {

@@ -13,6 +13,7 @@ import {
 } from "@/dados";
 import { avisarMensagemDeSuporte, avisarSugestao } from "@/servicos/avisos-suporte";
 import { limiteAtingido, limiteDoIpAtingido } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 import { visitanteDoChat } from "@/servicos/suporte-visitante";
 
@@ -90,6 +91,9 @@ const mensagem = z.object({
 export async function enviarMensagemSuporteAcao(
   dados: unknown,
 ): Promise<{ erro: string } | { estado: EstadoChat }> {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   const valido = mensagem.safeParse(dados);
   if (!valido.success) return { erro: valido.error.issues[0]?.message ?? "Confira a mensagem." };
   const quem = await quemFala(true);
@@ -115,6 +119,9 @@ const sugestao = z
   .max(2000, "Até 2.000 caracteres.");
 
 export async function enviarSugestaoAcao(texto: unknown): Promise<{ erro?: string }> {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   const usuario = await quemUsaOPainel();
   if (!usuario) return { erro: "Entre na sua conta para mandar a sugestão." };
   const valido = sugestao.safeParse(texto);

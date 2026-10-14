@@ -16,6 +16,7 @@ import {
   loginBloqueado,
   loginDeuCerto,
 } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { MENSAGENS_CODIGO } from "@/servicos/mfa";
 import {
   cadastrar,
@@ -168,6 +169,9 @@ export async function cadastrarAcao(
     email: String(formulario.get("email") ?? ""),
     papel: papelEscolhido(papel, "cliente"),
   };
+  // Modo de manutenção: nenhuma conta nova (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao, valores };
   const dados = cadastro.safeParse({
     nome: valores.nome,
     email: valores.email,
@@ -296,6 +300,8 @@ export async function reenviarCodigoEmailAcao(): Promise<EstadoCodigoEmail> {
 export async function comecarAVenderAcao() {
   const usuario = await usuarioAtual();
   if (!usuario) redirect("/entrar?proximo=%2Fcadastro%3Ftipo%3Dfotografo");
+  // Modo de manutenção: a conta não muda; o início mostra a tela de manutenção.
+  if (await recusarSeEmManutencao()) redirect("/");
   if (!(await comecarAVender(usuario))) redirect("/minhas-compras");
   redirect("/painel");
 }

@@ -46,6 +46,7 @@ import { UFS } from "@/lib/ufs";
 import { iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
 import { limiteAtingido } from "@/servicos/limites";
 import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export type CampoEvento =
@@ -322,6 +323,9 @@ export async function enviarFotosAcao(
   liberacao: unknown = null,
 ): Promise<{ erro?: string; enviados?: number; repetidas?: number }> {
   const { conta } = await exigirFotografo("/painel/eventos");
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   const modo = modoEnvio();
   if (modo === "indisponivel") return { erro: ERRO_SEM_ARMAZENAMENTO };
   if (modo === "r2") return { erro: "Atualize a página para enviar as fotos." };
@@ -371,6 +375,9 @@ export async function iniciarEnvioAcao(
   liberacao: unknown = null,
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   const { conta } = await exigirFotografo("/painel/eventos");
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   if (await limiteAtingido("url_envio_usuario", conta.id)) {
     return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
   }

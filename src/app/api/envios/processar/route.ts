@@ -8,6 +8,7 @@ import {
   type TemposDoProcessamento,
 } from "@/servicos/envios";
 import { contaDoPainel, usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Processa fotos que o navegador acabou de enviar ao R2 (docs/arquitetura.md, "Upload"):
 // confere o arquivo, gera prévia e miniatura com marca d'água, move o original e cadastra os
@@ -47,6 +48,9 @@ function resposta(dados: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   if (!vemDoMesmoSite(request)) return resposta({ erro: "Origem não permitida." }, 403);
   const usuario = await usuarioAtual();
   if (!usuario) return resposta({ erro: "Entre de novo para continuar o envio." }, 401);

@@ -6,6 +6,7 @@ import { buscarEventoPublicado, criarDenuncia, fotoEhDoEvento, registrarMensagem
 import { MOTIVOS, rotuloDoMotivo } from "@/lib/denuncias";
 import { cnpjValido, somenteDigitos } from "@/lib/documentos";
 import { limiteDoIpAtingido } from "@/servicos/limites";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 
 // Denúncia de evento ou foto (docs/arquitetura.md, "Denúncia"). Formulário público: valida tudo,
 // limita por IP e confirma o recebimento por e-mail ao denunciante (simulado até a Fase 13).
@@ -54,6 +55,9 @@ export async function enviarDenunciaAcao(
   _anterior: EstadoDenuncia,
   dados: FormData,
 ): Promise<EstadoDenuncia> {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   const validacao = formulario.safeParse(Object.fromEntries(dados));
   if (!validacao.success) {
     const erros: EstadoDenuncia["erros"] = {};

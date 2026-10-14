@@ -5,6 +5,7 @@ import { dispositionDeAnexo } from "@/lib/r2";
 import { autorizarDownload } from "@/servicos/downloads";
 import { limiteAtingido } from "@/servicos/limites";
 import { usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Token do link (convidado) ou sessão (cliente logado); um dos dois é conferido no serviço.
 const parametros = z.object({ itemId: z.uuid(), token: z.string().min(20).max(400).nullable() });
@@ -21,6 +22,9 @@ export async function GET(
   request: NextRequest,
   { params }: RouteContext<"/api/download/[itemId]">,
 ) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   const { itemId } = await params;
   const dados = parametros.safeParse({
     itemId,

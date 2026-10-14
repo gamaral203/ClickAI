@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { dispositionDeAnexo } from "@/lib/r2";
 import { originalDeExemploParaODono } from "@/servicos/originais-do-dono";
 import { usuarioAtual } from "@/servicos/sessao";
+import { respostaDaManutencao } from "@/servicos/manutencao";
 
 // Só para os dados de exemplo, fora da produção: entrega a imagem de exemplo como anexo ao dono
 // do evento que baixa os originais (o CSP não deixa o navegador buscar o host de exemplo
@@ -19,6 +20,9 @@ export async function GET(
   request: NextRequest,
   { params }: RouteContext<"/api/painel/originais/[eventoId]/[fotoId]">,
 ) {
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção"): 503 para quem não é gestor.
+  const manutencao = await respostaDaManutencao(request);
+  if (manutencao) return manutencao;
   const { eventoId, fotoId } = await params;
   const original = await originalDeExemploParaODono(await usuarioAtual(), {
     eventoId,

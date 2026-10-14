@@ -7,6 +7,7 @@ import { formatarPreco } from "@/lib/formatar";
 import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "@/servicos/mfa";
 import { avisarSaqueSolicitado } from "@/servicos/avisos-saque";
 import { mensagemDeBloqueio, saqueAutomatico, solicitarSaque } from "@/servicos/saques";
+import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { exigirFotografo } from "@/servicos/sessao";
 
 export type EstadoSaque = { ok?: string; erro?: string };
@@ -33,6 +34,9 @@ export async function solicitarSaqueAcao(
   formulario: FormData,
 ): Promise<EstadoSaque> {
   const { usuario, conta } = await exigirFotografo("/painel/vendas");
+  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { erro: manutencao };
   const dados = entrada.safeParse(Object.fromEntries(formulario));
   if (!dados.success) return { erro: MOTIVOS.falhou };
   // Com a verificação em duas etapas ligada, cada saque pede o código do app.
