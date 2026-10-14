@@ -6,6 +6,7 @@ import "./globals.css";
 
 import { caminhoTemTemaNoturno, COOKIE_TEMA, temaDoCookie } from "@/lib/tema";
 
+// Plus Jakarta Sans em todo o site (docs/marca/marca.md): títulos em 800, texto em 400/500.
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
   subsets: ["latin"],

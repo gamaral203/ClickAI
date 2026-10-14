@@ -6,15 +6,16 @@ import type { Usuario } from "@/dados/tipos";
 import type { Navegacao } from "@/lib/navegacao";
 
 import { LinkConta } from "./link-conta";
-import { MenuCelular } from "./menu-celular";
 
 const estiloLink =
   "inline-flex h-11 items-center gap-2 rounded-lg px-3 font-medium text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50";
+const estiloIcone =
+  "inline-flex size-11 items-center justify-center rounded-lg text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
- * Entrar, ou o nome e o Sair, no cabeçalho do site de compra (visitante e cliente). No computador,
- * os links ficam no cabeçalho; no celular, dentro do menu (o cabeçalho só tem logo, carrinho e o
- * botão do menu). Os links vêm de `linksDoCabecalho`.
+ * A conta no cabeçalho do site de compra (visitante e cliente). No celular, só o ícone da conta
+ * (Entrar ou Minhas compras); o resto fica no menu, à esquerda. Do tablet em diante, "Entrar" com
+ * o ícone, ou o nome e o Sair. Os links vêm de `linksDoCabecalho`.
  */
 export function AreaUsuario({
   usuario,
@@ -25,23 +26,33 @@ export function AreaUsuario({
 }) {
   if (!usuario || !navegacao.perfil) {
     return (
-      <div className="flex items-center gap-1">
-        {/* No celular, "Entrar" fica dentro do menu. */}
-        <span className="hidden sm:block">
+      <>
+        <span className="md:hidden">
+          <LinkConta href="/entrar" className={estiloIcone} rotulo="Entrar">
+            <UserRound aria-hidden="true" className="size-5" />
+          </LinkConta>
+        </span>
+        <span className="hidden md:block">
           <LinkConta href="/entrar" className={estiloLink}>
             <UserRound aria-hidden="true" className="size-5" />
             Entrar
           </LinkConta>
         </span>
-        <MenuCelular logado={false} itens={navegacao.celular} />
-      </div>
+      </>
     );
   }
 
   const primeiroNome = usuario.nome.split(" ")[0];
   return (
-    <div className="flex items-center gap-1">
-      <div className="hidden items-center gap-1 sm:flex">
+    <>
+      <Link
+        href={navegacao.perfil.href}
+        aria-label={navegacao.perfil.rotulo}
+        className={`${estiloIcone} md:hidden`}
+      >
+        <UserRound aria-hidden="true" className="size-5" />
+      </Link>
+      <div className="hidden items-center gap-1 md:flex">
         <Link href={navegacao.perfil.href} className={estiloLink}>
           <UserRound aria-hidden="true" className="size-5" />
           <span className="max-w-32 truncate">{primeiroNome}</span>
@@ -53,7 +64,6 @@ export function AreaUsuario({
           </button>
         </form>
       </div>
-      <MenuCelular logado nome={primeiroNome} itens={navegacao.celular} />
-    </div>
+    </>
   );
 }

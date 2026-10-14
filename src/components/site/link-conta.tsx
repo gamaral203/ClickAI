@@ -9,14 +9,17 @@ import { comRetorno } from "@/lib/redirecionamento";
 export function LinkConta({
   href,
   className,
+  rotulo,
   children,
 }: {
   href: "/entrar" | "/cadastro";
   className?: string;
+  /** Nome acessível, quando o link é só um ícone. */
+  rotulo?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Link href={comRetorno(href, usePathname())} className={className}>
+    <Link href={comRetorno(href, usePathname())} className={className} aria-label={rotulo}>
       {children}
     </Link>
   );
