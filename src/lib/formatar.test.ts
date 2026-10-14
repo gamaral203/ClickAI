@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatarPrecoCompacto } from "./formatar";
+import { formatarPrecoCompacto, seloDeData } from "./formatar";
 
 describe("formatarPrecoCompacto", () => {
   it("abaixo de R$ 1.000, mostra os reais sem centavos", () => {
@@ -32,5 +32,13 @@ describe("formatarPrecoCompacto", () => {
 
   it("valor negativo leva o sinal na frente", () => {
     expect(formatarPrecoCompacto(-2_500_00)).toBe("-R$ 2,5 mil");
+  });
+});
+
+describe("seloDeData", () => {
+  it("dá o dia e o mês abreviado, sem ponto, no horário de Brasília", () => {
+    expect(seloDeData("2026-10-07T12:00:00Z")).toEqual({ dia: "7", mes: "out" });
+    // 01:00 UTC do dia 1º ainda é dia 31 no horário de Brasília.
+    expect(seloDeData("2026-11-01T01:00:00Z")).toEqual({ dia: "31", mes: "out" });
   });
 });

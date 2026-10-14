@@ -57,6 +57,13 @@ const partes = (opcoes: Intl.DateTimeFormatOptions) =>
 const dia = partes({ day: "numeric" });
 const diaEMes = partes({ day: "numeric", month: "long" });
 const completa = partes({ day: "numeric", month: "long", year: "numeric" });
+const mesCurto = partes({ month: "short" });
+
+/** Selo de data dos cartões de evento: { dia: "7", mes: "out" }, no horário de Brasília. */
+export function seloDeData(iso: string) {
+  const data = new Date(iso);
+  return { dia: dia.format(data), mes: mesCurto.format(data).replace(".", "") };
+}
 
 /**
  * Período do evento por extenso, no horário de Brasília:

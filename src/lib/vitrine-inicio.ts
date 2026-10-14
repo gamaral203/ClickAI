@@ -1,0 +1,141 @@
+// Imagens e categorias da página inicial, num lugar só. Para trocar ou adicionar uma foto, basta
+// mexer aqui: o hero (mosaico) e os cartões de categoria leem esta lista.
+//
+// Só imagens reais e autorizadas pelo dono, sem metadados (EXIF/GPS), em duas versões geradas com
+// `sharp`: a inteira (até 1600 px no lado maior) e a reduzida (720 a 800 px), para os cartões e o
+// celular. As da antiga vitrine ficam em public/inicio/ (reduzidas em public/inicio/reduzidas/); as
+// enviadas para o redesenho, em public/vitrine/ (`-800` é a reduzida). Nunca baixar imagens da
+// internet nem usar as de outros sites.
+//
+// Sem imagem (`imagem: null`), o cartão mostra um fundo na cor da marca com o ícone da categoria.
+
+export type ImagemVitrine = {
+  /** Arquivo inteiro: usado onde a imagem aparece grande (mosaico do computador). */
+  src: string;
+  /** Versão de 720 px: cartões e colagem do celular. */
+  reduzida: string;
+  alt: string;
+  /** Onde ancorar o recorte (`object-position`). */
+  foco?: string;
+};
+
+/** Ícones disponíveis para as categorias (lucide-react; o componente faz o mapeamento). */
+export type IconeCategoria =
+  "casamentos" | "corridas" | "festas" | "formaturas" | "vaquejadas" | "esportes";
+
+export const IMAGENS_INICIO = {
+  corrida: {
+    src: "/vitrine/corrida.webp",
+    reduzida: "/vitrine/corrida-800.webp",
+    alt: "Corredor de óculos escuros e camiseta camuflada com faixa verde-limão, apontando para cima durante a corrida",
+    foco: "50% 18%",
+  },
+  futebol: {
+    src: "/vitrine/esportes-futebol.webp",
+    reduzida: "/vitrine/esportes-futebol-800.webp",
+    alt: "Dois jogadores disputando a bola num campo de terra, um de camisa vermelha e branca e outro de azul e preta",
+    foco: "38% 35%",
+  },
+  montaria: {
+    src: "/vitrine/montaria.webp",
+    reduzida: "/vitrine/montaria-800.webp",
+    alt: "Amazona de chapéu preto e camisa rosa da Montaria Feminina, segurando uma bandeira vermelha",
+    foco: "60% 15%",
+  },
+  corridaRua: {
+    src: "/inicio/corrida-rua.webp",
+    reduzida: "/inicio/reduzidas/corrida-rua.webp",
+    alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
+    foco: "40% 40%",
+  },
+  festa: {
+    src: "/inicio/torcida.webp",
+    reduzida: "/inicio/reduzidas/torcida.webp",
+    alt: "Torcedora de camisa do Brasil e óculos, com apito na boca e o braço erguido, numa festa de torcida",
+    foco: "50% 35%",
+  },
+  casamento: {
+    src: "/inicio/ensaio-casal.webp",
+    reduzida: "/inicio/reduzidas/ensaio-casal.webp",
+    alt: "Casal sorrindo abraçado ao ar livre, ela de vestido branco e ele de camisa clara",
+    foco: "50% 35%",
+  },
+  cerimonia: {
+    src: "/inicio/igreja.webp",
+    reduzida: "/inicio/reduzidas/igreja.webp",
+    alt: "Altar de igreja em azul e dourado iluminado por velas, com a imagem no centro e fiéis na penumbra",
+    foco: "50% 45%",
+  },
+  vaquejada: {
+    src: "/inicio/salto.webp",
+    reduzida: "/inicio/reduzidas/salto.webp",
+    alt: "Cavaleiro de boné saltando uma barra vermelha com o cavalo, numa prova noturna com público na cerca",
+    foco: "45% 25%",
+  },
+} satisfies Record<string, ImagemVitrine>;
+
+export type PainelMosaico = { rotulo: string; imagem: ImagemVitrine };
+
+/**
+ * Mosaico do hero no computador: colunas de painéis inclinados, da esquerda para a direita. Cada
+ * painel tem um `peso` (a parte da altura da coluna que ele ocupa). Para trocar uma foto, troque a
+ * `imagem`; para mais um painel, acrescente na coluna. Falta uma foto de formatura.
+ */
+export const MOSAICO_HERO: { paineis: (PainelMosaico & { peso: number })[] }[] = [
+  {
+    paineis: [
+      { rotulo: "Corridas", imagem: IMAGENS_INICIO.corrida, peso: 3 },
+      { rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento, peso: 2 },
+    ],
+  },
+  {
+    paineis: [
+      { rotulo: "Festas", imagem: IMAGENS_INICIO.festa, peso: 2 },
+      { rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.montaria, peso: 3 },
+    ],
+  },
+  {
+    paineis: [
+      { rotulo: "Esportes", imagem: IMAGENS_INICIO.futebol, peso: 3 },
+      { rotulo: "Provas a cavalo", imagem: IMAGENS_INICIO.vaquejada, peso: 2 },
+    ],
+  },
+];
+
+/** Colagem do hero no celular e no tablet: três fotos ao lado do título. */
+export const COLAGEM_HERO: PainelMosaico[] = [
+  { rotulo: "Corridas", imagem: IMAGENS_INICIO.corrida },
+  { rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento },
+  { rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.montaria },
+];
+
+/**
+ * As 6 categorias populares. `slug` é o da tabela `categorias` (o filtro `?categoria=` de
+ * /eventos); o nome do cartão pode ser mais curto que o do banco. `null` deixa o cartão sem link.
+ */
+export const CATEGORIAS_INICIO: {
+  nome: string;
+  slug: string | null;
+  icone: IconeCategoria;
+  imagem: ImagemVitrine | null;
+}[] = [
+  { nome: "Casamentos", slug: "casamentos", icone: "casamentos", imagem: IMAGENS_INICIO.casamento },
+  { nome: "Corridas", slug: "corrida", icone: "corridas", imagem: IMAGENS_INICIO.corrida },
+  // No banco, "Shows e Festas".
+  { nome: "Festas", slug: "festas", icone: "festas", imagem: IMAGENS_INICIO.festa },
+  // Sem foto de formatura ainda: fundo na cor da marca com o ícone.
+  { nome: "Formaturas", slug: "formatura", icone: "formaturas", imagem: null },
+  // No banco, "Cavalgadas e Vaquejadas".
+  {
+    nome: "Vaquejadas e Montarias",
+    slug: "cavalgadas-e-vaquejadas",
+    icone: "vaquejadas",
+    imagem: IMAGENS_INICIO.montaria,
+  },
+  { nome: "Esportes", slug: "esportes", icone: "esportes", imagem: IMAGENS_INICIO.futebol },
+];
+
+/** Link do cartão de categoria: a lista de eventos já filtrada. */
+export function linkDaCategoria(slug: string) {
+  return `/eventos?categoria=${encodeURIComponent(slug)}`;
+}

@@ -160,6 +160,15 @@ function perfilPublico(conta: FotografoConta): Fotografo {
 }
 
 /**
+ * Comissão padrão da plataforma no saque normal, em %: o valor padrão da coluna
+ * `fotografos.comissao_pct` (src/db/schema.ts), que vale para toda conta nova. O saque antecipado
+ * paga mais (src/servicos/saques.ts). Para a página inicial falar da taxa sem fixar o número.
+ */
+export function comissaoPadraoPct(): number {
+  return Number(t.fotografos.comissaoPct.default);
+}
+
+/**
  * `senhaAceita`: este navegador já acertou a senha do evento (ver `acessoPorSenha`). Nas
  * listagens fica falso: evento com senha aparece sempre fechado ali.
  */

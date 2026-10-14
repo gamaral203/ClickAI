@@ -18,13 +18,16 @@ export function MenuCelular({
   logado,
   nome,
   esconderEm = "sm:hidden",
+  lado = "direita",
   extras,
 }: {
   itens: { href: string; rotulo: string; exato?: boolean }[];
   logado: boolean;
   nome?: string;
   /** A partir de qual tela o menu some (os links passam para o cabeçalho). */
-  esconderEm?: "sm:hidden" | "lg:hidden";
+  esconderEm?: "sm:hidden" | "md:hidden" | "lg:hidden";
+  /** De que lado do cabeçalho fica o botão (a lista abre alinhada a ele). */
+  lado?: "esquerda" | "direita";
   /** Botões extras no fim da lista (ex.: modo noturno, sugestão), antes do Sair. */
   extras?: React.ReactNode;
 }) {
@@ -33,13 +36,19 @@ export function MenuCelular({
   const [abertoEm, setAbertoEm] = useState<string | null>(null);
   const aberto = abertoEm === caminho;
   const caixa = useRef<HTMLDivElement>(null);
+  const botao = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!aberto) return;
     const fora = (e: PointerEvent) => {
       if (!caixa.current?.contains(e.target as Node)) setAbertoEm(null);
     };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAbertoEm(null);
+    // Com Esc, o foco volta para o botão (a lista some e o foco não fica perdido na página).
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setAbertoEm(null);
+      botao.current?.focus();
+    };
     document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", esc);
     return () => {
@@ -51,6 +60,7 @@ export function MenuCelular({
   return (
     <div ref={caixa} className={`relative ${esconderEm}`}>
       <button
+        ref={botao}
         type="button"
         onClick={() => setAbertoEm(aberto ? null : caminho)}
         aria-expanded={aberto}
@@ -67,7 +77,7 @@ export function MenuCelular({
       {aberto && (
         <div
           id="menu-celular"
-          className="absolute top-full right-0 z-50 mt-2 max-h-[min(85dvh,calc(100dvh-5rem))] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg"
+          className={`absolute top-full ${lado === "esquerda" ? "left-0" : "right-0"} z-50 mt-2 max-h-[min(85dvh,calc(100dvh-5rem))] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg`}
         >
           {nome && <p className="truncate px-3 py-2 text-sm text-muted-foreground">Olá, {nome}</p>}
           <ul className="flex flex-col">

@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import "./globals.css";
 
 import { caminhoTemTemaNoturno, COOKIE_TEMA, temaDoCookie } from "@/lib/tema";
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
+// Inter em todo o site (docs/marca/marca.md): títulos em 800, texto em 400/500.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -39,7 +40,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const escuro =
     caminhoTemTemaNoturno(cabecalhos.get("x-caminho")) &&
     temaDoCookie(guardados.get(COOKIE_TEMA)?.value) === "escuro";
-  const classes = [jakarta.variable, geistMono.variable, "h-full antialiased", escuro && "dark"]
+  const classes = [inter.variable, geistMono.variable, "h-full antialiased", escuro && "dark"]
     .filter(Boolean)
     .join(" ");
   return (
