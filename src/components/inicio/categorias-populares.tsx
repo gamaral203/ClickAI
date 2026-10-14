@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -11,7 +11,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { CATEGORIAS_INICIO, type IconeCategoria, linkDaCategoria } from "@/lib/vitrine-inicio";
+import {
+  CATEGORIAS_INICIO,
+  type IconeCategoria,
+  type ImagemVitrine,
+  linkDaCategoria,
+} from "@/lib/vitrine-inicio";
 
 import { CabecalhoSecao, CONTAINER, TRILHO } from "./comum";
 
@@ -25,8 +30,36 @@ const ICONES: Record<IconeCategoria, LucideIcon> = {
 };
 
 /**
+ * Foto do cartão. No celular, o cartão tem uns 100 px de largura: vai a versão pequena (até
+ * 600 px); do tablet em diante, a reduzida. As imagens não passam pelo otimizador (next.config),
+ * então a troca é por <picture>, que só baixa a versão da tela.
+ */
+function FotoCategoria({ imagem }: { imagem: ImagemVitrine }) {
+  const comum = {
+    alt: "",
+    fill: true,
+    sizes: "(min-width: 1280px) 200px, (min-width: 768px) 30vw, 28vw",
+  };
+  const {
+    props: { srcSet: maior },
+  } = getImageProps({ ...comum, src: imagem.reduzida });
+  const { props } = getImageProps({ ...comum, src: imagem.pequena ?? imagem.reduzida });
+  return (
+    <picture>
+      <source media="(min-width: 768px)" srcSet={maior ?? imagem.reduzida} />
+      <img
+        {...props}
+        alt=""
+        className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none"
+        style={{ ...props.style, objectPosition: imagem.foco }}
+      />
+    </picture>
+  );
+}
+
+/**
  * As 6 categorias populares (src/lib/vitrine-inicio.ts). Cada cartão leva para /eventos já
- * filtrado pela categoria. No celular, carrossel com uns 3 cartões e meio à vista; no tablet,
+ * filtrado pela categoria. No celular, carrossel com uns 3 cartões à vista (o próximo cortado na borda); no tablet,
  * 3 por linha; em tela larga (1280 px ou mais), os 6 numa linha.
  */
 export function CategoriasPopulares() {
@@ -45,14 +78,7 @@ export function CategoriasPopulares() {
             <>
               <span className="relative block aspect-[5/4] overflow-hidden bg-linear-135 from-primary to-profundo">
                 {categoria.imagem ? (
-                  <Image
-                    src={categoria.imagem.reduzida}
-                    alt=""
-                    fill
-                    sizes="(min-width: 1280px) 200px, (min-width: 768px) 30vw, 25vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none"
-                    style={{ objectPosition: categoria.imagem.foco }}
-                  />
+                  <FotoCategoria imagem={categoria.imagem} />
                 ) : (
                   // Sem foto ainda: o fundo da marca com o ícone grande.
                   <span className="absolute inset-0 flex items-center justify-center">
@@ -70,7 +96,7 @@ export function CategoriasPopulares() {
                   strokeWidth={1.75}
                   className="size-5 shrink-0 text-foreground"
                 />
-                <span className="flex-1 text-xs leading-tight font-semibold md:text-sm">
+                <span className="flex-1 text-[0.8125rem] leading-tight font-semibold md:text-sm">
                   {categoria.nome}
                 </span>
                 <ArrowRight
@@ -85,7 +111,7 @@ export function CategoriasPopulares() {
           return (
             <li
               key={categoria.nome}
-              className="w-[25vw] max-w-36 shrink-0 snap-start md:w-auto md:max-w-none"
+              className="w-[28vw] max-w-36 min-w-26 shrink-0 snap-start md:w-auto md:max-w-none md:min-w-0"
             >
               {categoria.slug ? (
                 <Link

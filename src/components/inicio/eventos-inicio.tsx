@@ -50,7 +50,7 @@ export function EventosEmDestaque({ eventos }: { eventos: EventoResumo[] }) {
           >
             {/* isolate + -z-10: a foto e o degradê ficam atrás do texto, e o link do título (que cobre
                 o cartão) se posiciona no próprio cartão. */}
-            <article className="group relative isolate flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-2xl bg-profundo text-white md:aspect-[4/3] lg:aspect-[4/5]">
+            <article className="group relative isolate flex aspect-[6/5] flex-col justify-end overflow-hidden rounded-2xl bg-profundo text-white md:aspect-[4/3] lg:aspect-[4/5]">
               <div className="absolute inset-0 -z-10">
                 <Capa
                   evento={evento}
@@ -82,8 +82,18 @@ export function EventosEmDestaque({ eventos }: { eventos: EventoResumo[] }) {
                   <p className="flex items-center gap-1.5 text-sm text-white/90">
                     <Calendar aria-hidden="true" className="size-4 shrink-0" />
                     <span className="truncate">
-                      {formatarPeriodo(evento.inicioEm, evento.fimEm)} · {evento.cidade} -{" "}
-                      {evento.estado}
+                      {formatarPeriodo(evento.inicioEm, evento.fimEm)}
+                      <span className="hidden md:inline">
+                        {" "}
+                        · {evento.cidade} - {evento.estado}
+                      </span>
+                    </span>
+                  </p>
+                  {/* No celular, a data e o local juntos não cabem numa linha: o local vem abaixo. */}
+                  <p className="flex items-center gap-1.5 text-sm text-white/90 md:hidden">
+                    <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                    <span className="truncate">
+                      {evento.cidade} - {evento.estado}
                     </span>
                   </p>
                 </div>
@@ -141,11 +151,11 @@ export function EventosRecentes({ eventos, total }: { eventos: EventoResumo[]; t
                           {evento.titulo}
                         </Link>
                       </h3>
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground md:text-sm">
+                      <p className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground md:text-sm">
                         <Images aria-hidden="true" className="size-3.5 shrink-0" />
                         {contarItens(evento)}
                       </p>
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground md:text-sm">
+                      <p className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground md:text-sm">
                         <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
                         <span className="truncate">
                           {evento.cidade} - {evento.estado}

@@ -22,7 +22,10 @@ const passos = [
   },
 ];
 
-/** Como funciona, em 3 passos, sempre lado a lado (no celular, em cartões compactos). */
+/**
+ * Como funciona, em 3 passos. No celular, um embaixo do outro (o número e o ícone à esquerda, o
+ * texto à direita); a partir de 640 px, lado a lado.
+ */
 export function ComoFuncionaInicio() {
   return (
     <section aria-labelledby="titulo-como-funciona" className={`${CONTAINER} py-7 md:py-10`}>
@@ -31,13 +34,13 @@ export function ComoFuncionaInicio() {
         titulo="Como funciona"
         link={{ href: "/como-funciona", curto: "Saiba mais" }}
       />
-      <ol className="mt-4 grid grid-cols-3 gap-2 sm:gap-3 md:mt-6 md:gap-4">
+      <ol className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 md:mt-6 md:gap-4">
         {passos.map(({ icone: Icone, titulo, texto }, i) => (
           <li
             key={titulo}
-            className="flex flex-col gap-2 rounded-xl border bg-card p-3 md:gap-3 md:p-6"
+            className="flex gap-3 rounded-xl border bg-card p-4 sm:flex-col sm:gap-2 sm:p-3 md:gap-3 md:p-6"
           >
-            <div className="flex shrink-0 items-center gap-2 md:gap-3">
+            <div className="flex shrink-0 flex-col items-center gap-2 sm:flex-row md:gap-3">
               <span className="flex size-6 items-center justify-center rounded-full bg-highlight text-sm font-extrabold text-highlight-foreground tabular-nums md:size-7">
                 {i + 1}
               </span>
@@ -48,8 +51,12 @@ export function ComoFuncionaInicio() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <h3 className="text-[0.8125rem] leading-snug font-bold md:text-lg">{titulo}</h3>
-              <p className="text-xs leading-relaxed text-muted-foreground md:text-sm">{texto}</p>
+              <h3 className="text-base leading-snug font-bold sm:text-[0.8125rem] md:text-lg">
+                {titulo}
+              </h3>
+              <p className="text-sm leading-relaxed text-muted-foreground sm:text-xs md:text-sm">
+                {texto}
+              </p>
             </div>
           </li>
         ))}

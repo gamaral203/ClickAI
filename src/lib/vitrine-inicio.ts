@@ -1,10 +1,11 @@
 // Imagens e categorias da página inicial, num lugar só. Para trocar ou adicionar uma foto, basta
 // mexer aqui: o hero (colagem) e os cartões de categoria leem esta lista.
 //
-// Só imagens reais e autorizadas pelo dono, sem metadados (EXIF/GPS), em duas versões geradas com
-// `sharp`: a inteira (até 1600 px no lado maior) e a reduzida (720 a 800 px), para os cartões e o
-// celular. As da antiga vitrine ficam em public/inicio/ (reduzidas em public/inicio/reduzidas/); as
-// enviadas para o redesenho, em public/vitrine/ (`-800` é a reduzida). Nunca baixar imagens da
+// Só imagens reais e autorizadas pelo dono, sem metadados (EXIF/GPS), em versões geradas com
+// `sharp`: a inteira (até 1600 px no lado maior), a reduzida (720 a 800 px), para os cartões, e a
+// pequena (até 600 px), para o celular. As da antiga vitrine ficam em public/inicio/ (reduzidas em
+// public/inicio/reduzidas/, pequenas em public/inicio/pequenas/); as enviadas para o redesenho, em
+// public/vitrine/ (`-800` é a reduzida e `-600`, a pequena). Nunca baixar imagens da
 // internet nem usar as de outros sites.
 //
 // Sem imagem (`imagem: null`), o cartão mostra um fundo na cor da marca com o ícone da categoria.
@@ -12,8 +13,13 @@
 export type ImagemVitrine = {
   /** Arquivo inteiro: usado onde a imagem aparece grande (colagem do computador). */
   src: string;
-  /** Versão de 720 px: cartões e colagem do celular. */
+  /** Versão de 720 a 800 px: cartões do tablet e do computador. */
   reduzida: string;
+  /**
+   * Versão de até 600 px no lado maior, para o celular (colagem do hero e cartões de categoria),
+   * onde a foto aparece com uns 100 px de largura. Sem ela, o celular usa a `reduzida`.
+   */
+  pequena?: string;
   alt: string;
   /** Onde ancorar o recorte (`object-position`). */
   foco?: string;
@@ -27,24 +33,28 @@ export const IMAGENS_INICIO = {
   corrida: {
     src: "/vitrine/corrida.webp",
     reduzida: "/vitrine/corrida-800.webp",
+    pequena: "/vitrine/corrida-600.webp",
     alt: "Corredor de óculos escuros e camiseta camuflada com faixa verde-limão, apontando para cima durante a corrida",
     foco: "50% 18%",
   },
   futebol: {
     src: "/vitrine/esportes-futebol.webp",
     reduzida: "/vitrine/esportes-futebol-800.webp",
+    pequena: "/vitrine/esportes-futebol-600.webp",
     alt: "Dois jogadores disputando a bola num campo de terra, um de camisa vermelha e branca e outro de azul e preta",
     foco: "38% 35%",
   },
   montaria: {
     src: "/vitrine/montaria.webp",
     reduzida: "/vitrine/montaria-800.webp",
+    pequena: "/vitrine/montaria-600.webp",
     alt: "Amazona de chapéu preto e camisa rosa da Montaria Feminina, segurando uma bandeira vermelha",
     foco: "60% 15%",
   },
   chaRevelacao: {
     src: "/vitrine/festa-cha-revelacao.webp",
     reduzida: "/vitrine/festa-cha-revelacao-800.webp",
+    pequena: "/vitrine/festa-cha-revelacao-600.webp",
     alt: "Casal se abraça em meio à fumaça rosa num chá revelação, sobre um palco branco com balões",
     foco: "45% 50%",
   },
@@ -63,6 +73,7 @@ export const IMAGENS_INICIO = {
   casamento: {
     src: "/inicio/ensaio-casal.webp",
     reduzida: "/inicio/reduzidas/ensaio-casal.webp",
+    pequena: "/inicio/pequenas/ensaio-casal.webp",
     alt: "Casal sorrindo abraçado ao ar livre, ela de vestido branco e ele de camisa clara",
     foco: "50% 35%",
   },

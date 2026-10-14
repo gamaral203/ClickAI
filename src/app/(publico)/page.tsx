@@ -76,7 +76,7 @@ function EsqueletoEventos() {
         {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
-            className="aspect-[4/3] w-[86vw] max-w-sm shrink-0 animate-pulse rounded-2xl bg-muted md:w-auto md:max-w-none"
+            className="aspect-[6/5] w-[86vw] max-w-sm shrink-0 animate-pulse rounded-2xl bg-muted md:aspect-[4/3] md:w-auto md:max-w-none lg:aspect-[4/5]"
           />
         ))}
       </div>

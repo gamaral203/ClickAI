@@ -30,7 +30,9 @@ export function CabecalhoSecao({
   link?: { href: string; curto: string; longo?: string };
 }) {
   return (
-    <div className="flex items-end justify-between gap-4">
+    <div
+      className={`flex justify-between gap-4 ${subtitulo ? "items-end" : "items-center md:items-end"}`}
+    >
       <div className="min-w-0">
         <h2
           id={id}

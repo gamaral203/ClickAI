@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
+import { preload } from "react-dom";
 import { ArrowRight, Images, Search, ShieldCheck, Zap } from "lucide-react";
 
 import {
@@ -41,36 +42,40 @@ export function HeroInicio() {
             grandes momentos
           </p>
 
-          <div className="grid grid-cols-[minmax(0,1fr)_8rem] items-stretch gap-3 min-[400px]:grid-cols-[minmax(0,1fr)_9rem] md:grid-cols-[minmax(0,1fr)_15rem] md:gap-8 lg:block">
-            <div className="flex flex-col gap-3 md:gap-5">
-              <h1
-                id="titulo-inicio"
-                className="text-[clamp(2rem,1rem+5vw,3.25rem)] leading-[1.06] font-extrabold tracking-tight text-balance lg:text-[clamp(2.75rem,0.4rem+3.6vw,3.75rem)] lg:text-wrap"
-              >
-                As fotos do seu <br className="hidden lg:block" />
-                evento<span className="-ml-[0.1em]">,</span> <span className="text-highlight [-webkit-text-stroke:0.022em_currentColor] [paint-order:stroke_fill]">a um clique<span className="-ml-[0.1em]">.</span></span>
-              </h1>
-              <p className="text-[0.8125rem] leading-relaxed text-pretty text-white/90 md:text-lg lg:max-w-lg">
-                Fotógrafos publicam as fotos de corridas, festas, formaturas, vaquejadas, casamentos
-                e esportes. Você encontra as suas, paga e baixa o original, de forma rápida e
-                segura.
-              </p>
-            </div>
+          {/* Celular e tablet: o título e o texto à esquerda, a colagem à direita. Abaixo de 375 px,
+              o texto desce para a largura inteira e a colagem fica só ao lado do título. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_7rem] items-stretch gap-x-3 gap-y-4 min-[375px]:grid-cols-[minmax(0,1fr)_8rem] min-[375px]:gap-y-3 min-[400px]:grid-cols-[minmax(0,1fr)_9rem] md:grid-cols-[minmax(0,1fr)_15rem] md:gap-x-8 md:gap-y-5 lg:block">
+            <h1
+              id="titulo-inicio"
+              className="col-start-1 row-start-1 self-center text-[clamp(2rem,1rem+5vw,3.25rem)] leading-[1.06] font-extrabold tracking-tight text-balance max-[374px]:text-[1.75rem] min-[375px]:self-start lg:text-[clamp(2.75rem,0.4rem+3.6vw,3.75rem)] lg:text-wrap"
+            >
+              As fotos do seu <br className="hidden lg:block" />
+              evento<span className="-ml-[0.1em]">,</span>{" "}
+              {/* "a um clique." não se separa: cabe inteiro na coluna do título em toda largura. */}
+              <span className="whitespace-nowrap text-highlight [-webkit-text-stroke:0.022em_currentColor] [paint-order:stroke_fill]">
+                a um clique<span className="-ml-[0.1em]">.</span>
+              </span>
+            </h1>
+            <p className="col-span-2 col-start-1 row-start-2 text-sm leading-relaxed text-pretty text-white/90 min-[375px]:col-span-1 md:text-lg lg:mt-5 lg:max-w-lg">
+              Fotógrafos publicam as fotos de corridas, festas, formaturas, vaquejadas, casamentos e
+              esportes. Você encontra as suas, paga e baixa o original, de forma rápida e segura.
+            </p>
             <ColagemCelular />
           </div>
 
           <BuscaHero />
 
-          <ul className="grid grid-cols-3 divide-x lg:max-xl:grid-cols-[1fr_1.5fr_1.1fr] divide-white/20 text-[0.75rem] leading-snug text-white/90 md:text-sm lg:max-xl:text-[0.8125rem]">
+          {/* Abaixo de 400 px, um benefício por linha (em três colunas o texto ficaria espremido). */}
+          <ul className="grid grid-cols-1 gap-2.5 text-sm leading-snug text-white/90 min-[400px]:grid-cols-3 min-[400px]:gap-0 min-[400px]:divide-x min-[400px]:divide-white/20 min-[400px]:text-[0.8125rem] md:text-sm lg:max-xl:grid-cols-[1fr_1.5fr_1.1fr] lg:max-xl:text-[0.8125rem]">
             {beneficios.map(({ icone: Icone, texto }) => (
               <li
                 key={texto}
-                className="flex flex-col gap-1.5 px-2.5 first:pl-0 last:pr-0 md:flex-row md:items-center md:gap-2.5 md:px-4 lg:max-xl:gap-2 lg:max-xl:px-3"
+                className="flex items-center gap-2.5 min-[400px]:flex-col min-[400px]:items-start min-[400px]:gap-1.5 min-[400px]:px-2.5 min-[400px]:first:pl-0 min-[400px]:last:pr-0 md:flex-row md:items-center md:gap-2.5 md:px-4 lg:max-xl:gap-2 lg:max-xl:px-3"
               >
                 <Icone
                   aria-hidden="true"
                   strokeWidth={1.75}
-                  className="size-6 shrink-0 text-white lg:max-xl:size-5"
+                  className="size-5 shrink-0 text-white min-[400px]:size-6 lg:max-xl:size-5"
                 />
                 <span className="text-pretty">{texto}</span>
               </li>
@@ -98,7 +103,7 @@ function BuscaHero() {
     <form
       action="/eventos"
       role="search"
-      className="flex h-14 w-full items-center gap-2 rounded-full bg-white p-1.5 pl-4 text-foreground shadow-[0_8px_24px_-12px_rgb(6_26_66/0.5)] focus-within:ring-3 focus-within:ring-highlight/70 md:h-16 md:pl-5"
+      className="relative flex h-14 w-full items-center gap-2 rounded-full bg-white p-1.5 pl-4 text-foreground shadow-[0_8px_24px_-12px_rgb(6_26_66/0.5)] focus-within:ring-3 focus-within:ring-highlight/70 md:h-16 md:pl-5"
     >
       <label htmlFor="busca-inicio" className="sr-only">
         Procure pelo evento em que participou
@@ -112,8 +117,16 @@ function BuscaHero() {
         autoComplete="off"
         enterKeyHint="search"
         placeholder="Procure pelo evento em que participou"
-        className="h-full min-w-0 flex-1 bg-transparent text-base text-ellipsis outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+        className="peer h-full min-w-0 flex-1 bg-transparent text-base text-ellipsis outline-none placeholder:text-muted-foreground max-sm:placeholder:text-transparent [&::-webkit-search-cancel-button]:hidden"
       />
+      {/* No celular, o texto completo não cabe: um placeholder curto (só visual) toma o lugar
+          enquanto o campo está vazio. O rótulo acessível continua o completo. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-11 hidden items-center text-base text-muted-foreground max-sm:peer-placeholder-shown:flex"
+      >
+        Qual foi o seu evento?
+      </span>
       <button
         type="submit"
         className="group inline-flex size-11 shrink-0 items-center justify-center gap-2 rounded-full bg-highlight font-semibold text-highlight-foreground transition-colors hover:brightness-95 focus-visible:ring-3 focus-visible:ring-profundo/60 focus-visible:outline-none sm:w-auto sm:px-5 md:h-13"
@@ -139,7 +152,7 @@ function ColagemCelular() {
     { left: "2%", top: "58%", width: "78%", height: "42%", rotate: "-2deg", zIndex: 1 },
   ];
   return (
-    <div className="relative min-h-56 lg:hidden">
+    <div className="relative col-start-2 row-start-1 min-h-44 min-[375px]:row-span-2 min-[375px]:min-h-56 lg:hidden">
       <div
         aria-hidden="true"
         className="absolute top-[6%] left-[16%] h-[48%] w-[78%] rotate-6 rounded-2xl border-2 border-highlight/80"
@@ -151,7 +164,7 @@ function ColagemCelular() {
           style={lugares[i]}
         >
           <Image
-            src={imagem.reduzida}
+            src={imagem.pequena ?? imagem.reduzida}
             alt={imagem.alt}
             fill
             sizes="(min-width: 768px) 200px, 112px"
@@ -202,6 +215,13 @@ const LUGARES_COMPUTADOR: Record<LugarColagem, CSSProperties> = {
  */
 function ColagemComputador() {
   const lugares = Object.entries(COLAGEM_HERO) as [LugarColagem, PainelMosaico][];
+  // A foto principal é a maior do hero no computador: pré-carregada só a partir de 1024 px. Com o
+  // `preload` do next/image (sem `media`), o celular baixava a foto inteira sem nunca mostrá-la.
+  preload(COLAGEM_HERO.principal.imagem.src, {
+    as: "image",
+    media: "(min-width: 1024px)",
+    fetchPriority: "high",
+  });
   return (
     <div className="absolute inset-y-0 right-0 left-[52%] hidden lg:block xl:left-[51%]">
       <div className="absolute inset-y-0 right-3 left-0 min-[1700px]:right-6 min-[1700px]:left-auto min-[1700px]:aspect-[1.45]">
@@ -221,7 +241,6 @@ function ColagemComputador() {
                   ? "(min-width: 1024px) 20vw, 1px"
                   : "(min-width: 1024px) 17vw, 1px"
               }
-              preload={lugar === "principal"}
               className="object-cover"
               style={{ objectPosition: imagem.foco }}
             />

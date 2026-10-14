@@ -11,7 +11,8 @@ import { comRetorno } from "@/lib/redirecionamento";
 
 /**
  * Menu do cabeçalho no celular: um botão que abre a lista de links (os do site de compra ou os do
- * painel, conforme `linksDoCabecalho`) e o Sair. Fecha ao trocar de página, ao tocar fora ou com Esc.
+ * painel, conforme `linksDoCabecalho`) e o Sair. Fecha ao trocar de página, ao tocar num link, ao
+ * tocar fora ou com Esc; enquanto está aberto, a página de trás não rola.
  */
 export function MenuCelular({
   itens,
@@ -51,9 +52,16 @@ export function MenuCelular({
     };
     document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", esc);
+    // Com o menu aberto, a página de trás não rola (no celular, o dedo rolaria o fundo).
+    const raiz = document.documentElement;
+    const rolagemAntes = raiz.style.overflow;
+    raiz.style.overflow = "hidden";
+    // O foco vai para o primeiro link, para quem navega pelo teclado ou leitor de tela.
+    caixa.current?.querySelector<HTMLElement>("#menu-celular a, #menu-celular button")?.focus();
     return () => {
       document.removeEventListener("pointerdown", fora);
       document.removeEventListener("keydown", esc);
+      raiz.style.overflow = rolagemAntes;
     };
   }, [aberto]);
 
@@ -90,6 +98,8 @@ export function MenuCelular({
                       : item.href
                   }
                   aria-current={linkAtivo(caminho, item.href, item.exato) ? "page" : undefined}
+                  // O link para a própria página não troca o caminho: fecha o menu no toque.
+                  onClick={() => setAbertoEm(null)}
                   className="flex h-11 items-center gap-2 rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary aria-[current=page]:before:size-2 aria-[current=page]:before:shrink-0 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-highlight"
                 >
                   {item.rotulo}

@@ -111,7 +111,8 @@ function RodapeCompleto() {
         </div>
       </div>
       <div className="border-t border-white/10">
-        <p className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-5 text-xs text-white/70 md:px-6">
+        {/* No celular, o espaço à direita fica para o botão do chat, fixo no canto. */}
+        <p className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-5 text-xs text-white/70 max-md:pr-20 md:px-6">
           {/* Sem o ano: `new Date()` aqui impediria a página 404 de sair pronta do build. */}
           <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />©
           ClicouAí · Pagamento por Pix ou cartão

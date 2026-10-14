@@ -40,7 +40,7 @@ export function FotografosEmDestaque({ fotografos }: { fotografos: FotografoDaIn
                 {fotografo.nomePublico}
               </h3>
               {especialidades.length > 0 && (
-                <p className="line-clamp-2 text-xs text-muted-foreground md:text-sm">
+                <p className="line-clamp-2 text-[0.8125rem] text-muted-foreground md:text-sm">
                   {especialidades.join(" · ")}
                 </p>
               )}
