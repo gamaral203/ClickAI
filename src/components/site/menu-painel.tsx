@@ -10,6 +10,7 @@ import {
   Handshake,
   Home,
   Images,
+  KeyRound,
   Mail,
   Menu,
   MessageCircle,
@@ -44,6 +45,7 @@ const ICONES = {
   suporte: MessageCircle,
   sugestoes: Rocket,
   marca: Stamp,
+  lightroom: KeyRound,
 } as const;
 
 export type ItemMenu = { href: string; rotulo: string; icone: keyof typeof ICONES };
