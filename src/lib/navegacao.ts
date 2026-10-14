@@ -12,6 +12,8 @@ export type ItemNavegacao = {
   rotulo: string;
   /** Marcado só no endereço exato (o início de uma área, como /painel). */
   exato?: boolean;
+  /** Selo ao lado do nome (ex.: "Em breve"). */
+  selo?: string;
 };
 
 export type Navegacao = {
@@ -107,7 +109,7 @@ const MAIS_DO_PAINEL: ItemNavegacao[] = [
   { href: "/painel/descontos", rotulo: "Descontos e cupons" },
   { href: "/painel/colaboracoes", rotulo: "Colaborações" },
   { href: "/painel/marca-dagua", rotulo: "Marca d'água" },
-  { href: "/painel/lightroom", rotulo: "Lightroom" },
+  { href: "/painel/lightroom", rotulo: "Lightroom", selo: "Em breve" },
 ];
 const PERFIL_PAINEL: ItemNavegacao = { href: "/painel/perfil", rotulo: "Perfil e recebimento" };
 const SEGURANCA: ItemNavegacao = { href: "/conta/seguranca", rotulo: "Senha e segurança" };

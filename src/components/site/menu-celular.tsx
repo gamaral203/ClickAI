@@ -22,7 +22,7 @@ export function MenuCelular({
   lado = "direita",
   extras,
 }: {
-  itens: { href: string; rotulo: string; exato?: boolean }[];
+  itens: { href: string; rotulo: string; exato?: boolean; selo?: string }[];
   logado: boolean;
   nome?: string;
   /** A partir de qual tela o menu some (os links passam para o cabeçalho). */
@@ -103,6 +103,11 @@ export function MenuCelular({
                   className="flex h-11 items-center gap-2 rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary aria-[current=page]:before:size-2 aria-[current=page]:before:shrink-0 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-highlight"
                 >
                   {item.rotulo}
+                  {item.selo && (
+                    <span className="ml-auto rounded-full bg-highlight/25 px-2 py-0.5 text-xs font-semibold text-foreground">
+                      {item.selo}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
