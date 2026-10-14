@@ -6,10 +6,9 @@
 // - A ultrapassou B: antes A tinha no máximo o mesmo que B, agora tem mais (empate não conta).
 // - Novo 1º lugar: A agora vende mais que todos, e antes não vendia mais que todos.
 // - Cada pessoa recebe no máximo um aviso por evento e por venda.
-// - Os colegas aparecem como na tela do ranking: "Fotógrafo N", com N a posição dele agora (só a
-//   própria pessoa vê o seu nome; docs/arquitetura.md, Top Cliques).
+// - Os colegas aparecem pelo nome público, o mesmo do Top Cliques; sem nome, "um colega".
 
-export type Posicao = { fotografoId: string; vendidas: number };
+export type Posicao = { fotografoId: string; vendidas: number; nome?: string };
 
 export type AvisoDeRanking =
   | { fotografoId: string; tipo: "ultrapassado"; por: string; virouLider: boolean; posicao: number }
@@ -66,7 +65,8 @@ export function avisosDoRanking(
   return avisos;
 }
 
-/** Como o colega aparece para quem recebe o aviso: "Fotógrafo N", N = posição dele agora. */
+/** Como o colega aparece para quem recebe o aviso: o nome público dele, ou "um colega". */
 export function rotuloDoColega(depois: Posicao[], fotografoId: string) {
-  return `Fotógrafo ${depois.findIndex((p) => p.fotografoId === fotografoId) + 1}`;
+  const nome = depois.find((p) => p.fotografoId === fotografoId)?.nome?.trim();
+  return nome && nome !== "Fotógrafo" ? nome : "um colega";
 }
