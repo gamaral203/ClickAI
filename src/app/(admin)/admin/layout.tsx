@@ -17,7 +17,8 @@ const itens: ItemMenu[] = [
 // O menu não decide quem entra: cada página e ação da gestão confere o papel (exigirGestor).
 export default function LayoutGestao({ children }: LayoutProps<"/admin">) {
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10">
+    // Em telas grandes a gestão usa mais largura: as tabelas (Financeiro, Usuários) respiram.
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 pb-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:py-10 xl:max-w-[100rem] xl:px-8">
       <MenuPainel titulo="Gestão" itens={itens} raiz="/admin" />
       <div className="min-w-0">
         <Suspense fallback={null}>
