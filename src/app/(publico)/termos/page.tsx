@@ -7,6 +7,7 @@ import {
   ContatoPrivacidade,
   Secao,
 } from "@/components/site/pagina-legal";
+import { EMPRESA_LINHA } from "@/lib/empresa";
 
 // Termos de uso. Rascunho que descreve as regras que o código já aplica (preços do servidor,
 // Pix de 1 hora, comissão de 8% no saque, antecipação com 2% a mais, saque só para o próprio
@@ -34,6 +35,9 @@ export default function PaginaTermos() {
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
       <CabecalhoLegal titulo="Termos de uso" atualizadaEm={ATUALIZADA_EM} rascunho>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Esta plataforma é operada por {EMPRESA_LINHA}.
+        </p>
         <p>
           Ao usar o ClicouAí, você concorda com estes termos. Eles valem para quem procura e compra
           fotos e para os fotógrafos que vendem por aqui. Escrevemos em linguagem simples; se algo

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AtSign } from "lucide-react";
 import { Suspense } from "react";
 
+import { EMPRESA } from "@/lib/empresa";
 import { linksDoCabecalho } from "@/lib/navegacao";
 import { usuarioAtual } from "@/servicos/sessao";
 
@@ -111,12 +112,22 @@ function RodapeCompleto() {
         </div>
       </div>
       <div className="border-t border-white/10">
-        {/* No celular, o espaço à direita fica para o botão do chat, fixo no canto. */}
-        <p className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-5 text-xs text-white/70 max-md:pr-20 md:px-6">
-          {/* Sem o ano: `new Date()` aqui impediria a página 404 de sair pronta do build. */}
-          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />©
-          ClicouAí · Pagamento por Pix ou cartão
-        </p>
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-white/70 max-md:pr-20 md:px-6">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {EMPRESA.marca} — {EMPRESA.descricao}
+            </p>
+            <p className="mt-1 max-w-2xl text-sm">{EMPRESA.sobre}</p>
+          </div>
+          <p className="text-xs leading-relaxed">
+            Empresa responsável: {EMPRESA.razaoSocial} · CNPJ {EMPRESA.cnpj} · {EMPRESA.endereco}
+          </p>
+          <p className="flex items-center gap-2 text-xs">
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />©{" "}
+            {new Date().getFullYear()} {EMPRESA.marca}. Todos os direitos reservados. Pagamento por
+            Pix ou cartão.
+          </p>
+        </div>
       </div>
     </footer>
   );
@@ -145,6 +156,9 @@ function RodapeCurto() {
           <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />
           ClicouAí © {new Date().getFullYear()}
         </span>
+        <p className="basis-full text-xs">
+          {EMPRESA.razaoSocial} · CNPJ {EMPRESA.cnpj}
+        </p>
       </div>
     </footer>
   );
