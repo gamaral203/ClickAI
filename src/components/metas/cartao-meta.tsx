@@ -11,17 +11,20 @@ import { cn } from "@/lib/utils";
  * parte da meta leva à aba Metas; a foto, ao perfil (dois links irmãos, nunca um dentro do
  * outro). No cabeçalho do painel (tela larga) tem largura fixa; no topo do painel, ocupa a
  * largura toda no celular (`larguraTotal`) e vai até 384 px a partir do tablet. Altura de 44 px
- * no cabeçalho; no topo do painel, 48 px, para os dois links terem 40 px de alvo de toque.
+ * no cabeçalho; no topo do painel, 48 px, para os dois links terem 40 px de alvo de toque. Com
+ * `escuro`, combina com o cabeçalho azul-marinho do painel (fundo translúcido, texto claro).
  */
 export function CartaoMeta({
   metas,
   foto,
   larguraTotal = false,
+  escuro = false,
 }: {
   metas: SituacaoMetas;
   /** Foto de perfil ou, sem ela, o avatar (`urlDoAvatar`, src/lib/avatares.ts). */
   foto: string;
   larguraTotal?: boolean;
+  escuro?: boolean;
 }) {
   const nivel = metas.nivel === "Iniciante" ? "Iniciante" : `Nível ${metas.nivel}`;
   const alvo = metas.proxima?.valorCentavos ?? metas.totalCentavos;
@@ -35,7 +38,8 @@ export function CartaoMeta({
   return (
     <div
       className={cn(
-        "flex items-center gap-1 rounded-xl border bg-card p-1 text-card-foreground shadow-xs",
+        "flex items-center gap-1 rounded-xl border p-1 shadow-xs",
+        escuro ? "border-white/10 bg-white/[0.06] text-white" : "bg-card text-card-foreground",
         larguraTotal ? "h-12 w-full p-0.5 sm:max-w-sm" : "h-11 w-64",
       )}
     >
@@ -58,7 +62,10 @@ export function CartaoMeta({
             aria-valuemax={100}
             aria-valuenow={metas.progressoPct}
             aria-label={descricao}
-            className="block h-1 overflow-hidden rounded-full bg-primary/15"
+            className={cn(
+              "block h-1 overflow-hidden rounded-full",
+              escuro ? "bg-white/15" : "bg-primary/15",
+            )}
           >
             <span
               className="block h-full rounded-full bg-linear-to-r from-primary to-highlight"

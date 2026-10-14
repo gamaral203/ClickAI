@@ -42,8 +42,8 @@ export async function MetaDoCabecalho({
       {perfil && (
         <LinkDoPerfil perfil={perfil} primeiroNome={primeiroNome} avatar={foto} faixa="lg" />
       )}
-      <div className="manter-claro hidden xl:flex">
-        <CartaoMeta metas={metas} foto={foto} />
+      <div className="hidden xl:flex">
+        <CartaoMeta metas={metas} foto={foto} escuro />
       </div>
     </>
   );

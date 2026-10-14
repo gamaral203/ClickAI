@@ -211,7 +211,8 @@ html.protegido .imagem-protegida {
 /*
  * Cabeçalho escuro do painel (fotógrafo e gestão): azul-marinho, com o logo claro. Só os botões,
  * links e textos do próprio cabeçalho clareiam; o menu e os pop-ups que eles abrem (dentro de
- * .bg-popover ou de <dialog>) e o cartão da meta (.manter-claro) continuam como no resto do site.
+ * .bg-popover ou de <dialog>) e o que tiver .manter-claro continuam como no resto do site. O cartão da meta usa a
+ * variante escura (CartaoMeta com `escuro`).
  * Fora de camada de propósito: vence as classes de cor escritas nos componentes.
  */
 .cabecalho-escuro {
