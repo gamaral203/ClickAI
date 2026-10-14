@@ -60,6 +60,12 @@ const REGRAS = {
   redefinir_senha_ip: { limite: 20, janelaMs: 15 * MINUTO },
   /** Busca por selfie, por IP: cada busca custa uma chamada ao provedor de reconhecimento. */
   busca_facial_ip: { limite: 10, janelaMs: 10 * MINUTO },
+  /**
+   * Busca por rosto no painel do fotógrafo (src/servicos/busca-por-rosto.ts), por usuário. Cada
+   * busca consulta até BUSCA_ROSTO_MAX_EVENTOS coleções no provedor; 30 por hora cobrem achar as
+   * fotos de vários clientes seguidos, mas seguram um script.
+   */
+  busca_rosto_usuario: { limite: 30, janelaMs: 60 * MINUTO },
   /** Senha de evento protegido, por IP e evento (força bruta). */
   senha_evento_ip: { limite: 8, janelaMs: 15 * MINUTO },
   /**

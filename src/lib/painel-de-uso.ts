@@ -52,7 +52,12 @@ export const LIMITE_EMAIL_MES_PADRAO = 3000;
 export const FRACAO_ALERTA = 0.8;
 
 /** Chaves de `contadores_uso`. */
-export const CONTADOR = { emailResend: "email_resend", buscaSelfie: "busca_selfie" } as const;
+export const CONTADOR = {
+  emailResend: "email_resend",
+  buscaSelfie: "busca_selfie",
+  /** Coleções consultadas pela busca por rosto do painel do fotógrafo (uma chamada cada). */
+  buscaRostoPainel: "busca_rosto_painel",
+} as const;
 
 // ---------------------------------------------------------------- Valores
 

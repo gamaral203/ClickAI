@@ -27,7 +27,7 @@ Se uma decisão de código mudar algo descrito nesses documentos, atualize o doc
 - Saque só vai para a chave Pix do próprio CPF/CNPJ do fotógrafo, com valor calculado no servidor e idempotência pelo id do saque. Saque sem resposta fica em `processando`; nunca devolver o saldo sem ter certeza de que o Pix não saiu.
 - O servidor recalcula o total do pedido a partir do banco; preço vindo do navegador é ignorado.
 - Upload vai direto do navegador ao R2 por URL assinada; arquivos nunca passam pelo Next.js.
-- A selfie da busca facial nunca é gravada: nem no banco, nem no R2, nem em logs. Só vai ao provedor de reconhecimento, durante a busca.
+- A selfie da busca facial nunca é gravada: nem no banco, nem no R2, nem em logs. Só vai ao provedor de reconhecimento, durante a busca. Vale igual para a foto do rosto que o fotógrafo envia na busca por rosto do painel (`/painel/busca-por-rosto`), que não abre nenhum original novo: as fotos de outros autores aparecem só na prévia com marca d'água.
 - A loja própria do fotógrafo não aceita HTML nem script; Google Analytics e Tag Manager entram só pelo ID.
 - Dinheiro em centavos (inteiro); IDs em UUID.
 - Fotos são excluídas de forma lógica (`fotos.excluida_em`); quem comprou continua baixando.

@@ -8,6 +8,7 @@ const itens: ItemMenu[] = [
   { href: "/painel", rotulo: "Início", icone: "inicio" },
   { href: "/painel/metas", rotulo: "Metas", icone: "metas" },
   { href: "/painel/eventos", rotulo: "Meus eventos", icone: "eventos" },
+  { href: "/painel/busca-por-rosto", rotulo: "Buscar por rosto", icone: "rosto" },
   { href: "/painel/vendas", rotulo: "Financeiro", icone: "financeiro" },
   { href: "/painel/desempenho", rotulo: "Desempenho", icone: "desempenho" },
   { href: "/painel/descontos", rotulo: "Descontos e cupons", icone: "descontos" },
