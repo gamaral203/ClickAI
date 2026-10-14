@@ -16,26 +16,38 @@ Ainda faltam: versão em SVG e versão para fundo escuro. O ícone foi recortado
 
 | Nome | Hex | Uso |
 |---|---|---|
-| Azul ClicouAí | `#2362FE` | Cor principal: botões, links, destaques |
-| Limão ClicouAí | `#B8FF32` | Cor de apoio: selos, detalhes, fundo de destaque com texto escuro |
+| Azul elétrico | `#315CFF` | Cor principal: botões, links, destaques, início do gradiente do hero |
+| Limão ClicouAí | `#B8FF32` | Cor de apoio: selos, detalhes, botão principal da busca, fundo de destaque com texto escuro |
+| Azul profundo | `#061A42` | Fim do gradiente do hero, faixa dos fotógrafos, rodapé do site |
+| Grafite | `#101114` | Alternativa escura (fundos escuros fora da marca azul) |
+| Fundo claro | `#F5F7FB` | Fundo das páginas (os cartões brancos se destacam) |
+| Texto | `#11182E` | Texto principal |
+| Branco | `#FFFFFF` | Cartões, cabeçalho, texto sobre azul |
 
 **Contraste (acessibilidade):**
 
-- Azul sobre branco: 4,9:1. Serve para texto e botões (passa no WCAG AA).
+- Azul elétrico sobre branco: 5,1:1; sobre o fundo claro `#F5F7FB`: 4,8:1. Serve para texto e botões (passa no WCAG AA). Branco sobre o azul elétrico: 5,1:1.
+- Branco sobre o azul profundo: 17:1. Texto `#11182E` sobre branco: 17:1.
 - Limão sobre branco: 1,2:1. **Não usar para texto** sobre fundo claro; só em detalhes decorativos ou como fundo com texto escuro. Também não serve sozinho para indicar estado (link ativo, progresso): o estado precisa vir junto em outra forma (cor do texto, ícone escuro, número).
 - Texto preto sobre limão: 17,4:1; o texto escuro da marca (`#14200A`) sobre limão: 14,0:1. Bom para selos como "Novo", "Publicado" ou "Mais vendida".
-- Limão sobre azul: 4,1:1. Só para texto grande (18 px ou mais em negrito), como no "AÍ" da logo, ou para elementos que não são texto (barra de progresso no fundo azul).
+- Limão sobre o azul elétrico: 4,2:1. Só para texto grande (18 px ou mais em negrito), como no "AÍ" da logo e no "a um clique." do título da inicial, ou para elementos que não são texto (barra de progresso no fundo azul).
+- Limão sobre o azul profundo: 14:1. Serve para qualquer texto.
 - Limão sobre o fundo escuro do tema escuro (`#0B1120`): 15,6:1.
+
+O azul mudou de `#2362FE` para `#315CFF` (azul elétrico) em outubro de 2026, no redesenho da página inicial, junto com o azul profundo, o fundo `#F5F7FB`, o texto `#11182E` e a fonte Inter. A logo continua intacta (mesmo arquivo, cores e proporção). Ficaram com o azul antigo, gravado no código, os lugares que não usam os tokens: a cor padrão da loja própria do fotógrafo (quem salvou continua com a sua), os modelos de arte de divulgação (`src/lib/artes/`), o botão dos e-mails (`src/lib/email.ts`), o marcador do mapa e os avatares.
 
 O limão mudou de `#BCFA34` para `#B8FF32` em outubro de 2026, para ficar mais vivo ao lado do azul. A logo (`logo.png` e derivados) e as imagens de exemplo com a marca d'água (`public/exemplo/`) continuam com o limão antigo gravado no arquivo: a diferença é pequena, a logo depende do arquivo vetorial e as imagens de exemplo não foram regeradas. Quem já salvou as cores da loja continua com o valor que escolheu; o novo limão é só o padrão.
 
 ## Uso no código
 
-As cores estão em [`src/app/globals.css`](../../src/app/globals.css) como variáveis do tema do shadcn/Tailwind:
+As cores estão em [`src/app/globals.css`](../../src/app/globals.css) como variáveis do tema do shadcn/Tailwind. Para trocar uma cor do site, troque só ali; os componentes usam as classes, nunca o hex:
 
 | Token | Valor | Classe Tailwind | Uso |
 |---|---|---|---|
-| `--primary` | azul `#2362FE`, texto branco | `bg-primary`, `text-primary` | Botões principais, links |
+| `--primary` | azul elétrico `#315CFF`, texto branco | `bg-primary`, `text-primary` | Botões principais, links |
+| `--profundo` | azul profundo `#061A42` | `bg-profundo`, `to-profundo` | Gradiente do hero, faixa dos fotógrafos, rodapé |
+| `--grafite` | `#101114` | `bg-grafite` | Fundo escuro alternativo |
+| `--pagina` / `--foreground` | `#F5F7FB` / `#11182E` | `bg-pagina`, `text-foreground` | Fundo da página e texto |
 | `--highlight` | limão `#B8FF32`, texto `#14200A` | `bg-highlight text-highlight-foreground` | Selos e detalhes |
 | `--accent` | azul bem claro `#E8EFFF` | `bg-accent` | Hover de menus e botões (usado pelo shadcn) |
 
@@ -50,15 +62,21 @@ Proporção 60/30/10: branco (fundo), azul (cor principal) e limão só como det
 | Link ativo do cabeçalho do site e atalhos do painel | Traço limão de 3 px embaixo; o texto fica azul | Marca a página atual sem pesar no cabeçalho |
 | Menu lateral do painel e menu do celular | Barra limão à esquerda do item atual; ponto limão no menu do celular | Mesma linguagem do cabeçalho |
 | Faixa do topo do cabeçalho do painel | Gradiente do azul para o limão | Assinatura da marca em toda página do painel |
-| Selos positivos ("Publicado", "Pago", "Em construção", top da semana, contagem do carrinho) | `bg-highlight text-highlight-foreground` (14:1) | Status bom em destaque |
+| Selos positivos ("Publicado", "Pago", "Em construção", contagem do carrinho) | `bg-highlight text-highlight-foreground` (14:1) | Status bom em destaque |
 | Barra do cartão da meta | Preenchimento do azul para o limão sobre o trilho azul-claro | O azul no começo garante contraste com o trilho; o limão marca o avanço |
 | Passo concluído (checklist do painel) e fim do envio de fotos | Círculo limão com check escuro | Conclusão comemorada, com o check legível |
-| Botão "Encontrar meu evento" da inicial | Pastilha limão com a seta escura | Chama para a ação principal |
+| Busca da inicial ("Encontrar meu evento") e "Quero ser fotógrafo" | Botão limão em pílula com texto e seta escuros | Chama para a ação principal |
+| Título da inicial | "a um clique." em limão sobre o azul (texto grande) | Assinatura da marca no hero |
+| Selo "Em destaque" e número dos passos de Como funciona | `bg-highlight text-highlight-foreground` | Destaque com texto escuro |
 | Botões secundários (contorno) | Borda limão no hover; o foco continua com o anel azul | Resposta ao passar o mouse; o foco precisa de contraste |
-| Rodapé | Ponto limão antes do © | Fecha a página com a cor de apoio |
+| Rodapé (azul profundo) | Ponto limão antes do © | Fecha a página com a cor de apoio |
 | Pedido pago | Onda limão atrás do check azul | Comemoração da compra |
 
-Fonte: Plus Jakarta Sans (via `next/font`), geométrica e arredondada como a logo.
+Fonte: Inter (via `next/font/google`, em `src/app/layout.tsx`), em todo o site e no painel. Títulos grandes em 800 (`font-extrabold`) com `tracking-tight`; texto em 400/500. Até outubro de 2026 era a Plus Jakarta Sans.
+
+## Página inicial
+
+As fotos do hero (mosaico do computador e colagem do celular) e dos cartões de categoria ficam num arquivo só, [`src/lib/vitrine-inicio.ts`](../../src/lib/vitrine-inicio.ts): para trocar ou acrescentar uma foto, mexa ali. Só imagens reais e autorizadas, sem metadados, em duas versões geradas com `sharp` (inteira até 1600 px e reduzida de 720 a 800 px), em `public/inicio/` e `public/vitrine/`. Categoria sem foto mostra o fundo azul com o ícone em limão (hoje, Formaturas).
 
 ## Avatares
 
