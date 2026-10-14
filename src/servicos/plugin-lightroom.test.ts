@@ -34,6 +34,7 @@ import { POST as confirmarRota } from "@/app/api/plugin/envios/confirmar/route";
 import { POST as enviosRota } from "@/app/api/plugin/envios/route";
 import { GET as eventosRota } from "@/app/api/plugin/eventos/route";
 import { DELETE as fotoRota } from "@/app/api/plugin/fotos/[id]/route";
+import { GET as downloadRota } from "@/app/api/plugin/download/route";
 import { listarChavesApi } from "@/dados/chaves-api";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
@@ -275,5 +276,24 @@ describe("envio pelo plugin", () => {
     expect(linha.excluidaEm).not.toBeNull();
     // De novo: já não está no evento.
     expect((await fotoRota(pedido(chave, "DELETE"), params)).status).toBe(404);
+  });
+});
+
+describe("download do plugin", () => {
+  it("entrega o .zip com a pasta do plugin e o passo a passo", async () => {
+    const r = await downloadRota();
+    expect(r.headers.get("Content-Type")).toBe("application/zip");
+    expect(r.headers.get("Content-Disposition")).toContain("ClicouAi-Lightroom.zip");
+    const zip = Buffer.from(await r.arrayBuffer());
+    expect(zip.subarray(0, 2).toString()).toBe("PK");
+    for (const nome of [
+      "ClicouAi.lrplugin/Info.lua",
+      "ClicouAi.lrplugin/ServiceProvider.lua",
+      "ClicouAi.lrplugin/ClicouAiApi.lua",
+      "ClicouAi.lrplugin/Json.lua",
+      "LEIA-ME.txt",
+    ]) {
+      expect(zip.includes(nome)).toBe(true);
+    }
   });
 });

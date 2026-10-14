@@ -73,6 +73,8 @@ const nextConfig: NextConfig = {
     "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],
     "/api/envios/**": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
     "/api/jobs/**": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
+    // Arquivos do plugin do Lightroom, zipados no download.
+    "/api/plugin/download": ["./plugin-lightroom/**"],
   },
   outputFileTracingExcludes: buildComBancoReal
     ? {
