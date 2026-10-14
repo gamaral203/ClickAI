@@ -34,7 +34,7 @@ Ainda faltam: versão em SVG e versão para fundo escuro. O ícone foi recortado
 - Limão sobre o azul profundo: 14:1. Serve para qualquer texto.
 - Limão sobre o fundo escuro do tema escuro (`#0B1120`): 15,6:1.
 
-O azul mudou de `#2362FE` para `#315CFF` (azul elétrico) em outubro de 2026, no redesenho da página inicial, junto com o azul profundo, o fundo `#F5F7FB`, o texto `#11182E` e a fonte Inter. A logo continua intacta (mesmo arquivo, cores e proporção). Ficaram com o azul antigo, gravado no código, os lugares que não usam os tokens: a cor padrão da loja própria do fotógrafo (quem salvou continua com a sua), os modelos de arte de divulgação (`src/lib/artes/`), o botão dos e-mails (`src/lib/email.ts`), o marcador do mapa e os avatares.
+O azul mudou de `#2362FE` para `#315CFF` (azul elétrico) em outubro de 2026, no redesenho da página inicial, junto com o azul profundo, o fundo `#F5F7FB`, o texto `#11182E` (a fonte chegou a ir para a Inter, mas voltou para a Plus Jakarta Sans no mesmo mês). A logo continua intacta (mesmo arquivo, cores e proporção). Ficaram com o azul antigo, gravado no código, os lugares que não usam os tokens: a cor padrão da loja própria do fotógrafo (quem salvou continua com a sua), os modelos de arte de divulgação (`src/lib/artes/`), o botão dos e-mails (`src/lib/email.ts`), o marcador do mapa e os avatares.
 
 O limão mudou de `#BCFA34` para `#B8FF32` em outubro de 2026, para ficar mais vivo ao lado do azul. A logo (`logo.png` e derivados) e as imagens de exemplo com a marca d'água (`public/exemplo/`) continuam com o limão antigo gravado no arquivo: a diferença é pequena, a logo depende do arquivo vetorial e as imagens de exemplo não foram regeradas. Quem já salvou as cores da loja continua com o valor que escolheu; o novo limão é só o padrão.
 
@@ -72,11 +72,11 @@ Proporção 60/30/10: branco (fundo), azul (cor principal) e limão só como det
 | Rodapé (azul profundo) | Ponto limão antes do © | Fecha a página com a cor de apoio |
 | Pedido pago | Onda limão atrás do check azul | Comemoração da compra |
 
-Fonte: Inter (via `next/font/google`, em `src/app/layout.tsx`), em todo o site e no painel. Títulos grandes em 800 (`font-extrabold`) com `tracking-tight`; texto em 400/500. Até outubro de 2026 era a Plus Jakarta Sans.
+Fonte: Plus Jakarta Sans (via `next/font/google`, variável `--font-jakarta`, em `src/app/layout.tsx`), geométrica e arredondada, em todo o site e no painel. Títulos grandes em 800 (`font-extrabold`) com `tracking-tight`; texto em 400/500. Em outubro de 2026 o site passou alguns dias na Inter e voltou para a Plus Jakarta Sans.
 
 ## Página inicial
 
-As fotos do hero (mosaico do computador e colagem do celular) e dos cartões de categoria ficam num arquivo só, [`src/lib/vitrine-inicio.ts`](../../src/lib/vitrine-inicio.ts): para trocar ou acrescentar uma foto, mexa ali. Só imagens reais e autorizadas, sem metadados, em duas versões geradas com `sharp` (inteira até 1600 px e reduzida de 720 a 800 px), em `public/inicio/` e `public/vitrine/`. Categoria sem foto mostra o fundo azul com o ícone em limão (hoje, Formaturas).
+As fotos do hero (colagem de cartões arredondados, inclinados e sobrepostos: seis no computador, três no celular) e dos cartões de categoria ficam num arquivo só, [`src/lib/vitrine-inicio.ts`](../../src/lib/vitrine-inicio.ts): para trocar ou acrescentar uma foto, mexa ali. Só imagens reais e autorizadas, sem metadados, em duas versões geradas com `sharp` (inteira até 1600 px e reduzida de 720 a 800 px), em `public/inicio/` e `public/vitrine/`. Categoria sem foto mostra o fundo azul com o ícone em limão (hoje, Formaturas); no hero, o lugar da formatura (cartão vertical à direita) usa outra foto até chegar uma.
 
 ## Avatares
 

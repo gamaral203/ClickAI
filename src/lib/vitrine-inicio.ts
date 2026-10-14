@@ -1,5 +1,5 @@
 // Imagens e categorias da página inicial, num lugar só. Para trocar ou adicionar uma foto, basta
-// mexer aqui: o hero (mosaico) e os cartões de categoria leem esta lista.
+// mexer aqui: o hero (colagem) e os cartões de categoria leem esta lista.
 //
 // Só imagens reais e autorizadas pelo dono, sem metadados (EXIF/GPS), em duas versões geradas com
 // `sharp`: a inteira (até 1600 px no lado maior) e a reduzida (720 a 800 px), para os cartões e o
@@ -10,7 +10,7 @@
 // Sem imagem (`imagem: null`), o cartão mostra um fundo na cor da marca com o ícone da categoria.
 
 export type ImagemVitrine = {
-  /** Arquivo inteiro: usado onde a imagem aparece grande (mosaico do computador). */
+  /** Arquivo inteiro: usado onde a imagem aparece grande (colagem do computador). */
   src: string;
   /** Versão de 720 px: cartões e colagem do celular. */
   reduzida: string;
@@ -41,6 +41,12 @@ export const IMAGENS_INICIO = {
     reduzida: "/vitrine/montaria-800.webp",
     alt: "Amazona de chapéu preto e camisa rosa da Montaria Feminina, segurando uma bandeira vermelha",
     foco: "60% 15%",
+  },
+  chaRevelacao: {
+    src: "/vitrine/festa-cha-revelacao.webp",
+    reduzida: "/vitrine/festa-cha-revelacao-800.webp",
+    alt: "Casal se abraça em meio à fumaça rosa num chá revelação, sobre um palco branco com balões",
+    foco: "45% 50%",
   },
   corridaRua: {
     src: "/inicio/corrida-rua.webp",
@@ -76,36 +82,30 @@ export const IMAGENS_INICIO = {
 
 export type PainelMosaico = { rotulo: string; imagem: ImagemVitrine };
 
-/**
- * Mosaico do hero no computador: colunas de painéis inclinados, da esquerda para a direita. Cada
- * painel tem um `peso` (a parte da altura da coluna que ele ocupa). Para trocar uma foto, troque a
- * `imagem`; para mais um painel, acrescente na coluna. Falta uma foto de formatura.
- */
-export const MOSAICO_HERO: { paineis: (PainelMosaico & { peso: number })[] }[] = [
-  {
-    paineis: [
-      { rotulo: "Corridas", imagem: IMAGENS_INICIO.corrida, peso: 3 },
-      { rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento, peso: 2 },
-    ],
-  },
-  {
-    paineis: [
-      { rotulo: "Festas", imagem: IMAGENS_INICIO.festa, peso: 2 },
-      { rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.montaria, peso: 3 },
-    ],
-  },
-  {
-    paineis: [
-      { rotulo: "Esportes", imagem: IMAGENS_INICIO.futebol, peso: 3 },
-      { rotulo: "Provas a cavalo", imagem: IMAGENS_INICIO.vaquejada, peso: 2 },
-    ],
-  },
-];
+/** Lugares da colagem do hero no computador (a posição e a inclinação ficam no componente). */
+export type LugarColagem =
+  "principal" | "topo" | "direita" | "centroBaixo" | "direitaBaixo" | "esquerdaBaixo";
 
-/** Colagem do hero no celular e no tablet: três fotos ao lado do título. */
-export const COLAGEM_HERO: PainelMosaico[] = [
+/**
+ * Colagem do hero no computador: fotos em cartões arredondados, inclinados e sobrepostos. Cada
+ * lugar recebe uma foto; para trocar, troque a `imagem`. `principal` é o cartão grande vertical à
+ * esquerda (o único carregado com prioridade); `direita` é o lugar da formatura, com outra foto
+ * enquanto não houver uma de formatura.
+ */
+export const COLAGEM_HERO: Record<LugarColagem, PainelMosaico> = {
+  principal: { rotulo: "Corridas", imagem: IMAGENS_INICIO.corrida },
+  topo: { rotulo: "Torcidas", imagem: IMAGENS_INICIO.festa },
+  // Lugar da formatura: sem foto de formatura ainda, vai o chá revelação (o rosa contrasta com o azul).
+  direita: { rotulo: "Festas", imagem: IMAGENS_INICIO.chaRevelacao },
+  centroBaixo: { rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.montaria },
+  direitaBaixo: { rotulo: "Esportes", imagem: IMAGENS_INICIO.futebol },
+  esquerdaBaixo: { rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento },
+};
+
+/** Colagem do hero no celular e no tablet: três fotos sobrepostas ao lado do título. */
+export const COLAGEM_HERO_CELULAR: PainelMosaico[] = [
   { rotulo: "Corridas", imagem: IMAGENS_INICIO.corrida },
-  { rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento },
+  { rotulo: "Festas", imagem: IMAGENS_INICIO.chaRevelacao },
   { rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.montaria },
 ];
 
@@ -122,7 +122,7 @@ export const CATEGORIAS_INICIO: {
   { nome: "Casamentos", slug: "casamentos", icone: "casamentos", imagem: IMAGENS_INICIO.casamento },
   { nome: "Corridas", slug: "corrida", icone: "corridas", imagem: IMAGENS_INICIO.corrida },
   // No banco, "Shows e Festas".
-  { nome: "Festas", slug: "festas", icone: "festas", imagem: IMAGENS_INICIO.festa },
+  { nome: "Festas", slug: "festas", icone: "festas", imagem: IMAGENS_INICIO.chaRevelacao },
   // Sem foto de formatura ainda: fundo na cor da marca com o ícone.
   { nome: "Formaturas", slug: "formatura", icone: "formaturas", imagem: null },
   // No banco, "Cavalgadas e Vaquejadas".

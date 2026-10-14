@@ -8,9 +8,9 @@
   --color-pagina: var(--pagina);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-inter);
+  --font-heading: var(--font-jakarta);
   --color-profundo: var(--profundo);
   --color-grafite: var(--grafite);
   --color-highlight: var(--highlight);
