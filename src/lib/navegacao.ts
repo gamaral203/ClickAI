@@ -106,6 +106,8 @@ const GESTAO: ItemNavegacao = { href: "/admin", rotulo: "Gestão" };
 const METAS: ItemNavegacao = { href: "/painel/metas", rotulo: "Metas" };
 /** O resto do menu lateral do painel, que no celular fica só no menu do cabeçalho. */
 const MAIS_DO_PAINEL: ItemNavegacao[] = [
+  { href: "/painel/vendidas", rotulo: "Fotos vendidas" },
+  { href: "/painel/busca-por-rosto", rotulo: "Buscar por rosto" },
   { href: "/painel/descontos", rotulo: "Descontos e cupons" },
   { href: "/painel/colaboracoes", rotulo: "Colaborações" },
   { href: "/painel/marca-dagua", rotulo: "Marca d'água" },

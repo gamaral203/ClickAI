@@ -8,6 +8,10 @@ import {
   fotosEncontradas,
   rostosDeExemploDoEvento,
 } from "@/dados";
+import {
+  ehImagemDaBusca as ehImagem,
+  TAMANHO_MAXIMO_SELFIE as TAMANHO_MAXIMO,
+} from "@/lib/imagem-da-busca";
 import { CONTADOR } from "@/lib/painel-de-uso";
 import { BuscaFacialDesligada, buscarFotosPorSelfie } from "@/lib/reconhecimento";
 import { limiteDoIpAtingido } from "@/servicos/limites";
@@ -18,18 +22,6 @@ import { respostaDaManutencao } from "@/servicos/manutencao";
 // (LGPD, dado pessoal sensível): só é aceita com consentimento, fica só na memória desta
 // requisição, vai ao provedor para a comparação e é descartada. Nunca gravar nem logar o
 // corpo desta rota.
-
-/** O navegador já reduz a selfie; 5 MB é folga para quem envia direto. */
-const TAMANHO_MAXIMO = 5 * 1024 * 1024;
-/** Confere o tipo pelo conteúdo (JPEG, PNG ou WebP), não pela extensão nem pelo navegador. */
-function ehImagem(bytes: Uint8Array) {
-  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
-  const webp =
-    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
-  return jpeg || png || webp;
-}
 
 const campos = z.object({
   slug: z

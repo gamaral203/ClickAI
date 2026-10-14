@@ -5,6 +5,9 @@ import { z } from "zod";
 import {
   eventoDoDono,
   loteOriginaisDoDono,
+  loteVendidasDoAutor,
+  resumoVendidasDoAutor,
+  type FiltroVendidas,
   registrarLoteDoDono,
   resumoOriginaisDoDono,
   type EventoDoDono,
@@ -34,7 +37,12 @@ import { contaDoPainel } from "./sessao";
 //   - em lote, no evento que ele criou: só o dono do evento (`eventos.fotografo_id`), e só as
 //     fotos dele ("vendidas" e "minhas"; as dos colaboradores ficam de fora);
 //   - uma foto só ("individual"): o autor, dono ou colaborador, pela rota
-//     /api/painel/original/[fotoId], que responde 302 para a URL assinada.
+//     /api/painel/original/[fotoId], que responde 302 para a URL assinada;
+//   - em lote, na aba Fotos vendidas ("vendidas_geral"): as fotos que ele enviou e foram
+//     vendidas em pedido pago, de qualquer evento (dono ou colaborador), com os filtros da tela
+//     ou só as selecionadas. Cada foto é conferida no servidor a cada lote (autoria + pedido
+//     pago); a liberação é uma só para a aba (não presa a um evento) e a auditoria grava uma
+//     linha por evento de cada lote.
 // Outro fotógrafo, cliente e gestor não passam. O gestor usa o painel com a própria conta de
 // fotógrafo (não é personificação): baixa só as fotos que essa conta enviou.
 //
@@ -47,6 +55,11 @@ import { contaDoPainel } from "./sessao";
 export const ORIGINAIS_POR_LOTE = 50;
 export const VALIDADE_LIBERACAO_MS = 3 * 60 * 60 * 1000;
 const PROPOSITO = "originais-do-dono";
+/**
+ * No lugar do evento, na liberação da aba Fotos vendidas: não é um UUID, então nunca vale como
+ * liberação de um evento (nem a de um evento vale aqui).
+ */
+const LIBERACAO_VENDIDAS = "vendidas_geral";
 
 export const MODOS_ORIGINAIS = [
   "vendidas",
@@ -179,7 +192,11 @@ export function nomeDoOriginal(item: Pick<OriginalDoDono, "id" | "nomeArquivo" |
 async function enderecoDoOriginal(
   item: OriginalDoDono,
   nome: string,
-  contexto: { eventoId: string; modo: ModoLoteOriginais; liberacao: string },
+  contexto: {
+    eventoId: string;
+    modo: ModoLoteOriginais | "vendidas_geral";
+    liberacao: string;
+  },
 ) {
   if (item.chave.startsWith("originais/")) {
     if (!r2Configurado()) return null;
@@ -258,6 +275,7 @@ export async function originalDeExemploParaODono(
   entrada: { eventoId: string; fotoId: string; modo: unknown; liberacao: unknown },
 ): Promise<{ url: string; nome: string } | null> {
   if (emProducao()) return null;
+  if (entrada.modo === "vendidas_geral") return vendidaDeExemploParaOAutor(usuario, entrada);
   const pedido = pedidoDeLote.safeParse({
     eventoId: entrada.eventoId,
     modo: entrada.modo,
@@ -278,6 +296,141 @@ export async function originalDeExemploParaODono(
   });
   if (!item || !/^https:\/\//.test(item.chave)) return null;
   return { url: item.chave, nome: nomeDoOriginal(item) };
+}
+
+// ---------------------------------------------------------------- Fotos vendidas (todas)
+
+const filtroDasVendidas = z
+  .object({
+    eventoId: z.uuid().nullish(),
+    de: z.iso.date().nullish(),
+    ate: z.iso.date().nullish(),
+    comprador: z.string().trim().max(120).nullish(),
+  })
+  .strict();
+
+const pedidoDeLoteVendidas = z.object({
+  filtro: filtroDasVendidas.default({}),
+  liberacao: z.string().min(20).max(1000),
+  depois: z.uuid().nullish(),
+  ids: z.array(z.uuid()).min(1).max(ORIGINAIS_POR_LOTE).optional(),
+});
+
+/** Lê o filtro da aba (endereço da página ou pedido do navegador); inválido vira vazio. */
+export function lerFiltroDasVendidas(entrada: unknown): FiltroVendidas {
+  const lido = filtroDasVendidas.safeParse(entrada);
+  return lido.success ? lido.data : {};
+}
+
+/**
+ * Libera o download em lote da aba Fotos vendidas: basta ter conta de fotógrafo (cada foto é
+ * conferida de novo a cada lote); pede o código da verificação em duas etapas, se ligada. Vale 3
+ * horas, só para esta aba.
+ */
+export async function liberarVendidasDoAutor(
+  usuario: Usuario | null,
+  codigo: unknown,
+): Promise<{ ok: true; liberacao: string } | { ok: false; erro: string; pedeCodigo?: boolean }> {
+  if (!usuario) return { ok: false, erro: ERROS.nao_encontrado };
+  const conta = await contaDoPainel(usuario);
+  if (!conta) return { ok: false, erro: ERROS.nao_encontrado };
+  return emitirLiberacao(usuario, LIBERACAO_VENDIDAS, codigo);
+}
+
+/** Quantas fotos e quantos bytes o "Baixar todas do filtro" baixa (`null` sem conta). */
+export async function resumoVendidasParaOAutor(usuario: Usuario | null, filtro: unknown) {
+  if (!usuario) return null;
+  const conta = await contaDoPainel(usuario);
+  if (!conta) return null;
+  return resumoVendidasDoAutor(conta.id, lerFiltroDasVendidas(filtro));
+}
+
+/** Nome no disco: o começo do endereço do evento, para separar os eventos numa pasta só. */
+function nomeDaVendida(item: OriginalDoDono & { eventoSlug: string }) {
+  const evento = item.eventoSlug.slice(0, 40).replace(/[^\w-]+/g, "_");
+  return `${evento}_${nomeDoOriginal(item)}`;
+}
+
+/**
+ * Próximo lote de URLs assinadas da aba Fotos vendidas (até 50): depois do id `depois`, ou só
+ * os `ids` pedidos (as selecionadas, repetir falhas, renovar URL vencida). Mesmo limite e mesma
+ * validade de liberação dos lotes do dono; auditoria com o modo "vendidas_geral", uma linha por
+ * evento do lote.
+ */
+export async function loteDeVendidasDoAutor(
+  usuario: Usuario | null,
+  entrada: unknown,
+  ip: string | null,
+): Promise<ResultadoLote> {
+  const pedido = pedidoDeLoteVendidas.safeParse(entrada);
+  if (!pedido.success) return { ok: false, motivo: "invalido", erro: ERROS.invalido };
+  const { filtro, liberacao, depois, ids } = pedido.data;
+  if (!usuario) return { ok: false, motivo: "nao_encontrado", erro: ERROS.nao_encontrado };
+  const conta = await contaDoPainel(usuario);
+  if (!conta) return { ok: false, motivo: "nao_encontrado", erro: ERROS.nao_encontrado };
+  if (!liberacaoConfere(liberacao, usuario.id, LIBERACAO_VENDIDAS)) {
+    return { ok: false, motivo: "liberacao", erro: ERROS.liberacao };
+  }
+  if (await limiteAtingido("originais_dono_usuario", usuario.id)) {
+    return { ok: false, motivo: "limite", erro: ERROS.limite };
+  }
+
+  const linhas = await loteVendidasDoAutor({
+    fotografoId: conta.id,
+    filtro,
+    limite: ORIGINAIS_POR_LOTE,
+    depois: ids ? null : depois,
+    ids,
+  });
+  const itens: ItemParaBaixar[] = [];
+  const indisponiveis: string[] = [];
+  const porEvento = new Map<string, number>();
+  for (const item of linhas) {
+    const nome = nomeDaVendida(item);
+    const url = await enderecoDoOriginal(item, nome, {
+      eventoId: item.eventoId,
+      modo: "vendidas_geral",
+      liberacao,
+    });
+    if (!url) {
+      indisponiveis.push(item.id);
+      continue;
+    }
+    itens.push({ id: item.id, nome, url, bytes: item.tamanhoBytes, excluida: item.excluida });
+    porEvento.set(item.eventoId, (porEvento.get(item.eventoId) ?? 0) + 1);
+  }
+  for (const [eventoId, quantidade] of porEvento) {
+    await registrarLoteDoDono({
+      eventoId,
+      fotografoId: conta.id,
+      usuarioId: usuario.id,
+      modo: "vendidas_geral",
+      quantidade,
+      ip,
+    });
+  }
+  const fim = ids || linhas.length < ORIGINAIS_POR_LOTE;
+  return { ok: true, itens, proximo: fim ? null : linhas[linhas.length - 1].id, indisponiveis };
+}
+
+/** O exemplo do lote da aba Fotos vendidas: confere a liberação da aba e a foto no lote do autor. */
+async function vendidaDeExemploParaOAutor(
+  usuario: Usuario | null,
+  entrada: { eventoId: string; fotoId: string; liberacao: unknown },
+): Promise<{ url: string; nome: string } | null> {
+  const liberacao = z.string().min(20).max(1000).safeParse(entrada.liberacao);
+  const fotoId = z.uuid().safeParse(entrada.fotoId);
+  if (!usuario || !liberacao.success || !fotoId.success) return null;
+  const conta = await contaDoPainel(usuario);
+  if (!conta || !liberacaoConfere(liberacao.data, usuario.id, LIBERACAO_VENDIDAS)) return null;
+  const [item] = await loteVendidasDoAutor({
+    fotografoId: conta.id,
+    filtro: {},
+    limite: 1,
+    ids: [fotoId.data],
+  });
+  if (!item || item.eventoId !== entrada.eventoId || !/^https:\/\//.test(item.chave)) return null;
+  return { url: item.chave, nome: nomeDaVendida(item) };
 }
 
 export type ResultadoIndividual =

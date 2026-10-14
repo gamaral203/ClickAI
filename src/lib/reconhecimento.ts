@@ -227,24 +227,24 @@ export async function removerRostos(eventoId: string, rostoIds: string[]) {
 }
 
 /**
- * Fotos do evento em que aparece o rosto da selfie, e os rostos que bateram (para a prévia
- * ampliada no rosto). No modo de exemplo, a mesma selfie sempre cai na mesma "pessoa" dos
- * dados de exemplo.
+ * Fotos do evento em que aparece o rosto da selfie, os rostos que bateram (para a prévia
+ * ampliada no rosto) e a maior semelhança (0–100) de cada foto. No modo de exemplo, a mesma
+ * selfie sempre cai na mesma "pessoa" dos dados de exemplo, sem semelhança.
  */
 export async function buscarFotosPorSelfie(
   eventoId: string,
   selfie: Uint8Array,
   rostosDeExemplo: () => Promise<string[][]>,
-): Promise<{ fotoIds: string[]; rostoIds: string[] }> {
+): Promise<{ fotoIds: string[]; rostoIds: string[]; semelhancas: Record<string, number> }> {
   const config = configRekognition();
   if (!config && process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production") {
     throw new BuscaFacialDesligada();
   }
   if (!config) {
     const pessoas = await rostosDeExemplo();
-    if (pessoas.length === 0) return { fotoIds: [], rostoIds: [] };
+    if (pessoas.length === 0) return { fotoIds: [], rostoIds: [], semelhancas: {} };
     const indice = createHash("sha256").update(selfie).digest().readUInt32BE(0) % pessoas.length;
-    return { fotoIds: pessoas[indice], rostoIds: [] };
+    return { fotoIds: pessoas[indice], rostoIds: [], semelhancas: {} };
   }
 
   try {
@@ -263,13 +263,20 @@ export async function buscarFotosPorSelfie(
       m.Face?.ExternalImageId ? [m.Face.ExternalImageId] : [],
     );
     const rostoIds = encontrados.flatMap((m) => (m.Face?.FaceId ? [m.Face.FaceId] : []));
-    return { fotoIds: [...new Set(fotoIds)], rostoIds };
+    const semelhancas: Record<string, number> = {};
+    for (const m of encontrados) {
+      const id = m.Face?.ExternalImageId;
+      if (id && typeof m.Similarity === "number") {
+        semelhancas[id] = Math.max(semelhancas[id] ?? 0, m.Similarity);
+      }
+    }
+    return { fotoIds: [...new Set(fotoIds)], rostoIds, semelhancas };
   } catch (erro) {
     // Sem rosto na selfie, ou evento ainda sem coleção: nenhum resultado. Só o nome do erro
     // vai para o log, nunca a requisição nem o erro inteiro (que podem ter a selfie).
     const nome = nomeDoErro(erro);
     if (nome === "InvalidParameterException" || nome === "ResourceNotFoundException") {
-      return { fotoIds: [], rostoIds: [] };
+      return { fotoIds: [], rostoIds: [], semelhancas: {} };
     }
     console.error(
       `[busca-facial] o Rekognition recusou a busca: ${nome}` +

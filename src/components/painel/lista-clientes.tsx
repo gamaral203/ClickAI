@@ -425,7 +425,11 @@ function FotoComprada({
  * Next não leva o cookie, então é um <img> comum). É gerada na hora a partir do original: até
  * chegar, o quadro fica pulsando. No vídeo, ou se ela não vier, entra a miniatura pública.
  */
-function MiniaturaSemMarca({ foto }: { foto: FotoDoCliente }) {
+export function MiniaturaSemMarca({
+  foto,
+}: {
+  foto: Pick<FotoDoCliente, "fotoId" | "tipo" | "nomeArquivo" | "urlMiniatura">;
+}) {
   const [semMarca, setSemMarca] = useState(foto.tipo === "foto");
   const [carregou, setCarregou] = useState(false);
   return (
