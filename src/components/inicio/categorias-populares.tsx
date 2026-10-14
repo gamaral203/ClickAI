@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Footprints,
   Gem,
-  GraduationCap,
   Lasso,
   PartyPopper,
   Trophy,
@@ -24,7 +23,6 @@ const ICONES: Record<IconeCategoria, LucideIcon> = {
   casamentos: Gem,
   corridas: Footprints,
   festas: PartyPopper,
-  formaturas: GraduationCap,
   vaquejadas: Lasso,
   esportes: Trophy,
 };
@@ -58,9 +56,9 @@ function FotoCategoria({ imagem }: { imagem: ImagemVitrine }) {
 }
 
 /**
- * As 6 categorias populares (src/lib/vitrine-inicio.ts). Cada cartão leva para /eventos já
+ * As 5 categorias populares (src/lib/vitrine-inicio.ts). Cada cartão leva para /eventos já
  * filtrado pela categoria. No celular, carrossel com uns 3 cartões à vista (o próximo cortado na borda); no tablet,
- * 3 por linha; em tela larga (1280 px ou mais), os 6 numa linha.
+ * 5 por linha a partir de 768 px.
  */
 export function CategoriasPopulares() {
   return (
@@ -71,7 +69,7 @@ export function CategoriasPopulares() {
         subtitulo="Encontre suas fotos por tipo de evento"
         link={{ href: "/eventos", curto: "Ver todas", longo: "Ver todas as categorias" }}
       />
-      <ul className={`${TRILHO} mt-4 md:mt-6 md:grid-cols-3 md:gap-4 xl:grid-cols-6`}>
+      <ul className={`${TRILHO} mt-4 md:mt-6 md:grid-cols-5 md:gap-3 xl:gap-4`}>
         {CATEGORIAS_INICIO.map((categoria) => {
           const Icone = ICONES[categoria.icone];
           const conteudo = (
@@ -101,7 +99,7 @@ export function CategoriasPopulares() {
                 </span>
                 <ArrowRight
                   aria-hidden="true"
-                  className="hidden size-4 shrink-0 text-primary md:block"
+                  className="hidden size-4 shrink-0 text-primary xl:block"
                 />
               </span>
             </>

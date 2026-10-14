@@ -200,7 +200,6 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Em andamento
 
-- [ ] Foto de formatura para a página inicial: o cartão Formaturas mostra o fundo da marca com o ícone até chegar uma foto autorizada (entra em `src/lib/vitrine-inicio.ts`; dá para pôr também um sexto painel no mosaico do hero)
 - [ ] **Regerar as prévias já publicadas em produção** (depois do merge e do deploy autorizados): chamar `/api/jobs/regerar-previas?evento=<slug>` com o `CRON_SECRET` até `restantes: 0`, primeiro no evento ao vivo, depois sem `evento`; o job de revisão continua sozinho o que faltar ([arquitetura.md](arquitetura.md), "Regeração das prévias antigas").
 
 - [ ] **Verificação em duas etapas por e-mail para o fotógrafo** (alternativa mais simples ao app): ao ligar, escolher "Código por e-mail (mais simples)" ou "App autenticador (mais seguro)"; o código por e-mail seguiria a regra de um código por vez (o mesmo código no reenvio, 2 horas). Precisa valer no login, nos saques, na troca de CPF/CNPJ e no download dos originais (hoje todos conferem só o TOTP em `exigirCodigoSeLigado`), e decidir o que fazer se a pessoa perder o acesso ao e-mail.
