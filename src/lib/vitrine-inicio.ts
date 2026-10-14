@@ -27,7 +27,7 @@ export type ImagemVitrine = {
 
 /** Ícones disponíveis para as categorias (lucide-react; o componente faz o mapeamento). */
 export type IconeCategoria =
-  "casamentos" | "corridas" | "festas" | "formaturas" | "vaquejadas" | "esportes";
+  "casamentos" | "corridas" | "festas" | "vaquejadas" | "esportes";
 
 export const IMAGENS_INICIO = {
   corrida: {
@@ -100,13 +100,11 @@ export type LugarColagem =
 /**
  * Colagem do hero no computador: fotos em cartões arredondados, inclinados e sobrepostos. Cada
  * lugar recebe uma foto; para trocar, troque a `imagem`. `principal` é o cartão grande vertical à
- * esquerda (o único carregado com prioridade); `direita` é o lugar da formatura, com outra foto
- * enquanto não houver uma de formatura.
+ * esquerda (o único carregado com prioridade).
  */
 export const COLAGEM_HERO: Record<LugarColagem, PainelMosaico> = {
   principal: { rotulo: "Corridas", imagem: IMAGENS_INICIO.corrida },
   topo: { rotulo: "Torcidas", imagem: IMAGENS_INICIO.festa },
-  // Lugar da formatura: sem foto de formatura ainda, vai o chá revelação (o rosa contrasta com o azul).
   direita: { rotulo: "Festas", imagem: IMAGENS_INICIO.chaRevelacao },
   centroBaixo: { rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.montaria },
   direitaBaixo: { rotulo: "Esportes", imagem: IMAGENS_INICIO.futebol },
@@ -121,7 +119,7 @@ export const COLAGEM_HERO_CELULAR: PainelMosaico[] = [
 ];
 
 /**
- * As 6 categorias populares. `slug` é o da tabela `categorias` (o filtro `?categoria=` de
+ * As 5 categorias populares. `slug` é o da tabela `categorias` (o filtro `?categoria=` de
  * /eventos); o nome do cartão pode ser mais curto que o do banco. `null` deixa o cartão sem link.
  */
 export const CATEGORIAS_INICIO: {
@@ -134,8 +132,6 @@ export const CATEGORIAS_INICIO: {
   { nome: "Corridas", slug: "corrida", icone: "corridas", imagem: IMAGENS_INICIO.corrida },
   // No banco, "Shows e Festas".
   { nome: "Festas", slug: "festas", icone: "festas", imagem: IMAGENS_INICIO.chaRevelacao },
-  // Sem foto de formatura ainda: fundo na cor da marca com o ícone.
-  { nome: "Formaturas", slug: "formatura", icone: "formaturas", imagem: null },
   // No banco, "Cavalgadas e Vaquejadas".
   {
     nome: "Vaquejadas e Montarias",
