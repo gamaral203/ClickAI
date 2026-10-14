@@ -153,6 +153,11 @@ describe("Top Cliques do evento", () => {
       faturadoCentavos: 3000,
       enviadas: 3,
     });
+    // Nome e avatar reais de todos, sem anonimização.
+    expect(posicoes.some((p) => /^Fotógrafo( d+)?$/.test(p.nome))).toBe(false);
+    expect(de(dono)?.foto).toBeTruthy();
+    expect(de(colaborador)?.foto).toBeTruthy();
+    expect(de(colaborador)?.slug).toBeTruthy();
     // Convite pendente e sem venda: fora da equipe.
     expect(de(convidadoPendente)).toBeUndefined();
   });

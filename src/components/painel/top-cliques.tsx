@@ -43,8 +43,8 @@ export function TopCliques({
             Top Cliques
           </h2>
           <p className="text-sm text-muted-foreground">
-            Ranking da equipe deste evento. Só contam vendas pagas (estornos ficam de fora). Cada um
-            vê só o próprio nome.
+            Ranking da equipe deste evento. Só contam vendas pagas (estornos ficam de fora). Todos da
+            equipe aparecem com nome e foto.
           </p>
         </div>
         <div role="group" aria-label="Ordenar por" className="flex rounded-lg bg-muted p-1 text-sm">
@@ -86,8 +86,7 @@ export function TopCliques({
                 <span className="w-6 text-sm font-bold text-muted-foreground tabular-nums">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                {/* Só o próprio nome e a própria foto aparecem; os outros ficam anônimos, pela posição. */}
-                {p.fotografoId === destaque && p.foto ? (
+                {p.foto ? (
                   <span className="relative size-8 shrink-0 self-center overflow-hidden rounded-full bg-muted ring-1 ring-border">
                     <Image src={p.foto} alt="" fill sizes="32px" className="object-cover" />
                   </span>
@@ -97,7 +96,13 @@ export function TopCliques({
                   </span>
                 )}
                 <span className={p.fotografoId === destaque ? "font-semibold" : "font-medium"}>
-                  {p.fotografoId === destaque ? p.nome : `Fotógrafo ${i + 1}`}
+                  {p.slug ? (
+                    <Link href={`/fotografo/${p.slug}`} className="hover:underline">
+                      {p.nome}
+                    </Link>
+                  ) : (
+                    p.nome
+                  )}
                   {p.fotografoId === destaque && (
                     <span className="font-normal text-muted-foreground"> (você)</span>
                   )}

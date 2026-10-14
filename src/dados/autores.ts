@@ -41,6 +41,8 @@ export async function autoresPorId(fotografoIds: string[]): Promise<Map<string, 
 export type PosicaoTopCliques = {
   fotografoId: string;
   nome: string;
+  /** Endereço público do perfil (`/fotografo/[slug]`), se o fotógrafo tiver. */
+  slug: string | null;
   /** Imagem do perfil, para o ranking. */
   foto: string | null;
   vendidas: number;
@@ -53,7 +55,8 @@ export type PosicaoTopCliques = {
 /**
  * Classificação da equipe do evento (dono e colaboradores que aceitaram) pela quantidade de
  * fotos vendidas e pelo valor vendido. Só vendas válidas: pedido `pago` (estornado e contestado
- * não contam). Só a equipe do evento vê (painel do dono e Colaborações).
+ * não contam). Só a equipe do evento vê (painel do dono e Colaborações); todos veem o nome
+ * público e a foto de perfil dos colegas.
  */
 export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCliques[]> {
   const banco = await obterBanco();
@@ -96,6 +99,7 @@ export async function topCliquesDoEvento(eventoId: string): Promise<PosicaoTopCl
     .map((id) => ({
       fotografoId: id,
       nome: nomes.get(id)?.nome ?? "Fotógrafo",
+      slug: nomes.get(id)?.slug ?? null,
       foto: nomes.get(id)?.foto ?? null,
       vendidas: vendas.find((v) => v.fotografoId === id)?.vendidas ?? 0,
       faturadoCentavos: vendas.find((v) => v.fotografoId === id)?.faturado ?? 0,
