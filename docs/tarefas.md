@@ -332,6 +332,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Conferir a CSP com o Card Payment Brick de verdade (preview com as credenciais de teste do Mercado Pago), inclusive o desafio 3DS, e com o Sentry ligado. Em 09/10/2026, na produção, o Brick carregou os campos seguros (`secure-fields.mercadopago.com`) sem violação de CSP nem erro no console; faltam o pagamento e o desafio 3DS, que não foram feitos porque a produção usa credenciais de produção
 - [ ] Alertas de cobrança na Vercel, R2, Inngest, banco, provedor de reconhecimento e WhatsApp
 - [x] Política de privacidade (com selfie), página Como funciona
+- [x] Dados da empresa (Agência Dalibor, CNPJ, endereço) em `src/lib/empresa.ts`, no rodapé completo e no curto e no topo dos termos e da privacidade
 - [ ] Revisão jurídica da política de privacidade, dos termos de uso e da política de conteúdo (rascunhos no ar, com aviso no topo), inclusive do prazo de 7 dias para problemas com a compra
 - [ ] E-mail do encarregado de dados: criar a caixa e cadastrar `NEXT_PUBLIC_EMAIL_PRIVACIDADE` na Vercel (o domínio `clicouai.com` já existe; ver **Em andamento**)
 - [ ] Remover da Vercel o domínio próprio da loja quando o fotógrafo exclui a conta (hoje sai só do banco)

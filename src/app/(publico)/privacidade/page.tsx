@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AvisoRevisaoJuridica, ContatoPrivacidade } from "@/components/site/pagina-legal";
+import { EMPRESA_LINHA } from "@/lib/empresa";
 
 // Política de privacidade (LGPD, Lei 13.709/2018). Descreve o que o site faz de verdade, com os
 // operadores usados hoje. Rascunho técnico: precisa da revisão de um advogado antes do
@@ -33,6 +34,9 @@ export default function PaginaPrivacidade() {
         <AvisoRevisaoJuridica />
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Política de privacidade</h1>
         <p className="text-muted-foreground">Atualizada em {ATUALIZADA_EM}.</p>
+        <p className="text-sm text-muted-foreground">
+          Esta plataforma é operada por {EMPRESA_LINHA}.
+        </p>
         <p className="leading-relaxed">
           O ClicouAí é uma plataforma onde fotógrafos vendem as fotos de eventos e as pessoas
           fotografadas encontram e compram as suas. Aqui explicamos, sem juridiquês, quais dados
