@@ -24,8 +24,8 @@ import { urlPublica } from "@/lib/url-publica";
 /** Opção registrada na auditoria (inclui a foto individual). */
 export type ModoOriginais = (typeof t.modoOriginaisDoDono.enumValues)[number];
 
-/** Opções do download em lote do dono do evento. */
-export type ModoLoteOriginais = Exclude<ModoOriginais, "individual">;
+/** Opções do download em lote do dono do evento (a aba Fotos vendidas tem o seu modo). */
+export type ModoLoteOriginais = Exclude<ModoOriginais, "individual" | "vendidas_geral">;
 
 export type EventoDoDono = { id: string; slug: string; titulo: string };
 

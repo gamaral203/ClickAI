@@ -5,7 +5,9 @@ import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import {
   liberarOriginais,
   liberarOriginaisDoAutor,
+  liberarVendidasDoAutor,
   loteDeOriginais,
+  loteDeVendidasDoAutor,
   type ResultadoLote,
 } from "@/servicos/originais-do-dono";
 import { usuarioAtual } from "@/servicos/sessao";
@@ -36,4 +38,21 @@ export async function liberarOriginalDoAutorAcao(eventoId: string, codigo?: stri
   const manutencao = await recusarSeEmManutencao();
   if (manutencao) return { ok: false as const, erro: manutencao };
   return liberarOriginaisDoAutor(await usuarioAtual(), eventoId, codigo);
+}
+
+/**
+ * Libera o download em lote da aba Fotos vendidas (todas as fotos vendidas do autor, de qualquer
+ * evento). Cada foto é conferida de novo em cada lote.
+ */
+export async function liberarVendidasAcao(codigo?: string) {
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { ok: false as const, erro: manutencao };
+  return liberarVendidasDoAutor(await usuarioAtual(), codigo);
+}
+
+/** Próximo lote da aba Fotos vendidas (filtro da tela ou só as selecionadas). */
+export async function loteDeVendidasAcao(entrada: unknown): Promise<ResultadoLote> {
+  const manutencao = await recusarSeEmManutencao();
+  if (manutencao) return { ok: false, motivo: "invalido", erro: manutencao };
+  return loteDeVendidasDoAutor(await usuarioAtual(), entrada, await ipDaRequisicao());
 }

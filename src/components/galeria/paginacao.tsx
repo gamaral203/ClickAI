@@ -8,9 +8,18 @@ import type { FiltroGaleria } from "@/dados";
 import { enderecoDaGaleria, paginasVisiveis } from "@/lib/galeria";
 import { cn } from "@/lib/utils";
 
-type Props = {
-  slug: string;
-  filtro: FiltroGaleria;
+type Props = (
+  | { slug: string; filtro: FiltroGaleria; endereco?: never }
+  | {
+      slug?: never;
+      filtro?: never;
+      /**
+       * Fora da galeria (ex.: Fotos vendidas, no painel): o endereço da lista, com os filtros; a
+       * página entra como `?pagina=`.
+       */
+      endereco: string;
+    }
+) & {
   pagina: number;
   totalPaginas: number;
   /** Rótulo da navegação para leitores de tela (há uma no topo e outra embaixo da grade). */
@@ -22,6 +31,16 @@ const base =
 const comum = "border hover:border-highlight hover:bg-accent hover:text-accent-foreground";
 const atual = "border border-primary bg-primary text-primary-foreground";
 const desligado = "border text-muted-foreground opacity-50";
+
+/** O endereço com `?pagina=` (a página 1 fica sem, como na galeria). */
+function enderecoComPagina(endereco: string, pagina: number) {
+  const [caminho, busca = ""] = endereco.split("?");
+  const params = new URLSearchParams(busca);
+  if (pagina > 1) params.set("pagina", String(pagina));
+  else params.delete("pagina");
+  const texto = params.toString();
+  return `${caminho}${texto ? `?${texto}` : ""}`;
+}
 
 /** Mostra que a página pedida está carregando, dentro do link tocado. */
 function Carregando({ children }: { children: React.ReactNode }) {
@@ -42,10 +61,20 @@ function Carregando({ children }: { children: React.ReactNode }) {
  * "Anterior 1 … 4 5 6 7 8 … 80 Próxima"; no celular: "‹ 6 de 80 ›", em que o meio é uma lista
  * para pular direto para qualquer página.
  */
-export function Paginacao({ slug, filtro, pagina, totalPaginas, rotulo = "Páginas" }: Props) {
+export function Paginacao({
+  slug,
+  filtro,
+  endereco,
+  pagina,
+  totalPaginas,
+  rotulo = "Páginas",
+}: Props) {
   const router = useRouter();
   if (totalPaginas <= 1) return null;
-  const href = (p: number) => enderecoDaGaleria(slug, filtro, { pagina: p });
+  const href = (p: number) =>
+    endereco !== undefined
+      ? enderecoComPagina(endereco, p)
+      : enderecoDaGaleria(slug, filtro, { pagina: p });
   const temAnterior = pagina > 1;
   const temProxima = pagina < totalPaginas;
 

@@ -1641,3 +1641,4 @@ export * from "./compras-do-email";
 export * from "./manutencao";
 export * from "./painel-de-uso";
 export * from "./busca-por-rosto";
+export * from "./vendidas-do-autor";

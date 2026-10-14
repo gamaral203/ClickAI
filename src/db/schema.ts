@@ -655,13 +655,16 @@ export const downloads = pgTable(
 
 /**
  * O que o autor baixou dos originais (src/servicos/originais-do-dono.ts): os lotes do dono do
- * evento ("vendidas" e "minhas", só fotos dele) ou uma foto só ("individual", dono ou
- * colaborador, sempre na foto que ele mesmo enviou).
+ * evento ("vendidas" e "minhas", só fotos dele), uma foto só ("individual", dono ou
+ * colaborador, sempre na foto que ele mesmo enviou) ou o lote da aba Fotos vendidas
+ * ("vendidas_geral": as fotos que ele enviou e foram vendidas em pedido pago, de qualquer
+ * evento; uma linha por evento de cada lote).
  */
 export const modoOriginaisDoDono = pgEnum("modo_originais_do_dono", [
   "vendidas",
   "minhas",
   "individual",
+  "vendidas_geral",
 ]);
 
 /**
