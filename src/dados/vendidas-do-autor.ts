@@ -28,7 +28,6 @@ import {
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { mascararEmail } from "@/lib/mascarar-email";
 import { urlPublica } from "@/lib/url-publica";
 
 import { ehEmailDeContaExcluida, NOME_CONTA_EXCLUIDA } from "./exclusao";
@@ -98,7 +97,7 @@ export type VendaDoAutor = {
   /** Quando foi paga (ISO). */
   vendidaEm: string;
   compradorNome: string;
-  /** Mascarado (ex.: "jo***@gmail.com"); `null` quando a pessoa excluiu a conta. */
+  /** E-mail inteiro (o autor contata o cliente quando dá erro); `null` quando a pessoa excluiu a conta. */
   compradorEmail: string | null;
   /**
    * A parte do autor nesta venda, em centavos: o lançamento dele (já sem a metade da taxa do
@@ -166,7 +165,7 @@ export async function listarVendidasDoAutor(
         urlMiniatura: urlPublica(l.urlMiniatura),
         vendidaEm: (l.pagoEm ?? l.criadoEm).toISOString(),
         compradorNome: excluida ? NOME_CONTA_EXCLUIDA : l.nome,
-        compradorEmail: excluida ? null : mascararEmail(l.email),
+        compradorEmail: excluida ? null : l.email,
         valorCentavos: Number(l.valor),
         excluida: l.excluidaEm !== null,
       };

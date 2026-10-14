@@ -18,7 +18,7 @@ import { MiniaturaSemMarca } from "./lista-clientes";
 
 /**
  * Fotos vendidas do autor, uma por venda, com a miniatura sem marca d'água, o evento, a data, o
- * comprador (e-mail mascarado) e a parte dele. Tocar numa foto a seleciona; o download em lote
+ * comprador (e-mail inteiro) e a parte dele. Tocar numa foto a seleciona; o download em lote
  * baixa as selecionadas ou todas do filtro (cada foto uma vez), pelo mesmo caminho dos lotes do
  * dono: liberação (com o código do app, se o MFA estiver ligado), URLs assinadas conferidas no
  * servidor foto a foto e pasta ou ZIP no navegador.
@@ -268,7 +268,13 @@ function CartaoVenda({
           <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
             <Mail aria-hidden="true" className="size-3.5 shrink-0" />
             <span className="sr-only">E-mail: </span>
-            <span className="truncate">{venda.compradorEmail}</span>
+            <a
+              href={`mailto:${venda.compradorEmail}`}
+              title={venda.compradorEmail}
+              className="truncate underline-offset-4 hover:underline"
+            >
+              {venda.compradorEmail}
+            </a>
           </p>
         )}
         <p className="mt-1 flex items-baseline justify-between gap-2">
