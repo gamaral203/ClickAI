@@ -259,6 +259,11 @@ export const fotografos = pgTable(
     comissaoPct: integer().notNull().default(8),
     /** Modelo de marca d'água das prévias (src/lib/marca-dagua.ts); vale para as próximas fotos. */
     modeloMarca: text().notNull().default("padrao"),
+    /**
+     * Conta de demonstração (vídeos e tutoriais, src/servicos/demonstracao.ts): vendas fictícias,
+     * sem saque, fora dos rankings e dos números da gestão.
+     */
+    demonstracao: boolean().notNull().default(false),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
 ).enableRLS();
@@ -612,6 +617,11 @@ export const pedidos = pgTable(
     contestadoEm: data(),
     estornadoEm: data(),
     motivoEstorno: motivoEstorno(),
+    /**
+     * Pedido fictício da conta de demonstração (src/servicos/demonstracao.ts): nunca passou pelo
+     * gateway; fica fora dos rankings e dos números da gestão.
+     */
+    demonstracao: boolean().notNull().default(false),
     criadoEm: momento(),
   },
   (t) => [index().on(t.clienteId), index().on(t.status, t.expiraEm), uniqueIndex().on(t.gatewayId)],

@@ -235,7 +235,13 @@ export type ResultadoSaque =
   | { ok: false; motivo: "documento_trocado"; bloqueadoAte: string }
   | {
       ok: false;
-      motivo: "sem_chave" | "saque_em_andamento" | "abaixo_do_minimo" | "conflito" | "falhou";
+      motivo:
+        | "sem_chave"
+        | "saque_em_andamento"
+        | "abaixo_do_minimo"
+        | "conflito"
+        | "falhou"
+        | "demonstracao";
     };
 
 /**
@@ -318,6 +324,8 @@ export async function solicitarSaque(
   usuario: Usuario,
   antecipado: boolean,
 ): Promise<ResultadoSaque> {
+  // Conta de demonstração: o saldo é de vendas fictícias e nunca vira Pix.
+  if (conta.demonstracao) return { ok: false, motivo: "demonstracao" };
   if (!chavePixValida(conta) || !conta.chavePix) return { ok: false, motivo: "sem_chave" };
   // CPF/CNPJ trocado há menos de 24 horas: nenhum saque, nem com a liberação de teste.
   const bloqueadoAte = saqueBloqueadoAte(conta, Date.now());

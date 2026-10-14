@@ -489,6 +489,7 @@ export async function vendasPorDiaDaPlataforma(dias = 30): Promise<VendasDoDia[]
     .where(
       and(
         eq(t.pedidos.status, "pago"),
+        eq(t.pedidos.demonstracao, false),
         isNotNull(t.pedidos.pagoEm),
         // Um dia a mais de folga por causa do fuso; a série descarta o que ficar de fora.
         gte(t.pedidos.pagoEm, new Date(agora - (dias + 1) * DIA_MS)),

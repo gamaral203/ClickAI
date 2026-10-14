@@ -30,6 +30,8 @@ export async function vendasDaSemanaPorEvento(): Promise<[string, number][]> {
     .where(
       and(
         eq(t.pedidos.status, "pago"),
+        // Vendas fictícias da conta de demonstração não entram em ranking nenhum.
+        eq(t.pedidos.demonstracao, false),
         gte(t.pedidos.pagoEm, new Date(Date.now() - JANELA_TOP_SEMANA_MS)),
       ),
     )
@@ -53,7 +55,7 @@ export async function vendasPorAutor(): Promise<[string, number][]> {
     .select({ fotografoId: t.itensPedido.fotografoId, vendidas: sql<number>`count(*)::int` })
     .from(t.itensPedido)
     .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
-    .where(eq(t.pedidos.status, "pago"))
+    .where(and(eq(t.pedidos.status, "pago"), eq(t.pedidos.demonstracao, false)))
     .groupBy(t.itensPedido.fotografoId);
   return linhas
     .map((l) => [l.fotografoId, l.vendidas] as [string, number])

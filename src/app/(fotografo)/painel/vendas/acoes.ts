@@ -18,6 +18,7 @@ const MOTIVOS = {
   abaixo_do_minimo: "O valor a receber precisa ser de pelo menos R$ 1,00.",
   conflito: "Outro saque foi pedido ao mesmo tempo. Atualize a página e confira.",
   falhou: "Não foi possível fazer o saque agora. Tente de novo em alguns minutos.",
+  demonstracao: "Conta de demonstração: as vendas são fictícias e não podem ser sacadas.",
 };
 
 const entrada = z.object({
