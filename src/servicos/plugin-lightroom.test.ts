@@ -281,7 +281,7 @@ describe("envio pelo plugin", () => {
 
 describe("download do plugin", () => {
   it("entrega o .zip com a pasta do plugin e o passo a passo", async () => {
-    const r = await downloadRota();
+    const r = await downloadRota(new Request("http://localhost/api/plugin/download"));
     expect(r.headers.get("Content-Type")).toBe("application/zip");
     expect(r.headers.get("Content-Disposition")).toContain("ClicouAi-Lightroom.zip");
     const zip = Buffer.from(await r.arrayBuffer());

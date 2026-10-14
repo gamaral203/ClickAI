@@ -64,15 +64,31 @@ const nextConfig: NextConfig = {
   // onde as fotos são processadas (rota de processamento do envio, job de revisão e ações do
   // painel); sem isto, o arquivo não vai para a função da Vercel.
   outputFileTracingIncludes: {
-    "/painel/**": ["./public/logo.png"],
+    "/painel/**": ["./public/logo.png", "./public/marca/*.png"],
     // Fontes das artes de divulgação (src/lib/artes/fontes, lidas pela rota da arte).
     // O "Cadastrar rostos que faltam" tira os quadros dos vídeos com o FFmpeg.
-    "/painel/eventos/[id]": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
+    "/painel/eventos/[id]": [
+      "./public/logo.png",
+      "./public/marca/*.png",
+      "./node_modules/ffmpeg-static/ffmpeg",
+    ],
     "/painel/eventos/[id]/divulgacao/**": ["./src/lib/artes/fontes/*.ttf"],
     // Foto de exemplo das amostras de marca d'água (src/servicos/imagens.ts, amostraDaMarca).
-    "/painel/marca-dagua/**": ["./public/logo.png", "./public/inicio/ensaio-casal.webp"],
-    "/api/envios/**": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
-    "/api/jobs/**": ["./public/logo.png", "./node_modules/ffmpeg-static/ffmpeg"],
+    "/painel/marca-dagua/**": [
+      "./public/logo.png",
+      "./public/marca/*.png",
+      "./public/inicio/ensaio-casal.webp",
+    ],
+    "/api/envios/**": [
+      "./public/logo.png",
+      "./public/marca/*.png",
+      "./node_modules/ffmpeg-static/ffmpeg",
+    ],
+    "/api/jobs/**": [
+      "./public/logo.png",
+      "./public/marca/*.png",
+      "./node_modules/ffmpeg-static/ffmpeg",
+    ],
     // Arquivos do plugin do Lightroom, zipados no download.
     "/api/plugin/download": ["./plugin-lightroom/**"],
   },

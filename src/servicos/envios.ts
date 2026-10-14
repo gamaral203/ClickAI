@@ -158,6 +158,8 @@ export function chavesDaFoto(
     original: `originais/${caminho}.${ext}`,
     // Prévia e miniatura levam a versão da marca na chave (src/lib/marca-dagua.ts).
     previa: `previas/${caminho}${SUFIXO_DA_VERSAO}`,
+    /** A prévia menor, para o celular (src/lib/marca-dagua.ts, chaveDaPreviaCelular). */
+    previaCelular: `previas/${caminho}${SUFIXO_DA_VERSAO.replace(/\.webp$/, "-celular.webp")}`,
     miniatura: `miniaturas/${caminho}${SUFIXO_DA_VERSAO}`,
     /** Vídeo: a prévia em MP4 com a marca (no bucket público). */
     previaVideo: `previas/${caminho}-video.mp4`,
@@ -559,11 +561,12 @@ export async function confirmarEnvio(
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }
-    const { previa, miniatura, paraRostos } = versoes;
+    const { previa, previaCelular, miniatura, paraRostos } = versoes;
     medir("versoesMs");
-    // As três gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
+    // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
     await Promise.all([
       gravarPublico(chaves.previa, previa.buffer, "image/webp"),
+      gravarPublico(chaves.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
       moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
     ]);
@@ -686,9 +689,10 @@ async function confirmarVideo(
     }
     if ("recusado" in preparado) throw new ArquivoRecusado(MENSAGEM_VIDEO_LONGO);
 
-    const { previa, miniatura } = await gerarVersoes(preparado.quadro, modelo);
+    const { previa, previaCelular, miniatura } = await gerarVersoes(preparado.quadro, modelo);
     await Promise.all([
       gravarPublico(chaves.previa, previa.buffer, "image/webp"),
+      gravarPublico(chaves.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
       gravarPublico(chaves.previaVideo, preparado.previa, "video/mp4"),
     ]);
