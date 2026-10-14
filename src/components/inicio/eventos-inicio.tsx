@@ -20,7 +20,7 @@ function Capa({ evento, sizes }: { evento: EventoResumo; sizes: string }) {
         alt=""
         fill
         sizes={sizes}
-        className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none"
+        className="object-cover object-[50%_20%] transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none"
       />
     );
   }
@@ -50,7 +50,7 @@ export function EventosEmDestaque({ eventos }: { eventos: EventoResumo[] }) {
           >
             {/* isolate + -z-10: a foto e o degradê ficam atrás do texto, e o link do título (que cobre
                 o cartão) se posiciona no próprio cartão. */}
-            <article className="group relative isolate flex aspect-[6/5] flex-col justify-end overflow-hidden rounded-2xl bg-profundo text-white md:aspect-[4/3] lg:aspect-[4/5]">
+            <article className="group relative isolate flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-2xl bg-profundo text-white">
               <div className="absolute inset-0 -z-10">
                 <Capa
                   evento={evento}
@@ -83,14 +83,10 @@ export function EventosEmDestaque({ eventos }: { eventos: EventoResumo[] }) {
                     <Calendar aria-hidden="true" className="size-4 shrink-0" />
                     <span className="truncate">
                       {formatarPeriodo(evento.inicioEm, evento.fimEm)}
-                      <span className="hidden md:inline">
-                        {" "}
-                        · {evento.cidade} - {evento.estado}
-                      </span>
                     </span>
                   </p>
-                  {/* No celular, a data e o local juntos não cabem numa linha: o local vem abaixo. */}
-                  <p className="flex items-center gap-1.5 text-sm text-white/90 md:hidden">
+                  {/* Data e local em linhas separadas: juntos não cabem no cartão e eram cortados. */}
+                  <p className="flex items-center gap-1.5 text-sm text-white/90">
                     <MapPin aria-hidden="true" className="size-4 shrink-0" />
                     <span className="truncate">
                       {evento.cidade} - {evento.estado}
