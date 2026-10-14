@@ -51,9 +51,14 @@ async function Formulario({ searchParams }: Pick<PageProps<"/cadastro">, "search
     <div className="flex flex-col gap-6">
       {googleConfigurado() && (
         <>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <BotaoGoogle proximo={destino} texto="Comprar fotos com Google" />
-            <BotaoGoogle vender texto="Vender fotos com Google" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* Lado a lado, cada um com meia largura: texto menor para caber sem vazar. */}
+            <BotaoGoogle
+              proximo={destino}
+              texto="Comprar fotos com Google"
+              className="px-3 sm:text-sm"
+            />
+            <BotaoGoogle vender texto="Vender fotos com Google" className="px-3 sm:text-sm" />
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span className="h-px flex-1 bg-border" />

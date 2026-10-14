@@ -8,10 +8,12 @@ export function BotaoGoogle({
   proximo,
   vender = false,
   texto = "Continuar com Google",
+  className,
 }: {
   proximo?: string;
   vender?: boolean;
   texto?: string;
+  className?: string;
 }) {
   const params = new URLSearchParams();
   if (proximo) params.set("proximo", proximo);
@@ -21,7 +23,11 @@ export function BotaoGoogle({
   return (
     <a
       href={`/api/auth/google${consulta ? `?${consulta}` : ""}`}
-      className={buttonVariants({ variant: "outline", size: "touch", className: "w-full" })}
+      className={buttonVariants({
+        variant: "outline",
+        size: "touch",
+        className: ["w-full min-w-0", className],
+      })}
     >
       <svg aria-hidden="true" viewBox="0 0 48 48" className="size-5">
         <path
