@@ -25,6 +25,7 @@ import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { reiniciarClienteR2 } from "@/lib/r2";
+import { indexarRostosDoVideo } from "@/servicos/envios";
 
 const [lia, pedro] = fotografos;
 const evento = eventos.find((e) => e.slug === "meia-maratona-rio-2026")!;
@@ -203,5 +204,41 @@ describe("cadastrar rostos que faltam", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.erro).toContain("confira as credenciais");
     expect(await situacaoDosRostos(evento.id)).toEqual(antes);
+  });
+});
+
+describe("rostos dos vídeos", () => {
+  it("cada quadro vai ao Rekognition com o id do vídeo; os rostos ficam sem posição", async () => {
+    const banco = await obterBanco();
+    const [video] = await banco
+      .select({ id: t.fotos.id })
+      .from(t.fotos)
+      .where(eq(t.fotos.eventoId, evento.id))
+      .limit(1);
+    await banco.delete(t.rostos).where(eq(t.rostos.fotoId, video.id));
+    let n = 0;
+    const envio = vi.spyOn(RekognitionClient.prototype, "send").mockImplementation((async () => ({
+      FaceRecords: [
+        {
+          Face: {
+            FaceId: `00000000-0000-4000-9000-${String(++n).padStart(12, "0")}`,
+            BoundingBox: { Left: 0.1, Top: 0.1, Width: 0.2, Height: 0.2 },
+          },
+        },
+      ],
+    })) as never);
+    const quadros = [original, original, original];
+    expect(await indexarRostosDoVideo(evento.id, video.id, quadros)).toBe("indexada");
+    const indexacoes = envio.mock.calls.filter(
+      ([c]) => (c as { input: { ExternalImageId?: string } }).input.ExternalImageId,
+    );
+    envio.mockRestore();
+    expect(indexacoes).toHaveLength(3);
+    for (const [c] of indexacoes) {
+      expect((c as { input: { ExternalImageId: string } }).input.ExternalImageId).toBe(video.id);
+    }
+    const rostos = await banco.select().from(t.rostos).where(eq(t.rostos.fotoId, video.id));
+    expect(rostos).toHaveLength(3);
+    expect(rostos.every((r) => r.caixa === null)).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -10,7 +10,7 @@ import sharp from "sharp";
 
 import type { ModeloMarca } from "@/lib/marca-dagua";
 
-import { marcaDoVideo } from "./imagens";
+import { LARGURA_ROSTOS, marcaDoVideo } from "./imagens";
 
 // Prévia dos vídeos (docs/arquitetura.md, "Vídeos"), feita aqui mesmo na função da Vercel com o
 // FFmpeg (ffmpeg-static): os vídeos são curtos (até 30 s), então a conversão cabe no tempo da
@@ -29,6 +29,11 @@ const DURACAO_MAXIMA_DA_PREVIA_S = 31;
 const ESCALA =
   `scale=w='min(${LADO_DA_PREVIA_VIDEO},iw)':h='min(${LADO_DA_PREVIA_VIDEO},ih)':` +
   "force_original_aspect_ratio=decrease:force_divisible_by=2";
+
+/** Um quadro a cada tantos segundos vai para a busca por selfie. */
+export const INTERVALO_DOS_QUADROS_S = 3;
+/** Teto de quadros por vídeo (30 s / 3 s): cada um é uma ida ao Rekognition. */
+export const MAXIMO_DE_QUADROS = 10;
 
 export class VideoIlegivel extends Error {}
 
@@ -71,7 +76,46 @@ export type VideoPreparado = {
   quadro: Buffer;
   /** A prévia em MP4 (H.264 + AAC), com a marca d'água em todos os quadros. */
   previa: Buffer;
+  /** Quadros sem marca (JPEG), um a cada INTERVALO_DOS_QUADROS_S, para cadastrar os rostos. */
+  quadrosParaRostos: Buffer[];
 };
+
+/**
+ * Quadros do vídeo para a busca por selfie: um a cada INTERVALO_DOS_QUADROS_S segundos (até
+ * MAXIMO_DE_QUADROS), em JPEG de até LARGURA_ROSTOS no lado maior, sem marca d'água (a marca
+ * atrapalharia o reconhecimento). Lista vazia se o FFmpeg não tirar nenhum.
+ */
+async function extrairQuadros(entrada: string, pasta: string): Promise<Buffer[]> {
+  const escala =
+    `scale=w='min(${LARGURA_ROSTOS},iw)':h='min(${LARGURA_ROSTOS},ih)':` +
+    "force_original_aspect_ratio=decrease";
+  await rodar([
+    "-i",
+    entrada,
+    "-vf",
+    `fps=1/${INTERVALO_DOS_QUADROS_S}:round=up,${escala}`,
+    "-frames:v",
+    String(MAXIMO_DE_QUADROS),
+    "-q:v",
+    "3",
+    "-y",
+    path.join(pasta, "rosto-%02d.jpg"),
+  ]);
+  const nomes = (await readdir(pasta)).filter((n) => n.startsWith("rosto-")).sort();
+  return Promise.all(nomes.map((n) => readFile(path.join(pasta, n))));
+}
+
+/** Só os quadros para os rostos, de um vídeo já guardado (o "Cadastrar rostos que faltam"). */
+export async function quadrosParaRostos(original: Buffer): Promise<Buffer[]> {
+  const pasta = await mkdtemp(path.join(tmpdir(), "video-rostos-"));
+  try {
+    const entrada = path.join(pasta, "entrada");
+    await writeFile(entrada, original);
+    return await extrairQuadros(entrada, pasta);
+  } finally {
+    await rm(pasta, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
 /**
  * Lê a duração e, se `aceitar(duracao)` deixar, gera o quadro e a prévia com marca. Lança
@@ -154,7 +198,9 @@ export async function prepararVideo(
     if (conversao.codigo !== 0 || !previa || previa.length === 0) {
       throw new VideoIlegivel(`conversão falhou: ${conversao.saida.slice(-300)}`);
     }
-    return { duracaoS, largura, altura, quadro, previa };
+    // 3. Os quadros para a busca por selfie (uma falha aqui não impede a venda do vídeo).
+    const quadrosParaRostos = await extrairQuadros(entrada, pasta).catch(() => []);
+    return { duracaoS, largura, altura, quadro, previa, quadrosParaRostos };
   } finally {
     await rm(pasta, { recursive: true, force: true }).catch(() => {});
   }
