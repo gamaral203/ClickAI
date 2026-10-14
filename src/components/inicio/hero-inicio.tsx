@@ -48,7 +48,7 @@ export function HeroInicio() {
                 className="text-[clamp(2rem,1rem+5vw,3.25rem)] leading-[1.06] font-extrabold tracking-tight text-balance lg:text-[clamp(2.75rem,0.4rem+3.6vw,3.75rem)] lg:text-wrap"
               >
                 As fotos do seu <br className="hidden lg:block" />
-                evento<span className="-ml-[0.1em]">,</span> <span className="text-highlight">a um clique<span className="-ml-[0.1em]">.</span></span>
+                evento<span className="-ml-[0.1em]">,</span> <span className="text-highlight [-webkit-text-stroke:0.022em_currentColor] [paint-order:stroke_fill]">a um clique<span className="-ml-[0.1em]">.</span></span>
               </h1>
               <p className="text-[0.8125rem] leading-relaxed text-pretty text-white/90 md:text-lg lg:max-w-lg">
                 Fotógrafos publicam as fotos de corridas, festas, formaturas, vaquejadas, casamentos
