@@ -204,7 +204,7 @@ function ColagemComputador() {
   const lugares = Object.entries(COLAGEM_HERO) as [LugarColagem, PainelMosaico][];
   return (
     <div className="absolute inset-y-0 right-0 left-[52%] hidden lg:block xl:left-[51%]">
-      <div className="absolute inset-y-0 right-[max(0px,calc((100vw-80rem)/2))] left-0">
+      <div className="absolute inset-y-0 right-3 left-0 min-[1700px]:right-6 min-[1700px]:left-auto min-[1700px]:aspect-[1.45]">
         <MoldurasDecorativas />
         {lugares.map(([lugar, { imagem }]) => (
           <div
