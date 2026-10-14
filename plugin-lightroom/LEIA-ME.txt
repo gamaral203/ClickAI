@@ -1,0 +1,36 @@
+PLUGIN DO CLICOUAÍ PARA O LIGHTROOM CLASSIC
+==========================================
+
+Publique as fotos editadas direto do Lightroom Classic nos seus eventos do ClicouAí.
+Funciona no Lightroom Classic (o programa instalado no computador). O Lightroom da web
+e do celular não aceitam plugins.
+
+1. INSTALAR (uma vez só)
+   - Descompacte este .zip numa pasta que não vai mudar de lugar
+     (por exemplo, Documentos\ClicouAi).
+   - No Lightroom Classic: Arquivo > Gerenciador de plug-ins > Adicionar.
+   - Escolha a pasta "ClicouAi.lrplugin" e clique em Concluído.
+
+2. CONECTAR SUA CONTA
+   - No site do ClicouAí: Painel > Lightroom > Gerar chave. Copie a chave.
+   - No Lightroom Classic, módulo Biblioteca, painel da esquerda:
+     Serviços de publicação > ClicouAí > Configurar.
+   - Cole a chave em "Chave de acesso" e clique em "Verificar e atualizar eventos".
+     Deve aparecer "Conectado como (seu nome)".
+   - Clique em Salvar. Seus eventos aparecem como coleções dentro de ClicouAí.
+
+3. PUBLICAR
+   - Arraste as fotos editadas para a coleção do evento.
+   - Clique na coleção e depois em Publicar.
+   - As fotos são exportadas em JPEG e enviadas. A marca d'água, a prévia e a busca por
+     rosto são feitas pelo site, como no envio pelo navegador.
+
+DICAS
+   - Evento novo: crie no site e, no Lightroom, abra Configurar > "Verificar e atualizar
+     eventos".
+   - Editou uma foto já publicada? Ela aparece em "Fotos modificadas para republicar".
+     Publique de novo: a versão nova substitui a antiga no site.
+   - Tirou a foto da coleção? Ao publicar, ela sai do evento no site. Quem já comprou
+     continua baixando.
+   - Cada foto precisa ter menos de 50 MB. Se passar, diminua a qualidade do JPEG ou o
+     tamanho na exportação.
