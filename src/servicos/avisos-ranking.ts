@@ -19,7 +19,7 @@ import {
 // Avisos do ranking da equipe do evento (Top Cliques), logo depois de uma venda paga: quem foi
 // ultrapassado, quem assumiu o 1º lugar. Para incentivar a equipe a divulgar e vender mais. Vai
 // por e-mail (registrado na caixa de saída) e por notificação, para quem ativou. Os colegas
-// aparecem como na tela do ranking ("Fotógrafo N"): só a própria pessoa vê o seu nome. Uma falha
+// aparecem pelo nome público (ou "um colega", sem nome). Uma falha
 // aqui nunca desfaz o pagamento (quem chama trata o erro).
 
 function texto(aviso: AvisoDeRanking, ranking: Posicao[], evento: string) {
@@ -29,18 +29,19 @@ function texto(aviso: AvisoDeRanking, ranking: Posicao[], evento: string) {
       corpo: `Você assumiu o 1º lugar no ranking de ${evento}. Continue divulgando!`,
     };
   }
-  const colega = rotuloDoColega(ranking, aviso.por);
+  const rotulo = rotuloDoColega(ranking, aviso.por);
+  const colega = rotulo.charAt(0).toUpperCase() + rotulo.slice(1);
   if (aviso.tipo === "novo_lider") {
     return {
       titulo: "Novo 1º lugar no ranking 🏆",
-      corpo: `O ${colega} assumiu o 1º lugar no ranking de ${evento}. Divulgue o link e busque a liderança!`,
+      corpo: `${colega} assumiu o 1º lugar no ranking de ${evento}. Divulgue o link e busque a liderança!`,
     };
   }
   return {
     titulo: "Você foi ultrapassado no ranking 🏁",
     corpo: aviso.virouLider
-      ? `O ${colega} passou você e assumiu o 1º lugar no ranking de ${evento}. Divulgue o link e recupere a posição!`
-      : `O ${colega} ultrapassou você no ranking de ${evento}. Agora você está em ${aviso.posicao}º lugar.`,
+      ? `${colega} passou você e assumiu o 1º lugar no ranking de ${evento}. Divulgue o link e recupere a posição!`
+      : `${colega} ultrapassou você no ranking de ${evento}. Agora você está em ${aviso.posicao}º lugar.`,
   };
 }
 

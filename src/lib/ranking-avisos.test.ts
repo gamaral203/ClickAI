@@ -39,7 +39,13 @@ describe("avisos do ranking da equipe", () => {
     expect(avisosDoRanking(r(["ana", 8]), new Map([["ana", 3]]))).toEqual([]);
   });
 
-  it("o colega aparece pela posição, como na tela do ranking", () => {
-    expect(rotuloDoColega(r(["daniel", 6], ["ana", 5]), "daniel")).toBe("Fotógrafo 1");
+  it("o colega aparece pelo nome público; sem nome, \"um colega\"", () => {
+    const ranking = [
+      { fotografoId: "daniel", vendidas: 6, nome: "Daniel Souza" },
+      { fotografoId: "ana", vendidas: 5 },
+    ];
+    expect(rotuloDoColega(ranking, "daniel")).toBe("Daniel Souza");
+    expect(rotuloDoColega(ranking, "ana")).toBe("um colega");
+    expect(rotuloDoColega(ranking, "ninguem")).toBe("um colega");
   });
 });

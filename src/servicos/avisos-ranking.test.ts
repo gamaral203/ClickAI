@@ -21,7 +21,7 @@ import * as t from "@/db/schema";
 import { avisarRanking } from "./avisos-ranking";
 
 // Avisos do ranking da equipe depois de uma venda paga: e-mail registrado para quem foi
-// ultrapassado e para quem assumiu o 1º lugar, com o colega anônimo ("Fotógrafo N").
+// ultrapassado e para quem assumiu o 1º lugar, com o nome do colega.
 
 async function fotografoNovo(nome: string) {
   const usuario = await criarUsuario({
@@ -89,7 +89,7 @@ async function pedidoPago(itens: { fotoId: string; fotografoId: string }[]) {
 }
 
 describe("avisos do ranking da equipe", () => {
-  it("avisa quem foi ultrapassado e quem assumiu o 1º lugar, sem revelar o nome", async () => {
+  it("avisa quem foi ultrapassado e quem assumiu o 1º lugar, citando o colega", async () => {
     const dono = await fotografoNovo("Ana Dona");
     const colega = await fotografoNovo("Daniel Colega");
     const evento = await criarEvento(dono.id, {
@@ -133,10 +133,9 @@ describe("avisos do ranking da equipe", () => {
     const paraDona = doRanking.find((m) => m.para === dono.email);
     const paraColega = doRanking.find((m) => m.para === colega.email);
     expect(paraDona?.texto).toContain(
-      "O Fotógrafo 1 passou você e assumiu o 1º lugar no ranking de Montaria feminina",
+      "Daniel Colega passou você e assumiu o 1º lugar no ranking de Montaria feminina",
     );
-    expect(paraDona?.texto).not.toContain("Daniel");
-    expect(paraColega?.assunto).toBe("Você está em 1º lugar!");
+        expect(paraColega?.assunto).toBe("Você está em 1º lugar!");
     expect(doRanking).toHaveLength(2);
   });
 });
