@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { EventoResumo } from "@/dados/tipos";
+import type { EventoResumo, Fotografo } from "@/dados/tipos";
 
 import {
   DESTAQUES_NA_INICIAL,
@@ -73,5 +73,38 @@ describe("fotografosDaInicial", () => {
     expect(lista.map((f) => f.fotografo.id)).toEqual(["f2", "f1"]);
     expect(lista[0].especialidades).toEqual(["Casamentos", "Festas"]);
     expect(lista[1].especialidades).toEqual(["Corridas"]);
+  });
+
+  it("inclui os colaboradores e ordena por vendas como autor, sem mostrar a quantidade", () => {
+    const eventos = [
+      evento("a", { fotografo: "dono", categoria: "Cavalgadas" }),
+      evento("b", { fotografo: "outro", categoria: "Corridas" }),
+    ];
+    const colab = { id: "colab", nomePublico: "Colab", slug: "colab" } as Fotografo;
+    const lista = fotografosDaInicial(
+      eventos,
+      [{ eventoId: "a", fotografo: colab }],
+      [
+        ["colab", 50],
+        ["dono", 12],
+        ["fora-da-lista", 99],
+      ],
+    );
+    // O colaborador vendeu mais e vem primeiro; quem não vendeu vem depois; quem não está em
+    // nenhum evento listado não entra.
+    expect(lista.map((f) => f.fotografo.id)).toEqual(["colab", "dono", "outro"]);
+    expect(lista[0].especialidades).toEqual(["Cavalgadas"]);
+    expect(Object.keys(lista[0])).toEqual(["fotografo", "especialidades"]);
+  });
+
+  it("não repete quem é dono de um evento e colaborador de outro", () => {
+    const eventos = [
+      evento("a", { fotografo: "f1", categoria: "Festas" }),
+      evento("b", { fotografo: "f2", categoria: "Corridas" }),
+    ];
+    const f1 = eventos[0].fotografo;
+    const lista = fotografosDaInicial(eventos, [{ eventoId: "b", fotografo: f1 }], []);
+    expect(lista.map((f) => f.fotografo.id)).toEqual(["f1", "f2"]);
+    expect(lista[0].especialidades).toEqual(["Festas", "Corridas"]);
   });
 });

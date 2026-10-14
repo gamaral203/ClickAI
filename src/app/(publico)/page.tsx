@@ -8,7 +8,13 @@ import { CONTAINER } from "@/components/inicio/comum";
 import { EventosEmDestaque, EventosRecentes } from "@/components/inicio/eventos-inicio";
 import { FotografosEmDestaque } from "@/components/inicio/fotografos-destaque";
 import { HeroInicio } from "@/components/inicio/hero-inicio";
-import { comissaoPadraoPct, listarEventosPublicados, vendasDaSemanaPorEvento } from "@/dados";
+import {
+  colaboradoresDosEventos,
+  comissaoPadraoPct,
+  listarEventosPublicados,
+  vendasDaSemanaPorEvento,
+  vendasPorAutor,
+} from "@/dados";
 import { destinoDaVitrine } from "@/lib/navegacao";
 import { fotografosDaInicial, separarEventosDaInicial } from "@/lib/selecao-inicio";
 import { lerFiltroEventos } from "@/lib/validacao";
@@ -51,19 +57,22 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
 /**
  * Destaque, recentes e fotógrafos saem de uma leitura só dos eventos listados (as mesmas regras
- * de /eventos: publicado, listado, liberação, senha e capa) e das vendas da semana.
+ * de /eventos: publicado, listado, liberação, senha e capa), dos colaboradores deles, das vendas
+ * da semana por evento e das vendas por autor (dono ou colaborador, pelas próprias fotos).
  */
 async function EventosEFotografos() {
-  const [eventos, vendas] = await Promise.all([
+  const [eventos, vendas, porAutor] = await Promise.all([
     listarEventosPublicados(),
     vendasDaSemanaPorEvento(),
+    vendasPorAutor(),
   ]);
+  const colaboradores = await colaboradoresDosEventos(eventos.map((e) => e.id));
   const { destaques, recentes, total } = separarEventosDaInicial(eventos, vendas);
   return (
     <>
       <EventosEmDestaque eventos={destaques} />
       <EventosRecentes eventos={recentes} total={total} />
-      <FotografosEmDestaque fotografos={fotografosDaInicial(eventos)} />
+      <FotografosEmDestaque fotografos={fotografosDaInicial(eventos, colaboradores, porAutor)} />
     </>
   );
 }

@@ -2,7 +2,8 @@ import type { EventoResumo, Fotografo } from "@/dados/tipos";
 
 // Quais eventos e fotógrafos aparecem na página inicial. Funções puras: a página lê os eventos
 // listados (`listarEventosPublicados`, que já respeita publicação, listagem, liberação, senha e
-// capa) e as vendas da semana uma vez só, e decide aqui.
+// capa), os colaboradores deles e as vendas (da semana por evento, e por autor) uma vez só, e
+// decide aqui.
 
 /** Cartões em "Eventos em destaque". */
 export const DESTAQUES_NA_INICIAL = 4;
@@ -48,22 +49,41 @@ export type FotografoDaInicial = {
 };
 
 /**
- * Fotógrafos em destaque: os donos dos eventos listados, do que publicou o evento mais recente
- * para o mais antigo, sem repetir. Especialidade = categorias dos eventos dele. Sem notas nem
- * avaliações: o ClicouAí não tem esse dado.
+ * Fotógrafos em destaque: a equipe dos eventos listados (o dono e os colaboradores com convite
+ * aceito), em ordem de fotos e vídeos vendidos como autor, em qualquer evento (`vendas`, pares
+ * [fotografoId, quantidade] de pedidos pagos; src/dados/rankings.ts). Quem ainda não vendeu vem
+ * depois, do evento mais recente para o mais antigo; empate fica na ordem do evento mais recente.
+ * Sem repetir. Especialidade = categorias dos eventos em que ele está. A quantidade só ordena:
+ * nunca aparece na página. Sem notas nem avaliações: o ClicouAí não tem esse dado.
  */
-export function fotografosDaInicial(eventos: EventoResumo[]): FotografoDaInicial[] {
+export function fotografosDaInicial(
+  eventos: EventoResumo[],
+  colaboradores: { eventoId: string; fotografo: Fotografo }[] = [],
+  vendas: [string, number][] = [],
+): FotografoDaInicial[] {
+  const equipes = new Map<string, Fotografo[]>();
+  for (const c of colaboradores) {
+    equipes.set(c.eventoId, [...(equipes.get(c.eventoId) ?? []), c.fotografo]);
+  }
   const porFotografo = new Map<string, { fotografo: Fotografo; categorias: Map<string, number> }>();
   for (const evento of eventos) {
-    const atual = porFotografo.get(evento.fotografo.id) ?? {
-      fotografo: evento.fotografo,
-      categorias: new Map<string, number>(),
-    };
-    const nome = evento.categoria.nome;
-    atual.categorias.set(nome, (atual.categorias.get(nome) ?? 0) + 1);
-    porFotografo.set(evento.fotografo.id, atual);
+    for (const fotografo of [evento.fotografo, ...(equipes.get(evento.id) ?? [])]) {
+      const atual = porFotografo.get(fotografo.id) ?? {
+        fotografo,
+        categorias: new Map<string, number>(),
+      };
+      const nome = evento.categoria.nome;
+      atual.categorias.set(nome, (atual.categorias.get(nome) ?? 0) + 1);
+      porFotografo.set(fotografo.id, atual);
+    }
   }
-  return [...porFotografo.values()].slice(0, FOTOGRAFOS_NA_INICIAL).map((f) => ({
+  const vendidas = new Map(vendas);
+  const medida = (id: string) => vendidas.get(id) ?? 0;
+  // `sort` é estável: no empate (inclusive quem não vendeu), fica a ordem do evento mais recente.
+  const ordenados = [...porFotografo.values()].sort(
+    (a, b) => medida(b.fotografo.id) - medida(a.fotografo.id),
+  );
+  return ordenados.slice(0, FOTOGRAFOS_NA_INICIAL).map((f) => ({
     fotografo: f.fotografo,
     especialidades: [...f.categorias.entries()]
       .sort((a, b) => b[1] - a[1])

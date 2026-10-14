@@ -7,7 +7,8 @@ import type { FotografoDaInicial } from "@/lib/selecao-inicio";
 import { CabecalhoSecao, CONTAINER, TRILHO_ATE_LG } from "./comum";
 
 /**
- * Fotógrafos em destaque: quem publicou os eventos mais recentes (src/lib/selecao-inicio.ts), com
+ * Fotógrafos em destaque: a equipe dos eventos listados (dono e colaboradores), dos que mais
+ * venderam como autores para os demais (src/lib/selecao-inicio.ts; sem mostrar a quantidade), com
  * a foto de perfil (ou o avatar), o nome e as categorias em que mais publica. Sem notas nem
  * avaliações: o ClicouAí não tem esse dado. "Ver perfil" abre a página pública do fotógrafo.
  */
