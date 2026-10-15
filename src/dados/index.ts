@@ -18,12 +18,14 @@ import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { avatarPadrao } from "@/lib/avatares";
 import { FOTOS_POR_PAGINA, limitarPagina, paginaDaPosicao } from "@/lib/galeria";
+import { normalizarNumero } from "@/lib/numeros-de-peito";
 import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlDaPrevia } from "@/lib/url-publica";
 
 import { capasDosEventos, capasEnviadas } from "./capa";
 import { eventosDosCupons } from "./comum";
+import { fotosComNumeros } from "./numeros";
 import {
   deIso,
   iso,
@@ -768,18 +770,14 @@ export async function eventoTemNumeros(eventoId: string): Promise<boolean> {
   return linha !== undefined;
 }
 
-/** Itens do evento em que o número de peito foi reconhecido. */
+/**
+ * Itens do evento em que o número de peito foi reconhecido. O número é normalizado como na
+ * gravação (sem zeros à esquerda: "0123" acha "123"); fora do formato, nada.
+ */
 export async function fotosPorNumero(eventoId: string, numero: string): Promise<Foto[]> {
-  const banco = await obterBanco();
-  const linhas = await banco
-    .selectDistinct({ fotoId: t.numeros.fotoId })
-    .from(t.numeros)
-    .innerJoin(t.fotos, eq(t.fotos.id, t.numeros.fotoId))
-    .where(and(eq(t.numeros.numero, numero), eq(t.fotos.eventoId, eventoId)));
-  return fotosEncontradas(
-    eventoId,
-    linhas.map((l) => l.fotoId),
-  );
+  const normalizado = normalizarNumero(numero);
+  if (normalizado === null) return [];
+  return fotosEncontradas(eventoId, await fotosComNumeros(eventoId, [normalizado]));
 }
 
 /**
@@ -1150,6 +1148,7 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
       fotoId: t.fotos.id,
       tipo: t.fotos.tipo,
       urlMiniatura: t.fotos.urlMiniatura,
+      eventoId: t.eventos.id,
       eventoTitulo: t.eventos.titulo,
       eventoSlug: t.eventos.slug,
     })
@@ -1169,6 +1168,7 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
         item,
         tipo: l.tipo,
         urlMiniatura: urlDaPrevia(l.urlMiniatura),
+        eventoId: l.eventoId,
         eventoTitulo: l.eventoTitulo,
         eventoSlug: l.eventoSlug,
       },
@@ -1199,6 +1199,9 @@ export type OriginalDoItem = {
   chave: string;
   /** Nome com que o arquivo é salvo: evento + nome original, ex. corrida-x-IMG_4000.jpg. */
   nomeArquivo: string;
+  /** Evento da foto (o download com moldura usa a moldura dele). */
+  eventoId: string;
+  tipo: "foto" | "video";
 };
 
 /**
@@ -1212,12 +1215,19 @@ export async function buscarOriginal(fotoId: string): Promise<OriginalDoItem | n
       chave: t.fotos.chaveOriginal,
       nome: t.fotos.nomeArquivo,
       slug: t.eventos.slug,
+      eventoId: t.fotos.eventoId,
+      tipo: t.fotos.tipo,
     })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
     .where(eq(t.fotos.id, fotoId));
   if (!linha?.chave) return null;
-  return { chave: linha.chave, nomeArquivo: `${linha.slug}-${linha.nome}` };
+  return {
+    chave: linha.chave,
+    nomeArquivo: `${linha.slug}-${linha.nome}`,
+    eventoId: linha.eventoId,
+    tipo: linha.tipo,
+  };
 }
 
 export async function registrarDownload(itemPedidoId: string, ip: string | null) {
@@ -1645,3 +1655,5 @@ export * from "./busca-por-rosto";
 export * from "./vendidas-do-autor";
 export * from "./colecoes";
 export * from "./historico-financeiro";
+export * from "./molduras";
+export * from "./numeros";

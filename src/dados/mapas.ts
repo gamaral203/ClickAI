@@ -89,6 +89,7 @@ export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
     "hashConteudo",
     "avisoLiberacaoEm",
     "streamUid",
+    "numerosLidosEm",
   );
   // Só prévia protegida chega ao navegador, e só da foto pronta (src/lib/url-publica.ts): a
   // chave da prévia é gravada antes de o arquivo existir, e qualquer valor fora do bucket de

@@ -38,16 +38,12 @@ async function enderecoDoOriginal(fotoId: string): Promise<OriginalParaDownload 
 }
 
 /**
- * Autoriza o download de um item e devolve o original (endereço temporário e nome do
- * arquivo), ou `null`. Só libera item de pedido pago, para quem tem o token do link ou é o
- * cliente logado dono do pedido; pendente, expirado, cancelado, estornado, em contestação ou
- * com reembolso pedido não baixa.
+ * O item, se o download dele está liberado para esta credencial; senão `null`. Só item de pedido
+ * pago, para quem tem o token do link ou é o cliente logado dono do pedido; pendente, expirado,
+ * cancelado, estornado, em contestação ou com reembolso pedido não baixa. Vale para o original e
+ * para a foto com a moldura do evento (src/servicos/molduras.ts).
  */
-export async function autorizarDownload(
-  itemId: string,
-  credencial: Credencial,
-  ip: string | null,
-): Promise<OriginalParaDownload | null> {
+export async function itemLiberadoParaDownload(itemId: string, credencial: Credencial) {
   const encontrado = await buscarItemDoPedido(itemId);
   if (!encontrado) return null;
   const { item, pedido } = encontrado;
@@ -59,6 +55,20 @@ export async function autorizarDownload(
   if (pedido.acessoExpiraEm && new Date(pedido.acessoExpiraEm).getTime() < Date.now()) {
     return null;
   }
+  return item;
+}
+
+/**
+ * Autoriza o download de um item e devolve o original (endereço temporário e nome do
+ * arquivo), ou `null` (ver itemLiberadoParaDownload).
+ */
+export async function autorizarDownload(
+  itemId: string,
+  credencial: Credencial,
+  ip: string | null,
+): Promise<OriginalParaDownload | null> {
+  const item = await itemLiberadoParaDownload(itemId, credencial);
+  if (!item) return null;
 
   const original = await enderecoDoOriginal(item.fotoId);
   if (!original) return null;

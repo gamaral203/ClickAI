@@ -363,7 +363,7 @@ describe("transferência automática", () => {
   });
 });
 
-describe("saques anteriores à migração 0038", () => {
+describe("saques anteriores à migração 0040", () => {
   it("a taxa gravada é separada em comissão e antecipação sem mudar nenhum valor", async () => {
     const { conta } = await fotografo();
     const legado = (id: string, antecipado: boolean, bruto: number, taxa: number) => ({
@@ -390,7 +390,7 @@ describe("saques anteriores à migração 0038", () => {
 
     // Roda o UPDATE da migração só nestes dois saques.
     const migracao = readFileSync(
-      path.join(process.cwd(), "src", "db", "migracoes", "0038_financeiro_v2.sql"),
+      path.join(process.cwd(), "src", "db", "migracoes", "0040_financeiro_v2.sql"),
       "utf8",
     );
     const update = migracao

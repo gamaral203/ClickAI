@@ -372,6 +372,12 @@ export const eventos = pgTable(
     /** Desligado, as faixas de desconto progressivo não valem neste evento. */
     descontoProgressivo: boolean().notNull().default(true),
     /**
+     * Lê o número de peito das fotos (Rekognition DetectText, src/servicos/numeros.ts) para a
+     * busca por número. Ligada por padrão nas categorias com peito (src/lib/numeros-de-peito.ts);
+     * cada leitura é cobrada, então nas demais fica desligada.
+     */
+    lerNumeros: boolean().notNull().default(false),
+    /**
      * Última busca por rosto no evento (selfie pública ou busca do painel), gravada no máximo a
      * cada poucas horas. Conta como atividade para não arquivar a coleção (src/servicos/
      * colecoes.ts). Nos eventos anteriores à migração 0036, começa com a última visita.
@@ -453,6 +459,12 @@ export const fotos = pgTable(
      */
     rostosIndexadosEm: data(),
     /**
+     * Quando a foto passou pela leitura do número de peito (src/servicos/numeros.ts), mesmo que
+     * sem nenhum número. Nulo: ainda não passou (evento sem a opção, leitura que falhou ou foto
+     * anterior à migração 0038); o "Ler números que faltam" e o job de revisão pegam essas.
+     */
+    numerosLidosEm: data(),
+    /**
      * Início do envio atual (a URL assinada vale 15 minutos). O job que revisa fotos presas em
      * `processando` só mexe nas que passaram bem desse prazo (src/servicos/envios.ts). Nulo nas
      * fotos anteriores à migração 0007: vale o `criado_em`.
@@ -529,9 +541,16 @@ export const numeros = pgTable(
     fotoId: uuid()
       .notNull()
       .references(() => fotos.id, { onDelete: "cascade" }),
+    /** Só dígitos, sem zeros à esquerda (src/lib/numeros-de-peito.ts, normalizarNumero). */
     numero: text().notNull(),
+    /** Confiança da leitura (0–100); nula na correção manual e nos dados de exemplo. */
+    confianca: doublePrecision(),
+    /** Onde está o número na foto, em frações de 0 a 1 (como devolve o Rekognition). */
+    caixa: jsonb().$type<{ esquerda: number; topo: number; largura: number; altura: number }>(),
+    /** Posto pelo fotógrafo no painel: a releitura da foto não o apaga. */
+    manual: boolean().notNull().default(false),
   },
-  (t) => [index().on(t.numero, t.fotoId), index().on(t.fotoId)],
+  (t) => [index().on(t.numero, t.fotoId), uniqueIndex().on(t.fotoId, t.numero)],
 ).enableRLS();
 
 // ---------------------------------------------------------------- Vendas
@@ -754,7 +773,7 @@ export const saques = pgTable(
     taxaCentavos: integer().notNull(),
     /**
      * As partes da taxa, para auditoria e para o resumo do painel. Nos saques anteriores à
-     * migração 0038 elas foram derivadas da taxa gravada, que não mudou.
+     * migração 0040 elas foram derivadas da taxa gravada, que não mudou.
      */
     comissaoCentavos: integer().notNull().default(0),
     taxaAntecipacaoCentavos: integer().notNull().default(0),
@@ -1137,3 +1156,27 @@ export const configuracoesMarca = pgTable("configuracoes_marca", {
   regeracaoPedidaEm: data(),
   regeracaoPedidaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
 }).enableRLS();
+
+// ---------------------------------------------------------------- Moldura do evento
+
+export const formatoMoldura = pgEnum("formato_moldura", ["story", "feed"]);
+
+/**
+ * Moldura do evento (docs/arquitetura.md, "Moldura do evento"): a arte em PNG com transparência
+ * que o dono do evento envia, uma por formato (story 1080×1920, feed 1080×1350). É imagem de
+ * divulgação, como a capa enviada: `chave` é o PNG conferido e regravado no bucket público
+ * (`eventos/{evento}/moldura-...png`) ou, sem R2 (desenvolvimento), a própria imagem em data:.
+ * Quem comprou a foto baixa o original já encaixado nela (src/servicos/molduras.ts).
+ */
+export const moldurasEvento = pgTable(
+  "molduras_evento",
+  {
+    eventoId: uuid()
+      .notNull()
+      .references(() => eventos.id, { onDelete: "cascade" }),
+    formato: formatoMoldura().notNull(),
+    chave: text().notNull(),
+    atualizadaEm: momento(),
+  },
+  (t) => [primaryKey({ columns: [t.eventoId, t.formato] })],
+).enableRLS();

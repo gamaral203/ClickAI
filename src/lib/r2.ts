@@ -322,12 +322,32 @@ export async function removerOriginal(chave: string) {
   await s3(config).send(new DeleteObjectCommand({ Bucket: config.bucketOriginais, Key: chave }));
 }
 
+/** Moldura do evento no bucket público (src/servicos/molduras.ts). */
+export const CHAVE_DE_MOLDURA = /^eventos\/[0-9a-f-]{36}\/moldura-(story|feed)-[0-9a-f-]{36}\.png$/;
+
+/**
+ * Lê uma moldura do evento do bucket público (para compor com a foto comprada). Só chaves de
+ * moldura: nada mais do bucket público é lido por aqui.
+ */
+export async function lerMolduraPublica(chave: string): Promise<Buffer> {
+  if (!CHAVE_DE_MOLDURA.test(chave)) throw new Error("Chave fora das molduras");
+  const config = exigirConfig();
+  const resposta = await s3(config).send(
+    new GetObjectCommand({ Bucket: config.bucketPublico, Key: chave }),
+  );
+  if (!resposta.Body) throw new Error("Objeto sem conteúdo");
+  return Buffer.from(await resposta.Body.transformToByteArray());
+}
+
 /**
  * Apaga um objeto do bucket público (prévia ou miniatura antiga, depois de a foto apontar para a
- * nova). Só chaves de `previas/` e `miniaturas/`: nada mais sai do bucket público por aqui.
+ * nova, ou a moldura trocada ou removida). Só chaves de `previas/`, `miniaturas/` e de moldura:
+ * nada mais sai do bucket público por aqui.
  */
 export async function removerPublico(chave: string) {
-  if (!/^(previas|miniaturas)\//.test(chave)) throw new Error("Chave fora das prévias");
+  if (!/^(previas|miniaturas)\//.test(chave) && !CHAVE_DE_MOLDURA.test(chave)) {
+    throw new Error("Chave fora das prévias");
+  }
   const config = exigirConfig();
   await s3(config).send(new DeleteObjectCommand({ Bucket: config.bucketPublico, Key: chave }));
 }

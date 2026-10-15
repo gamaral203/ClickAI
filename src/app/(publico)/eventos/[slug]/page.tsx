@@ -12,6 +12,7 @@ import {
   Images,
   MapPin,
   Navigation,
+  Scan,
   Video,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   buscarEventoPublicado,
   eventoTemNumeros,
+  formatosDeMoldura,
   listarFotosDoEvento,
   listarOpcoesGaleria,
   type EventoResumo,
@@ -85,6 +87,8 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
   const busca = await searchParams;
   const filtro = lerFiltroGaleria(busca);
   const pagina = lerPagina(busca.pagina);
+  // Selo da moldura oficial (só o aviso: a moldura nunca é aplicada sobre as prévias).
+  const temMoldura = (await formatosDeMoldura([evento.id])).has(evento.id);
 
   return (
     <>
@@ -146,6 +150,12 @@ async function ConteudoEvento({ params, searchParams }: PageProps<"/eventos/[slu
           </p>
           <BotaoCompartilhar url={urlDoSite(`/eventos/${evento.slug}`)} titulo={evento.titulo} />
         </div>
+        {temMoldura && (
+          <p className="flex w-fit items-center gap-2 text-sm text-muted-foreground">
+            <Scan aria-hidden="true" className="size-4 shrink-0 text-primary" />
+            Fotos deste evento podem ser baixadas com a moldura oficial
+          </p>
+        )}
       </header>
 
       <Galeria evento={evento} filtro={filtro} pagina={pagina} />
@@ -208,7 +218,8 @@ async function Galeria({
     <BuscaNoEvento
       slug={evento.slug}
       tituloEvento={evento.titulo}
-      temNumeros={temNumeros}
+      // Busca por número: com a leitura ligada ou com números já gravados (lidos ou postos à mão).
+      temNumeros={Boolean(evento.lerNumeros) || temNumeros}
       podeComprar={podeComprar(usuario)}
     />
   );
