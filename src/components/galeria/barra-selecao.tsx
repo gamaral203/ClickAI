@@ -72,14 +72,7 @@ export function BarraSelecao({
               </span>
             )}
           </motion.button>
-          {quantidade > 0 && (
-            <p
-              aria-live="polite"
-              className="max-w-28 text-center text-xs leading-tight text-balance text-white/80 tabular-nums"
-            >
-              {resumo}
-            </p>
-          )}
+          <p aria-live="polite" className="sr-only">{resumo}</p>
         </div>
 
         <div className="flex justify-end self-center">
