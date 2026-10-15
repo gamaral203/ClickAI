@@ -1636,6 +1636,7 @@ export * from "./capa";
 export * from "./suporte";
 export * from "./originais-do-dono";
 export * from "./previas";
+export * from "./configuracao-marca";
 export * from "./clientes";
 export * from "./compras-do-email";
 export * from "./manutencao";

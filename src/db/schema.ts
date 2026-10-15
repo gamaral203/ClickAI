@@ -1083,3 +1083,31 @@ export const contadoresUso = pgTable(
   },
   (t) => [primaryKey({ columns: [t.dia, t.chave] })],
 ).enableRLS();
+
+// ---------------------------------------------------------------- Proteção das prévias (gestão)
+
+/**
+ * Configuração global das prévias: marca d'água, lado maior e qualidade (src/lib/protecao-
+ * previas.ts; docs/arquitetura.md, "Prévia e marca d'água"). Cada vez que um gestor salva vira
+ * uma linha nova com a revisão seguinte, e a de maior revisão vale: o histórico de quem mudou o
+ * quê fica aqui. A revisão vai na chave das prévias geradas com ela (`-v5-r3.webp`). Sem
+ * nenhuma linha, valem os padrões (revisão 0).
+ */
+export const configuracoesMarca = pgTable("configuracoes_marca", {
+  revisao: integer().primaryKey(),
+  tamanhoPct: integer().notNull(),
+  quantidade: integer().notNull(),
+  opacidadePct: integer().notNull(),
+  larguraPrevia: integer().notNull(),
+  qualidade: integer().notNull(),
+  variacao: boolean().notNull(),
+  criadaEm: momento(),
+  /** Gestor que salvou. */
+  criadaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+  /**
+   * Quando um gestor confirmou regerar as prévias já enviadas com esta revisão (a regeração
+   * em lotes só anda com a revisão em vigor pedida; uma revisão nova para tudo até outro pedido).
+   */
+  regeracaoPedidaEm: data(),
+  regeracaoPedidaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+}).enableRLS();

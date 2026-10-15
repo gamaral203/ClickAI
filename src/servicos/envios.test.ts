@@ -1008,9 +1008,9 @@ describe("formatos aceitos (JPEG, PNG, WebP, TIFF, AVIF)", () => {
     expect(Math.max(info.width, info.height)).toBe(LARGURA_PREVIA);
     // A foto aponta para a prévia da versão atual da marca (chave com o sufixo da versão).
     expect((await linhaDaFoto(fotoId)).urlPrevia).toBe(chaves.previa);
-    expect(chaves.previa).toMatch(/-v4\.webp$/);
+    expect(chaves.previa).toMatch(/-v5-r0\.webp$/);
     // E a prévia do celular, com 1000 px, ao lado (a página da foto usa abaixo de 768 px).
-    expect(chaves.previaCelular).toMatch(/-v4-celular\.webp$/);
+    expect(chaves.previaCelular).toMatch(/-v5-r0-celular\.webp$/);
     const celular = await sharp(
       objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previaCelular))!.corpo,
     ).metadata();
