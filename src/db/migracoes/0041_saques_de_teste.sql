@@ -1,0 +1,1 @@
+ALTER TABLE "saques" ADD COLUMN "demonstracao" boolean DEFAULT false NOT NULL;

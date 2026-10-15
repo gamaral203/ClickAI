@@ -421,3 +421,54 @@ describe("saques anteriores à migração 0040", () => {
     });
   });
 });
+
+describe("vendas e saques de teste da equipe", () => {
+  it("marcados como demonstração, saem do Financeiro do fotógrafo e da gestão", async () => {
+    const { usuario, conta } = await fotografo();
+    const agora = Date.now();
+    await venda(conta.id, 400, "pix", agora - 5 * DIA);
+    await venda(conta.id, 1000, "pix", agora - 5 * DIA);
+    const r = await solicitarSaque(conta, usuario, agora);
+    if (!r.ok) throw new Error(r.motivo);
+
+    const banco = await obterBanco();
+    const lancamentos = await banco
+      .select({ item: t.lancamentos.itemPedidoId, valor: t.lancamentos.valorCentavos })
+      .from(t.lancamentos)
+      .where(eq(t.lancamentos.fotografoId, conta.id));
+    // O pedido de R$ 4,00 era teste: marcado depois, como faz o script de limpeza.
+    const deTeste = lancamentos.find((l) => l.valor === 400)!;
+    const [item] = await banco
+      .select({ pedidoId: t.itensPedido.pedidoId })
+      .from(t.itensPedido)
+      .where(eq(t.itensPedido.id, deTeste.item));
+    await banco
+      .update(t.pedidos)
+      .set({ demonstracao: true })
+      .where(eq(t.pedidos.id, item.pedidoId));
+    await banco.update(t.saques).set({ demonstracao: true }).where(eq(t.saques.id, r.saque.id));
+
+    const { listarLancamentosDoFotografo, resumoPorFotografo } = await import("@/dados");
+    const meus = await listarLancamentosDoFotografo(conta.id);
+    expect(meus.map((l) => l.valorCentavos)).toEqual([1000]);
+    expect(await listarSaquesDoFotografo(conta.id)).toEqual([]);
+    const linha = (await resumoPorFotografo()).find((f) => f.fotografoId === conta.id)!;
+    expect(linha.vendidoCentavos).toBe(1000);
+    expect(linha.sacadoCentavos).toBe(0);
+    expect(linha.taxasCentavos).toBe(0);
+    // O registro continua no banco.
+    const [saque] = await banco.select().from(t.saques).where(eq(t.saques.id, r.saque.id));
+    expect(saque.liquidoCentavos).toBe(r.saque.liquidoCentavos);
+  });
+
+  it("conta excluída não aparece no resumo por fotógrafo da gestão", async () => {
+    const { usuario, conta } = await fotografo();
+    const banco = await obterBanco();
+    await banco
+      .update(t.usuarios)
+      .set({ excluidoEm: new Date() })
+      .where(eq(t.usuarios.id, usuario.id));
+    const { resumoPorFotografo } = await import("@/dados");
+    expect((await resumoPorFotografo()).some((f) => f.fotografoId === conta.id)).toBe(false);
+  });
+});
