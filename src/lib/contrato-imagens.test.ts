@@ -80,13 +80,14 @@ describe("contrato das imagens públicas", () => {
   it("só o servidor de prévias grava no bucket público (lista fechada, revisar ao mudar)", () => {
     // Cada um destes grava só o que saiu de src/servicos/imagens.ts com a marca (prévias,
     // miniaturas, prévia do vídeo) ou uma imagem de divulgação, fora da regra das prévias
-    // (capa enviada pelo dono do evento, logo e banner da loja), numa chave fora de previas/ e
-    // miniaturas/.
+    // (capa e moldura enviadas pelo dono do evento, logo e banner da loja), numa chave fora de
+    // previas/ e miniaturas/.
     const permitidos = [
       "src/app/(fotografo)/painel/eventos/capa-acoes.ts",
       "src/app/(fotografo)/painel/loja/acoes.ts",
       "src/lib/r2.ts",
       "src/servicos/envios.ts",
+      "src/servicos/molduras.ts",
       "src/servicos/regerar-previas.ts",
     ];
     const quemGrava = codigo
