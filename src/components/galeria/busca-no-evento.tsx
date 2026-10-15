@@ -61,6 +61,8 @@ export function BuscaNoEvento({
   const [buscando, startTransition] = useTransition();
   /** Horário da busca, quando o resultado na tela veio do sessionStorage (página recarregada). */
   const [lembradoEm, setLembradoEm] = useState<number | null>(null);
+  /** Aviso de que a busca do evento está sendo preparada (rostos arquivados, reindexando). */
+  const [preparando, setPreparando] = useState<string | null>(null);
   const areaResultado = useRef<HTMLDivElement>(null);
 
   // Página recarregada (ou volta da página de uma foto): mostra o resultado da última busca por
@@ -92,7 +94,17 @@ export function BuscaNoEvento({
         const resposta = await fetch("/api/busca-facial", { method: "POST", body: corpo });
         const dados = (await resposta.json()) as Partial<NonNullable<Resultado>> & {
           erro?: string;
+          preparando?: boolean;
+          mensagem?: string;
         };
+        if (resposta.status === 202 && dados.preparando) {
+          // Rostos do evento arquivados por inatividade: o servidor já começou a reindexar.
+          setResultado(null);
+          setLembradoEm(null);
+          setPreparando(dados.mensagem ?? "Estamos preparando a busca por selfie deste evento.");
+          setDialogoAberto(false);
+          return;
+        }
         if (!resposta.ok || !dados.fotos) {
           setErroSelfie(dados.erro ?? "A busca falhou. Tente de novo.");
           return;
@@ -106,6 +118,7 @@ export function BuscaNoEvento({
         // Lembra só o resultado (fotos e pacote), nunca a selfie nem a posição do rosto.
         guardarResultado(slug, { fotos: dados.fotos, pacote: dados.pacote ?? null });
         setLembradoEm(null);
+        setPreparando(null);
         setDialogoAberto(false);
         // Leva a pessoa até as fotos encontradas, que aparecem abaixo do botão.
         requestAnimationFrame(() =>
@@ -128,6 +141,7 @@ export function BuscaNoEvento({
       try {
         setResultado({ ...(await buscarPorNumero(slug, numero)), origem: "numero" });
         setLembradoEm(null);
+        setPreparando(null);
       } catch {
         setErro("A busca falhou. Tente de novo.");
       }
@@ -225,6 +239,30 @@ export function BuscaNoEvento({
         <p role="alert" className="text-sm text-destructive">
           {erro}
         </p>
+      )}
+
+      {preparando && aba === "selfie" && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-lg bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="flex items-center gap-2">
+            <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin text-primary" />
+            {preparando}
+          </p>
+          <Button
+            variant="outline"
+            size="touch"
+            className="w-fit shrink-0"
+            disabled={buscando}
+            onClick={() => {
+              setErroSelfie(null);
+              setDialogoAberto(true);
+            }}
+          >
+            Tentar de novo
+          </Button>
+        </div>
       )}
 
       {resultado && (

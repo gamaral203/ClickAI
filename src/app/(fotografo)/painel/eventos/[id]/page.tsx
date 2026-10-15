@@ -34,6 +34,7 @@ import {
   horaDaRequisicao,
   listarPastasDoPainel,
   resumoDaLiberacao,
+  situacaoDaColecao,
   situacaoDosRostos,
   topCliquesDoEvento,
   totaisDoEvento,
@@ -50,6 +51,7 @@ import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
 import { estimarCustoDoCadastro } from "@/lib/custo-reconhecimento";
 import { provedorFacial } from "@/lib/reconhecimento";
+import { DIAS_SEM_ATIVIDADE_PARA_ARQUIVAR } from "@/servicos/colecoes";
 import { resumoParaODono } from "@/servicos/originais-do-dono";
 import { exigirFotografo } from "@/servicos/sessao";
 import { MAXIMO_DE_QUADROS } from "@/servicos/video";
@@ -98,6 +100,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     colaboradores,
     pastas,
     rostos,
+    colecao,
     top,
     totais,
     liberacao,
@@ -111,6 +114,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     listarColaboradores(evento.id, conta.id),
     listarPastasDoPainel(evento.id, conta.id),
     situacaoDosRostos(evento.id),
+    situacaoDaColecao(evento.id),
     topCliquesDoEvento(evento.id),
     totaisDoEvento(evento.id, conta.id),
     resumoDaLiberacao(evento.id, agora),
@@ -358,6 +362,14 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                   prontas={rostos.prontas}
                   comRosto={rostos.comRosto}
                   pendentes={rostos.pendentes}
+                  arquivadoEm={
+                    colecao.arquivadaEm
+                      ? {
+                          em: colecao.arquivadaEm.toISOString(),
+                          dias: DIAS_SEM_ATIVIDADE_PARA_ARQUIVAR,
+                        }
+                      : null
+                  }
                   custoParaRefazer={estimarCustoDoCadastro({
                     itens: rostos.prontas,
                     videos: rostos.videos,

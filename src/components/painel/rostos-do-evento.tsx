@@ -10,6 +10,7 @@ import {
 } from "@/app/(fotografo)/painel/eventos/rostos-acoes";
 import { Button } from "@/components/ui/button";
 import { CUSTO_REKOGNITION_POR_IMAGEM_USD, formatarDolares } from "@/lib/custo-reconhecimento";
+import { formatarData } from "@/lib/formatar";
 
 /**
  * Situação da busca por selfie no evento, o botão para cadastrar as fotos que ainda não passaram
@@ -21,6 +22,7 @@ export function RostosDoEvento({
   prontas,
   comRosto,
   pendentes,
+  arquivadoEm,
   custoParaRefazer,
   configurado,
 }: {
@@ -28,6 +30,8 @@ export function RostosDoEvento({
   prontas: number;
   comRosto: number;
   pendentes: number;
+  /** Quando os rostos foram arquivados por inatividade (ISO), ou `null` (src/servicos/colecoes.ts). */
+  arquivadoEm: { em: string; dias: number } | null;
   /** Imagens que "Refazer" manda ao Rekognition e o custo estimado (src/lib/custo-reconhecimento.ts). */
   custoParaRefazer: { imagens: number; usd: number };
   configurado: boolean;
@@ -93,6 +97,14 @@ export function RostosDoEvento({
         </p>
       ) : (
         <>
+          {arquivadoEm && (
+            <p className="rounded-lg bg-accent p-3 text-sm text-accent-foreground">
+              Os rostos deste evento foram arquivados em {formatarData(arquivadoEm.em)}, depois de{" "}
+              {arquivadoEm.dias} dias sem busca, venda nem envio, para não pagar o armazenamento no
+              reconhecimento facial. Eles voltam sozinhos na primeira busca por selfie (o cliente vê
+              que a busca está sendo preparada) ou agora, em “Cadastrar rostos que faltam”.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             {comRosto} de {prontas} fotos com rosto cadastrado
             {pendentes > 0

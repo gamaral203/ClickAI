@@ -73,7 +73,7 @@ Sem este passo, a AWS pode guardar e usar as selfies e as fotos que mandamos ao 
 5. Para conferir: **AWS Organizations → AWS accounts** → a conta do Rekognition → aba **Policies** → **AI services opt-out policies → View effective policy**: o serviço `rekognition` (ou o `default`) deve aparecer com `optOut`.
 6. Anote a data aqui e no item 20 da tabela (vira ✅). Segundo a mesma página da AWS, o opt-out também pede a exclusão do conteúdo que já tinha sido guardado antes dele.
 
-Os rostos cadastrados nas coleções (`{prefixo}-{evento_id}`) continuam na região `sa-east-1`: eles são o índice da busca, guardados por nós de propósito (ver [arquitetura.md](arquitetura.md), "Busca por selfie").
+Os rostos cadastrados nas coleções (`{prefixo}-{evento_id}`) continuam na região `sa-east-1`: eles são o índice da busca, guardados por nós de propósito, e a coleção de evento parado há 120 dias é apagada pelo job das coleções (ver [arquitetura.md](arquitetura.md), "Busca por selfie" e "Coleções arquivadas").
 
 ### Menor privilégio no banco (item 18)
 

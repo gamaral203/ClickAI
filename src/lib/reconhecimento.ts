@@ -17,6 +17,7 @@ import { createHash } from "node:crypto";
 
 import {
   CreateCollectionCommand,
+  DeleteCollectionCommand,
   DeleteFacesCommand,
   IndexFacesCommand,
   RekognitionClient,
@@ -183,6 +184,26 @@ export async function indexarRostos(
         : null;
     return [{ rostoId: r.Face.FaceId, caixa }];
   });
+}
+
+/**
+ * Apaga a coleção inteira do evento no Rekognition (rostos e índice): o armazenamento de rostos é
+ * cobrado todo mês, e evento parado não precisa dele (src/servicos/colecoes.ts). Coleção que não
+ * existe mais conta como apagada, então chamar duas vezes é seguro. Precisa da permissão
+ * rekognition:DeleteCollection; sem ela, lança o erro da AWS. `false` sem o Rekognition
+ * configurado (nada a apagar).
+ */
+export async function apagarColecao(eventoId: string): Promise<boolean> {
+  const config = configRekognition();
+  if (!config) return false;
+  const CollectionId = colecao(config, eventoId);
+  colecoesCriadas.delete(CollectionId);
+  try {
+    await rekognition(config).send(new DeleteCollectionCommand({ CollectionId }));
+  } catch (erro) {
+    if (nomeDoErro(erro) !== "ResourceNotFoundException") throw erro;
+  }
+  return true;
 }
 
 /** O DeleteFaces aceita até 4096 rostos por chamada. */

@@ -253,6 +253,13 @@
       "when": 1791999749726,
       "tag": "0035_conta_demonstracao",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792024861515,
+      "tag": "0036_colecoes_arquivadas",
+      "breakpoints": true
     }
   ]
 }

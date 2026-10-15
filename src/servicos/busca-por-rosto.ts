@@ -7,6 +7,7 @@ import {
   eventosComRostos,
   eventosDaBuscaPorRosto,
   fotosDaBuscaPorRosto,
+  registrarBuscaNosEventos,
   rostosDeExemploDoEvento,
   type EventoDaBusca,
   type FotoDaBusca,
@@ -146,6 +147,11 @@ export async function buscarPorRostoNoPainel(
   } finally {
     // Contador anônimo do Painel de uso: só quantas coleções foram consultadas hoje.
     await contarUso(CONTADOR.buscaRostoPainel, alvo.length);
+    // Atividade dos eventos consultados (adia o arquivamento das coleções): só a hora.
+    await registrarBuscaNosEventos(
+      alvo.map((e) => e.id),
+      new Date(instante),
+    ).catch(() => console.error("[busca-por-rosto] falha ao registrar a busca nos eventos"));
   }
   return { ok: true, grupos, eventosConsultados: alvo.length };
 }
