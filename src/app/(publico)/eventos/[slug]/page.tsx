@@ -26,6 +26,7 @@ import { MapaDoEvento } from "@/components/galeria/mapa-do-evento";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import {
+  autoresPorId,
   buscarEventoPublicado,
   eventoTemNumeros,
   listarFotosDoEvento,
@@ -204,13 +205,15 @@ async function Galeria({
   // Quem vende vê a busca como o cliente, mas sem os botões de compra (conta de fotógrafo não
   // compra; a regra vale no checkout).
   const [temNumeros, usuario] = await Promise.all([eventoTemNumeros(evento.id), usuarioAtual()]);
+  const compra = podeComprar(usuario);
   const busca = (
     <BuscaNoEvento
       slug={evento.slug}
       tituloEvento={evento.titulo}
       // Busca por número: com a leitura ligada ou com números já gravados (lidos ou postos à mão).
       temNumeros={Boolean(evento.lerNumeros) || temNumeros}
-      podeComprar={podeComprar(usuario)}
+      podeComprar={compra}
+      precoFotoCentavos={evento.precoFotoCentavos}
     />
   );
   // Evento com vídeos: duas abas, Fotos (padrão) e Vídeos, para achar os vídeos mais fácil.
@@ -221,6 +224,8 @@ async function Galeria({
     listarFotosDoEvento(evento.id, { pagina, limite: FOTOS_POR_PAGINA, filtro: filtroDaAba }),
     listarOpcoesGaleria(evento.id),
   ]);
+  // Crédito ao autor no visualizador (evento colaborativo: nem toda foto é do dono).
+  const autores = await autoresPorId(paginaDeFotos.fotos.map((f) => f.enviadaPor));
   const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
   const videos = aba === "video";
   return (
@@ -267,6 +272,7 @@ async function Galeria({
         {videos
           ? "Toque num vídeo para assistir e comprar."
           : "Toque numa foto para ver maior e comprar."}
+        {compra && " Para levar várias, toque no obturador no canto de cada uma."}
       </p>
       {situacao.tipo === "aberta" && situacao.proximaLiberacao && (
         <p className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
@@ -280,6 +286,10 @@ async function Galeria({
         slug={evento.slug}
         tituloEvento={evento.titulo}
         fotos={paginaDeFotos.fotos}
+        podeComprar={compra}
+        precoPadraoCentavos={evento.precoFotoCentavos}
+        precoVideoPadraoCentavos={evento.precoVideoCentavos}
+        autores={Object.fromEntries([...autores].map(([id, a]) => [id, a.nome]))}
         paginacao={{
           pagina: paginaDeFotos.pagina,
           totalPaginas: paginaDeFotos.totalPaginas,
