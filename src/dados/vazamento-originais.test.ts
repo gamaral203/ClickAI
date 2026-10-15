@@ -39,7 +39,7 @@ import { paraFoto } from "@/dados/mapas";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { gravarPublico, reiniciarClienteR2, removerPublico } from "@/lib/r2";
-import { urlPublica } from "@/lib/url-publica";
+import { IMAGEM_PROCESSANDO, urlPublica } from "@/lib/url-publica";
 
 // Nenhum caminho público entrega o original (docs/CLAUDE.md, regra 1): o tipo Foto e tudo o que
 // a galeria, a página da foto, as buscas (selfie e número), o carrinho e a compra devolvem ao
@@ -106,7 +106,10 @@ function semOriginal(valor: unknown, onde: string) {
   for (const chave of chavesOriginais) expect(json, onde).not.toContain(chave);
 }
 
-/** Todas as URLs de imagem do item são do bucket público, em previas/ ou miniaturas/. */
+/**
+ * Todas as URLs de imagem do item são do bucket público, em previas/ ou miniaturas/, ou o aviso
+ * "Processando" (src/lib/url-publica.ts, urlDaPrevia: o item que ainda não está pronto).
+ */
 function soPublicas(foto: {
   urlPrevia: string;
   urlMiniatura: string;
@@ -114,7 +117,7 @@ function soPublicas(foto: {
   previaVideo?: string | null;
 }) {
   for (const url of [foto.urlPrevia, foto.urlMiniatura, foto.urlPreviaCelular, foto.previaVideo]) {
-    if (url == null) continue;
+    if (url == null || url === IMAGEM_PROCESSANDO) continue;
     expect(url.startsWith(BASE_PUBLICA)).toBe(true);
     expect(url.slice(BASE_PUBLICA.length)).toMatch(/^(previas|miniaturas)\//);
   }
