@@ -20,6 +20,7 @@ import { z } from "zod";
 import {
   buscarFotoEmEnvio,
   concluirFoto,
+  configuracaoDaMarca,
   devolverReserva,
   hashesDoEvento,
   listarFotosParadas,
@@ -44,7 +45,7 @@ import {
   tamanhoDaParte,
 } from "@/lib/limites-envio";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
-import { SUFIXO_DA_VERSAO } from "@/lib/marca-dagua";
+import { sufixoDaVersao } from "@/lib/marca-dagua";
 import {
   abrirEnvioEmPartes,
   ERRO_SEM_ARMAZENAMENTO,
@@ -141,26 +142,29 @@ const idFoto = z.uuid();
 
 /**
  * Chaves no R2 de uma foto. O id do fotógrafo e do evento no caminho facilitam auditoria; a
- * extensão é a do formato real (o download entrega o original no formato enviado).
+ * extensão é a do formato real (o download entrega o original no formato enviado). Prévia e
+ * miniatura levam a versão da marca e a revisão da configuração global com que foram geradas
+ * (src/lib/marca-dagua.ts, sufixoDaVersao).
  */
 export function chavesDaFoto(
   fotografoId: string,
   eventoId: string,
   fotoId: string,
   formato: FormatoAceito | FormatoDeVideo = "jpeg",
+  revisaoDaMarca = 0,
 ) {
   const caminho = `${fotografoId}/${eventoId}/${fotoId}`;
+  const sufixo = sufixoDaVersao(revisaoDaMarca);
   const ext = ehFormatoDeVideo(formato)
     ? DADOS_DO_VIDEO[formato].extensao
     : DADOS_DO_FORMATO[formato].extensao;
   return {
     temporaria: `envios/${caminho}.${ext}`,
     original: `originais/${caminho}.${ext}`,
-    // Prévia e miniatura levam a versão da marca na chave (src/lib/marca-dagua.ts).
-    previa: `previas/${caminho}${SUFIXO_DA_VERSAO}`,
+    previa: `previas/${caminho}${sufixo}`,
     /** A prévia menor, para o celular (src/lib/marca-dagua.ts, chaveDaPreviaCelular). */
-    previaCelular: `previas/${caminho}${SUFIXO_DA_VERSAO.replace(/\.webp$/, "-celular.webp")}`,
-    miniatura: `miniaturas/${caminho}${SUFIXO_DA_VERSAO}`,
+    previaCelular: `previas/${caminho}${sufixo.replace(/\.webp$/, "-celular.webp")}`,
+    miniatura: `miniaturas/${caminho}${sufixo}`,
     /** Vídeo: a prévia em MP4 com a marca (no bucket público). */
     previaVideo: `previas/${caminho}-video.mp4`,
   };
@@ -552,30 +556,35 @@ export async function confirmarEnvio(
     }
     medir("conferenciaMs");
 
-    // Prévias geradas aqui, no servidor, sempre com marca d'água (no modelo do dono do evento):
-    // nunca vindas do navegador.
-    const modelo = await modeloMarcaDoEvento(foto.eventoId);
+    // Prévias geradas aqui, no servidor, sempre com marca d'água (no modelo do dono do evento,
+    // com a configuração global em vigor e o desenho próprio da foto): nunca vindas do navegador.
+    const [modelo, marca] = await Promise.all([
+      modeloMarcaDoEvento(foto.eventoId),
+      configuracaoDaMarca(),
+    ]);
     let versoes;
     try {
-      versoes = await gerarVersoes(original, modelo);
+      versoes = await gerarVersoes(original, modelo, { semente: foto.id, config: marca });
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }
     const { previa, previaCelular, miniatura, paraRostos } = versoes;
+    // As chaves levam a revisão da configuração usada.
+    const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     medir("versoesMs");
     // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
     await Promise.all([
-      gravarPublico(chaves.previa, previa.buffer, "image/webp"),
-      gravarPublico(chaves.previaCelular, previaCelular.buffer, "image/webp"),
-      gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
+      gravarPublico(publicas.previa, previa.buffer, "image/webp"),
+      gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
+      gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
       moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
     ]);
 
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
       // As chaves da versão atual da marca (a foto pode ter sido registrada antes de ela mudar).
-      urlPrevia: chaves.previa,
-      urlMiniatura: chaves.miniatura,
+      urlPrevia: publicas.previa,
+      urlMiniatura: publicas.miniatura,
       // Medidas como a foto aparece (já girada pelo EXIF), para a grade da galeria.
       largura: info.autoOrient.width,
       altura: info.autoOrient.height,
@@ -672,13 +681,18 @@ async function confirmarVideo(
 
     await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
     movido = true;
-    const modelo = await modeloMarcaDoEvento(foto.eventoId);
+    const [modelo, marca] = await Promise.all([
+      modeloMarcaDoEvento(foto.eventoId),
+      configuracaoDaMarca(),
+    ]);
+    const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     let preparado;
     try {
       preparado = await prepararVideo(
         await lerOriginal(chaves.original),
         modelo,
         (duracao) => duracao <= DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S,
+        { semente: foto.id, config: marca },
       );
     } catch (erro) {
       if (erro instanceof VideoIlegivel) {
@@ -689,17 +703,20 @@ async function confirmarVideo(
     }
     if ("recusado" in preparado) throw new ArquivoRecusado(MENSAGEM_VIDEO_LONGO);
 
-    const { previa, previaCelular, miniatura } = await gerarVersoes(preparado.quadro, modelo);
+    const { previa, previaCelular, miniatura } = await gerarVersoes(preparado.quadro, modelo, {
+      semente: foto.id,
+      config: marca,
+    });
     await Promise.all([
-      gravarPublico(chaves.previa, previa.buffer, "image/webp"),
-      gravarPublico(chaves.previaCelular, previaCelular.buffer, "image/webp"),
-      gravarPublico(chaves.miniatura, miniatura.buffer, "image/webp"),
+      gravarPublico(publicas.previa, previa.buffer, "image/webp"),
+      gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
+      gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
       gravarPublico(chaves.previaVideo, preparado.previa, "video/mp4"),
     ]);
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
-      urlPrevia: chaves.previa,
-      urlMiniatura: chaves.miniatura,
+      urlPrevia: publicas.previa,
+      urlMiniatura: publicas.miniatura,
       previaVideo: chaves.previaVideo,
       largura: preparado.largura,
       altura: preparado.altura,

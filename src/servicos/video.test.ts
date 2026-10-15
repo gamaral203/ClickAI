@@ -12,7 +12,7 @@ import { duracaoDaSaida, prepararVideo, quadrosParaRostos, VideoIlegivel } from 
 // Prévia dos vídeos com o FFmpeg: o vídeo de teste é gerado pelo próprio FFmpeg (barras de cor
 // com som), para conferir a duração, as medidas, a marca e o MP4 de saída.
 
-function videoDeTeste(segundos: number, largura: number, altura: number) {
+function videoDeTeste(segundos: number, largura: number, altura: number, extras: string[] = []) {
   const pasta = mkdtempSync(path.join(tmpdir(), "video-teste-"));
   const arquivo = path.join(pasta, "teste.mp4");
   const r = spawnSync(ffmpegPath!, [
@@ -32,6 +32,7 @@ function videoDeTeste(segundos: number, largura: number, altura: number) {
     "-c:a",
     "aac",
     "-shortest",
+    ...extras,
     "-y",
     arquivo,
   ]);
@@ -63,6 +64,22 @@ describe("prévia do vídeo com o FFmpeg", () => {
     expect(r.quadrosParaRostos).toHaveLength(1);
     expect((await sharp(r.quadrosParaRostos[0]).metadata()).format).toBe("jpeg");
     expect((await sharp(r.quadrosParaRostos[0]).metadata()).width).toBe(1920);
+  }, 120_000);
+
+  it("a prévia pública não leva GPS nem outros metadados do arquivo enviado", async () => {
+    const original = videoDeTeste(2, 320, 240, [
+      "-metadata",
+      "location=+37.7749-122.4194/",
+      "-metadata",
+      "title=Aparelho do cliente",
+      "-movflags",
+      "use_metadata_tags",
+    ]);
+    expect(original.includes(Buffer.from("+37.7749"))).toBe(true);
+    const r = await prepararVideo(original, "padrao", (d) => d <= 30.5);
+    if ("recusado" in r) throw new Error("recusou");
+    expect(r.previa.includes(Buffer.from("+37.7749"))).toBe(false);
+    expect(r.previa.includes(Buffer.from("Aparelho do cliente"))).toBe(false);
   }, 120_000);
 
   it("tira um quadro a cada 3 segundos para os rostos, até 10", async () => {

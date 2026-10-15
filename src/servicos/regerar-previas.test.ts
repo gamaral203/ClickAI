@@ -17,11 +17,17 @@ vi.mock("next/server", async (original) => ({
 }));
 
 import { GET as regerarRota } from "@/app/api/jobs/regerar-previas/route";
-import { contarFotosComPreviaAntiga, criarEvento } from "@/dados";
+import {
+  configuracaoDaMarca,
+  contarFotosComPreviaAntiga,
+  criarEvento,
+  pedirRegeracaoDasPrevias,
+  salvarConfiguracaoDaMarca,
+} from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { SUFIXO_DA_VERSAO, VERSAO_DA_MARCA, versaoDaChave } from "@/lib/marca-dagua";
+import { sufixoDaVersao, VERSAO_DA_MARCA, versaoDaChave } from "@/lib/marca-dagua";
 import { reiniciarClienteR2 } from "@/lib/r2";
 
 import { chavesDaFoto } from "./envios";
@@ -29,6 +35,7 @@ import { gerarVersoes, LARGURA_MINIATURA, LARGURA_PREVIA } from "./imagens";
 import { regerarPrevias } from "./regerar-previas";
 
 const [lia] = fotografos;
+const MINIMA = { tipo: "minima" } as const;
 
 const R2 = {
   R2_ACCOUNT_ID: "conta-teste",
@@ -99,7 +106,7 @@ async function fotoDeTeste(largura: number, altura: number) {
 }
 
 let ordem = 0;
-async function eventoComFotosAntigas(quantas: number) {
+async function eventoComFotosAntigas(quantas: number, versao = "-v2") {
   const evento = await criarEvento(lia.id, {
     categoriaId: categorias[0].id,
     titulo: "Evento ao vivo",
@@ -128,8 +135,8 @@ async function eventoComFotosAntigas(quantas: number) {
     const antiga = {
       // Chaves da versão 2 da marca (a pesada, revertida): são as que a regeração refaz. As da
       // versão 1 (sem sufixo) têm o mesmo desenho da atual e ficam como estão.
-      urlPrevia: `previas/${caminho}-v2.webp`,
-      urlMiniatura: `miniaturas/${caminho}-v2.webp`,
+      urlPrevia: `previas/${caminho}${versao}.webp`,
+      urlMiniatura: `miniaturas/${caminho}${versao}.webp`,
     };
     objetos.set(nome(R2.R2_BUCKET_ORIGINAIS, `originais/${caminho}.jpg`), original);
     objetos.set(nome(R2.R2_BUCKET_PUBLICO, antiga.urlPrevia), Buffer.from("previa-antiga"));
@@ -185,7 +192,7 @@ describe("prévia com marca d'água", () => {
 describe("regeração das prévias antigas", () => {
   it("regera em lotes com a chave nova, troca no banco, apaga as antigas e é idempotente", async () => {
     const { evento, fotos } = await eventoComFotosAntigas(5);
-    expect(await contarFotosComPreviaAntiga(evento.id)).toBe(5);
+    expect(await contarFotosComPreviaAntiga(MINIMA, evento.id)).toBe(5);
 
     // Primeiro lote: 3 fotos.
     const lote1 = await regerarPrevias({ eventoId: evento.id, limite: 3, prazoMs: 60_000 });
@@ -205,7 +212,7 @@ describe("regeração das prévias antigas", () => {
       const novas = chavesDaFoto(lia.id, evento.id, foto.id);
       expect(linha.urlPrevia).toBe(novas.previa);
       expect(linha.urlMiniatura).toBe(novas.miniatura);
-      expect(linha.urlPrevia.endsWith(SUFIXO_DA_VERSAO)).toBe(true);
+      expect(linha.urlPrevia.endsWith(sufixoDaVersao(0))).toBe(true);
       expect(versaoDaChave(linha.urlPrevia)).toBe(VERSAO_DA_MARCA);
       expect(versaoDaChave(foto.antiga.urlPrevia)).toBe(2);
       // A prévia nova existe e é pequena; a antiga saiu do bucket.
@@ -228,7 +235,7 @@ describe("regeração das prévias antigas", () => {
     expect(gravacoesPublicas.length).toBe(6);
     expect(gravacoesPublicas.filter((g) => g.chave.endsWith("-celular.webp"))).toHaveLength(2);
     for (const { chave, corpo } of gravacoesPublicas) {
-      expect(chave).toMatch(/^(previas|miniaturas)\/.+-v4(-celular)?\.webp$/);
+      expect(chave).toMatch(/^(previas|miniaturas)\/.+-v5-r0(-celular)?\.webp$/);
       expect((await sharp(corpo).metadata()).format).toBe("webp");
       for (const foto of fotos) expect(corpo.equals(foto.original)).toBe(false);
       const meta = await sharp(corpo).metadata();
@@ -286,9 +293,58 @@ describe("job de revisão", () => {
     const { rodarJobDeRevisao } = await import("./jobs");
     const resultado = await rodarJobDeRevisao();
     expect(resultado.previas?.regeradas).toBeGreaterThanOrEqual(2);
-    expect(await contarFotosComPreviaAntiga(evento.id)).toBe(0);
+    expect(await contarFotosComPreviaAntiga(MINIMA, evento.id)).toBe(0);
     for (const foto of fotos) {
-      expect((await fotoNoBanco(foto.id)).urlPrevia.endsWith(SUFIXO_DA_VERSAO)).toBe(true);
+      expect((await fotoNoBanco(foto.id)).urlPrevia.endsWith(sufixoDaVersao(0))).toBe(true);
     }
+  });
+});
+
+describe("regeração pedida pelo gestor", () => {
+  it("sem pedido, prévias da versão 4 ficam como estão; com o pedido, vão para a revisão em vigor", async () => {
+    const { evento, fotos } = await eventoComFotosAntigas(2, "-v4");
+    // Sem pedido: a regeração automática só refaz as versões 2 e 3.
+    expect(await regerarPrevias({ eventoId: evento.id, prazoMs: 60_000 })).toEqual({
+      regeradas: 0,
+      falhas: 0,
+      restantes: 0,
+    });
+    expect((await fotoNoBanco(fotos[0].id)).urlPrevia).toBe(fotos[0].antiga.urlPrevia);
+
+    // O gestor muda a configuração: a revisão nova ainda não regera nada sozinha.
+    const [gestor] = await (
+      await obterBanco()
+    )
+      .select({ id: t.usuarios.id })
+      .from(t.usuarios)
+      .where(eq(t.usuarios.papel, "admin"))
+      .limit(1);
+    const atual = await configuracaoDaMarca();
+    const revisao = await salvarConfiguracaoDaMarca(
+      { ...atual, opacidadePct: 50, quantidade: 20 },
+      gestor.id,
+    );
+    expect(await regerarPrevias({ eventoId: evento.id, prazoMs: 60_000 })).toMatchObject({
+      regeradas: 0,
+    });
+    // Pedido de uma revisão que já não vale: recusado.
+    expect(await pedirRegeracaoDasPrevias(revisao - 1, gestor.id)).toBe(false);
+    expect(await pedirRegeracaoDasPrevias(revisao, gestor.id)).toBe(true);
+
+    const r = await regerarPrevias({ eventoId: evento.id, prazoMs: 60_000 });
+    expect(r).toEqual({ regeradas: 2, falhas: 0, restantes: 0 });
+    for (const foto of fotos) {
+      const linha = await fotoNoBanco(foto.id);
+      expect(linha.urlPrevia.endsWith(sufixoDaVersao(revisao))).toBe(true);
+      expect(objetos.has(nome(R2.R2_BUCKET_PUBLICO, foto.antiga.urlPrevia))).toBe(false);
+    }
+
+    // Outra revisão salva depois: o pedido não passa para ela.
+    await salvarConfiguracaoDaMarca({ ...atual, opacidadePct: 45 }, gestor.id);
+    expect(await regerarPrevias({ eventoId: evento.id, prazoMs: 60_000 })).toMatchObject({
+      regeradas: 0,
+    });
+    // Volta aos padrões para os outros testes.
+    await salvarConfiguracaoDaMarca(atual, gestor.id);
   });
 });
