@@ -19,7 +19,7 @@ import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, sql, type SQL } f
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 /** Opção registrada na auditoria (inclui a foto individual). */
 export type ModoOriginais = (typeof t.modoOriginaisDoDono.enumValues)[number];
@@ -229,8 +229,8 @@ export async function fotosDoAutorNoEvento(eventoId: string, fotografoId: string
     .orderBy(asc(t.fotos.ordem));
   return linhas.map((l) => ({
     ...l,
-    urlMiniatura: urlPublica(l.urlMiniatura),
-    urlPrevia: urlPublica(l.urlPrevia),
+    urlMiniatura: urlDaPrevia(l.urlMiniatura),
+    urlPrevia: urlDaPrevia(l.urlPrevia),
   }));
 }
 

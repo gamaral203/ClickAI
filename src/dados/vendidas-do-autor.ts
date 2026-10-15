@@ -28,7 +28,7 @@ import {
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 import { ehEmailDeContaExcluida, NOME_CONTA_EXCLUIDA } from "./exclusao";
 import type { OriginalDoDono } from "./originais-do-dono";
@@ -162,7 +162,7 @@ export async function listarVendidasDoAutor(
         eventoTitulo: l.eventoTitulo,
         tipo: l.tipo,
         nomeArquivo: l.nomeArquivo,
-        urlMiniatura: urlPublica(l.urlMiniatura),
+        urlMiniatura: urlDaPrevia(l.urlMiniatura),
         vendidaEm: (l.pagoEm ?? l.criadoEm).toISOString(),
         compradorNome: excluida ? NOME_CONTA_EXCLUIDA : l.nome,
         compradorEmail: excluida ? null : l.email,

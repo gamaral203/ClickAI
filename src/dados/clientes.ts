@@ -13,7 +13,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 import { ehEmailDeContaExcluida, NOME_CONTA_EXCLUIDA } from "./exclusao";
 import type { TipoItem } from "./tipos";
@@ -108,7 +108,7 @@ export async function listarClientesDoFotografo(
       eventoTitulo: l.eventoTitulo,
       nomeArquivo: l.nomeArquivo,
       tipo: l.tipo,
-      urlMiniatura: urlPublica(l.urlMiniatura),
+      urlMiniatura: urlDaPrevia(l.urlMiniatura),
     });
     cliente.totalFotos++;
   }
