@@ -16,6 +16,7 @@ import { formatarPreco } from "@/lib/formatar";
 import { rotuloDaLiberacao, type EstadoLiberacao } from "@/lib/liberacao";
 
 import { BaixarOriginal } from "./baixar-original";
+import { NumerosDaFoto } from "./numeros-do-evento";
 import { VisualizadorFoto, type FotoParaVer } from "./visualizador-foto";
 
 export type ItemDoPainel = {
@@ -43,6 +44,11 @@ export type ItemDoPainel = {
    * confere a autoria de novo). Foto de colaborador fica sem o botão.
    */
   doAutor?: boolean;
+  /**
+   * Números de peito da foto. Com o campo (evento com a leitura ligada ou com números), o cartão
+   * mostra os números e a correção à mão.
+   */
+  numeros?: string[];
 };
 
 /** Seleção de fotos para liberar ou agendar (só o dono do evento). */
@@ -262,6 +268,9 @@ function Cartao({
       )}
       {eventoId && item.doAutor && item.status === "pronta" && (
         <BaixarOriginal eventoId={eventoId} fotoId={item.id} nomeArquivo={item.nomeArquivo} />
+      )}
+      {item.numeros && item.status === "pronta" && item.tipo !== "video" && (
+        <NumerosDaFoto fotoId={item.id} nomeArquivo={item.nomeArquivo} inicial={item.numeros} />
       )}
       <Preco item={item} />
       {pastas.length > 0 && <SeletorPasta item={item} pastas={pastas} />}

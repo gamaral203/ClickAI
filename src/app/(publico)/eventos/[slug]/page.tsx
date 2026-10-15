@@ -208,7 +208,8 @@ async function Galeria({
     <BuscaNoEvento
       slug={evento.slug}
       tituloEvento={evento.titulo}
-      temNumeros={temNumeros}
+      // Busca por número: com a leitura ligada ou com números já gravados (lidos ou postos à mão).
+      temNumeros={Boolean(evento.lerNumeros) || temNumeros}
       podeComprar={podeComprar(usuario)}
     />
   );
