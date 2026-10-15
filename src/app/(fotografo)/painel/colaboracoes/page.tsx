@@ -5,6 +5,7 @@ import { ChartColumn, ExternalLink } from "lucide-react";
 
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { MinhasFotosDoEvento } from "@/components/painel/minhas-fotos-do-evento";
+import { MolduraDoEvento } from "@/components/painel/moldura-do-evento";
 import { ResponderConvite } from "@/components/painel/responder-convite";
 import { TopCliques } from "@/components/painel/top-cliques";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
@@ -17,6 +18,7 @@ import {
 import { descreverPadrao } from "@/lib/liberacao";
 import { formatarPeriodo } from "@/lib/formatar";
 import { modoEnvio } from "@/lib/r2";
+import { enderecosDasMolduras } from "@/servicos/molduras";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
@@ -65,6 +67,14 @@ async function Conteudo() {
           async (c) => [c.evento.id, await fotosDoAutorNoEvento(c.evento.id, conta.id)] as const,
         ),
     ),
+  );
+  // Moldura do evento: o colaborador só vê a que o dono enviou (só o dono envia ou troca).
+  const molduras = new Map(
+    await Promise.all(
+      colaboracoes
+        .filter((c) => c.aceitoEm)
+        .map(async (c) => [c.evento.id, await enderecosDasMolduras(c.evento.id)] as const),
+    ).then((pares) => pares.filter(([, m]) => m.story || m.feed)),
   );
   const modo = modoEnvio();
   const agora = await horaDaRequisicao();
@@ -135,6 +145,14 @@ async function Conteudo() {
                 eventoId={c.evento.id}
                 fotos={minhasFotos.get(c.evento.id) ?? []}
               />
+              {molduras.has(c.evento.id) && (
+                <MolduraDoEvento
+                  eventoId={c.evento.id}
+                  molduras={molduras.get(c.evento.id)!}
+                  modo={modo}
+                  somenteLeitura
+                />
+              )}
             </>
           ) : (
             <div className="flex flex-col gap-3 rounded-lg border border-highlight-foreground/20 bg-highlight/20 p-4">

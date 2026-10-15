@@ -26,16 +26,18 @@ import {
 
 import { reduzirImagem, TIPOS_DE_IMAGEM } from "./usar-imagem-da-loja";
 
-type Aba = "capa" | "artes" | "banner";
+type Aba = "capa" | "moldura" | "artes" | "banner";
 
 const ABAS: { id: Aba; rotulo: string }[] = [
   { id: "capa", rotulo: "Capa do evento" },
+  { id: "moldura", rotulo: "Moldura" },
   { id: "artes", rotulo: "Editor de artes" },
   { id: "banner", rotulo: "Banner" },
 ];
 
 /**
- * Aba Design do evento: a capa (o componente de escolha da capa entra como `capa`), o editor de
+ * Aba Design do evento: a capa (o componente de escolha da capa entra como `capa`), a moldura
+ * das fotos compradas (entra como `moldura`), o editor de
  * artes para story e feed e o banner horizontal. As artes são geradas no servidor
  * (/painel/eventos/[id]/divulgacao/[formato]) com o modelo, a cor e a imagem escolhidos.
  */
@@ -44,11 +46,13 @@ export function DesignDoEvento({
   slug,
   publicado,
   capa,
+  moldura,
 }: {
   eventoId: string;
   slug: string;
   publicado: boolean;
   capa: ReactNode;
+  moldura: ReactNode;
 }) {
   const [aba, setAba] = useState<Aba>("capa");
   const ids = useId();
@@ -86,6 +90,8 @@ export function DesignDoEvento({
       <div role="tabpanel" id={`${ids}-painel-${aba}`} aria-labelledby={`${ids}-aba-${aba}`}>
         {aba === "capa" ? (
           capa
+        ) : aba === "moldura" ? (
+          moldura
         ) : !publicado ? (
           <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             Publique o evento para criar as artes: elas levam o QR Code e o link da página do

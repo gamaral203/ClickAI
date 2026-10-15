@@ -8,6 +8,7 @@ import { AcoesEvento } from "@/components/painel/acoes-evento";
 import { SecoesDoEvento } from "@/components/painel/secoes-do-evento";
 import { BaixarOriginais } from "@/components/painel/baixar-originais";
 import { CapaDoEvento } from "@/components/painel/capa-do-evento";
+import { MolduraDoEvento } from "@/components/painel/moldura-do-evento";
 import { Colaboradores } from "@/components/painel/colaboradores";
 import { AlternarDescontoProgressivo } from "@/components/painel/alternar-desconto-progressivo";
 import { EditorFaixas } from "@/components/painel/editor-faixas";
@@ -55,6 +56,7 @@ import { modoEnvio } from "@/lib/r2";
 import { estimarCustoDoCadastro } from "@/lib/custo-reconhecimento";
 import { provedorFacial } from "@/lib/reconhecimento";
 import { DIAS_SEM_ATIVIDADE_PARA_ARQUIVAR } from "@/servicos/colecoes";
+import { enderecosDasMolduras } from "@/servicos/molduras";
 import { provedorDeTexto } from "@/servicos/numeros";
 import { resumoParaODono } from "@/servicos/originais-do-dono";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -110,6 +112,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     liberacao,
     capas,
     originais,
+    molduras,
     numeros,
     numerosPorFoto,
   ] = await Promise.all([
@@ -128,6 +131,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     capasDosEventos([evento.id], agora),
     // Download dos originais: só o dono (conferido de novo no servidor a cada lote).
     resumoParaODono(usuario, evento.id),
+    enderecosDasMolduras(evento.id),
     situacaoDosNumeros(evento.id),
     numerosDasFotosDoEvento(evento.id),
   ]);
@@ -348,6 +352,9 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                       nomeArquivo: i.nomeArquivo,
                     }))}
                   />
+                }
+                moldura={
+                  <MolduraDoEvento eventoId={evento.id} molduras={molduras} modo={modoEnvio()} />
                 }
               />
             ),

@@ -42,7 +42,7 @@ export async function miniaturaSemMarca(
 
   let original: Buffer | null = null;
   try {
-    original = await lerArquivo(foto.chave);
+    original = await lerArquivoDoOriginal(foto.chave);
   } catch (erro) {
     console.error("[sem-marca] falha ao ler o original", { foto: foto.id }, erro);
   }
@@ -65,7 +65,11 @@ export async function miniaturaSemMarca(
   }
 }
 
-async function lerArquivo(chave: string): Promise<Buffer | null> {
+/**
+ * O arquivo original inteiro, para processar no servidor (miniatura sem marca do autor, foto
+ * comprada com a moldura do evento), ou `null` se não há original para ler.
+ */
+export async function lerArquivoDoOriginal(chave: string): Promise<Buffer | null> {
   if (chave.startsWith("originais/")) return r2Configurado() ? lerOriginal(chave) : null;
   // Dados de exemplo (só fora da produção): o original é uma imagem pública de exemplo.
   if (/^https:\/\//.test(chave) && !emProducao()) {

@@ -7,10 +7,12 @@ import { CheckCircle2, Download, ShoppingBag } from "lucide-react";
 
 import { AvisoContaDeFotografo } from "@/components/carrinho/aviso-conta-de-fotografo";
 import { CartaoSeguranca } from "@/components/conta/cartao-seguranca";
+import { BaixarComMoldura } from "@/components/pagamento/baixar-com-moldura";
 import { buttonVariants } from "@/components/ui/button";
 import {
   contarDownloads,
   detalharItensDoPedido,
+  formatosDeMoldura,
   listarPedidosDoCliente,
   type StatusPedido,
 } from "@/dados";
@@ -62,6 +64,10 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
       baixados: await contarDownloads(itens.map((i) => i.id)),
     })),
   );
+  // Eventos com a moldura oficial: a foto paga pode ser baixada já com ela (story e feed).
+  const molduras = await formatosDeMoldura(
+    comDetalhes.flatMap(({ detalhes }) => detalhes.map((d) => d.eventoId)),
+  );
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
@@ -111,8 +117,8 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
               </div>
 
               <ul className="flex flex-col divide-y">
-                {detalhes.map(({ item, tipo, urlMiniatura, eventoTitulo }) => (
-                  <li key={item.id} className="flex items-center gap-4 py-3">
+                {detalhes.map(({ item, tipo, urlMiniatura, eventoId, eventoTitulo }) => (
+                  <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                     <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
                       <Image src={urlMiniatura} alt="" fill sizes="56px" className="object-cover" />
                     </div>
@@ -138,6 +144,12 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/minhas-compras">, "se
                               ? "1 vez"
                               : `${baixados.get(item.id)} vezes`}
                           </span>
+                        )}
+                        {tipo === "foto" && (
+                          <BaixarComMoldura
+                            itemId={item.id}
+                            formatos={molduras.get(eventoId) ?? []}
+                          />
                         )}
                       </span>
                     )}
