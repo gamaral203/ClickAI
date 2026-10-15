@@ -86,7 +86,9 @@ async function regerarUma(foto: FotoComPreviaAntiga, modelo: ModeloMarca): Promi
   const liberar = await reservarMemoriaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   try {
     const original = await lerOriginal(foto.chaveOriginal);
-    const { previa, previaCelular, miniatura } = await gerarVersoes(original, modelo);
+    const { previa, previaCelular, miniatura } = await gerarVersoes(original, modelo, {
+      semente: foto.id,
+    });
     await Promise.all([
       gravarPublico(novas.previa, previa.buffer, "image/webp"),
       gravarPublico(novas.previaCelular, previaCelular.buffer, "image/webp"),

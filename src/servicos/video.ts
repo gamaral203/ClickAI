@@ -10,7 +10,7 @@ import sharp from "sharp";
 
 import type { ModeloMarca } from "@/lib/marca-dagua";
 
-import { LARGURA_ROSTOS, marcaDoVideo } from "./imagens";
+import { LARGURA_ROSTOS, marcaDoVideo, type OpcoesDaMarca } from "./imagens";
 
 // Prévia dos vídeos (docs/arquitetura.md, "Vídeos"), feita aqui mesmo na função da Vercel com o
 // FFmpeg (ffmpeg-static): os vídeos são curtos (até 30 s), então a conversão cabe no tempo da
@@ -126,6 +126,8 @@ export async function prepararVideo(
   original: Buffer,
   modelo: ModeloMarca,
   aceitar: (duracaoS: number) => boolean,
+  /** Semente e configuração da marca (src/servicos/imagens.ts): o mesmo desenho das fotos. */
+  marca: OpcoesDaMarca = { semente: "" },
 ): Promise<VideoPreparado | { recusado: true; duracaoS: number }> {
   const pasta = await mkdtemp(path.join(tmpdir(), "video-"));
   try {
@@ -161,7 +163,7 @@ export async function prepararVideo(
     if (!largura || !altura) throw new VideoIlegivel("quadro sem medidas");
 
     // 2. A marca d'água do tamanho exato da prévia, por cima de todos os quadros.
-    await writeFile(marcaPng, await marcaDoVideo(largura, altura, modelo));
+    await writeFile(marcaPng, await marcaDoVideo(largura, altura, modelo, marca));
     const conversao = await rodar([
       "-i",
       entrada,

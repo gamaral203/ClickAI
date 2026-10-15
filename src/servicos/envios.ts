@@ -557,7 +557,7 @@ export async function confirmarEnvio(
     const modelo = await modeloMarcaDoEvento(foto.eventoId);
     let versoes;
     try {
-      versoes = await gerarVersoes(original, modelo);
+      versoes = await gerarVersoes(original, modelo, { semente: foto.id });
     } catch {
       throw new ArquivoRecusado(ERRO_LEITURA);
     }
@@ -679,6 +679,7 @@ async function confirmarVideo(
         await lerOriginal(chaves.original),
         modelo,
         (duracao) => duracao <= DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S,
+        { semente: foto.id },
       );
     } catch (erro) {
       if (erro instanceof VideoIlegivel) {
@@ -689,7 +690,9 @@ async function confirmarVideo(
     }
     if ("recusado" in preparado) throw new ArquivoRecusado(MENSAGEM_VIDEO_LONGO);
 
-    const { previa, previaCelular, miniatura } = await gerarVersoes(preparado.quadro, modelo);
+    const { previa, previaCelular, miniatura } = await gerarVersoes(preparado.quadro, modelo, {
+      semente: foto.id,
+    });
     await Promise.all([
       gravarPublico(chaves.previa, previa.buffer, "image/webp"),
       gravarPublico(chaves.previaCelular, previaCelular.buffer, "image/webp"),
