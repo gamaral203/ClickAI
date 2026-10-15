@@ -9,6 +9,7 @@ import {
 } from "@/app/(fotografo)/painel/perfil/mfa-acoes";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { Label } from "@/components/ui/label";
 import { formatarData } from "@/lib/formatar";
 
@@ -132,13 +133,13 @@ export function VerificacaoDuasEtapas({
           {temSenha && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="mfa-senha">Senha atual</Label>
-              <Input
+              <InputSenha
                 id="mfa-senha"
                 name="senha"
-                type="password"
+                nome="senha atual"
                 autoComplete="current-password"
                 required
-                className="h-11 max-w-sm"
+                classeContainer="max-w-sm"
               />
             </div>
           )}

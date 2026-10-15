@@ -10,6 +10,7 @@ import {
 } from "@/app/(fotografo)/painel/perfil/acoes";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { Label } from "@/components/ui/label";
 import { formatarDataEHora } from "@/lib/formatar";
 
@@ -114,15 +115,14 @@ export function FormularioPerfil({
       {temSenha && (
         <div className="flex flex-col gap-2">
           <Label htmlFor="senhaAtual">Senha atual (só para trocar o CPF/CNPJ)</Label>
-          <Input
+          <InputSenha
             id="senhaAtual"
             name="senhaAtual"
-            type="password"
+            nome="senha atual"
             autoComplete="current-password"
             maxLength={200}
             aria-invalid={Boolean(erros.senhaAtual)}
             aria-describedby={erros.senhaAtual ? "senhaAtual-erro" : undefined}
-            className="h-11"
           />
           {erros.senhaAtual && (
             <p id="senhaAtual-erro" className="text-sm text-destructive">

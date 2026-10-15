@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react";
+import { useActionState } from "react";
+import { KeyRound, Loader2 } from "lucide-react";
 
 import { trocarSenhaAcao, type EstadoSenha } from "@/app/(cliente)/conta/seguranca/acoes";
 import { AvisoSalvo, Campo, propsDeErro } from "@/components/painel/campos";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { enviarSemLimpar } from "@/lib/formulario";
 import { TAMANHO_MINIMO_SENHA } from "@/lib/regras-senha";
 
@@ -125,38 +126,18 @@ export function CampoSenha({
   erro?: string;
   ajuda?: string;
 }) {
-  const [visivel, setVisivel] = useState(false);
   return (
     <Campo rotulo={rotulo} id={id} erro={erro} ajuda={ajuda}>
-      <div className="relative">
-        <Input
-          {...propsDeErro(id, erro)}
-          name={id}
-          type={visivel ? "text" : "password"}
-          autoComplete={autoComplete}
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          maxLength={200}
-          className="h-11 pr-12"
-        />
-        <button
-          type="button"
-          onClick={() => setVisivel((v) => !v)}
-          aria-label={
-            visivel ? `Ocultar ${rotulo.toLowerCase()}` : `Mostrar ${rotulo.toLowerCase()}`
-          }
-          aria-pressed={visivel}
-          aria-controls={id}
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          {visivel ? (
-            <EyeOff aria-hidden="true" className="size-5" />
-          ) : (
-            <Eye aria-hidden="true" className="size-5" />
-          )}
-        </button>
-      </div>
+      <InputSenha
+        {...propsDeErro(id, erro)}
+        name={id}
+        nome={rotulo.toLowerCase()}
+        autoComplete={autoComplete}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        maxLength={200}
+      />
     </Campo>
   );
 }
