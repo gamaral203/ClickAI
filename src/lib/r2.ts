@@ -281,8 +281,16 @@ export async function lerTrecho(chave: string, inicio: number, fim: number): Pro
 }
 
 
-/** Grava no bucket público (prévias e miniaturas), com cache longo: a chave nunca muda. */
+/** Prefixos que podem ir ao bucket público: prévias, miniaturas, capas de evento e da loja. */
+const PREFIXOS_PUBLICOS = /^(previas|miniaturas|eventos|perfis)\//;
+
+/**
+ * Grava no bucket público (prévias e miniaturas), com cache longo: a chave nunca muda. Recusa
+ * qualquer chave fora dos prefixos públicos: um original (`originais/`, `envios/`) nunca vai
+ * para lá, nem por engano.
+ */
 export async function gravarPublico(chave: string, conteudo: Buffer, tipo: string) {
+  if (!PREFIXOS_PUBLICOS.test(chave)) throw new Error("Chave fora do bucket público");
   const config = exigirConfig();
   await s3(config).send(
     new PutObjectCommand({

@@ -38,7 +38,7 @@ import { categorias, fotografos } from "@/dados/exemplo/dados";
 import { paraFoto } from "@/dados/mapas";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { reiniciarClienteR2, removerPublico } from "@/lib/r2";
+import { gravarPublico, reiniciarClienteR2, removerPublico } from "@/lib/r2";
 import { urlPublica } from "@/lib/url-publica";
 
 // Nenhum caminho público entrega o original (docs/CLAUDE.md, regra 1): o tipo Foto e tudo o que
@@ -292,6 +292,20 @@ describe("saber a chave não basta (item 5)", () => {
       "eventos/x/capa.webp",
     ]) {
       await expect(removerPublico(chave)).rejects.toThrow("Chave fora das prévias");
+    }
+  });
+
+  it("gravarPublico recusa original, envio e qualquer chave fora dos prefixos públicos", async () => {
+    for (const chave of [
+      chavesOriginais[0],
+      `envios/${lia.id}/${evento.id}/${randomUUID()}.jpg`,
+      "../previas/x.webp",
+      "denuncias/x/anexo.jpg",
+      "",
+    ]) {
+      await expect(gravarPublico(chave, Buffer.from("x"), "image/webp")).rejects.toThrow(
+        "Chave fora do bucket público",
+      );
     }
   });
 });
