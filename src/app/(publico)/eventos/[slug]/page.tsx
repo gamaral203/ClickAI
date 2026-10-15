@@ -204,13 +204,14 @@ async function Galeria({
   // Quem vende vê a busca como o cliente, mas sem os botões de compra (conta de fotógrafo não
   // compra; a regra vale no checkout).
   const [temNumeros, usuario] = await Promise.all([eventoTemNumeros(evento.id), usuarioAtual()]);
+  const compra = podeComprar(usuario);
   const busca = (
     <BuscaNoEvento
       slug={evento.slug}
       tituloEvento={evento.titulo}
       // Busca por número: com a leitura ligada ou com números já gravados (lidos ou postos à mão).
       temNumeros={Boolean(evento.lerNumeros) || temNumeros}
-      podeComprar={podeComprar(usuario)}
+      podeComprar={compra}
     />
   );
   // Evento com vídeos: duas abas, Fotos (padrão) e Vídeos, para achar os vídeos mais fácil.
@@ -267,6 +268,7 @@ async function Galeria({
         {videos
           ? "Toque num vídeo para assistir e comprar."
           : "Toque numa foto para ver maior e comprar."}
+        {compra && " Para levar várias, toque no obturador no canto de cada uma."}
       </p>
       {situacao.tipo === "aberta" && situacao.proximaLiberacao && (
         <p className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
@@ -280,6 +282,9 @@ async function Galeria({
         slug={evento.slug}
         tituloEvento={evento.titulo}
         fotos={paginaDeFotos.fotos}
+        podeComprar={compra}
+        precoPadraoCentavos={evento.precoFotoCentavos}
+        precoVideoPadraoCentavos={evento.precoVideoCentavos}
         paginacao={{
           pagina: paginaDeFotos.pagina,
           totalPaginas: paginaDeFotos.totalPaginas,
