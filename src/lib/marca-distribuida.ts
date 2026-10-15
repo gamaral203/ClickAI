@@ -1,5 +1,5 @@
 import type { ModeloMarca } from "./marca-dagua";
-import { LIMITES_MARCA, type ConfigMarca } from "./protecao-previas";
+import { CONFIG_MARCA_PADRAO, LIMITES_MARCA, type ConfigMarca } from "./protecao-previas";
 
 // Onde vai cada logo da marca d'água de uma prévia (docs/arquitetura.md, "Prévia e marca
 // d'água"; docs/riscos.md, "Marca d'água removida com ferramentas de IA"). Só a geometria, sem
@@ -263,4 +263,142 @@ export function planejarMarcas({
   // Nenhuma logo mais alta que a foto (fotos muito estreitas).
   for (const m of marcas) m.largura = Math.max(8, Math.min(m.largura, menor * PROPORCAO_DA_LOGO));
   return { marcas, faseDaGrade };
+}
+
+// ---------------------------------------------------------------- Trama sobre a foto inteira
+
+// Por baixo das logos, uma trama fina cobre a foto toda, em todos os modelos: microlográficas
+// (a logo bem pequena, repetida em clara e escura) e linhas finas onduladas em duas direções.
+// As logos soltas deixam áreas limpas que um "removedor de marca" por IA preenche bem; a trama
+// não deixa área limpa nenhuma, então a remoção tem de reconstruir a foto inteira, o que borra o
+// detalhe (rosto, número de peito) e troca a pessoa por outra parecida. Por ser de alta
+// frequência e baixa opacidade, a pessoa ainda se reconhece na prévia. Ângulos, vãos, ondas e
+// posições variam por foto (semente própria, separada da das logos) e, dentro da foto, de linha
+// para linha: sem um padrão periódico fixo, um filtro de frequência não tira a trama de uma
+// vez. Continua sem tornar a remoção impossível: deixa mais cara e pior.
+
+/** Proporções da trama. A opacidade acompanha a do gestor, sem cair abaixo do piso. */
+export const TRAMA = {
+  /** Largura da microlográfica, em fração do lado maior da versão (e o mínimo em px). */
+  micro: { previa: 0.05, miniatura: 0.1 },
+  microMinimaPx: 34,
+  /** Vão das linhas, em fração do lado maior da versão (e o mínimo em px). */
+  passoLinhas: { previa: 0.03, miniatura: 0.07 },
+  passoMinimoPx: 14,
+  /** Opacidades com a configuração padrão (a clara e a escura, por baixo). */
+  opacidadeMicro: 0.26,
+  opacidadeLinhas: 0.2,
+  /** A escura em relação à clara (a trama aparece em céu claro e em roupa escura). */
+  escuraRelativa: 0.7,
+  /** Faixa do ajuste pela opacidade do gestor: nunca menos que 85% da trama padrão. */
+  fator: { min: 0.85, max: 1.3 },
+} as const;
+
+export type MicroDaTrama = { x: number; y: number; angulo: number };
+
+export type LinhaDaTrama = { pontos: [number, number][] };
+
+export type PlanoDaTrama = {
+  /** Largura de cada microlográfica, em px. */
+  larguraMicro: number;
+  micros: MicroDaTrama[];
+  linhas: LinhaDaTrama[];
+  /** Espessura das linhas, em px. */
+  espessura: number;
+  /** Deslocamento da cópia escura (sombra), em px. */
+  deslocamento: number;
+  opacidadeMicro: number;
+  opacidadeLinhas: number;
+  escuraRelativa: number;
+};
+
+/** Plano da trama de uma versão de uma foto (sem Sharp; o desenho fica em imagens.ts). */
+export function planejarTrama({
+  largura,
+  altura,
+  semente,
+  config,
+  versao,
+}: {
+  largura: number;
+  altura: number;
+  semente: string;
+  config: ConfigMarca;
+  versao: TipoDeVersao;
+}): PlanoDaTrama {
+  const varia = config.variacao;
+  const sorteio = gerador(varia ? sementeDe(`trama:${semente}`) : 0x7a3a);
+  const jitter = () => (varia ? sorteio() * 2 - 1 : 0);
+  const maior = Math.max(largura, altura);
+  const fator = prender(
+    config.opacidadePct / CONFIG_MARCA_PADRAO.opacidadePct,
+    TRAMA.fator.min,
+    TRAMA.fator.max,
+  );
+
+  // Microlográficas: grade com vão de ~1,8 logo na linha e ~2,6 alturas entre linhas, com a
+  // posição de cada uma sorteada dentro da célula, e as linhas ímpares deslocadas.
+  const larguraMicro = Math.max(TRAMA.microMinimaPx, maior * TRAMA.micro[versao]);
+  const alturaMicro = larguraMicro / PROPORCAO_DA_LOGO;
+  const celulaX = larguraMicro * (1.8 + jitter() * 0.15);
+  const celulaY = alturaMicro * (2.6 + jitter() * 0.3);
+  const anguloMicro = (sorteio() < 0.5 && varia ? -1 : 1) * (18 + jitter() * 10);
+  const faseX = (varia ? sorteio() : 0.5) * celulaX;
+  const faseY = (varia ? sorteio() : 0.5) * celulaY;
+  const micros: MicroDaTrama[] = [];
+  for (let j = -1; j * celulaY < altura + celulaY; j++) {
+    for (let i = -1; i * celulaX < largura + celulaX; i++) {
+      const x = i * celulaX + (j & 1 ? celulaX / 2 : 0) + faseX + jitter() * 0.25 * celulaX;
+      const y = j * celulaY + faseY + jitter() * 0.25 * celulaY;
+      const angulo = anguloMicro + jitter() * 7;
+      if (x < -larguraMicro / 2 || x > largura + larguraMicro / 2) continue;
+      if (y < -alturaMicro || y > altura + alturaMicro) continue;
+      micros.push({ x, y, angulo });
+    }
+  }
+
+  // Linhas onduladas em duas direções que não são perpendiculares (60 a 80 graus entre elas),
+  // com o vão e a onda de cada linha sorteados.
+  const passo = Math.max(TRAMA.passoMinimoPx, maior * TRAMA.passoLinhas[versao]);
+  const base = 30 + jitter() * 12;
+  const angulos = [base, base + 70 + jitter() * 10];
+  const diagonal = Math.hypot(largura, altura);
+  const linhas: LinhaDaTrama[] = [];
+  for (const graus of angulos) {
+    const rad = (graus * Math.PI) / 180;
+    // Direção da linha (d) e a normal (n), a partir do centro da foto.
+    const [dx, dy] = [Math.cos(rad), Math.sin(rad)];
+    const [nx, ny] = [-dy, dx];
+    const fase = (varia ? sorteio() : 0.5) * passo;
+    const quantas = Math.ceil(diagonal / passo / 2) + 1;
+    for (let k = -quantas; k <= quantas; k++) {
+      const desvio = k * passo + fase + jitter() * 0.3 * passo;
+      const amplitude = passo * (0.1 + (varia ? sorteio() : 0.5) * 0.12);
+      const onda = diagonal * (0.18 + (varia ? sorteio() : 0.5) * 0.2);
+      const faseOnda = (varia ? sorteio() : 0) * Math.PI * 2;
+      const pontos: [number, number][] = [];
+      const degrau = Math.max(6, onda / 10);
+      for (let t = -diagonal / 2; t <= diagonal / 2 + degrau; t += degrau) {
+        const s = desvio + amplitude * Math.sin((t / onda) * Math.PI * 2 + faseOnda);
+        const x = largura / 2 + t * dx + s * nx;
+        const y = altura / 2 + t * dy + s * ny;
+        pontos.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+      }
+      // Só as linhas que passam pela foto.
+      if (pontos.some(([x, y]) => x >= 0 && x <= largura && y >= 0 && y <= altura)) {
+        linhas.push({ pontos });
+      }
+    }
+  }
+
+  return {
+    larguraMicro,
+    micros,
+    linhas,
+    espessura: Math.max(1, Math.round(maior / 1500)),
+    deslocamento: Math.max(1, Math.round(maior / 1200)),
+    opacidadeMicro: TRAMA.opacidadeMicro * fator,
+    opacidadeLinhas: TRAMA.opacidadeLinhas * fator,
+    escuraRelativa: TRAMA.escuraRelativa,
+  };
 }

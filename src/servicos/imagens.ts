@@ -10,8 +10,10 @@ import { MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
 import {
   ESTILOS_DOS_MODELOS,
   planejarMarcas,
+  planejarTrama,
   type Marca,
   type PlanoDaMarca,
+  type PlanoDaTrama,
   type TipoDeVersao,
 } from "@/lib/marca-distribuida";
 import { CONFIG_MARCA_PADRAO, type ConfigMarca } from "@/lib/protecao-previas";
@@ -22,8 +24,9 @@ import { CONFIG_MARCA_PADRAO, type ConfigMarca } from "@/lib/protecao-previas";
 // Usada no processamento de cada foto enviada (src/servicos/envios.ts), na regeração
 // (src/servicos/regerar-previas.ts), nos vídeos (src/servicos/video.ts) e nos dados de exemplo.
 //
-// O desenho (onde vai cada logo) sai de src/lib/marca-distribuida.ts: grade espalhada com
-// variação por foto, logo grande no centro e outra cruzada no terço de cima. Os parâmetros vêm da
+// O desenho (onde vai cada logo) sai de src/lib/marca-distribuida.ts: trama fina cobrindo a foto
+// inteira (microlográficas e linhas onduladas), grade espalhada de logos com variação por foto,
+// logo grande no centro e outra cruzada no terço de cima. Os parâmetros vêm da
 // configuração global do gestor (src/lib/protecao-previas.ts) e do modelo do fotógrafo.
 //
 // Desempenho (uma foto de 24 MP por vez numa função de 1 vCPU): o original é decodificado uma
@@ -237,6 +240,82 @@ async function colar(
 }
 
 /**
+ * A microlográfica da trama já girada (só o alfa). O giro é arredondado a 1 grau e as poucas
+ * combinações de largura e giro ficam em memória (as menos usadas saem).
+ */
+const microsGiradas = new Map<string, Promise<Alfa>>();
+const MAXIMO_DE_MICROS = 256;
+function microGirada(largura: number, graus: number): Promise<Alfa> {
+  const giro = Math.round(graus);
+  const chave = `${Math.round(largura)}:${giro}`;
+  const existente = microsGiradas.get(chave);
+  if (existente) return existente;
+  if (microsGiradas.size >= MAXIMO_DE_MICROS) {
+    microsGiradas.delete(microsGiradas.keys().next().value!);
+  }
+  return lembrar(microsGiradas, chave, async () => girar(await alfaDaLogo(largura), giro));
+}
+
+/**
+ * As microlográficas da trama (src/lib/marca-distribuida.ts, planejarTrama) numa camada do
+ * tamanho da foto, em pixels crus RGBA: primeiro a cópia escura (deslocada), depois a clara, no
+ * modo "over". Em JavaScript direto, sem SVG: são centenas de logos pequenas por versão.
+ */
+async function camadaDasMicros(largura: number, altura: number, trama: PlanoDaTrama) {
+  const px = Buffer.alloc(largura * altura * 4);
+  const giradas = await Promise.all(
+    trama.micros.map((m) => microGirada(trama.larguraMicro, m.angulo)),
+  );
+  const pintar = (cor: number, opacidade: number, desloca: number) => {
+    trama.micros.forEach((m, k) => {
+      const alfa = giradas[k];
+      const x0 = Math.round(m.x - alfa.largura / 2) + desloca;
+      const y0 = Math.round(m.y - alfa.altura / 2) + desloca;
+      for (let y = Math.max(0, -y0); y < alfa.altura && y0 + y < altura; y++) {
+        for (let x = Math.max(0, -x0); x < alfa.largura && x0 + x < largura; x++) {
+          const a = (alfa.data[y * alfa.largura + x] / 255) * opacidade;
+          if (a <= 0) continue;
+          const i = ((y0 + y) * largura + x0 + x) * 4;
+          const embaixo = px[i + 3] / 255;
+          const total = a + embaixo * (1 - a);
+          const c = (cor * a + px[i] * embaixo * (1 - a)) / total;
+          px[i] = px[i + 1] = px[i + 2] = Math.round(c);
+          px[i + 3] = Math.round(total * 255);
+        }
+      }
+    });
+  };
+  pintar(0, trama.opacidadeMicro * trama.escuraRelativa, trama.deslocamento);
+  pintar(255, trama.opacidadeMicro, 0);
+  return px;
+}
+
+/** As linhas onduladas da trama em SVG do tamanho da foto: a escura (deslocada) e a clara. */
+function svgDasLinhas(largura: number, altura: number, trama: PlanoDaTrama) {
+  const caminho = trama.linhas
+    .map((l) => "M" + l.pontos.map(([x, y]) => `${x},${y}`).join("L"))
+    .join("");
+  const d = trama.deslocamento;
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">` +
+      `<path d="${caminho}" stroke="#000" stroke-opacity="${(trama.opacidadeLinhas * trama.escuraRelativa).toFixed(3)}" stroke-width="${trama.espessura}" transform="translate(${d},${d})" fill="none"/>` +
+      `<path d="${caminho}" stroke="#fff" stroke-opacity="${trama.opacidadeLinhas.toFixed(3)}" stroke-width="${trama.espessura}" fill="none"/>` +
+      `</svg>`,
+  );
+}
+
+/** A trama inteira: as linhas e, por cima, as microlográficas. */
+async function trama(largura: number, altura: number, plano: PlanoDaTrama) {
+  return [
+    { input: svgDasLinhas(largura, altura, plano) },
+    {
+      input: await camadaDasMicros(largura, altura, plano),
+      raw: { width: largura, height: altura, channels: 4 as const },
+    },
+  ] satisfies OverlayOptions[];
+}
+
+/**
  * Linhas finas cruzadas na diagonal (as duas direções), claras com uma sombra escura do lado,
  * em SVG do tamanho da foto, deslocadas pela fase da foto. Só linhas: não depende de fonte.
  */
@@ -342,13 +421,14 @@ async function avisosDeProtecao(largura: number, altura: number): Promise<Overla
 }
 
 /**
- * Tudo o que vai por cima da foto, de baixo para cima: grade de logos, anéis, linhas, logo do
- * centro e a do terço de cima, avisos. Colado direto na foto (sem uma camada inteira no meio).
+ * Tudo o que vai por cima da foto, de baixo para cima: trama, grade de logos, anéis, linhas, logo
+ * do centro e a do terço de cima, avisos. Colado direto na foto (sem uma camada inteira no meio).
  */
 async function sobreposicoes(
   largura: number,
   altura: number,
   plano: PlanoDaMarca,
+  planoDaTrama: PlanoDaTrama,
   modelo: ModeloMarca,
 ): Promise<OverlayOptions[]> {
   const estilo = ESTILOS_DOS_MODELOS[modelo];
@@ -361,7 +441,10 @@ async function sobreposicoes(
   const daMarca = (papeis: Marca["papel"][]) =>
     coladas.flatMap((c) => (c.overlay && papeis.includes(c.papel) ? [c.overlay] : []));
 
-  const sobre: OverlayOptions[] = daMarca(["grade"]);
+  const sobre: OverlayOptions[] = [
+    ...(await trama(largura, altura, planoDaTrama)),
+    ...daMarca(["grade"]),
+  ];
   if (estilo.protecao) sobre.push({ input: svgDosAneis(largura, altura) });
   if (estilo.grade) {
     const passo = Math.max(24, Math.round(largura * estilo.grade.passo));
@@ -382,15 +465,10 @@ function marcasDaFoto(
   tipo: TipoDeVersao,
   opcoes: OpcoesDaMarca,
 ) {
-  const plano = planejarMarcas({
-    largura,
-    altura,
-    semente: opcoes.semente,
-    config: opcoes.config ?? CONFIG_MARCA_PADRAO,
-    modelo,
-    versao: tipo,
-  });
-  return sobreposicoes(largura, altura, plano, modelo);
+  const config = opcoes.config ?? CONFIG_MARCA_PADRAO;
+  const base = { largura, altura, semente: opcoes.semente, config, versao: tipo };
+  const plano = planejarMarcas({ ...base, modelo });
+  return sobreposicoes(largura, altura, plano, planejarTrama(base), modelo);
 }
 
 /** Camada transparente do tamanho do vídeo com as marcas (em pixels crus RGBA). */

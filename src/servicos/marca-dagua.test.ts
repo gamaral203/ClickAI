@@ -81,6 +81,47 @@ describe("marca distribuída nas prévias geradas", () => {
     expect(diferentes / pa.length).toBeGreaterThan(0.03);
   });
 
+  it("a trama cobre a foto inteira: nenhum pedaço de 10% fica liso, no escuro e no claro", async () => {
+    // Contra o "removedor de marca" por IA: sem área limpa, ele tem de refazer a foto toda.
+    for (const fundo of [30, 225]) {
+      const original = await sharp({
+        create: {
+          width: 1500,
+          height: 1000,
+          channels: 3,
+          background: { r: fundo, g: fundo, b: fundo },
+        },
+      })
+        .jpeg({ quality: 95 })
+        .toBuffer();
+      const v = await gerarVersoes(original, "discreta", { semente: `trama-${fundo}` });
+      for (const [nome, imagem] of [
+        ["prévia", v.previa],
+        ["celular", v.previaCelular],
+        ["miniatura", v.miniatura],
+      ] as const) {
+        const { data, info } = await sharp(imagem.buffer)
+          .greyscale()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const [bw, bh] = [Math.floor(info.width / 10), Math.floor(info.height / 10)];
+        for (let by = 0; by < 10; by++) {
+          for (let bx = 0; bx < 10; bx++) {
+            let [min, max] = [255, 0];
+            for (let y = by * bh; y < (by + 1) * bh; y++) {
+              for (let x = bx * bw; x < (bx + 1) * bw; x++) {
+                const p = data[y * info.width + x];
+                if (p < min) min = p;
+                if (p > max) max = p;
+              }
+            }
+            expect(max - min, `${nome}, fundo ${fundo}, bloco ${bx},${by}`).toBeGreaterThan(12);
+          }
+        }
+      }
+    }
+  });
+
   it("sem EXIF, GPS nem perfil na prévia, na do celular e na miniatura", async () => {
     const original = await fotoComExif();
     expect((await sharp(original).metadata()).exif).toBeDefined();

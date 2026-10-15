@@ -44,11 +44,15 @@ export const LIMITES_MARCA = {
   qualidade: { min: 45, max: 85 },
 } as const;
 
-/** Padrões seguros (o desenho de antes, agora espalhado e variando por foto). */
+/**
+ * Padrões seguros (o desenho de antes, espalhado e variando por foto). Em 14/10/2026 subiram de
+ * 16 para 20 logos e de 42% para 45% de opacidade, junto com a trama sobre a foto inteira
+ * (src/lib/marca-distribuida.ts, planejarTrama), comparados com `npm run marcas:comparar`.
+ */
 export const CONFIG_MARCA_PADRAO: Readonly<ConfigMarca> = {
   tamanhoPct: 100,
-  quantidade: 16,
-  opacidadePct: 42,
+  quantidade: 20,
+  opacidadePct: 45,
   larguraPrevia: 1600,
   qualidade: 72,
   variacao: true,
@@ -120,16 +124,17 @@ export const CONFIG_MARCA_INICIAL: Readonly<ConfigMarcaVigente> = {
 /**
  * Premissas da estimativa mostrada ao gestor antes de regerar as prévias já enviadas. São
  * estimativas, não cobrança: o valor real depende do plano e das cotas grátis.
- *   - CPU: medido com `npm run marcas:comparar` (scripts/comparar-marcas.ts), ~0,45 s por foto de
- *     24 MP numa vCPU para decodificar e gerar as três versões com a marca; a leitura do
- *     original no R2 (~1 a 2 s) é espera de rede, não CPU.
+ *   - CPU: medido com `npm run marcas:comparar` (scripts/comparar-marcas.ts), ~0,6 s por foto de
+ *     24 MP numa vCPU para decodificar e gerar as três versões com a marca e a trama (14/10/2026:
+ *     ~0,52 s com a trama contra ~0,34 s sem ela, na mesma máquina, arredondado para cima); a
+ *     leitura do original no R2 (~1 a 2 s) é espera de rede, não CPU.
  *   - Vazão: 6 fotos ao mesmo tempo, ~2,5 fotos por segundo (docs/arquitetura.md).
  *   - Vercel: CPU ativa a ~US$ 0,128 por hora (preço de referência; varia por região e plano).
  *   - R2: 3 gravações (classe A, US$ 4,50 por milhão) e 1 leitura (classe B, US$ 0,36 por
  *     milhão) por foto; apagar as antigas não é cobrado; saída da CDN do R2 não é cobrada.
  */
 export const PREMISSAS_REGERACAO = {
-  segundosDeCpuPorFoto: 0.45,
+  segundosDeCpuPorFoto: 0.6,
   fotosPorSegundo: 2.5,
   usdPorHoraDeCpu: 0.128,
   gravacoesPorFoto: 3,
