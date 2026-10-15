@@ -132,6 +132,7 @@ export async function situacaoDosRostos(eventoId: string) {
       prontas: sql<number>`count(*)::int`,
       comRosto: sql<number>`count(*) filter (where ${TEM_ROSTO})::int`,
       pendentes: sql<number>`count(*) filter (where ${t.fotos.rostosIndexadosEm} is null)::int`,
+      videos: sql<number>`count(*) filter (where ${t.fotos.tipo} = 'video')::int`,
     })
     .from(t.fotos)
     .where(
@@ -142,6 +143,8 @@ export async function situacaoDosRostos(eventoId: string) {
     prontas: linha?.prontas ?? 0,
     comRosto: linha?.comRosto ?? 0,
     pendentes: linha?.pendentes ?? 0,
+    /** Dos itens prontos, quantos são vídeos (cada um vai ao reconhecimento em vários quadros). */
+    videos: linha?.videos ?? 0,
   };
 }
 

@@ -9,6 +9,7 @@ import {
   reiniciarRostosDoEventoAcao,
 } from "@/app/(fotografo)/painel/eventos/rostos-acoes";
 import { Button } from "@/components/ui/button";
+import { CUSTO_REKOGNITION_POR_IMAGEM_USD, formatarDolares } from "@/lib/custo-reconhecimento";
 
 /**
  * Situação da busca por selfie no evento, o botão para cadastrar as fotos que ainda não passaram
@@ -20,12 +21,15 @@ export function RostosDoEvento({
   prontas,
   comRosto,
   pendentes,
+  custoParaRefazer,
   configurado,
 }: {
   eventoId: string;
   prontas: number;
   comRosto: number;
   pendentes: number;
+  /** Imagens que "Refazer" manda ao Rekognition e o custo estimado (src/lib/custo-reconhecimento.ts). */
+  custoParaRefazer: { imagens: number; usd: number };
   configurado: boolean;
 }) {
   const router = useRouter();
@@ -128,6 +132,15 @@ export function RostosDoEvento({
               <p>
                 Todas as {prontas} fotos do evento voltam ao reconhecimento. Enquanto o cadastro não
                 termina, a busca por selfie deste evento encontra menos fotos.
+              </p>
+              <p>
+                <strong>
+                  Custo estimado: {formatarDolares(custoParaRefazer.usd)} no Amazon Rekognition
+                </strong>{" "}
+                ({custoParaRefazer.imagens} {custoParaRefazer.imagens === 1 ? "imagem" : "imagens"}{" "}
+                a {formatarDolares(CUSTO_REKOGNITION_POR_IMAGEM_USD, 4)}
+                {custoParaRefazer.imagens > prontas ? "; cada vídeo conta até 10 quadros" : ""}
+                ). As fotos que já passaram pelo reconhecimento são cobradas de novo.
               </p>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => cadastrar(true)}>

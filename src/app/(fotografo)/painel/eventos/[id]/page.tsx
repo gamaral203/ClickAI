@@ -48,9 +48,11 @@ import { pontoDoEvento } from "@/lib/mapa";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
+import { estimarCustoDoCadastro } from "@/lib/custo-reconhecimento";
 import { provedorFacial } from "@/lib/reconhecimento";
 import { resumoParaODono } from "@/servicos/originais-do-dono";
 import { exigirFotografo } from "@/servicos/sessao";
+import { MAXIMO_DE_QUADROS } from "@/servicos/video";
 
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
 // gera prévia e miniatura e grava de volta, uma foto por chamada (docs/arquitetura.md, "Upload").
@@ -356,6 +358,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                   prontas={rostos.prontas}
                   comRosto={rostos.comRosto}
                   pendentes={rostos.pendentes}
+                  custoParaRefazer={estimarCustoDoCadastro({
+                    itens: rostos.prontas,
+                    videos: rostos.videos,
+                    quadrosPorVideo: MAXIMO_DE_QUADROS,
+                  })}
                   configurado={provedorFacial() === "rekognition"}
                 />
               </>
