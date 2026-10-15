@@ -133,6 +133,12 @@ async function fotografoNovo(nome: string) {
   return { usuario: (await buscarUsuario(usuario.id))!, conta: conta! };
 }
 
+/** Um rosto gravado na foto: sem nenhum, o evento nem vai ao provedor. */
+async function comRosto(fotoId: string) {
+  const banco = await obterBanco();
+  await banco.insert(t.rostos).values({ fotoId, rostoIdProvedor: randomUUID() });
+}
+
 async function colaborar(eventoId: string, fotografoId: string, aceito: boolean) {
   const banco = await obterBanco();
   await banco.insert(t.colaboradores).values({
@@ -177,6 +183,8 @@ beforeAll(async () => {
   f.daDonaExcluida = await novaFoto(eventoDaDona.id, dona.conta.id, { excluidaEm: new Date() });
   f.doColab = await novaFoto(eventoDaDona.id, colab.conta.id);
   f.alheia = await novaFoto(eventoAlheio.id, estranho.conta.id);
+  await comRosto(f.daDona);
+  await comRosto(f.alheia);
   provedor.porEvento.set(eventoDaDona.id, {
     fotoIds: [f.daDona, f.daDonaFechada, f.daDonaExcluida, f.doColab, f.alheia],
     semelhancas: { [f.daDona]: 99.2, [f.doColab]: 91, [f.daDonaFechada]: 98 },
@@ -269,7 +277,9 @@ describe("busca por rosto: escopo conferido no servidor", () => {
     const muitos = await fotografoNovo("Muitos Eventos");
     const criados = [];
     for (let i = 0; i < BUSCA_ROSTO_MAX_EVENTOS + 2; i++) {
-      criados.push(await novoEvento(muitos.conta.id, `Evento ${i}`));
+      const evento = await novoEvento(muitos.conta.id, `Evento ${i}`);
+      await comRosto(await novaFoto(evento.id, muitos.conta.id));
+      criados.push(evento);
     }
     const r = await buscarPorRostoNoPainel(muitos.usuario, { tipo: "recentes" }, JPEG.slice());
     expect(r).toMatchObject({ ok: true, eventosConsultados: BUSCA_ROSTO_MAX_EVENTOS });
@@ -278,6 +288,45 @@ describe("busca por rosto: escopo conferido no servidor", () => {
     expect(new Set(consultados)).toEqual(
       new Set(criados.slice(-BUSCA_ROSTO_MAX_EVENTOS).map((e) => e.id)),
     );
+  });
+
+  it("pula, sem chamar o provedor, os eventos sem nenhum rosto gravado", async () => {
+    const pulando = await fotografoNovo("Pulando Eventos");
+    const antigoComRosto = await novoEvento(pulando.conta.id, "Antigo com rosto");
+    await comRosto(await novaFoto(antigoComRosto.id, pulando.conta.id));
+    // Mais recentes, mas sem rosto: um sem fotos e um só com paisagens (já passou pelo
+    // reconhecimento, sem nenhum rosto).
+    const vazio = await novoEvento(pulando.conta.id, "Sem fotos");
+    const paisagens = await novoEvento(pulando.conta.id, "Paisagens");
+    await novaFoto(paisagens.id, pulando.conta.id, { rostosIndexadosEm: new Date() });
+
+    const recentes = await buscarPorRostoNoPainel(
+      pulando.usuario,
+      { tipo: "recentes" },
+      JPEG.slice(),
+    );
+    expect(recentes).toMatchObject({ ok: true, eventosConsultados: 1 });
+    expect(provedor.chamadas.map((c) => c.eventoId)).toEqual([antigoComRosto.id]);
+
+    provedor.chamadas = [];
+    for (const evento of [vazio, paisagens]) {
+      expect(
+        await buscarPorRostoNoPainel(
+          pulando.usuario,
+          { tipo: "evento", eventoId: evento.id },
+          JPEG.slice(),
+        ),
+      ).toEqual({ ok: true, grupos: [], eventosConsultados: 0 });
+    }
+    expect(provedor.chamadas).toHaveLength(0);
+    // Pular não abre escopo: evento de outro fotógrafo, mesmo com rosto, continua recusado.
+    expect(
+      await buscarPorRostoNoPainel(
+        pulando.usuario,
+        { tipo: "evento", eventoId: eventoAlheio.id },
+        JPEG.slice(),
+      ),
+    ).toEqual({ ok: false, motivo: "escopo" });
   });
 
   it("cliente e visitante não buscam", async () => {

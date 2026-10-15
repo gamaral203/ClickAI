@@ -41,6 +41,26 @@ export async function rostosDoEvento(eventoId: string) {
 }
 
 /**
+ * Quais dos eventos têm ao menos um rosto gravado. Evento sem rosto (sem fotos, só paisagens ou
+ * com os rostos arquivados) não tem o que achar na coleção: a busca nem chama o provedor.
+ */
+export async function eventosComRostos(eventoIds: string[]): Promise<Set<string>> {
+  if (eventoIds.length === 0) return new Set();
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ id: t.eventos.id })
+    .from(t.eventos)
+    .where(
+      and(
+        inArray(t.eventos.id, eventoIds),
+        // Nomes por extenso, como em TEM_ROSTO: dentro do sql``, o Drizzle tira o nome da tabela.
+        sql`exists (select 1 from "fotos" join "rostos" on "rostos"."foto_id" = "fotos"."id" where "fotos"."evento_id" = "eventos"."id")`,
+      ),
+    );
+  return new Set(linhas.map((l) => l.id));
+}
+
+/**
  * Apaga os rostos gravados das fotos do evento e tira a marca de cadastrada, para o evento
  * inteiro voltar ao reconhecimento.
  */

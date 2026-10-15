@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   contarUso,
+  eventosComRostos,
   eventosDaBuscaPorRosto,
   fotosDaBuscaPorRosto,
   rostosDeExemploDoEvento,
@@ -30,7 +31,10 @@ import { contaDoPainel } from "./sessao";
 // (o evento pedido precisa estar na lista dos permitidos: sem IDOR) e o limite por usuário
 // `busca_rosto_usuario`. Cada coleção consultada soma um no contador anônimo do Painel de uso.
 
-/** "Meus eventos recentes": cada evento é uma chamada ao provedor, por isso o teto. */
+/**
+ * "Meus eventos recentes": os mais recentes que têm rosto gravado (evento sem rosto não vai ao
+ * provedor). Cada evento é uma chamada ao provedor, por isso o teto.
+ */
 export const BUSCA_ROSTO_MAX_EVENTOS = 10;
 /** Semelhança (0–100) a partir da qual a tela diz "alta"; abaixo, "média". */
 export const SEMELHANCA_ALTA = 97;
@@ -88,19 +92,24 @@ export async function buscarPorRostoNoPainel(
   if (!permitidos || !usuario) return { ok: false, motivo: "nao_encontrado" };
   const { conta, eventos } = permitidos;
 
-  let alvo: EventoDaBusca[];
+  let candidatos: EventoDaBusca[];
   if (escopo.tipo === "evento") {
     const evento = eventos.find((e) => e.id === escopo.eventoId);
     // Evento de outro fotógrafo, convite não aceito ou id inventado: recusa sem dizer qual.
     if (!evento) return { ok: false, motivo: "escopo" };
-    alvo = [evento];
+    candidatos = [evento];
   } else {
-    alvo = eventos.slice(0, BUSCA_ROSTO_MAX_EVENTOS);
+    candidatos = eventos;
   }
 
   if (await limiteAtingido("busca_rosto_usuario", usuario.id)) {
     return { ok: false, motivo: "limite" };
   }
+  // Evento sem nenhum rosto gravado (sem fotos, só paisagens, rostos arquivados) não tem o que
+  // achar: não vale uma chamada ao provedor. Em "recentes", ficam os mais recentes que têm rosto,
+  // até o teto. O escopo já foi conferido acima: isto só tira eventos, nunca acrescenta.
+  const comRostos = await eventosComRostos(candidatos.map((e) => e.id));
+  const alvo = candidatos.filter((e) => comRostos.has(e.id)).slice(0, BUSCA_ROSTO_MAX_EVENTOS);
   if (alvo.length === 0) return { ok: true, grupos: [], eventosConsultados: 0 };
 
   const grupos: GrupoDaBusca[] = [];
