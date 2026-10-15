@@ -1,6 +1,6 @@
-# Segurança — checklist de 19 itens
+# Segurança — checklist de 20 itens
 
-Auditoria do código contra o checklist de segurança (HTTPS, senhas, MFA, limites, validação, sanitização, SQL injection, migrações, rollback, controle de acesso, sessão, segredos, CORS, logs, backups, criptografia, dependências, menor privilégio e monitoramento). Conferido em 8 out. 2026. Os riscos de negócio ficam em [riscos.md](riscos.md); as tarefas abertas, em [tarefas.md](tarefas.md).
+Auditoria do código contra o checklist de segurança (HTTPS, senhas, MFA, limites, validação, sanitização, SQL injection, migrações, rollback, controle de acesso, sessão, segredos, CORS, logs, backups, criptografia, dependências, menor privilégio e monitoramento). Conferido em 8 out. 2026; o item 20 (retenção de dados pelos serviços de IA da AWS) entrou em 14 out. 2026. Os riscos de negócio ficam em [riscos.md](riscos.md); as tarefas abertas, em [tarefas.md](tarefas.md).
 
 Legenda: ✅ feito · ⚠️ parcial (o código está pronto, falta configuração ou um passo de fora) · ❌ falta.
 
@@ -25,6 +25,7 @@ Legenda: ✅ feito · ⚠️ parcial (o código está pronto, falta configuraç�
 | 17 | Dependências | ⚠️ | `npm audit fix` aplicado sem `--force` | Sobram: `braces`/`fast-glob` no CLI do shadcn (alta, ReDoS, não roda no servidor), `tinypool` do vitest (crítica, só nos testes) e `esbuild` do drizzle-kit (moderada, só no desenvolvimento). Todas só com versão maior; atualizar vitest 5 e drizzle-kit numa tarefa própria |
 | 18 | PMP (menor privilégio) | ⚠️ | RLS em todas as tabelas e `anon`/`authenticated` sem acesso (migrações 0001 e 0002); usuário IAM da AWS só com as ações do Rekognition; `GITHUB_TOKEN` sem permissões no job agendado; o `db:migrar` já prepara o papel `clicouai_app` (`src/db/papel-app.ts`) | O app ainda conecta como `postgres` (dono das tabelas) e o escopo do token do R2 não foi conferido: passos abaixo |
 | 19 | Monitoramento | ⚠️ | Sentry no servidor, edge e navegador, ligado pela `SENTRY_DSN` (`src/instrumentation.ts`); alertas `ALERTA saque para revisão manual` e de cupom no log | Cadastrar `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` (não existem na Vercel), criar os alertas e um monitor de disponibilidade |
+| 20 | Retenção pelo provedor de IA | ⚠️ | Do nosso lado, a selfie (e a foto do rosto da busca do painel) fica só na memória da requisição e nunca vai para banco, R2, log ou storage do navegador (`src/lib/reconhecimento.ts`, `src/app/api/busca-facial/route.ts`). Mas, pelos termos da AWS, os serviços de IA (Rekognition incluso) podem guardar e usar o conteúdo enviado (selfies e fotos dos eventos) para melhorar os serviços, inclusive fora da região `sa-east-1`, a menos que a conta esteja coberta pela política de opt-out de serviços de IA do AWS Organizations | **Passo obrigatório antes do lançamento:** ligar o opt-out na organização da AWS (passo a passo abaixo). Enquanto ele não estiver ligado, a frase "não guarda a imagem da busca" da política de privacidade (`/privacidade`) não é verdadeira |
 
 ## Verificação em duas etapas
 
@@ -47,6 +48,32 @@ Legenda: ✅ feito · ⚠️ parcial (o código está pronto, falta configuraç�
 - **Sem o código no assunto nem no log:** o assunto é "Seu código ClicouAí (vale até HH:MM)"; o código só vai no corpo. A tela mostra o e-mail mascarado, a hora do envio e até quando o código vale.
 
 ## Passos que dependem de você
+
+### Opt-out de serviços de IA da AWS (item 20, obrigatório)
+
+Sem este passo, a AWS pode guardar e usar as selfies e as fotos que mandamos ao Rekognition, inclusive fora de São Paulo ([documentação da AWS](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_ai-opt-out.html)). A política vale para a conta inteira; não há opção no Rekognition nem no código.
+
+1. Entre no console da AWS com a conta **de gerenciamento** da organização (a conta "dona"). Se a conta do Rekognition ainda não faz parte de uma organização, abra **AWS Organizations → Create an organization** com ela: ela vira a conta de gerenciamento.
+2. **AWS Organizations → Policies → AI services opt-out policies → Enable AI services opt-out policies.**
+3. **Create policy**, nome `optout-servicos-de-ia`, com este conteúdo (`default` cobre todos os serviços de IA, o Rekognition incluso):
+
+   ```json
+   {
+     "services": {
+       "default": {
+         "opt_out_policy": {
+           "@@assign": "optOut"
+         }
+       }
+     }
+   }
+   ```
+
+4. Abra a política criada → **Targets → Attach** → marque o **Root** da organização (vale para todas as contas, inclusive as que entrarem depois) → **Attach policy**.
+5. Para conferir: **AWS Organizations → AWS accounts** → a conta do Rekognition → aba **Policies** → **AI services opt-out policies → View effective policy**: o serviço `rekognition` (ou o `default`) deve aparecer com `optOut`.
+6. Anote a data aqui e no item 20 da tabela (vira ✅). Segundo a mesma página da AWS, o opt-out também pede a exclusão do conteúdo que já tinha sido guardado antes dele.
+
+Os rostos cadastrados nas coleções (`{prefixo}-{evento_id}`) continuam na região `sa-east-1`: eles são o índice da busca, guardados por nós de propósito (ver [arquitetura.md](arquitetura.md), "Busca por selfie").
 
 ### Menor privilégio no banco (item 18)
 
