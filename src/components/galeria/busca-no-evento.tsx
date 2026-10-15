@@ -45,6 +45,7 @@ export function BuscaNoEvento({
   tituloEvento,
   temNumeros,
   podeComprar = true,
+  precoFotoCentavos = null,
 }: {
   slug: string;
   tituloEvento: string;
@@ -52,6 +53,8 @@ export function BuscaNoEvento({
   temNumeros: boolean;
   /** `false` para quem vende: no lugar do pacote e do "Adicionar todas", um aviso. */
   podeComprar?: boolean;
+  /** Preço do evento para foto sem preço próprio (o visualizador mostra no "Comprar"). */
+  precoFotoCentavos?: number | null;
 }) {
   const [aba, setAba] = useState<"selfie" | "numero">("selfie");
   const [dialogoAberto, setDialogoAberto] = useState(false);
@@ -314,6 +317,8 @@ export function BuscaNoEvento({
               tituloEvento={tituloEvento}
               fotos={resultado.fotos}
               recortes={resultado.recortes}
+              compraNoVisualizador={podeComprar}
+              precoPadraoCentavos={precoFotoCentavos}
             />
           )}
         </div>

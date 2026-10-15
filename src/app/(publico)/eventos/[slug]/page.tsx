@@ -26,6 +26,7 @@ import { MapaDoEvento } from "@/components/galeria/mapa-do-evento";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
 import {
+  autoresPorId,
   buscarEventoPublicado,
   eventoTemNumeros,
   listarFotosDoEvento,
@@ -212,6 +213,7 @@ async function Galeria({
       // Busca por número: com a leitura ligada ou com números já gravados (lidos ou postos à mão).
       temNumeros={Boolean(evento.lerNumeros) || temNumeros}
       podeComprar={compra}
+      precoFotoCentavos={evento.precoFotoCentavos}
     />
   );
   // Evento com vídeos: duas abas, Fotos (padrão) e Vídeos, para achar os vídeos mais fácil.
@@ -222,6 +224,8 @@ async function Galeria({
     listarFotosDoEvento(evento.id, { pagina, limite: FOTOS_POR_PAGINA, filtro: filtroDaAba }),
     listarOpcoesGaleria(evento.id),
   ]);
+  // Crédito ao autor no visualizador (evento colaborativo: nem toda foto é do dono).
+  const autores = await autoresPorId(paginaDeFotos.fotos.map((f) => f.enviadaPor));
   const filtrando = Boolean(filtro.hora || filtro.naoIdentificadas || filtro.pasta);
   const videos = aba === "video";
   return (
@@ -285,6 +289,7 @@ async function Galeria({
         podeComprar={compra}
         precoPadraoCentavos={evento.precoFotoCentavos}
         precoVideoPadraoCentavos={evento.precoVideoCentavos}
+        autores={Object.fromEntries([...autores].map(([id, a]) => [id, a.nome]))}
         paginacao={{
           pagina: paginaDeFotos.pagina,
           totalPaginas: paginaDeFotos.totalPaginas,

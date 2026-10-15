@@ -2,20 +2,26 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Play } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { MAXIMO_ITENS } from "@/components/carrinho/carrinho";
 import { BarraSelecao } from "@/components/galeria/barra-selecao";
 import { IconeObturador } from "@/components/galeria/obturador";
 import { Paginacao } from "@/components/galeria/paginacao";
 import { PainelSelecao, rotuloQuantidade } from "@/components/galeria/painel-selecao";
+import {
+  VisualizadorFoto,
+  type FechamentoDoVisualizador,
+} from "@/components/galeria/visualizador-foto";
 import type { FiltroGaleria } from "@/dados";
 import type { Foto } from "@/dados/tipos";
 import { formatarPreco } from "@/lib/formatar";
 import { formatarDuracao } from "@/lib/tipos-video";
-import { FOTOS_POR_PAGINA } from "@/lib/galeria";
+import { enderecoDaGaleria, FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { cn } from "@/lib/utils";
+import type { Retangulo } from "@/lib/visualizador";
 import { fotoParaRolar, guardarOrigem } from "@/lib/volta-da-galeria";
 
 type Props = {
@@ -45,7 +51,27 @@ type Props = {
    * "Adicionar todas".
    */
   podeComprar?: boolean;
+  /**
+   * Mostra o "Comprar" no visualizador da foto (padrão: `podeComprar`). O resultado da busca não
+   * usa a seleção, mas quem pode comprar compra pelo visualizador.
+   */
+  compraNoVisualizador?: boolean;
+  /** Nome público de quem fez cada foto, por `enviadaPor` (o visualizador mostra o autor). */
+  autores?: Record<string, string>;
 };
+
+/** Clique comum (sem Ctrl/Cmd/Shift nem botão do meio, que abrem em outra aba ou janela). */
+function cliqueSimples(e: React.MouseEvent) {
+  return e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+}
+
+function retanguloDe(el: Element | null): Retangulo | null {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.x, y: r.y, largura: r.width, altura: r.height };
+}
+
+const SEM_AUTORES: Record<string, string> = {};
 
 type CaixaDoRosto = { esquerda: number; topo: number; largura: number; altura: number };
 
@@ -82,9 +108,22 @@ export function GaleriaFotos({
   precoPadraoCentavos = null,
   precoVideoPadraoCentavos = null,
   podeComprar = false,
+  compraNoVisualizador = podeComprar,
+  autores = SEM_AUTORES,
 }: Props) {
+  const router = useRouter();
   const ids = fotos.map((f) => f.id);
   const chaveDosIds = ids.join();
+  // Visualizador: só fotos (vídeo abre a página dele, com o player).
+  const fotosDoVisualizador = fotos.filter((f) => f.tipo === "foto");
+  const chaveDoHistorico = `${slug}:${paginacao ? "galeria" : "busca"}`;
+  const [visualizador, setVisualizador] = useState<{
+    indice: number;
+    origem: Retangulo | null;
+  } | null>(null);
+  const [fechando, setFechando] = useState(false);
+  /** Fechar numa foto de outra página: a galeria vai para ela depois da animação. */
+  const irParaOutraPagina = useRef(false);
 
   // Seleção: guarda a foto inteira (não só o id) para o painel mostrar também as escolhidas em
   // outras páginas da galeria. Só a miniatura com marca d'água é usada.
@@ -191,6 +230,93 @@ export function GaleriaFotos({
     guardarOrigem({ slug, fotoAtual: fotoId, ids });
   }
 
+  /**
+   * Abre o visualizador por cima da galeria. A URL vira a da foto (`/fotos/<id>`, pela History
+   * API, que o Next acompanha): compartilhar e recarregar abrem a página da foto, e o voltar do
+   * navegador (ou o gesto do celular) fecha o visualizador e volta à galeria no mesmo ponto.
+   */
+  function abrirVisualizador(foto: Foto, miniatura: Element) {
+    const indice = fotosDoVisualizador.findIndex((f) => f.id === foto.id);
+    if (indice < 0) return;
+    aoAbrirFoto(foto.id);
+    window.history.pushState({ clicouaiVisualizador: chaveDoHistorico }, "", `/fotos/${foto.id}`);
+    irParaOutraPagina.current = false;
+    setFechando(false);
+    setVisualizador({ indice, origem: retanguloDe(miniatura) });
+  }
+
+  // Aberto: o voltar do navegador fecha; a rolagem fica onde está (sem a restauração automática,
+  // que levaria a galeria de volta ao ponto da abertura e desencontraria a miniatura).
+  const aberto = visualizador !== null;
+  useEffect(() => {
+    if (!aberto) return;
+    const restauracao = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    const aoVoltar = () => {
+      if (!window.location.pathname.startsWith("/fotos/")) setFechando(true);
+    };
+    window.addEventListener("popstate", aoVoltar);
+    return () => {
+      window.removeEventListener("popstate", aoVoltar);
+      window.history.scrollRestoration = restauracao;
+    };
+  }, [aberto]);
+
+  function retanguloDaMiniatura(fotoId: string) {
+    return retanguloDe(document.querySelector(`[data-foto="${CSS.escape(fotoId)}"] a`));
+  }
+
+  function aoPedirFechar(estado: FechamentoDoVisualizador) {
+    const naTela = chaveDosIds.split(",").includes(estado.foto.id);
+    if (naTela) {
+      // A foto aberta agora está nesta página: deixa a miniatura na tela para a volta do zoom.
+      document
+        .querySelector(`[data-foto="${CSS.escape(estado.foto.id)}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "instant" });
+      if (window.history.state?.clicouaiVisualizador === chaveDoHistorico) {
+        // O popstate do voltar liga o `fechando`.
+        window.history.back();
+        return;
+      }
+      setFechando(true);
+      return;
+    }
+    // Foto de outra página (o visualizador passou do fim da página): vai para ela ao fechar.
+    irParaOutraPagina.current = true;
+    setFechando(true);
+  }
+
+  function aoFechado(estado: FechamentoDoVisualizador) {
+    setVisualizador(null);
+    setFechando(false);
+    const filtro = paginacao?.filtro ?? {};
+    if (irParaOutraPagina.current && estado.pagina) {
+      irParaOutraPagina.current = false;
+      // Substitui a entrada da foto pela página da galeria em que ela está; a galeria nova
+      // rola até a foto (sessionStorage e âncora, como na volta da página da foto).
+      guardarOrigem({ slug, fotoAtual: estado.foto.id, ids: estado.ids });
+      router.replace(
+        enderecoDaGaleria(slug, filtro, {
+          pagina: estado.pagina,
+          ancora: `foto-${estado.foto.id}`,
+        }),
+        { scroll: false },
+      );
+      return;
+    }
+    if (window.location.pathname.startsWith("/fotos/")) {
+      // Fechou sem voltar no histórico (a entrada não era a do visualizador): volta a URL.
+      window.history.replaceState(
+        null,
+        "",
+        enderecoDaGaleria(slug, filtro, { pagina: paginacao?.pagina ?? 1, ancora: false }),
+      );
+    }
+    document
+      .querySelector<HTMLElement>(`[data-foto="${CSS.escape(estado.foto.id)}"] a`)
+      ?.focus({ preventScroll: true });
+  }
+
   if (fotos.length === 0) {
     return (
       <div className="rounded-xl border border-dashed p-10 text-center">
@@ -236,7 +362,16 @@ export function GaleriaFotos({
             <Link
               onContextMenu={(e) => e.preventDefault()}
               href={`/fotos/${foto.id}`}
-              onClick={() => aoAbrirFoto(foto.id)}
+              onClick={(e) => {
+                // Foto: o visualizador por cima da galeria. Vídeo, Ctrl/Cmd+clique e sem
+                // JavaScript: a página da foto, como antes.
+                if (foto.tipo === "foto" && cliqueSimples(e)) {
+                  e.preventDefault();
+                  abrirVisualizador(foto, e.currentTarget);
+                  return;
+                }
+                aoAbrirFoto(foto.id);
+              }}
               className="group relative block aspect-square overflow-hidden rounded-lg bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               {recortes?.[foto.id] ? (
@@ -306,6 +441,28 @@ export function GaleriaFotos({
         />
       )}
       {selecao}
+      {visualizador && (
+        <VisualizadorFoto
+          slug={slug}
+          tituloEvento={tituloEvento}
+          chave={chaveDoHistorico}
+          fotos={fotosDoVisualizador}
+          indiceInicial={visualizador.indice}
+          paginas={
+            paginacao ? { pagina: paginacao.pagina, totalPaginas: paginacao.totalPaginas } : null
+          }
+          filtro={paginacao?.filtro}
+          total={paginacao?.total}
+          autores={autores}
+          precoDe={precoDe}
+          podeComprar={compraNoVisualizador}
+          origem={visualizador.origem}
+          retanguloDaMiniatura={retanguloDaMiniatura}
+          fechando={fechando}
+          aoPedirFechar={aoPedirFechar}
+          aoFechado={aoFechado}
+        />
+      )}
     </div>
   );
 }
