@@ -25,6 +25,7 @@ import { formatarPeriodo, formatarPreco } from "@/lib/formatar";
 import { enderecoDaGaleria } from "@/lib/galeria";
 import { podeComprar } from "@/lib/navegacao";
 import { ehIdValido } from "@/lib/validacao";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import { usuarioAtual } from "@/servicos/sessao";
 
 async function carregar(id: string) {
@@ -58,6 +59,17 @@ export default function PaginaFoto({ params }: PageProps<"/fotos/[id]">) {
 
 async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">) {
   const { id } = await params;
+  // Contra a raspagem em massa das prévias (src/servicos/limites.ts, foto_ip).
+  if (ehIdValido(id) && (await limiteDoIpAtingido("foto_ip"))) {
+    return (
+      <div role="status" className="rounded-xl border border-dashed p-10 text-center">
+        <p className="font-medium">Muitas fotos abertas em pouco tempo</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Espere alguns minutos e recarregue a página.
+        </p>
+      </div>
+    );
+  }
   const dados = await carregar(id);
   if (!dados) notFound();
   const { foto, evento, precoCentavos, posicao, paginaNaGaleria, anteriorId, proximaId } = dados;

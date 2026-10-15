@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
 
 import { headers } from "next/headers";
 
-import { limparTentativas, registrarTentativa } from "@/dados";
+import { contarUso, limparTentativas, registrarTentativa } from "@/dados";
 
 // Limites de tentativas (docs/riscos.md: senha por força bruta, cadastro em massa, custo da busca
 // facial, spam de e-mail e abuso de URL assinada). A contagem fica no banco (tabela
@@ -147,6 +147,19 @@ const REGRAS = {
    * vez de todo mundo. 60 em 10 minutos cobre quem arrasta o marcador várias vezes.
    */
   mapa_ip: { limite: 60, janelaMs: 10 * MINUTO },
+  /**
+   * Contra a raspagem em massa das prévias (docs/riscos.md, "Marca d'água removida com
+   * ferramentas de IA"). As prévias saem direto da CDN do R2, sem passar pelo Next; o que dá
+   * para limitar são as páginas e ações que entregam as URLs delas. Os números são altos de
+   * propósito: no Wi-Fi do evento e na operadora (CGNAT), centenas de pessoas saem pelo mesmo
+   * IP. Páginas da galeria (48 fotos cada) por IP, em todos os eventos: 600 em 10 minutos são
+   * ~29 mil prévias, bem acima de quem procura as próprias fotos.
+   */
+  galeria_ip: { limite: 600, janelaMs: 10 * MINUTO },
+  /** Páginas de foto (cada uma com a prévia grande) por IP. */
+  foto_ip: { limite: 1200, janelaMs: 10 * MINUTO },
+  /** Buscas por número de peito por IP e evento (varrer de 0 a 999999 montaria a lista toda). */
+  busca_numero_ip: { limite: 120, janelaMs: 10 * MINUTO },
 } as const;
 
 export type Regra = keyof typeof REGRAS;
@@ -164,13 +177,26 @@ function chave(regra: Regra, valor: string) {
   return createHmac("sha256", segredo).update(`${regra}:${valor.toLowerCase()}`).digest("hex");
 }
 
+/** Chave do contador de bloqueios de uma regra no Painel de uso (`contadores_uso`). */
+export function contadorDeBloqueio(regra: Regra) {
+  return `limite:${regra}`;
+}
+
 /**
  * Conta uma tentativa da regra para o valor (IP, id do usuário...) e devolve `true` se passou do
  * limite na janela. A tentativa recusada não entra na contagem.
+ *
+ * Cada bloqueio fica registrado sem dado pessoal: um aviso no log só com o nome da regra (sem
+ * IP, e-mail nem usuário) e +1 no contador do dia (`limite:<regra>` em `contadores_uso`), que a
+ * gestão vê. Um pico de bloqueios é o sinal de um script raspando ou chutando senhas.
  */
 export async function limiteAtingido(regra: Regra, valor: string): Promise<boolean> {
   const { limite, janelaMs } = REGRAS[regra];
   const { bloqueado } = await registrarTentativa(chave(regra, valor), limite, janelaMs);
+  if (bloqueado) {
+    console.warn(`[limite] bloqueado pela regra ${regra}`);
+    await contarUso(contadorDeBloqueio(regra));
+  }
   return bloqueado;
 }
 

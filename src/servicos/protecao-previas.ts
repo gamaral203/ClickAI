@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   configuracaoDaMarca,
+  contadoresDeHoje,
   contarFotosComPreviaAntiga,
   historicoDaMarca,
   lerConfiguracoesGestao,
@@ -18,7 +19,11 @@ import {
   type EstimativaRegeracao,
 } from "@/lib/protecao-previas";
 
+import { contadorDeBloqueio } from "./limites";
 import { regerarPrevias, type ResultadoRegeracao } from "./regerar-previas";
+
+/** Regras contra a raspagem das prévias, mostradas na tela com os bloqueios do dia. */
+const REGRAS_DE_RASPAGEM = ["galeria_ip", "foto_ip", "busca_numero_ip"] as const;
 
 // Proteção das prévias na gestão (/admin/marca-dagua; docs/arquitetura.md, "Prévia e marca
 // d'água"). Toda função recebe o gestor já conferido (exigirGestor na página ou na ação) e
@@ -36,6 +41,8 @@ export type SituacaoDaProtecao = {
   estimativa: EstimativaRegeracao;
   /** Cotação do dólar em centavos de real (Painel de uso), para a estimativa em reais. */
   cotacaoCentavos: number | null;
+  /** Acessos bloqueados hoje pelos limites contra raspagem (só contagens, sem quem). */
+  bloqueiosHoje: Record<(typeof REGRAS_DE_RASPAGEM)[number], number>;
 };
 
 export async function situacaoDaProtecao(
@@ -43,10 +50,11 @@ export async function situacaoDaProtecao(
 ): Promise<SituacaoDaProtecao> {
   exigirAdmin(gestor);
   const config = await configuracaoDaMarca();
-  const [historico, foraDaConfiguracao, gestao] = await Promise.all([
+  const [historico, foraDaConfiguracao, gestao, contadores] = await Promise.all([
     historicoDaMarca(10),
     contarFotosComPreviaAntiga({ tipo: "revisao", revisao: config.revisao }),
     lerConfiguracoesGestao(),
+    contadoresDeHoje(REGRAS_DE_RASPAGEM.map(contadorDeBloqueio)),
   ]);
   return {
     config,
@@ -54,6 +62,11 @@ export async function situacaoDaProtecao(
     foraDaConfiguracao,
     estimativa: estimarRegeracao(foraDaConfiguracao),
     cotacaoCentavos: gestao.cotacaoUsdCentavos,
+    bloqueiosHoje: {
+      galeria_ip: contadores[contadorDeBloqueio("galeria_ip")] ?? 0,
+      foto_ip: contadores[contadorDeBloqueio("foto_ip")] ?? 0,
+      busca_numero_ip: contadores[contadorDeBloqueio("busca_numero_ip")] ?? 0,
+    },
   };
 }
 

@@ -181,6 +181,7 @@ export function ProtecaoDasPrevias({ situacao }: { situacao: SituacaoDaProtecao 
       </section>
 
       <Regeracao situacao={situacao} />
+      <Bloqueios bloqueios={situacao.bloqueiosHoje} />
       <Historico historico={situacao.historico} />
     </div>
   );
@@ -491,6 +492,31 @@ function Regeracao({ situacao }: { situacao: SituacaoDaProtecao }) {
           {erro}
         </p>
       )}
+    </section>
+  );
+}
+
+/** Acessos barrados hoje pelos limites contra raspagem (src/servicos/limites.ts). */
+function Bloqueios({ bloqueios }: { bloqueios: SituacaoDaProtecao["bloqueiosHoje"] }) {
+  return (
+    <section
+      aria-labelledby="titulo-bloqueios"
+      className="flex flex-col gap-3 rounded-xl border p-4 sm:p-5"
+    >
+      <div>
+        <h2 id="titulo-bloqueios" className="text-base font-semibold sm:text-lg">
+          Acessos barrados hoje
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Limites por conexão contra quem tenta baixar as prévias em massa. Só a contagem: nada de
+          IP nem de quem acessou. Um pico costuma ser um script.
+        </p>
+      </div>
+      <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <Numero rotulo="Páginas da galeria" valor={numero.format(bloqueios.galeria_ip)} />
+        <Numero rotulo="Páginas de foto" valor={numero.format(bloqueios.foto_ip)} />
+        <Numero rotulo="Buscas por número" valor={numero.format(bloqueios.busca_numero_ip)} />
+      </dl>
     </section>
   );
 }

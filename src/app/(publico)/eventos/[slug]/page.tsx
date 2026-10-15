@@ -39,6 +39,7 @@ import { enderecoDaGaleria, FOTOS_POR_PAGINA } from "@/lib/galeria";
 import { linkComoChegar, linkVerNoOpenStreetMap, pontoDoEvento } from "@/lib/mapa";
 import { podeComprar } from "@/lib/navegacao";
 import { lerFiltroGaleria, lerPagina } from "@/lib/validacao";
+import { limiteDoIpAtingido } from "@/servicos/limites";
 import { usuarioAtual } from "@/servicos/sessao";
 
 export async function generateMetadata({
@@ -189,6 +190,16 @@ async function Galeria({
   }
   if (situacao.tipo === "senha") {
     return <FormularioSenhaEvento slug={evento.slug} />;
+  }
+  // Contra a raspagem em massa das prévias (src/servicos/limites.ts, galeria_ip): muitas páginas
+  // seguidas do mesmo IP param de listar fotos por alguns minutos.
+  if (await limiteDoIpAtingido("galeria_ip")) {
+    return (
+      <AvisoGaleria icone={Clock} titulo="Muitas páginas seguidas">
+        Abrimos muitas páginas de fotos para esta conexão em pouco tempo. Espere alguns minutos e
+        recarregue a página.
+      </AvisoGaleria>
+    );
   }
   // Quem vende vê a busca como o cliente, mas sem os botões de compra (conta de fotógrafo não
   // compra; a regra vale no checkout).
