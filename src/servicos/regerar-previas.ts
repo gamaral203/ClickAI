@@ -1,10 +1,13 @@
 import "server-only";
 
 import {
+  configuracaoDaMarca,
   contarFotosComPreviaAntiga,
   listarFotosComPreviaAntiga,
   modeloMarcaDoEvento,
   trocarPreviaDaFoto,
+  type AlvoDaRegeracao,
+  type ConfigMarcaEmVigor,
   type FotoComPreviaAntiga,
 } from "@/dados";
 import { emParalelo } from "@/lib/concorrencia";
@@ -20,9 +23,14 @@ import { gerarVersoes } from "./imagens";
 // Tudo no servidor, a partir do original no bucket privado, que nunca sai dele: só as versões
 // com marca vão ao bucket público.
 //
+// O que entra (src/dados/previas.ts, AlvoDaRegeracao): sem pedido do gestor, só as versões 2 e
+// 3 (sem a prévia do celular); com o pedido confirmado em /admin/marca-dagua para a revisão em
+// vigor da configuração, toda prévia que não está nela. Fotos novas já saem com a configuração
+// em vigor; mudar a configuração não mexe nas já enviadas até o gestor pedir.
+//
 // Para cada foto: lê o original, gera as versões com a marca atual (no modelo do dono do
-// evento), grava com a CHAVE NOVA (`...-v3.webp`, que fura o cache do
-// navegador e da CDN), troca as chaves no banco num UPDATE condicional e só então apaga a prévia
+// evento, com a configuração em vigor e o desenho próprio da foto), grava com a CHAVE NOVA
+// (`...-v5-r2.webp`, que fura o cache do navegador e da CDN), troca as chaves no banco num UPDATE condicional e só então apaga a prévia
 // e a miniatura antigas do R2. Idempotente: a foto já trocada sai da lista (a chave tem o sufixo
 // da versão atual); duas chamadas ao mesmo tempo gravam o mesmo conteúdo nas mesmas chaves e só
 // uma troca no banco e apaga as antigas. Se a função morrer no meio, a foto continua com a
@@ -30,6 +38,14 @@ import { gerarVersoes } from "./imagens";
 //
 // Quem dispara: a rota /api/jobs/regerar-previas (Bearer CRON_SECRET, por evento ou em todos) e
 // o job de revisão (/api/jobs/revisao), com o tempo que sobra, até acabar.
+
+/** O que a regeração refaz agora, pela configuração em vigor. */
+export function alvoDaRegeracao(config: Pick<ConfigMarcaEmVigor, "revisao" | "regeracaoPedida">) {
+  const alvo: AlvoDaRegeracao = config.regeracaoPedida
+    ? { tipo: "revisao", revisao: config.revisao }
+    : { tipo: "minima" };
+  return alvo;
+}
 
 /** Fotos listadas por chamada (no máximo; o prazo costuma parar antes). */
 export const FOTOS_REGERADAS_POR_VEZ = 600;
@@ -58,7 +74,9 @@ export async function regerarPrevias({
   const resultado: ResultadoRegeracao = { regeradas: 0, falhas: 0, restantes: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const fim = Date.now() + prazoMs;
-  const fotos = await listarFotosComPreviaAntiga(limite, eventoId);
+  const marca = await configuracaoDaMarca();
+  const alvo = alvoDaRegeracao(marca);
+  const fotos = await listarFotosComPreviaAntiga(alvo, limite, eventoId);
   const modelos = new Map<string, Promise<ModeloMarca>>();
   const modeloDo = (id: string) => {
     let modelo = modelos.get(id);
@@ -69,25 +87,30 @@ export async function regerarPrevias({
   await emParalelo(fotos, PROCESSAMENTOS_NO_SERVIDOR, async (foto) => {
     if (Date.now() > fim) return;
     try {
-      if (await regerarUma(foto, await modeloDo(foto.eventoId))) resultado.regeradas++;
+      if (await regerarUma(foto, await modeloDo(foto.eventoId), marca)) resultado.regeradas++;
     } catch (erro) {
       // Só o id: nada do arquivo vai para o log.
       console.error(`[previas] falha ao regerar a prévia da foto ${foto.id}`, erro);
       resultado.falhas++;
     }
   });
-  resultado.restantes = await contarFotosComPreviaAntiga(eventoId);
+  resultado.restantes = await contarFotosComPreviaAntiga(alvo, eventoId);
   return resultado;
 }
 
 /** Regera uma foto. `false` se outra chamada trocou as chaves antes. */
-async function regerarUma(foto: FotoComPreviaAntiga, modelo: ModeloMarca): Promise<boolean> {
-  const novas = chavesDaFoto(foto.enviadaPor, foto.eventoId, foto.id);
+async function regerarUma(
+  foto: FotoComPreviaAntiga,
+  modelo: ModeloMarca,
+  marca: ConfigMarcaEmVigor,
+): Promise<boolean> {
+  const novas = chavesDaFoto(foto.enviadaPor, foto.eventoId, foto.id, "jpeg", marca.revisao);
   const liberar = await reservarMemoriaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   try {
     const original = await lerOriginal(foto.chaveOriginal);
     const { previa, previaCelular, miniatura } = await gerarVersoes(original, modelo, {
       semente: foto.id,
+      config: marca,
     });
     await Promise.all([
       gravarPublico(novas.previa, previa.buffer, "image/webp"),
