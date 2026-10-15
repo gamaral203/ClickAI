@@ -8,10 +8,10 @@
  * link temporário depois do pagamento.
  */
 
-/** Raio do círculo nítido, como fração da largura da foto na tela (diâmetro ~28%). */
-export const FRACAO_DO_RAIO = 0.14;
+/** Raio do círculo nítido, como fração da largura da foto na tela (diâmetro ~50%). */
+export const FRACAO_DO_RAIO = 0.25;
 /** Borda suave: o círculo é nítido até esta fração do raio e some até a borda. */
-export const MIOLO_NITIDO = 0.72;
+export const MIOLO_NITIDO = 0.86;
 
 export type Ponto = { x: number; y: number };
 export type Caixa = { x: number; y: number; largura: number; altura: number };

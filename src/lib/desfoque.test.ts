@@ -41,9 +41,9 @@ describe("circuloDaRevelacao", () => {
     ).toBeNull();
   });
 
-  it("o diâmetro fica perto de 28% da largura", () => {
+  it("o diâmetro fica perto de 50% da largura", () => {
     const c = circuloDaRevelacao({ x: 300, y: 200 }, caixa, canvas)!;
-    expect((2 * c.r) / canvas.largura).toBeCloseTo(0.28);
+    expect((2 * c.r) / canvas.largura).toBeCloseTo(0.5);
   });
 });
 
