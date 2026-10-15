@@ -26,6 +26,7 @@ import {
 import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
 import { PRAZO_DO_JOB_MS, revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
+import { lerNumerosPendentes, type ResultadoNumerosPendentes } from "./numeros";
 import { conferirCobrancaDoPedido, type ConferenciaDoPedido } from "./pagamentos";
 import { regerarPrevias, type ResultadoRegeracao } from "./regerar-previas";
 import { conferirSaques } from "./saques";
@@ -168,6 +169,8 @@ const ESPERA_MINIMA_PARA_REGERAR_MS = 10 * 1000;
 
 /** Teto do tempo do job de revisão gasto em reindexar eventos arquivados que alguém procurou. */
 const PRAZO_DA_REINDEXACAO_NO_JOB_MS = 50 * 1000;
+/** Teto do tempo do job de revisão gasto em ler números de peito pendentes. */
+const PRAZO_DOS_NUMEROS_NO_JOB_MS = 30 * 1000;
 
 export type ResultadoJobRevisao = {
   /** Fotógrafos cujos saques em `processando` foram conferidos no Mercado Pago. */
@@ -175,6 +178,8 @@ export type ResultadoJobRevisao = {
   fotos: ResultadoFotosPresas;
   /** Eventos arquivados reindexados porque alguém buscou neles (só quando houve algum). */
   reindexacao?: { eventos: number; concluidas: number; indexadas: number };
+  /** Fotos lidas pela leitura do número de peito (só quando houve alguma). */
+  numeros?: ResultadoNumerosPendentes;
   /** Prévias regeradas com a marca atual (só quando houve alguma). */
   previas?: ResultadoRegeracao;
 };
@@ -188,6 +193,8 @@ export type ResultadoJobRevisao = {
  *   2. revisa fotos presas em `processando` (revisarFotosPresas);
  *   3. continua a reindexação dos eventos com rostos arquivados em que alguém buscou
  *      (src/servicos/colecoes.ts), até 50 s;
+ *   3b. lê o número de peito das fotos pendentes dos eventos com a leitura ligada
+ *      (src/servicos/numeros.ts), até 30 s;
  *   4. com o tempo que sobra, regera as prévias de versão anterior da marca
  *      (src/servicos/regerar-previas.ts), até acabar.
  * Sem o Mercado Pago ou sem o R2 configurados (desenvolvimento e testes), a parte
@@ -234,6 +241,23 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
       if (reindexacao.eventos > 0) resultado.reindexacao = reindexacao;
     } catch (erro) {
       console.error("[jobs] falha ao reindexar os eventos arquivados", erro);
+    }
+  }
+
+  // Números de peito pendentes (opção ligada num evento que já tinha fotos, ou leitura que
+  // falhou no envio), antes das prévias.
+  const sobraParaNumeros = PRAZO_DO_JOB_MS - (Date.now() - inicio);
+  if (sobraParaNumeros > ESPERA_MINIMA_PARA_REGERAR_MS) {
+    try {
+      const numeros = await lerNumerosPendentes(
+        Math.min(sobraParaNumeros, PRAZO_DOS_NUMEROS_NO_JOB_MS),
+        agora,
+      );
+      if (numeros.lidas > 0 || numeros.falhas > 0 || numeros.credencial) {
+        resultado.numeros = numeros;
+      }
+    } catch (erro) {
+      console.error("[jobs] falha ao ler os números de peito pendentes", erro);
     }
   }
 

@@ -18,12 +18,14 @@ import * as t from "@/db/schema";
 import { cookieDoEvento, hashDoToken } from "@/lib/acesso-evento";
 import { avatarPadrao } from "@/lib/avatares";
 import { FOTOS_POR_PAGINA, limitarPagina, paginaDaPosicao } from "@/lib/galeria";
+import { normalizarNumero } from "@/lib/numeros-de-peito";
 import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
 import { urlDaPrevia } from "@/lib/url-publica";
 
 import { capasDosEventos, capasEnviadas } from "./capa";
 import { eventosDosCupons } from "./comum";
+import { fotosComNumeros } from "./numeros";
 import {
   deIso,
   iso,
@@ -768,18 +770,14 @@ export async function eventoTemNumeros(eventoId: string): Promise<boolean> {
   return linha !== undefined;
 }
 
-/** Itens do evento em que o número de peito foi reconhecido. */
+/**
+ * Itens do evento em que o número de peito foi reconhecido. O número é normalizado como na
+ * gravação (sem zeros à esquerda: "0123" acha "123"); fora do formato, nada.
+ */
 export async function fotosPorNumero(eventoId: string, numero: string): Promise<Foto[]> {
-  const banco = await obterBanco();
-  const linhas = await banco
-    .selectDistinct({ fotoId: t.numeros.fotoId })
-    .from(t.numeros)
-    .innerJoin(t.fotos, eq(t.fotos.id, t.numeros.fotoId))
-    .where(and(eq(t.numeros.numero, numero), eq(t.fotos.eventoId, eventoId)));
-  return fotosEncontradas(
-    eventoId,
-    linhas.map((l) => l.fotoId),
-  );
+  const normalizado = normalizarNumero(numero);
+  if (normalizado === null) return [];
+  return fotosEncontradas(eventoId, await fotosComNumeros(eventoId, [normalizado]));
 }
 
 /**
@@ -1644,3 +1642,4 @@ export * from "./painel-de-uso";
 export * from "./busca-por-rosto";
 export * from "./vendidas-do-autor";
 export * from "./colecoes";
+export * from "./numeros";

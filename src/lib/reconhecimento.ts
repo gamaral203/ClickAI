@@ -19,12 +19,15 @@ import {
   CreateCollectionCommand,
   DeleteCollectionCommand,
   DeleteFacesCommand,
+  DetectTextCommand,
   IndexFacesCommand,
   RekognitionClient,
   ResourceAlreadyExistsException,
   ResourceNotFoundException,
   SearchFacesByImageCommand,
 } from "@aws-sdk/client-rekognition";
+
+import { ALTURA_MINIMA, confiancaMinima, type TextoDetectado } from "@/lib/numeros-de-peito";
 
 /**
  * Semelhança mínima (0–100) para a foto entrar no resultado. Alta, para não mostrar fotos de
@@ -312,4 +315,28 @@ export async function buscarFotosPorSelfie(
     );
     throw new Error("Falha na busca facial");
   }
+}
+
+/**
+ * Texto da foto (Rekognition DetectText), para achar o número de peito
+ * (src/servicos/numeros.ts). A imagem é a mesma cópia reduzida e girada dos rostos, em memória;
+ * nada é gravado e nada dela vai para log. O filtro já corta palavras de baixa confiança e
+ * pequenas demais (o que sobra é conferido de novo em src/lib/numeros-de-peito.ts). Precisa da
+ * permissão rekognition:DetectText. `null` sem o Rekognition configurado.
+ */
+export async function detectarTexto(imagem: Uint8Array): Promise<TextoDetectado[] | null> {
+  const config = configRekognition();
+  if (!config) return null;
+  const resposta = await rekognition(config).send(
+    new DetectTextCommand({
+      Image: { Bytes: imagem },
+      Filters: {
+        WordFilter: {
+          MinConfidence: Math.min(confiancaMinima(), 80),
+          MinBoundingBoxHeight: ALTURA_MINIMA,
+        },
+      },
+    }),
+  );
+  return resposta.TextDetections ?? [];
 }
