@@ -7,15 +7,32 @@ import sharp, { type OverlayOptions } from "sharp";
 
 import { LIMITE_PIXELS } from "@/lib/limites-envio";
 import { MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
+import {
+  ESTILOS_DOS_MODELOS,
+  planejarMarcas,
+  planejarTrama,
+  type Marca,
+  type PlanoDaMarca,
+  type PlanoDaTrama,
+  type TipoDeVersao,
+} from "@/lib/marca-distribuida";
+import { CONFIG_MARCA_PADRAO, type ConfigMarca } from "@/lib/protecao-previas";
 
 // Gera as versões públicas de uma foto (docs/arquitetura.md, "Armazenamento").
-// A marca d'água é gravada nos pixels: quem salva a prévia leva a marca junto. Junto com a
-// baixa resolução, é a proteção real do original (docs/riscos.md, Segurança).
-// Usada no processamento de cada foto enviada (src/servicos/envios.ts) e nos dados de exemplo.
+// A marca d'água é gravada nos pixels: quem salva a prévia, ou tira print dela, leva a marca
+// junto. Junto com a baixa resolução, é a proteção real do original (docs/riscos.md).
+// Usada no processamento de cada foto enviada (src/servicos/envios.ts), na regeração
+// (src/servicos/regerar-previas.ts), nos vídeos (src/servicos/video.ts) e nos dados de exemplo.
+//
+// O desenho (onde vai cada logo) sai de src/lib/marca-distribuida.ts: trama fina cobrindo a foto
+// inteira (microlográficas e linhas onduladas), grade espalhada de logos com variação por foto,
+// logo grande no centro e outra cruzada no terço de cima. Os parâmetros vêm da
+// configuração global do gestor (src/lib/protecao-previas.ts) e do modelo do fotógrafo.
 //
 // Desempenho (uma foto de 24 MP por vez numa função de 1 vCPU): o original é decodificado uma
-// vez só, já reduzido; as versões saem dessa base em pixels crus (sem PNG no meio); e o padrão
-// de marcas, igual para todas as fotos do mesmo tamanho, fica em memória entre as fotos.
+// vez só, já reduzido; as versões saem dessa base em pixels crus (sem PNG no meio). Como cada
+// foto tem um desenho próprio, a camada de marcas é montada por foto: cada logo é uma
+// "figurinha" pequena (a silhueta da logo girada) colada na posição dela.
 //
 // Formatos: JPEG, PNG, WebP, TIFF e AVIF (src/lib/tipos-imagem.ts). Arquivos grandes não estouram
 // a memória: a leitura é sequencial e a redução acontece durante a decodificação (no JPEG e no
@@ -23,7 +40,8 @@ import { MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
 // imagem inteira). Medido com 1 thread: JPEG de 100 MP em ~0,6 s e ~140 MB de memória; TIFF de
 // 16 bits de 60 MP (260 MB) em ~1,4 s e ~430 MB, quase todo o arquivo em si.
 
-export const LARGURA_PREVIA = 1600;
+/** Lado maior da prévia no padrão (o gestor muda em /admin/marca-dagua, até LARGURA_ROSTOS). */
+export const LARGURA_PREVIA = CONFIG_MARCA_PADRAO.larguraPrevia;
 /**
  * Prévia do celular: na tela do telefone fica igual, e uma cópia "limpa" por IA a partir dela
  * sai pequena demais para imprimir (docs/riscos.md, "Marca d'água removida com ferramentas de IA").
@@ -32,6 +50,8 @@ export const LARGURA_PREVIA_CELULAR = 1000;
 export const LARGURA_MINIATURA = 400;
 /** Lado maior da cópia que vai ao reconhecimento facial (o Rekognition aceita até 5 MB). */
 export const LARGURA_ROSTOS = 1920;
+/** Qualidade máxima do WebP da prévia do celular e da miniatura. */
+const QUALIDADE_MAXIMA_PEQUENAS = 70;
 
 /** Desenho da logo usado como carimbo (vai no bundle das funções por outputFileTracingIncludes). */
 const CAMINHO_LOGO = path.join(process.cwd(), "public", "logo.png");
@@ -44,74 +64,20 @@ const CAMINHO_NAO_TIRE_PRINT = path.join(process.cwd(), "public", "marca", "nao-
 /** Cores da marca (src/app/globals.css: --primary e --highlight). */
 const AZUL_DA_MARCA = "#315cff";
 const LIMAO_DA_MARCA = "#b8ff32";
-
-/** Inclinação do padrão de marcas, em graus. */
-const INCLINACAO = -24;
-
-/**
- * Desenho de cada modelo de marca d'água (src/lib/marca-dagua.ts). `escala` multiplica a largura
- * da logo de cada versão; `espacoX`/`espacoY` são o vão entre logos, em proporção à logo;
- * `centro` põe uma logo grande no meio (fração da largura da foto); `grade` cruza linhas finas
- * na diagonal (passo em fração da largura); `protecao` soma os anéis grandes da marca (um sobre o
- * centro, onde costuma estar a pessoa) e os avisos "Foto protegida" e "Não tire print".
- */
-type Estilo = {
-  escala: number;
-  opacidade: number;
-  sombra: number;
-  espacoX: number;
-  espacoY: number;
-  centro?: { largura: number; opacidade: number };
-  grade?: { passo: number; opacidade: number };
-  protecao?: boolean;
-};
-
-const ESTILOS: Record<ModeloMarca, Estilo> = {
-  discreta: { escala: 1.4, opacidade: 0.28, sombra: 0.12, espacoX: 1.3, espacoY: 3.4 },
-  padrao: { escala: 1, opacidade: 0.42, sombra: 0.18, espacoX: 0.55, espacoY: 1.6 },
-  densa: { escala: 0.7, opacidade: 0.46, sombra: 0.2, espacoX: 0.35, espacoY: 1 },
-  central: {
-    escala: 1.1,
-    opacidade: 0.24,
-    sombra: 0.1,
-    espacoX: 0.9,
-    espacoY: 2.4,
-    centro: { largura: 0.55, opacidade: 0.55 },
-  },
-  grade: {
-    escala: 0.9,
-    opacidade: 0.34,
-    sombra: 0.14,
-    espacoX: 1.1,
-    espacoY: 2.2,
-    grade: { passo: 0.2, opacidade: 0.5 },
-  },
-  maxima: {
-    escala: 0.7,
-    opacidade: 0.5,
-    sombra: 0.22,
-    espacoX: 0.35,
-    espacoY: 1,
-    centro: { largura: 0.6, opacidade: 0.6 },
-    grade: { passo: 0.16, opacidade: 0.5 },
-  },
-  forte: {
-    escala: 0.8,
-    opacidade: 0.42,
-    sombra: 0.18,
-    espacoX: 0.6,
-    espacoY: 1.5,
-    centro: { largura: 0.42, opacidade: 0.6 },
-    grade: { passo: 0.24, opacidade: 0.42 },
-    protecao: true,
-  },
-};
+/** Opacidade da sombra escura em relação à da logo branca (marca visível em foto clara e escura). */
+const SOMBRA_RELATIVA = 0.45;
 
 export type ImagemGerada = {
   buffer: Buffer;
   largura: number;
   altura: number;
 };
+
+/**
+ * De onde sai o desenho da marca de uma foto: o id dela (semente da variação) e a configuração
+ * global em vigor. Sem a configuração, os padrões.
+ */
+export type OpcoesDaMarca = { semente: string; config?: ConfigMarca };
 
 /** Guarda uma promessa em cache; se ela falhar, a próxima chamada tenta de novo. */
 function lembrar<T>(cache: Map<string, Promise<T>>, chave: string, criar: () => Promise<T>) {
@@ -134,101 +100,229 @@ function carregarTexto(caminho: string) {
   return lembrar(textos, caminho, () => readFile(caminho));
 }
 
-/** Silhueta da logo numa cor só, com a transparência original multiplicada pela opacidade. */
-async function silhueta(largura: number, cor: "branco" | "preto", opacidade: number) {
-  const { data: alfa, info } = await sharp(await carregarLogo())
-    .resize({ width: largura })
-    .ensureAlpha()
-    .extractChannel("alpha")
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < alfa.length; i++) alfa[i] = Math.round(alfa[i] * opacidade);
-
-  const valor = cor === "branco" ? 255 : 0;
-  const buffer = await sharp({
-    create: {
-      width: info.width,
-      height: info.height,
-      channels: 3,
-      background: { r: valor, g: valor, b: valor },
-    },
-  })
-    .joinChannel(alfa, { raw: { width: info.width, height: info.height, channels: 1 } })
-    .png()
-    .toBuffer();
-  return { buffer, largura: info.width, altura: info.height };
-}
-
-/** A logo em branco e a sombra escura que vai deslocada por baixo dela. */
-async function logoComSombra(larguraLogo: number, opacidade: number, opacidadeSombra: number) {
-  const [clara, sombra] = await Promise.all([
-    silhueta(larguraLogo, "branco", opacidade),
-    silhueta(larguraLogo, "preto", opacidadeSombra),
-  ]);
-  return { clara, sombra, deslocamento: Math.max(1, Math.round(larguraLogo / 140)) };
-}
+type Alfa = { data: Buffer; largura: number; altura: number };
 
 /**
- * Um "ladrilho" do padrão: a logo em branco com uma sombra escura deslocada, para a marca
- * aparecer tanto em fotos claras quanto escuras, e um espaço em volta. Um por largura de logo.
+ * A transparência da logo numa largura (só o canal alfa). A largura é arredondada em degraus de
+ * 3% (a diferença não se vê), então poucas larguras atendem todas as fotos e ficam em memória
+ * (as menos usadas saem).
  */
-const ladrilhos = new Map<string, Promise<Buffer>>();
-function ladrilho(larguraLogo: number, modelo: ModeloMarca) {
-  const estilo = ESTILOS[modelo];
-  return lembrar(ladrilhos, `${modelo}:${larguraLogo}`, async () => {
-    const { clara, sombra, deslocamento } = await logoComSombra(
-      larguraLogo,
-      estilo.opacidade,
-      estilo.sombra,
-    );
-    const espacoX = Math.round(larguraLogo * estilo.espacoX);
-    const espacoY = Math.round(clara.altura * estilo.espacoY);
-    return sharp({
-      create: {
-        width: clara.largura + espacoX,
-        height: clara.altura + espacoY,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      },
-    })
-      .composite([
-        { input: sombra.buffer, left: deslocamento, top: deslocamento },
-        { input: clara.buffer, left: 0, top: 0 },
-      ])
-      .png()
-      .toBuffer();
+const alfas = new Map<string, Promise<Alfa>>();
+const MAXIMO_DE_ALFAS = 128;
+const DEGRAU_DA_LARGURA = Math.log(1.03);
+function alfaDaLogo(largura: number): Promise<Alfa> {
+  const degrau = Math.round(Math.log(Math.max(8, largura)) / DEGRAU_DA_LARGURA);
+  const chave = String(Math.round(Math.exp(degrau * DEGRAU_DA_LARGURA)));
+  const existente = alfas.get(chave);
+  if (existente) {
+    // Usada agora: vai para o fim da fila de descarte.
+    alfas.delete(chave);
+    alfas.set(chave, existente);
+    return existente;
+  }
+  if (alfas.size >= MAXIMO_DE_ALFAS) alfas.delete(alfas.keys().next().value!);
+  return lembrar(alfas, chave, async () => {
+    const { data, info } = await sharp(await carregarLogo())
+      .resize({ width: Number(chave) })
+      .ensureAlpha()
+      .extractChannel("alpha")
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return { data, largura: info.width, altura: info.height };
   });
 }
 
-type Camada = { pixels: Buffer; largura: number; altura: number };
+/**
+ * O alfa girado em torno do centro, com interpolação bilinear, num quadro que cabe a logo
+ * inteira. Em JavaScript puro: para figurinhas deste tamanho, mais barato que uma ida ao libvips.
+ */
+function girar(alfa: Alfa, graus: number): Alfa {
+  if (Math.abs(graus) < 0.5) return alfa;
+  const rad = (graus * Math.PI) / 180;
+  const [cos, sen] = [Math.cos(rad), Math.sin(rad)];
+  const largura = Math.ceil(Math.abs(alfa.largura * cos) + Math.abs(alfa.altura * sen)) + 2;
+  const altura = Math.ceil(Math.abs(alfa.largura * sen) + Math.abs(alfa.altura * cos)) + 2;
+  const data = Buffer.alloc(largura * altura);
+  const [cxo, cyo] = [alfa.largura / 2, alfa.altura / 2];
+  const [cxd, cyd] = [largura / 2, altura / 2];
+  const { data: origem, largura: lo, altura: ao } = alfa;
+  for (let y = 0; y < altura; y++) {
+    const dy = y + 0.5 - cyd;
+    for (let x = 0; x < largura; x++) {
+      const dx = x + 0.5 - cxd;
+      // Ponto de origem (giro inverso).
+      const sx = dx * cos + dy * sen + cxo - 0.5;
+      const sy = -dx * sen + dy * cos + cyo - 0.5;
+      const x0 = Math.floor(sx);
+      const y0 = Math.floor(sy);
+      if (x0 < -1 || y0 < -1 || x0 >= lo || y0 >= ao) continue;
+      const fx = sx - x0;
+      const fy = sy - y0;
+      // Os quatro vizinhos (fora da logo = transparente). Sem função auxiliar dentro do laço:
+      // este laço roda centenas de milhares de vezes por foto.
+      const dentroX0 = x0 >= 0;
+      const dentroX1 = x0 + 1 < lo;
+      const dentroY0 = y0 >= 0;
+      const dentroY1 = y0 + 1 < ao;
+      const i0 = y0 * lo + x0;
+      const a00 = dentroX0 && dentroY0 ? origem[i0] : 0;
+      const a10 = dentroX1 && dentroY0 ? origem[i0 + 1] : 0;
+      const a01 = dentroX0 && dentroY1 ? origem[i0 + lo] : 0;
+      const a11 = dentroX1 && dentroY1 ? origem[i0 + lo + 1] : 0;
+      const v = (a00 * (1 - fx) + a10 * fx) * (1 - fy) + (a01 * (1 - fx) + a11 * fx) * fy;
+      if (v > 0.5) data[y * largura + x] = Math.round(v);
+    }
+  }
+  return { data, largura, altura };
+}
+
+type Figurinha = { data: Buffer; largura: number; altura: number };
 
 /**
- * Camadas de marcas já desenhadas, por tamanho de foto. As fotos de um evento quase sempre têm
- * as mesmas medidas (a mesma câmera, em pé ou deitada): a camada é desenhada uma vez e
- * reaproveitada. Poucas entradas (a da prévia tem ~10 MB em pixels crus), as mais antigas saem.
+ * Uma logo pronta para colar: branca, com a sombra escura deslocada por baixo, na opacidade e no
+ * giro da marca, em pixels crus RGBA (fundo transparente).
  */
-const camadas = new Map<string, Promise<Camada>>();
-const MAXIMO_DE_CAMADAS = 8;
+async function figurinha(marca: Marca): Promise<Figurinha> {
+  const alfa = girar(await alfaDaLogo(marca.largura), marca.angulo);
+  const d = Math.max(1, Math.round(marca.largura / 140));
+  const largura = alfa.largura + d;
+  const altura = alfa.altura + d;
+  const px = Buffer.alloc(largura * altura * 4);
+  const sombra = marca.opacidade * SOMBRA_RELATIVA;
+  // Sombra (preta) deslocada e, por cima, a logo branca ("over" com alfa não pré-multiplicado).
+  for (let y = 0; y < alfa.altura; y++) {
+    for (let x = 0; x < alfa.largura; x++) {
+      const a = alfa.data[y * alfa.largura + x];
+      if (a) px[((y + d) * largura + x + d) * 4 + 3] = Math.round(a * sombra);
+    }
+  }
+  for (let y = 0; y < alfa.altura; y++) {
+    for (let x = 0; x < alfa.largura; x++) {
+      const a = (alfa.data[y * alfa.largura + x] / 255) * marca.opacidade;
+      if (!a) continue;
+      const i = (y * largura + x) * 4;
+      const embaixo = px[i + 3] / 255;
+      const total = a + embaixo * (1 - a);
+      const cor = Math.round((255 * a) / total);
+      px[i] = px[i + 1] = px[i + 2] = cor;
+      px[i + 3] = Math.round(total * 255);
+    }
+  }
+  return { data: px, largura, altura };
+}
 
-function camadaDeMarcas(largura: number, altura: number, larguraLogo: number, modelo: ModeloMarca) {
-  const chave = `${modelo}:${largura}x${altura}:${larguraLogo}`;
-  const existente = camadas.get(chave);
-  // Usada agora: vai para o fim da fila de descarte.
-  if (existente) camadas.delete(chave);
-  else if (camadas.size >= MAXIMO_DE_CAMADAS) camadas.delete(camadas.keys().next().value!);
-  return lembrar(camadas, chave, () =>
-    existente ? existente : desenharCamada(largura, altura, larguraLogo, modelo),
+/**
+ * A figurinha na posição da marca. O Sharp aceita a figurinha passando da borda, mas não maior
+ * que a foto: nesse caso (logo central numa foto estreita), só o pedaço que cai na foto.
+ */
+async function colar(
+  f: Figurinha,
+  marca: Marca,
+  largura: number,
+  altura: number,
+): Promise<OverlayOptions | null> {
+  let left = Math.round(marca.x - f.largura / 2);
+  let top = Math.round(marca.y - f.altura / 2);
+  let { data, largura: w, altura: h } = f;
+  if (w > largura || h > altura) {
+    const x0 = Math.max(0, -left);
+    const y0 = Math.max(0, -top);
+    const x1 = Math.min(w, largura - left);
+    const y1 = Math.min(h, altura - top);
+    if (x1 <= x0 || y1 <= y0) return null;
+    data = await sharp(data, { raw: { width: w, height: h, channels: 4 } })
+      .extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 })
+      .raw()
+      .toBuffer();
+    [w, h, left, top] = [x1 - x0, y1 - y0, left + x0, top + y0];
+  }
+  return { input: data, raw: { width: w, height: h, channels: 4 }, left, top };
+}
+
+/**
+ * A microlográfica da trama já girada (só o alfa). O giro é arredondado a 1 grau e as poucas
+ * combinações de largura e giro ficam em memória (as menos usadas saem).
+ */
+const microsGiradas = new Map<string, Promise<Alfa>>();
+const MAXIMO_DE_MICROS = 256;
+function microGirada(largura: number, graus: number): Promise<Alfa> {
+  const giro = Math.round(graus);
+  const chave = `${Math.round(largura)}:${giro}`;
+  const existente = microsGiradas.get(chave);
+  if (existente) return existente;
+  if (microsGiradas.size >= MAXIMO_DE_MICROS) {
+    microsGiradas.delete(microsGiradas.keys().next().value!);
+  }
+  return lembrar(microsGiradas, chave, async () => girar(await alfaDaLogo(largura), giro));
+}
+
+/**
+ * As microlográficas da trama (src/lib/marca-distribuida.ts, planejarTrama) numa camada do
+ * tamanho da foto, em pixels crus RGBA: primeiro a cópia escura (deslocada), depois a clara, no
+ * modo "over". Em JavaScript direto, sem SVG: são centenas de logos pequenas por versão.
+ */
+async function camadaDasMicros(largura: number, altura: number, trama: PlanoDaTrama) {
+  const px = Buffer.alloc(largura * altura * 4);
+  const giradas = await Promise.all(
+    trama.micros.map((m) => microGirada(trama.larguraMicro, m.angulo)),
   );
+  const pintar = (cor: number, opacidade: number, desloca: number) => {
+    trama.micros.forEach((m, k) => {
+      const alfa = giradas[k];
+      const x0 = Math.round(m.x - alfa.largura / 2) + desloca;
+      const y0 = Math.round(m.y - alfa.altura / 2) + desloca;
+      for (let y = Math.max(0, -y0); y < alfa.altura && y0 + y < altura; y++) {
+        for (let x = Math.max(0, -x0); x < alfa.largura && x0 + x < largura; x++) {
+          const a = (alfa.data[y * alfa.largura + x] / 255) * opacidade;
+          if (a <= 0) continue;
+          const i = ((y0 + y) * largura + x0 + x) * 4;
+          const embaixo = px[i + 3] / 255;
+          const total = a + embaixo * (1 - a);
+          const c = (cor * a + px[i] * embaixo * (1 - a)) / total;
+          px[i] = px[i + 1] = px[i + 2] = Math.round(c);
+          px[i + 3] = Math.round(total * 255);
+        }
+      }
+    });
+  };
+  pintar(0, trama.opacidadeMicro * trama.escuraRelativa, trama.deslocamento);
+  pintar(255, trama.opacidadeMicro, 0);
+  return px;
+}
+
+/** As linhas onduladas da trama em SVG do tamanho da foto: a escura (deslocada) e a clara. */
+function svgDasLinhas(largura: number, altura: number, trama: PlanoDaTrama) {
+  const caminho = trama.linhas
+    .map((l) => "M" + l.pontos.map(([x, y]) => `${x},${y}`).join("L"))
+    .join("");
+  const d = trama.deslocamento;
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">` +
+      `<path d="${caminho}" stroke="#000" stroke-opacity="${(trama.opacidadeLinhas * trama.escuraRelativa).toFixed(3)}" stroke-width="${trama.espessura}" transform="translate(${d},${d})" fill="none"/>` +
+      `<path d="${caminho}" stroke="#fff" stroke-opacity="${trama.opacidadeLinhas.toFixed(3)}" stroke-width="${trama.espessura}" fill="none"/>` +
+      `</svg>`,
+  );
+}
+
+/** A trama inteira: as linhas e, por cima, as microlográficas. */
+async function trama(largura: number, altura: number, plano: PlanoDaTrama) {
+  return [
+    { input: svgDasLinhas(largura, altura, plano) },
+    {
+      input: await camadaDasMicros(largura, altura, plano),
+      raw: { width: largura, height: altura, channels: 4 as const },
+    },
+  ] satisfies OverlayOptions[];
 }
 
 /**
  * Linhas finas cruzadas na diagonal (as duas direções), claras com uma sombra escura do lado,
- * em SVG do tamanho da foto. Só linhas: não depende de fonte instalada no servidor.
+ * em SVG do tamanho da foto, deslocadas pela fase da foto. Só linhas: não depende de fonte.
  */
-function svgDaGrade(largura: number, altura: number, passo: number, opacidade: number) {
+function svgDaGrade(largura: number, altura: number, passo: number, opacidade: number, fase = 0) {
   const espessura = Math.max(1, Math.round(largura / 600));
   const linhas: string[] = [];
-  for (let x = -altura; x < largura + altura; x += passo) {
+  for (let x = -altura - passo + Math.round(fase * passo); x < largura + altura; x += passo) {
     linhas.push(`M${x},0L${x + altura},${altura}`, `M${x + altura},0L${x},${altura}`);
   }
   const d = linhas.join("");
@@ -326,67 +420,76 @@ async function avisosDeProtecao(largura: number, altura: number): Promise<Overla
   ];
 }
 
-/** Camada transparente do tamanho da foto, coberta pelo padrão inclinado de marcas. */
+/**
+ * Tudo o que vai por cima da foto, de baixo para cima: trama, grade de logos, anéis, linhas, logo
+ * do centro e a do terço de cima, avisos. Colado direto na foto (sem uma camada inteira no meio).
+ */
+async function sobreposicoes(
+  largura: number,
+  altura: number,
+  plano: PlanoDaMarca,
+  planoDaTrama: PlanoDaTrama,
+  modelo: ModeloMarca,
+): Promise<OverlayOptions[]> {
+  const estilo = ESTILOS_DOS_MODELOS[modelo];
+  const coladas = await Promise.all(
+    plano.marcas.map(async (m) => ({
+      papel: m.papel,
+      overlay: await colar(await figurinha(m), m, largura, altura),
+    })),
+  );
+  const daMarca = (papeis: Marca["papel"][]) =>
+    coladas.flatMap((c) => (c.overlay && papeis.includes(c.papel) ? [c.overlay] : []));
+
+  const sobre: OverlayOptions[] = [
+    ...(await trama(largura, altura, planoDaTrama)),
+    ...daMarca(["grade"]),
+  ];
+  if (estilo.protecao) sobre.push({ input: svgDosAneis(largura, altura) });
+  if (estilo.grade) {
+    const passo = Math.max(24, Math.round(largura * estilo.grade.passo));
+    sobre.push({
+      input: svgDaGrade(largura, altura, passo, estilo.grade.opacidade, plano.faseDaGrade),
+    });
+  }
+  sobre.push(...daMarca(["centro", "assunto"]));
+  if (estilo.protecao) sobre.push(...(await avisosDeProtecao(largura, altura)));
+  return sobre;
+}
+
+/** As marcas de uma versão de uma foto, pelo plano dela (src/lib/marca-distribuida.ts). */
+function marcasDaFoto(
+  largura: number,
+  altura: number,
+  modelo: ModeloMarca,
+  tipo: TipoDeVersao,
+  opcoes: OpcoesDaMarca,
+) {
+  const config = opcoes.config ?? CONFIG_MARCA_PADRAO;
+  const base = { largura, altura, semente: opcoes.semente, config, versao: tipo };
+  const plano = planejarMarcas({ ...base, modelo });
+  return sobreposicoes(largura, altura, plano, planejarTrama(base), modelo);
+}
+
+/** Camada transparente do tamanho do vídeo com as marcas (em pixels crus RGBA). */
 async function desenharCamada(
   largura: number,
   altura: number,
-  larguraLogo: number,
   modelo: ModeloMarca,
-): Promise<Camada> {
-  const estilo = ESTILOS[modelo];
-  const logoDoModelo = Math.max(16, Math.round(larguraLogo * estilo.escala));
-  // Preenche um quadrado que cobre a foto mesmo depois de girado e recorta o centro.
-  const lado = Math.ceil(Math.hypot(largura, altura)) + logoDoModelo;
-  const preenchido = await sharp({
-    create: { width: lado, height: lado, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  })
-    .composite([{ input: await ladrilho(logoDoModelo, modelo), tile: true }])
-    .raw()
-    .toBuffer();
-  const girado = await sharp(preenchido, { raw: { width: lado, height: lado, channels: 4 } })
-    .rotate(INCLINACAO, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixels = await sharp(girado.data, {
-    raw: { width: girado.info.width, height: girado.info.height, channels: 4 },
-  })
-    .extract({
-      left: Math.floor((girado.info.width - largura) / 2),
-      top: Math.floor((girado.info.height - altura) / 2),
+  opcoes: OpcoesDaMarca,
+) {
+  const sobre = await marcasDaFoto(largura, altura, modelo, "previa", opcoes);
+  return sharp({
+    create: {
       width: largura,
       height: altura,
-    })
-    .raw()
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite(sobre)
+    .png()
     .toBuffer();
-  if (!estilo.centro && !estilo.grade) return { pixels, largura, altura };
-
-  // Por cima do padrão: os anéis, a grade, a logo grande no meio e os avisos, nos modelos que têm.
-  const extras: OverlayOptions[] = [];
-  if (estilo.protecao) extras.push({ input: svgDosAneis(largura, altura) });
-  if (estilo.grade) {
-    const passo = Math.max(24, Math.round(largura * estilo.grade.passo));
-    extras.push({ input: svgDaGrade(largura, altura, passo, estilo.grade.opacidade) });
-  }
-  if (estilo.centro) {
-    const larguraCentro = Math.round(Math.min(largura, altura * 2.4) * estilo.centro.largura);
-    const { clara, sombra, deslocamento } = await logoComSombra(
-      larguraCentro,
-      estilo.centro.opacidade,
-      estilo.centro.opacidade * 0.4,
-    );
-    const left = Math.round((largura - clara.largura) / 2);
-    const top = Math.round((altura - clara.altura) / 2);
-    extras.push(
-      { input: sombra.buffer, left: left + deslocamento, top: top + deslocamento },
-      { input: clara.buffer, left, top },
-    );
-  }
-  if (estilo.protecao) extras.push(...(await avisosDeProtecao(largura, altura)));
-  const comExtras = await sharp(pixels, { raw: { width: largura, height: altura, channels: 4 } })
-    .composite(extras)
-    .raw()
-    .toBuffer();
-  return { pixels: comExtras, largura, altura };
 }
 
 /** A foto decodificada, já girada e em sRGB, em pixels crus de 8 bits. */
@@ -433,15 +536,16 @@ function daBase(base: Base) {
 }
 
 /**
- * Reduz a base, grava as marcas e salva em WebP. Pixels crus não carregam metadados (GPS,
- * câmera): nada disso chega à versão pública (docs/riscos.md, Privacidade).
+ * Reduz a base, grava as marcas e salva em WebP. Pixels crus não carregam metadados (EXIF com
+ * GPS e câmera, XMP, perfil ICC): nada disso chega à versão pública (docs/riscos.md, Privacidade).
  */
 async function versao(
   base: Base,
   larguraMaxima: number,
-  larguraLogo: number,
   qualidade: number,
   modelo: ModeloMarca,
+  tipo: TipoDeVersao,
+  opcoes: OpcoesDaMarca,
 ): Promise<ImagemGerada> {
   const { data, info } = await daBase(base)
     .resize({
@@ -452,17 +556,26 @@ async function versao(
     })
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const camada = await camadaDeMarcas(info.width, info.height, larguraLogo, modelo);
+  const marcas = await marcasDaFoto(info.width, info.height, modelo, tipo, opcoes);
   const buffer = await sharp(data, {
     raw: { width: info.width, height: info.height, channels: info.channels },
   })
-    .composite([
-      { input: camada.pixels, raw: { width: camada.largura, height: camada.altura, channels: 4 } },
-    ])
+    .composite(marcas)
     // effort 2 (de 0 a 6): bem mais rápido que o padrão (4), com arquivo quase do mesmo tamanho.
     .webp({ quality: qualidade, effort: 2 })
     .toBuffer();
   return { buffer, largura: info.width, altura: info.height };
+}
+
+/** Lado maior e qualidade de cada versão, pela configuração global. */
+export function medidasDasVersoes(config: ConfigMarca = CONFIG_MARCA_PADRAO) {
+  const previa = Math.min(LARGURA_ROSTOS, config.larguraPrevia);
+  const pequenas = Math.min(QUALIDADE_MAXIMA_PEQUENAS, config.qualidade);
+  return {
+    previa: { largura: previa, qualidade: config.qualidade },
+    previaCelular: { largura: Math.min(LARGURA_PREVIA_CELULAR, previa), qualidade: pequenas },
+    miniatura: { largura: LARGURA_MINIATURA, qualidade: pequenas },
+  };
 }
 
 export type VersoesDaFoto = {
@@ -475,19 +588,21 @@ export type VersoesDaFoto = {
 };
 
 /**
- * Prévia e miniatura, as duas com marca d'água (no modelo escolhido pelo dono do evento), a
- * partir de uma decodificação só do original. A cópia para o reconhecimento facial sai da mesma
- * base, só quando pedida.
+ * Prévia, prévia do celular e miniatura, todas com marca d'água (no modelo do dono do evento,
+ * com a configuração global e o desenho próprio da foto), a partir de uma decodificação só do
+ * original. A cópia para o reconhecimento facial sai da mesma base, só quando pedida.
  */
 export async function gerarVersoes(
   original: Buffer,
   modelo: ModeloMarca = MODELO_MARCA_PADRAO,
+  opcoes: OpcoesDaMarca = { semente: "" },
 ): Promise<VersoesDaFoto> {
   const base = await decodificar(original, LARGURA_ROSTOS);
+  const m = medidasDasVersoes(opcoes.config);
   const [previa, previaCelular, miniatura] = await Promise.all([
-    versao(base, LARGURA_PREVIA, 300, 72, modelo),
-    versao(base, LARGURA_PREVIA_CELULAR, 190, 70, modelo),
-    versao(base, LARGURA_MINIATURA, 120, 70, modelo),
+    versao(base, m.previa.largura, m.previa.qualidade, modelo, "previa", opcoes),
+    versao(base, m.previaCelular.largura, m.previaCelular.qualidade, modelo, "previa", opcoes),
+    versao(base, m.miniatura.largura, m.miniatura.qualidade, modelo, "miniatura", opcoes),
   ]);
   return {
     previa,
@@ -497,30 +612,41 @@ export async function gerarVersoes(
   };
 }
 
-/** Prévia com marca d'água para a página da foto (~1600 px no lado maior). */
+/** Prévia com marca d'água para a página da foto (lado maior pela configuração; ~1600 px). */
 export async function gerarPrevia(
   original: Buffer,
   modelo: ModeloMarca = MODELO_MARCA_PADRAO,
+  opcoes: OpcoesDaMarca = { semente: "" },
 ): Promise<ImagemGerada> {
-  return versao(await decodificar(original, LARGURA_PREVIA), LARGURA_PREVIA, 300, 72, modelo);
+  const { previa } = medidasDasVersoes(opcoes.config);
+  const base = await decodificar(original, previa.largura);
+  return versao(base, previa.largura, previa.qualidade, modelo, "previa", opcoes);
 }
 
 /** Miniatura com marca d'água para a grade da galeria (~400 px no lado maior). */
 export async function gerarMiniatura(
   original: Buffer,
   modelo: ModeloMarca = MODELO_MARCA_PADRAO,
+  opcoes: OpcoesDaMarca = { semente: "" },
 ): Promise<ImagemGerada> {
-  return versao(await decodificar(original, LARGURA_MINIATURA), LARGURA_MINIATURA, 120, 70, modelo);
+  const { miniatura } = medidasDasVersoes(opcoes.config);
+  const base = await decodificar(original, miniatura.largura);
+  return versao(base, miniatura.largura, miniatura.qualidade, modelo, "miniatura", opcoes);
 }
 
 /**
- * Amostra de um modelo de marca d'água numa foto de exemplo, para a escolha no painel. Sai do
- * mesmo código das prévias de verdade (o que o fotógrafo vê é o que o cliente vai ver).
+ * Amostra de um modelo de marca d'água numa foto de exemplo (800 px), para a escolha no painel e
+ * para a tela do gestor. Sai do mesmo código das prévias de verdade (o que se vê aqui é o que o
+ * cliente vai ver).
  */
-export async function amostraDaMarca(modelo: ModeloMarca): Promise<Buffer> {
+export async function amostraDaMarca(
+  modelo: ModeloMarca,
+  config: ConfigMarca = CONFIG_MARCA_PADRAO,
+): Promise<Buffer> {
   const foto = await readFile(path.join(process.cwd(), "public", "inicio", "ensaio-casal.webp"));
   const base = await decodificar(foto, 800);
-  return (await versao(base, 800, 150, 78, modelo)).buffer;
+  const opcoes = { semente: "amostra-da-marca", config };
+  return (await versao(base, 800, config.qualidade, modelo, "previa", opcoes)).buffer;
 }
 
 /** Cópia reduzida e já girada para o reconhecimento facial (JPEG, até LARGURA_ROSTOS). */
@@ -531,14 +657,15 @@ export async function copiaParaRostos(original: Buffer): Promise<Buffer> {
 }
 
 /**
- * Camada da marca d'água como PNG transparente do tamanho de um vídeo: o mesmo padrão das fotos
- * (do modelo escolhido pelo dono do evento), posto sobre cada quadro pelo FFmpeg (src/servicos/
- * video.ts). A logo tem a mesma proporção da prévia das fotos.
+ * Camada da marca d'água como PNG transparente do tamanho de um vídeo: o mesmo desenho das fotos
+ * (do modelo do dono do evento, com a configuração global e a variação pelo id do vídeo), posto
+ * sobre cada quadro pelo FFmpeg (src/servicos/video.ts).
  */
-export async function marcaDoVideo(largura: number, altura: number, modelo: ModeloMarca) {
-  const larguraLogo = Math.max(48, Math.round((300 * largura) / LARGURA_PREVIA));
-  const camada = await camadaDeMarcas(largura, altura, larguraLogo, modelo);
-  return sharp(camada.pixels, { raw: { width: largura, height: altura, channels: 4 } })
-    .png()
-    .toBuffer();
+export async function marcaDoVideo(
+  largura: number,
+  altura: number,
+  modelo: ModeloMarca,
+  opcoes: OpcoesDaMarca = { semente: "" },
+) {
+  return desenharCamada(largura, altura, modelo, opcoes);
 }

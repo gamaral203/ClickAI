@@ -4,7 +4,7 @@
 
 import type * as t from "@/db/schema";
 import { chaveDaPreviaCelular, ehModeloMarca, MODELO_MARCA_PADRAO } from "@/lib/marca-dagua";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 import type {
   Colaborador,
@@ -74,9 +74,9 @@ export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {
 }
 
 /** URL da prévia do celular, se a foto tem (src/lib/marca-dagua.ts, chaveDaPreviaCelular). */
-function urlDaPreviaCelular(chavePrevia: string): string | null {
+function urlDaPreviaCelular(chavePrevia: string, pronta: boolean): string | null {
   const chave = chaveDaPreviaCelular(chavePrevia);
-  return chave ? urlPublica(chave) : null;
+  return chave ? urlDaPrevia(chave, { pronta }) : null;
 }
 
 export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
@@ -88,12 +88,16 @@ export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
     "avisoLiberacaoEm",
     "streamUid",
   );
+  // Só prévia protegida chega ao navegador, e só da foto pronta (src/lib/url-publica.ts): a
+  // chave da prévia é gravada antes de o arquivo existir, e qualquer valor fora do bucket de
+  // prévias vira o aviso "Processando", nunca o arquivo.
+  const pronta = f.status === "pronta";
   return {
     ...f,
-    previaVideo: f.previaVideo ? urlPublica(f.previaVideo) : null,
-    urlPrevia: urlPublica(f.urlPrevia),
-    urlPreviaCelular: urlDaPreviaCelular(f.urlPrevia),
-    urlMiniatura: urlPublica(f.urlMiniatura),
+    previaVideo: f.previaVideo ? urlDaPrevia(f.previaVideo, { pronta }) : null,
+    urlPrevia: urlDaPrevia(f.urlPrevia, { pronta }),
+    urlPreviaCelular: urlDaPreviaCelular(f.urlPrevia, pronta),
+    urlMiniatura: urlDaPrevia(f.urlMiniatura, { pronta }),
     capturadaEm: iso(f.capturadaEm),
     criadoEm: iso(f.criadoEm),
     excluidaEm: iso(f.excluidaEm),

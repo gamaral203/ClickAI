@@ -18,7 +18,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, lte, ne, or } from "drizzle-
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 import type { TipoItem } from "./tipos";
 
@@ -138,8 +138,8 @@ export async function fotosDaBuscaPorRosto(
     eventoId: l.eventoId,
     tipo: l.tipo,
     nomeArquivo: l.nomeArquivo,
-    urlMiniatura: urlPublica(l.urlMiniatura),
-    urlPrevia: urlPublica(l.urlPrevia),
+    urlMiniatura: urlDaPrevia(l.urlMiniatura),
+    urlPrevia: urlDaPrevia(l.urlPrevia),
     largura: l.largura,
     altura: l.altura,
     liberada:

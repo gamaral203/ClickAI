@@ -5,7 +5,7 @@
 
 import "server-only";
 
-import { and, asc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -392,4 +392,26 @@ export async function lerUsoInterno(periodo: Periodo, inicioHoje: string, hoje: 
     },
   };
   return uso;
+}
+
+/** Totais de hoje (Brasília) de algumas chaves de `contadores_uso` (0 nas que não têm linha). */
+export async function contadoresDeHoje(
+  chaves: readonly string[],
+  agora: number = Date.now(),
+): Promise<Record<string, number>> {
+  const banco = await obterBanco();
+  const linhas = chaves.length
+    ? await banco
+        .select({ chave: t.contadoresUso.chave, total: t.contadoresUso.total })
+        .from(t.contadoresUso)
+        .where(
+          and(
+            eq(t.contadoresUso.dia, hojeEmBrasilia(agora)),
+            inArray(t.contadoresUso.chave, [...chaves]),
+          ),
+        )
+    : [];
+  const totais: Record<string, number> = Object.fromEntries(chaves.map((c) => [c, 0]));
+  for (const l of linhas) totais[l.chave] = l.total;
+  return totais;
 }

@@ -12,7 +12,7 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 import { iso } from "./mapas";
 
@@ -144,7 +144,7 @@ export async function maisVendidasDoEscopo(
     .groupBy(t.fotos.id, t.fotos.urlMiniatura, t.fotos.nomeArquivo)
     .orderBy(sql`count(*) desc`)
     .limit(limite);
-  return linhas.map((f) => ({ ...f, urlMiniatura: urlPublica(f.urlMiniatura) }));
+  return linhas.map((f) => ({ ...f, urlMiniatura: urlDaPrevia(f.urlMiniatura) }));
 }
 
 /** Visitas e adições ao carrinho do evento inteiro (não identificam ninguém nem são dinheiro). */

@@ -260,6 +260,13 @@
       "when": 1792024861515,
       "tag": "0036_colecoes_arquivadas",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792027330215,
+      "tag": "0037_protecao_das_previas",
+      "breakpoints": true
     }
   ]
 }

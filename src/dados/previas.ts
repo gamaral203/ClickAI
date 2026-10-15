@@ -1,14 +1,15 @@
-// Regeração das prévias antigas (src/servicos/regerar-previas.ts). A versão da marca de cada foto
-// está na própria chave da prévia (`...-v3.webp`; src/lib/marca-dagua.ts): sem coluna nova, a
-// troca da chave no banco é o que marca a foto como feita.
+// Regeração das prévias antigas (src/servicos/regerar-previas.ts). A versão da marca e a revisão
+// da configuração de cada foto estão na própria chave da prévia (`...-v5-r2.webp`;
+// src/lib/marca-dagua.ts): sem coluna nova, a troca da chave no banco é o que marca a foto como
+// feita.
 
 import "server-only";
 
-import { and, asc, count, desc, eq, like, not } from "drizzle-orm";
+import { and, asc, count, desc, eq, like, not, or } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { SUFIXO_DA_VERSAO } from "@/lib/marca-dagua";
+import { sufixoDaVersao, VERSAO_MINIMA_AUTOMATICA } from "@/lib/marca-dagua";
 
 export type FotoComPreviaAntiga = {
   id: string;
@@ -21,21 +22,38 @@ export type FotoComPreviaAntiga = {
 };
 
 /**
- * Condição das fotos com prévia de versão anterior: fotos (não vídeos) prontas, com o original
- * no R2 (`originais/`) e a prévia no bucket público (`previas/`) com uma versão na chave
- * (`-vN.webp`) diferente da atual. As da versão 1 (sem sufixo) ficam de fora: têm o mesmo
- * desenho da versão atual (src/lib/marca-dagua.ts), então regerar só gastaria tempo e R2.
- * Inclui as excluídas: quem comprou ainda vê a miniatura no pedido. Fotos de exemplo (caminhos
+ * O que a regeração refaz:
+ *   - `minima` (sem pedido do gestor): só as versões abaixo de VERSAO_MINIMA_AUTOMATICA com
+ *     sufixo (2 e 3, sem a prévia do celular). A versão 1 (sem sufixo) tinha o mesmo desenho da
+ *     3, e a 4 já tem tudo: trocar o desenho delas é decisão do gestor;
+ *   - `revisao` (o gestor confirmou em /admin/marca-dagua): toda prévia que não está na versão
+ *     atual com a revisão em vigor (`-v5-r{revisão}.webp`), de qualquer versão.
+ */
+export type AlvoDaRegeracao = { tipo: "minima" } | { tipo: "revisao"; revisao: number };
+
+function precisaRegerar(alvo: AlvoDaRegeracao) {
+  if (alvo.tipo === "revisao") {
+    return not(like(t.fotos.urlPrevia, `%${sufixoDaVersao(alvo.revisao)}`));
+  }
+  const antigas = Array.from({ length: VERSAO_MINIMA_AUTOMATICA - 2 }, (_, i) =>
+    like(t.fotos.urlPrevia, `%-v${i + 2}.webp`),
+  );
+  return or(...antigas);
+}
+
+/**
+ * Condição das fotos a regerar: fotos (não vídeos) prontas, com o original no R2
+ * (`originais/`), a prévia no bucket público (`previas/`) e a chave fora do alvo. Inclui as
+ * excluídas: quem comprou ainda vê a miniatura no pedido. Fotos de exemplo (caminhos
  * `/exemplo/...`) ficam de fora.
  */
-function comPreviaAntiga(eventoId?: string) {
+function comPreviaAntiga(alvo: AlvoDaRegeracao, eventoId?: string) {
   return and(
     eq(t.fotos.tipo, "foto"),
     eq(t.fotos.status, "pronta"),
     like(t.fotos.chaveOriginal, "originais/%"),
     like(t.fotos.urlPrevia, "previas/%"),
-    like(t.fotos.urlPrevia, "%-v%.webp"),
-    not(like(t.fotos.urlPrevia, `%${SUFIXO_DA_VERSAO}`)),
+    precisaRegerar(alvo),
     eventoId ? eq(t.fotos.eventoId, eventoId) : undefined,
   );
 }
@@ -45,6 +63,7 @@ function comPreviaAntiga(eventoId?: string) {
  * da galeria. Com `eventoId`, só as daquele evento.
  */
 export async function listarFotosComPreviaAntiga(
+  alvo: AlvoDaRegeracao,
   limite: number,
   eventoId?: string,
 ): Promise<FotoComPreviaAntiga[]> {
@@ -61,19 +80,22 @@ export async function listarFotosComPreviaAntiga(
     })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
-    .where(comPreviaAntiga(eventoId))
+    .where(comPreviaAntiga(alvo, eventoId))
     .orderBy(desc(t.eventos.inicioEm), asc(t.fotos.eventoId), asc(t.fotos.ordem))
     .limit(limite);
   return linhas.map((l) => ({ ...l, chaveOriginal: l.chaveOriginal! }));
 }
 
-/** Quantas fotos ainda têm prévia de versão anterior (no evento, ou em todos). */
-export async function contarFotosComPreviaAntiga(eventoId?: string): Promise<number> {
+/** Quantas fotos ainda estão fora do alvo (no evento, ou em todos). */
+export async function contarFotosComPreviaAntiga(
+  alvo: AlvoDaRegeracao,
+  eventoId?: string,
+): Promise<number> {
   const banco = await obterBanco();
   const [linha] = await banco
     .select({ total: count() })
     .from(t.fotos)
-    .where(comPreviaAntiga(eventoId));
+    .where(comPreviaAntiga(alvo, eventoId));
   return linha?.total ?? 0;
 }
 

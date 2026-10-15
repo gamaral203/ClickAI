@@ -9,7 +9,7 @@ import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia, urlPublica } from "@/lib/url-publica";
 
 import { paraDenuncia, paraLoja, paraPasta } from "./mapas";
 import type { Denuncia, Evento, Fotografo, Loja, Pasta, StatusDenuncia } from "./tipos";
@@ -220,7 +220,7 @@ async function paraAdmin(linhas: (typeof t.denuncias.$inferSelect)[]): Promise<D
         foto: foto
           ? {
               id: foto.id,
-              urlMiniatura: urlPublica(foto.urlMiniatura),
+              urlMiniatura: urlDaPrevia(foto.urlMiniatura),
               excluida: foto.excluidaEm !== null,
               // Foto de colaborador: o autor também é avisado.
               autorEmail: foto.autorId !== evento.donoId ? (autor?.email ?? null) : null,

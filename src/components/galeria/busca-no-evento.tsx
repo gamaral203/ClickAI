@@ -139,7 +139,12 @@ export function BuscaNoEvento({
     }
     startTransition(async () => {
       try {
-        setResultado({ ...(await buscarPorNumero(slug, numero)), origem: "numero" });
+        const resultado = await buscarPorNumero(slug, numero);
+        if (resultado.limitado) {
+          setErro("Muitas buscas seguidas. Espere alguns minutos e tente de novo.");
+          return;
+        }
+        setResultado({ ...resultado, origem: "numero" });
         setLembradoEm(null);
         setPreparando(null);
       } catch {

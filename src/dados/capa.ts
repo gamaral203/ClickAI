@@ -17,7 +17,7 @@ import { and, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia, urlPublica } from "@/lib/url-publica";
 
 export type CapaDoEvento = {
   /** A foto do evento que é a capa; `null` quando a capa é uma imagem enviada. */
@@ -117,8 +117,8 @@ export async function capasDosEventos(
       fotoId: l.fotoId,
       escolhida: l.escolhida,
       enviada: false,
-      urlMiniatura: urlPublica(l.urlMiniatura),
-      urlPrevia: l.tipo === "foto" ? urlPublica(l.urlPrevia) : null,
+      urlMiniatura: urlDaPrevia(l.urlMiniatura),
+      urlPrevia: l.tipo === "foto" ? urlDaPrevia(l.urlPrevia) : null,
       largura: l.largura,
       altura: l.altura,
     });
@@ -168,8 +168,8 @@ export async function capasParaODono(eventoIds: string[]): Promise<Map<string, C
       fotoId: l.fotoId,
       escolhida: l.escolhida,
       enviada: false,
-      urlMiniatura: urlPublica(l.urlMiniatura),
-      urlPrevia: l.tipo === "foto" ? urlPublica(l.urlPrevia) : null,
+      urlMiniatura: urlDaPrevia(l.urlMiniatura),
+      urlPrevia: l.tipo === "foto" ? urlDaPrevia(l.urlPrevia) : null,
       largura: l.largura,
       altura: l.altura,
     });

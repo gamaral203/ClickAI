@@ -10,7 +10,7 @@ import { connection } from "next/server";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { avatarValido } from "@/lib/avatares";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia, urlPublica } from "@/lib/url-publica";
 
 import { iso, omitir } from "./mapas";
 import type { ConfigModelo, Evento, Foto, Fotografo, ModeloEvento, TipoMetrica } from "./tipos";
@@ -243,7 +243,7 @@ export async function desempenhoDoFotografo(fotografoId: string): Promise<{
   return {
     eventos: linhas,
     fotos: destaque.map((d) => ({
-      foto: { id: d.fotoId, urlMiniatura: urlPublica(d.urlMiniatura) },
+      foto: { id: d.fotoId, urlMiniatura: urlDaPrevia(d.urlMiniatura) },
       eventoTitulo: d.eventoTitulo,
       vendas: d.vendas,
       visitas: visitasFoto.find((x) => x.fotoId === d.fotoId)?.total ?? 0,

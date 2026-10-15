@@ -32,7 +32,12 @@ const numero = z.object({
     .regex(/^\d{1,6}$/),
 });
 
-export type ResultadoBusca = { fotos: Foto[]; pacote: OfertaPacote | null };
+export type ResultadoBusca = {
+  fotos: Foto[];
+  pacote: OfertaPacote | null;
+  /** Muitas buscas seguidas deste IP neste evento (src/servicos/limites.ts, busca_numero_ip). */
+  limitado?: boolean;
+};
 
 /**
  * Fotos do evento com o número de peito informado, e a oferta do pacote para elas. Mesma
@@ -45,6 +50,9 @@ export async function buscarPorNumero(
   const nada = { fotos: [], pacote: null };
   const dados = numero.safeParse({ slug: slugEvento, numero: numeroDePeito });
   if (!dados.success) return nada;
+  if (await limiteDoIpAtingido("busca_numero_ip", dados.data.slug)) {
+    return { ...nada, limitado: true };
+  }
   const evento = await buscarEventoPublicado(dados.data.slug);
   if (!evento) return nada;
   const fotos = await fotosPorNumero(evento.id, dados.data.numero);

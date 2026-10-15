@@ -20,7 +20,7 @@ import { avatarPadrao } from "@/lib/avatares";
 import { FOTOS_POR_PAGINA, limitarPagina, paginaDaPosicao } from "@/lib/galeria";
 import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
-import { urlPublica } from "@/lib/url-publica";
+import { urlDaPrevia } from "@/lib/url-publica";
 
 import { capasDosEventos, capasEnviadas } from "./capa";
 import { eventosDosCupons } from "./comum";
@@ -257,7 +257,7 @@ async function chavesVisiveisDoEvento(evento: Evento, instante: number): Promise
     .where(and(eq(t.fotos.eventoId, evento.id), itemVisivel(instante)));
   const itens = linhas.map((l) => ({
     ...l,
-    urlMiniatura: urlPublica(l.urlMiniatura),
+    urlMiniatura: urlDaPrevia(l.urlMiniatura),
     criadoEm: iso(l.criadoEm),
     capturadaEm: iso(l.capturadaEm),
   }));
@@ -1168,7 +1168,7 @@ export async function detalharItensDoPedido(itens: ItemPedido[]) {
       {
         item,
         tipo: l.tipo,
-        urlMiniatura: urlPublica(l.urlMiniatura),
+        urlMiniatura: urlDaPrevia(l.urlMiniatura),
         eventoTitulo: l.eventoTitulo,
         eventoSlug: l.eventoSlug,
       },
@@ -1636,6 +1636,7 @@ export * from "./capa";
 export * from "./suporte";
 export * from "./originais-do-dono";
 export * from "./previas";
+export * from "./configuracao-marca";
 export * from "./clientes";
 export * from "./compras-do-email";
 export * from "./manutencao";
