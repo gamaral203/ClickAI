@@ -353,6 +353,12 @@ export const eventos = pgTable(
     /** Desligado, as faixas de desconto progressivo não valem neste evento. */
     descontoProgressivo: boolean().notNull().default(true),
     /**
+     * Lê o número de peito das fotos (Rekognition DetectText, src/servicos/numeros.ts) para a
+     * busca por número. Ligada por padrão nas categorias com peito (src/lib/numeros-de-peito.ts);
+     * cada leitura é cobrada, então nas demais fica desligada.
+     */
+    lerNumeros: boolean().notNull().default(false),
+    /**
      * Última busca por rosto no evento (selfie pública ou busca do painel), gravada no máximo a
      * cada poucas horas. Conta como atividade para não arquivar a coleção (src/servicos/
      * colecoes.ts). Nos eventos anteriores à migração 0036, começa com a última visita.
@@ -434,6 +440,12 @@ export const fotos = pgTable(
      */
     rostosIndexadosEm: data(),
     /**
+     * Quando a foto passou pela leitura do número de peito (src/servicos/numeros.ts), mesmo que
+     * sem nenhum número. Nulo: ainda não passou (evento sem a opção, leitura que falhou ou foto
+     * anterior à migração 0038); o "Ler números que faltam" e o job de revisão pegam essas.
+     */
+    numerosLidosEm: data(),
+    /**
      * Início do envio atual (a URL assinada vale 15 minutos). O job que revisa fotos presas em
      * `processando` só mexe nas que passaram bem desse prazo (src/servicos/envios.ts). Nulo nas
      * fotos anteriores à migração 0007: vale o `criado_em`.
@@ -510,9 +522,16 @@ export const numeros = pgTable(
     fotoId: uuid()
       .notNull()
       .references(() => fotos.id, { onDelete: "cascade" }),
+    /** Só dígitos, sem zeros à esquerda (src/lib/numeros-de-peito.ts, normalizarNumero). */
     numero: text().notNull(),
+    /** Confiança da leitura (0–100); nula na correção manual e nos dados de exemplo. */
+    confianca: doublePrecision(),
+    /** Onde está o número na foto, em frações de 0 a 1 (como devolve o Rekognition). */
+    caixa: jsonb().$type<{ esquerda: number; topo: number; largura: number; altura: number }>(),
+    /** Posto pelo fotógrafo no painel: a releitura da foto não o apaga. */
+    manual: boolean().notNull().default(false),
   },
-  (t) => [index().on(t.numero, t.fotoId), index().on(t.fotoId)],
+  (t) => [index().on(t.numero, t.fotoId), uniqueIndex().on(t.fotoId, t.numero)],
 ).enableRLS();
 
 // ---------------------------------------------------------------- Vendas

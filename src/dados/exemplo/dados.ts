@@ -6,6 +6,7 @@
 // Cada evento existe para exercitar uma regra da arquitetura; o comentário ao lado diz qual.
 // Nomes, CPFs e contas são fictícios.
 
+import { categoriaComNumero } from "@/lib/numeros-de-peito";
 import { gerarHashSenha } from "@/lib/senha";
 
 import type {
@@ -301,7 +302,9 @@ const eventosBase: EventoBase[] = [
 
 export const eventos: Evento[] = eventosBase.map(({ quantidadeFotos, ...evento }, i) => {
   void quantidadeFotos;
-  return { id: uuid("e7e70000", i + 1), ...evento };
+  // Leitura do número de peito como nasce na categoria (src/lib/numeros-de-peito.ts).
+  const slug = categorias.find((c) => c.id === evento.categoriaId)?.slug;
+  return { id: uuid("e7e70000", i + 1), ...evento, lerNumeros: categoriaComNumero(slug) };
 });
 
 function eventoPorSlug(slug: string) {
@@ -426,7 +429,11 @@ function gerarNumeros(): NumeroEncontrado[] {
     doEvento.forEach((foto, n) => {
       if (n % 7 === 6) return;
       resultado.push({ fotoId: foto.id, numero: String(1000 + ((n * 37) % 60)) });
-      if (n % 3 === 0) resultado.push({ fotoId: foto.id, numero: String(1000 + ((n * 11) % 60)) });
+      const segundo = String(1000 + ((n * 11) % 60));
+      // Um número aparece uma vez só por foto (índice único em `numeros`).
+      if (n % 3 === 0 && segundo !== resultado[resultado.length - 1].numero) {
+        resultado.push({ fotoId: foto.id, numero: segundo });
+      }
     });
   }
   return resultado;

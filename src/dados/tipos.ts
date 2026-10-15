@@ -130,6 +130,8 @@ export type Evento = {
   ordenacao: Ordenacao;
   /** `false`: as faixas de desconto progressivo não valem neste evento (sem o campo, valem). */
   descontoProgressivo?: boolean;
+  /** Lê o número de peito das fotos (busca por número). Sem o campo, desligada. */
+  lerNumeros?: boolean;
 };
 
 export type Pasta = {
@@ -209,6 +211,7 @@ export type ConfigModelo = Pick<
   | "filtroHorario"
   | "listarNaoIdentificadas"
   | "ordenacao"
+  | "lerNumeros"
 >;
 
 export type ModeloEvento = {
