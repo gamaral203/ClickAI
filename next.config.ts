@@ -84,6 +84,9 @@ const nextConfig: NextConfig = {
       "./public/marca/*.png",
       "./node_modules/ffmpeg-static/ffmpeg",
     ],
+    // A busca num evento com rostos arquivados reindexa depois da resposta, vídeos inclusive
+    // (src/servicos/colecoes.ts): os quadros saem do FFmpeg.
+    "/api/busca-facial": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/jobs/**": [
       "./public/logo.png",
       "./public/marca/*.png",

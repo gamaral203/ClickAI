@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import {
@@ -6,14 +6,23 @@ import {
   caixasDosRostos,
   contarUso,
   fotosEncontradas,
+  pedirReindexacao,
+  registrarBuscaNosEventos,
   rostosDeExemploDoEvento,
+  situacaoDaColecao,
 } from "@/dados";
 import {
   ehImagemDaBusca as ehImagem,
   TAMANHO_MAXIMO_SELFIE as TAMANHO_MAXIMO,
 } from "@/lib/imagem-da-busca";
 import { CONTADOR } from "@/lib/painel-de-uso";
-import { BuscaFacialDesligada, buscarFotosPorSelfie } from "@/lib/reconhecimento";
+import {
+  BuscaFacialDesligada,
+  buscarFotosPorSelfie,
+  nomeDoErro,
+  provedorFacial,
+} from "@/lib/reconhecimento";
+import { reindexarEventoArquivado } from "@/servicos/colecoes";
 import { limiteDoIpAtingido } from "@/servicos/limites";
 import { ofertaDePacote } from "@/servicos/pacotes";
 import { respostaDaManutencao } from "@/servicos/manutencao";
@@ -22,6 +31,15 @@ import { respostaDaManutencao } from "@/servicos/manutencao";
 // (LGPD, dado pessoal sensível): só é aceita com consentimento, fica só na memória desta
 // requisição, vai ao provedor para a comparação e é descartada. Nunca gravar nem logar o
 // corpo desta rota.
+//
+// Evento com os rostos arquivados por inatividade (src/servicos/colecoes.ts): a selfie não vai ao
+// provedor (a coleção não existe mais). A rota pede a reindexação, começa a fazê-la depois da
+// resposta (`after`) e responde 202 com `preparando`, para a tela avisar em vez de dar erro.
+
+// A reindexação disparada pela busca roda depois da resposta, dentro deste tempo.
+export const maxDuration = 300;
+/** Quanto da função a reindexação usa depois da resposta (o resto fica para a busca seguinte). */
+const PRAZO_DA_REINDEXACAO_MS = 240 * 1000;
 
 const campos = z.object({
   slug: z
@@ -74,11 +92,34 @@ export async function POST(request: NextRequest) {
   if (!evento) return resposta({ erro: "Evento não encontrado." }, 404);
 
   try {
+    if (provedorFacial() === "rekognition" && (await situacaoDaColecao(evento.id)).arquivadaEm) {
+      await pedirReindexacao(evento.id, new Date());
+      after(() =>
+        reindexarEventoArquivado(evento.id, PRAZO_DA_REINDEXACAO_MS).catch((erro) =>
+          console.error(
+            `[busca-facial] falha ao reindexar o evento ${evento.id}: ${nomeDoErro(erro)}`,
+          ),
+        ),
+      );
+      return resposta(
+        {
+          preparando: true,
+          mensagem:
+            "Estamos preparando a busca por selfie deste evento, que ficou um tempo parado. " +
+            "Tente de novo em alguns minutos.",
+        },
+        202,
+      );
+    }
     const { fotoIds, rostoIds } = await buscarFotosPorSelfie(evento.id, selfie, () =>
       rostosDeExemploDoEvento(evento.id),
     );
     // Contador anônimo do Painel de uso: só "mais uma busca hoje", sem evento, IP nem selfie.
     await contarUso(CONTADOR.buscaSelfie);
+    // Atividade do evento (adia o arquivamento da coleção): só a hora, nada da busca.
+    await registrarBuscaNosEventos([evento.id], new Date()).catch((erro) =>
+      console.error(`[busca-facial] falha ao registrar a busca: ${nomeDoErro(erro)}`),
+    );
     const fotos = await fotosEncontradas(evento.id, fotoIds);
     // Onde está o rosto da pessoa em cada foto: a tela amplia a miniatura nele.
     // Só das fotos devolvidas: foto ainda não liberada não aparece nem pelo id.

@@ -159,8 +159,9 @@ export function BuscaPorRosto({
               Meus eventos recentes
             </span>
             <span className="text-sm text-muted-foreground">
-              Procura nos {recentes}{" "}
-              {recentes === 1 ? "evento mais recente" : "eventos mais recentes"}
+              Procura em até {recentes}{" "}
+              {recentes === 1 ? "evento mais recente" : "eventos mais recentes"} com rostos
+              cadastrados
               {eventos.length > maximoRecentes
                 ? ` (de ${eventos.length}). Para um evento mais antigo, escolha-o acima.`
                 : "."}{" "}
@@ -295,6 +296,15 @@ function EscolherFoto({
 
 function Resultado({ grupos, consultados }: { grupos: GrupoDaBusca[]; consultados: number }) {
   const total = grupos.reduce((s, g) => s + g.minhas.length + g.deOutros.length, 0);
+  if (consultados === 0) {
+    // Nenhum evento do escopo tem rosto cadastrado: o servidor nem chamou o reconhecimento.
+    return (
+      <p className="rounded-xl border p-5 text-sm text-muted-foreground">
+        Nenhum rosto cadastrado ainda nos eventos escolhidos. Confira, no evento, o quadro “Busca
+        por selfie”.
+      </p>
+    );
+  }
   if (total === 0) {
     return (
       <p className="rounded-xl border p-5 text-sm text-muted-foreground">

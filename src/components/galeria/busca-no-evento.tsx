@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
-import { Check, Hash, Loader2, Package, ScanFace, ShoppingCart } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Check, Hash, History, Loader2, Package, ScanFace, ShoppingCart } from "lucide-react";
 
 import { buscarPorNumero, type ResultadoBusca } from "@/app/(publico)/eventos/[slug]/acoes";
 import {
@@ -20,6 +20,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatarPreco } from "@/lib/formatar";
 import { prepararSelfie } from "@/lib/preparar-selfie";
+import {
+  esquecerResultado,
+  guardarResultado,
+  lerResultado,
+  VALIDADE_DA_BUSCA_MS,
+} from "@/lib/resultado-da-busca";
+
+const horaCurta = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 type Resultado =
   | (ResultadoBusca & {
@@ -51,7 +59,29 @@ export function BuscaNoEvento({
   const [erro, setErro] = useState<string | null>(null);
   const [erroSelfie, setErroSelfie] = useState<string | null>(null);
   const [buscando, startTransition] = useTransition();
+  /** Horário da busca, quando o resultado na tela veio do sessionStorage (página recarregada). */
+  const [lembradoEm, setLembradoEm] = useState<number | null>(null);
+  /** Aviso de que a busca do evento está sendo preparada (rostos arquivados, reindexando). */
+  const [preparando, setPreparando] = useState<string | null>(null);
   const areaResultado = useRef<HTMLDivElement>(null);
+
+  // Página recarregada (ou volta da página de uma foto): mostra o resultado da última busca por
+  // selfie desta aba, se ainda vale, sem pedir outra selfie (src/lib/resultado-da-busca.ts).
+  useEffect(() => {
+    const salvo = lerResultado(slug);
+    if (!salvo) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- o sessionStorage só existe no navegador, depois da hidratação
+    setResultado({ fotos: salvo.fotos, pacote: salvo.pacote, origem: "selfie" });
+    setLembradoEm(salvo.em);
+  }, [slug]);
+
+  function buscarDeNovo() {
+    esquecerResultado(slug);
+    setLembradoEm(null);
+    setResultado(null);
+    setErroSelfie(null);
+    setDialogoAberto(true);
+  }
 
   function buscarSelfie(arquivo: File) {
     setErroSelfie(null);
@@ -64,7 +94,17 @@ export function BuscaNoEvento({
         const resposta = await fetch("/api/busca-facial", { method: "POST", body: corpo });
         const dados = (await resposta.json()) as Partial<NonNullable<Resultado>> & {
           erro?: string;
+          preparando?: boolean;
+          mensagem?: string;
         };
+        if (resposta.status === 202 && dados.preparando) {
+          // Rostos do evento arquivados por inatividade: o servidor já começou a reindexar.
+          setResultado(null);
+          setLembradoEm(null);
+          setPreparando(dados.mensagem ?? "Estamos preparando a busca por selfie deste evento.");
+          setDialogoAberto(false);
+          return;
+        }
         if (!resposta.ok || !dados.fotos) {
           setErroSelfie(dados.erro ?? "A busca falhou. Tente de novo.");
           return;
@@ -75,6 +115,10 @@ export function BuscaNoEvento({
           recortes: dados.recortes,
           origem: "selfie",
         });
+        // Lembra só o resultado (fotos e pacote), nunca a selfie nem a posição do rosto.
+        guardarResultado(slug, { fotos: dados.fotos, pacote: dados.pacote ?? null });
+        setLembradoEm(null);
+        setPreparando(null);
         setDialogoAberto(false);
         // Leva a pessoa até as fotos encontradas, que aparecem abaixo do botão.
         requestAnimationFrame(() =>
@@ -96,6 +140,8 @@ export function BuscaNoEvento({
     startTransition(async () => {
       try {
         setResultado({ ...(await buscarPorNumero(slug, numero)), origem: "numero" });
+        setLembradoEm(null);
+        setPreparando(null);
       } catch {
         setErro("A busca falhou. Tente de novo.");
       }
@@ -195,8 +241,51 @@ export function BuscaNoEvento({
         </p>
       )}
 
+      {preparando && aba === "selfie" && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-lg bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="flex items-center gap-2">
+            <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin text-primary" />
+            {preparando}
+          </p>
+          <Button
+            variant="outline"
+            size="touch"
+            className="w-fit shrink-0"
+            disabled={buscando}
+            onClick={() => {
+              setErroSelfie(null);
+              setDialogoAberto(true);
+            }}
+          >
+            Tentar de novo
+          </Button>
+        </div>
+      )}
+
       {resultado && (
         <div ref={areaResultado} className="flex scroll-mt-4 flex-col gap-3">
+          {lembradoEm !== null && (
+            <div className="flex flex-col gap-2 rounded-lg bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <History aria-hidden="true" className="size-4 shrink-0" />
+                Resultado da sua busca das {horaCurta.format(lembradoEm)}, guardado nesta aba por{" "}
+                {VALIDADE_DA_BUSCA_MS / 60_000} minutos. A sua selfie não foi guardada.
+              </p>
+              <Button
+                variant="outline"
+                size="touch"
+                className="w-fit shrink-0"
+                disabled={buscando}
+                onClick={buscarDeNovo}
+              >
+                <ScanFace aria-hidden="true" data-icon="inline-start" />
+                Buscar de novo
+              </Button>
+            </div>
+          )}
           <p role="status" className="font-medium">
             {resultado.fotos.length === 0
               ? resultado.origem === "selfie"

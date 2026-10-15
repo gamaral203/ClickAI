@@ -18,6 +18,11 @@ import {
 import { gatewayConfigurado } from "@/lib/gateway";
 
 import { avisarVencimentosDeAssinaturas } from "./avisos-assinaturas";
+import {
+  arquivarColecoesInativas,
+  continuarReindexacoesPedidas,
+  type ResultadoArquivamento,
+} from "./colecoes";
 import { VALIDADE_CADASTRO_PENDENTE_MS } from "./confirmacao-email";
 import { PRAZO_DO_JOB_MS, revisarFotosPresas, type ResultadoFotosPresas } from "./envios";
 import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensagens";
@@ -161,10 +166,15 @@ const PREVIAS_REGERADAS_NO_JOB = 300;
 /** Abaixo disso de tempo sobrando, o job nem começa a regerar prévias. */
 const ESPERA_MINIMA_PARA_REGERAR_MS = 10 * 1000;
 
+/** Teto do tempo do job de revisão gasto em reindexar eventos arquivados que alguém procurou. */
+const PRAZO_DA_REINDEXACAO_NO_JOB_MS = 50 * 1000;
+
 export type ResultadoJobRevisao = {
   /** Fotógrafos cujos saques em `processando` foram conferidos no Mercado Pago. */
   saquesConferidos: number;
   fotos: ResultadoFotosPresas;
+  /** Eventos arquivados reindexados porque alguém buscou neles (só quando houve algum). */
+  reindexacao?: { eventos: number; concluidas: number; indexadas: number };
   /** Prévias regeradas com a marca atual (só quando houve alguma). */
   previas?: ResultadoRegeracao;
 };
@@ -176,7 +186,9 @@ export type ResultadoJobRevisao = {
  *      ambíguo (sem resposta, recusa num reenvio, Pix devolvido) continua em `processando` para
  *      revisão manual. O saldo nunca volta sem certeza de que o Pix não saiu;
  *   2. revisa fotos presas em `processando` (revisarFotosPresas);
- *   3. com o tempo que sobra, regera as prévias de versão anterior da marca
+ *   3. continua a reindexação dos eventos com rostos arquivados em que alguém buscou
+ *      (src/servicos/colecoes.ts), até 50 s;
+ *   4. com o tempo que sobra, regera as prévias de versão anterior da marca
  *      (src/servicos/regerar-previas.ts), até acabar.
  * Sem o Mercado Pago ou sem o R2 configurados (desenvolvimento e testes), a parte
  * correspondente não faz nada. Uma parte que falha não impede a outra.
@@ -211,7 +223,21 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
     console.error("[jobs] falha ao revisar as fotos presas", erro);
   }
 
-  // 3. Com o tempo que sobra, regera as prévias de versão anterior da marca, o evento mais
+  // Continua a reindexação dos eventos arquivados em que alguém buscou (src/servicos/colecoes.ts),
+  // antes das prévias: quem buscou está esperando.
+  const sobraParaReindexar = PRAZO_DO_JOB_MS - (Date.now() - inicio);
+  if (sobraParaReindexar > ESPERA_MINIMA_PARA_REGERAR_MS) {
+    try {
+      const reindexacao = await continuarReindexacoesPedidas(
+        Math.min(sobraParaReindexar, PRAZO_DA_REINDEXACAO_NO_JOB_MS),
+      );
+      if (reindexacao.eventos > 0) resultado.reindexacao = reindexacao;
+    } catch (erro) {
+      console.error("[jobs] falha ao reindexar os eventos arquivados", erro);
+    }
+  }
+
+  // 4. Com o tempo que sobra, regera as prévias de versão anterior da marca, o evento mais
   // recente primeiro, até acabar (src/servicos/regerar-previas.ts).
   const sobra = PRAZO_DO_JOB_MS - (Date.now() - inicio);
   if (sobra > ESPERA_MINIMA_PARA_REGERAR_MS) {
@@ -223,4 +249,16 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
     }
   }
   return resultado;
+}
+
+// ---------------------------------------------------------------- Job das coleções
+
+/**
+ * Job das coleções (/api/jobs/colecoes, uma vez por dia pelo cron da Vercel): apaga no
+ * Rekognition a coleção dos eventos sem atividade há DIAS_SEM_ATIVIDADE_PARA_ARQUIVAR dias e marca
+ * no banco que os rostos não estão mais indexados (src/servicos/colecoes.ts). Idempotente:
+ * rodar duas vezes não apaga nada a mais nem estraga a marca.
+ */
+export async function rodarJobDeColecoes(agora = Date.now()): Promise<ResultadoArquivamento> {
+  return arquivarColecoesInativas(agora);
 }

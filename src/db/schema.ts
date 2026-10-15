@@ -352,6 +352,22 @@ export const eventos = pgTable(
     ordenacao: ordenacao().notNull().default("captura"),
     /** Desligado, as faixas de desconto progressivo não valem neste evento. */
     descontoProgressivo: boolean().notNull().default(true),
+    /**
+     * Última busca por rosto no evento (selfie pública ou busca do painel), gravada no máximo a
+     * cada poucas horas. Conta como atividade para não arquivar a coleção (src/servicos/
+     * colecoes.ts). Nos eventos anteriores à migração 0036, começa com a última visita.
+     */
+    ultimaBuscaEm: data(),
+    /**
+     * A coleção do evento no Rekognition foi apagada por inatividade e os rostos saíram do banco
+     * (`rostos`, `fotos.rostos_indexados_em`). Nulo: rostos indexados normalmente. A busca num
+     * evento arquivado pede a reindexação em vez de consultar o provedor.
+     */
+    rostosArquivadosEm: data(),
+    /** Alguém buscou no evento arquivado: a reindexação continua até terminar. */
+    reindexacaoPedidaEm: data(),
+    /** Reserva da reindexação em andamento (uma por vez por evento), até esta hora. */
+    reindexacaoAte: data(),
   },
   (t) => [uniqueIndex().on(t.slug), index().on(t.fotografoId), index().on(t.status, t.inicioEm)],
 ).enableRLS();

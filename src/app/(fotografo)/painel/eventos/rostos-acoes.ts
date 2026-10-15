@@ -4,16 +4,16 @@ import { revalidatePath } from "next/cache";
 
 import {
   buscarEventoDoFotografo,
+  concluirReindexacao,
   fotosParaIndexar,
   limparRostosDoEvento,
   rostosDoEvento,
 } from "@/dados";
 import { ehIdValido } from "@/lib/validacao";
-import { lerOriginal, r2Configurado } from "@/lib/r2";
+import { r2Configurado } from "@/lib/r2";
 import { apagarRostos, ehErroDeCredencial, nomeDoErro, provedorFacial } from "@/lib/reconhecimento";
-import { indexarRostosDaFoto, indexarRostosDoVideo } from "@/servicos/envios";
+import { indexarItemDoEvento } from "@/servicos/colecoes";
 import { exigirFotografo } from "@/servicos/sessao";
-import { quadrosParaRostos } from "@/servicos/video";
 
 /** Fotos por chamada: cada uma lê o original no R2 e vai ao Rekognition (~1 s cada). */
 const POR_CHAMADA = 8;
@@ -61,19 +61,8 @@ export async function indexarRostosDoEventoAcao(
     if (i > 0 && Date.now() - inicio > TEMPO_POR_CHAMADA_MS) {
       return { ok: true, indexadas, falhas, proximo: fotos[i - 1].id };
     }
-    if (!foto.chaveOriginal) continue;
-    let original: Buffer;
-    try {
-      original = await lerOriginal(foto.chaveOriginal);
-    } catch (erro) {
-      console.error(`[rostos] falha ao ler o original da foto ${foto.id}`, erro);
-      falhas++;
-      continue;
-    }
-    const resultado =
-      foto.tipo === "video"
-        ? await indexarRostosDoVideo(evento.id, foto.id, () => quadrosParaRostos(original))
-        : await indexarRostosDaFoto(evento.id, foto.id, original);
+    const resultado = await indexarItemDoEvento(evento.id, foto);
+    if (resultado === "sem_original") continue;
     if (resultado === "indexada") indexadas++;
     else if (resultado === "falha_credencial") {
       revalidatePath(`/painel/eventos/${evento.id}`);
@@ -81,7 +70,12 @@ export async function indexarRostosDoEventoAcao(
     } else falhas++;
   }
   const proximo = fotos.length === POR_CHAMADA ? fotos[fotos.length - 1].id : null;
-  if (!proximo) revalidatePath(`/painel/eventos/${evento.id}`);
+  if (!proximo) {
+    // Passou por todas: se os rostos estavam arquivados por inatividade, a busca volta ao normal
+    // (src/servicos/colecoes.ts). As que falharam continuam pendentes, como sempre.
+    await concluirReindexacao(evento.id);
+    revalidatePath(`/painel/eventos/${evento.id}`);
+  }
   return { ok: true, indexadas, falhas, proximo };
 }
 

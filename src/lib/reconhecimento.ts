@@ -2,9 +2,14 @@
 // Com as credenciais REKOGNITION_*, usa o Amazon Rekognition (uma coleção de rostos por evento);
 // sem elas, os dados de exemplo simulam o resultado.
 //
-// Regra do projeto (docs/CLAUDE.md): a selfie nunca é gravada. Ela chega aqui como bytes em
-// memória, vai ao provedor só para a busca (SearchFacesByImage não guarda a imagem) e é
+// Regra do projeto (docs/CLAUDE.md): a selfie nunca é gravada por nós. Ela chega aqui como bytes
+// em memória, vai ao provedor só para a busca (o SearchFacesByImage não a põe na coleção) e é
 // descartada no fim da requisição. Nada daqui escreve a selfie em log.
+//
+// Atenção: pelos termos da AWS, os serviços de IA (Rekognition incluso) podem guardar e usar o
+// conteúdo enviado (selfies e fotos), inclusive fora da região, a menos que a conta esteja na
+// política de opt-out de serviços de IA do AWS Organizations. Isso não se resolve no código: é
+// passo obrigatório de configuração (docs/seguranca.md, item 20).
 
 import "server-only";
 
@@ -12,6 +17,7 @@ import { createHash } from "node:crypto";
 
 import {
   CreateCollectionCommand,
+  DeleteCollectionCommand,
   DeleteFacesCommand,
   IndexFacesCommand,
   RekognitionClient,
@@ -178,6 +184,26 @@ export async function indexarRostos(
         : null;
     return [{ rostoId: r.Face.FaceId, caixa }];
   });
+}
+
+/**
+ * Apaga a coleção inteira do evento no Rekognition (rostos e índice): o armazenamento de rostos é
+ * cobrado todo mês, e evento parado não precisa dele (src/servicos/colecoes.ts). Coleção que não
+ * existe mais conta como apagada, então chamar duas vezes é seguro. Precisa da permissão
+ * rekognition:DeleteCollection; sem ela, lança o erro da AWS. `false` sem o Rekognition
+ * configurado (nada a apagar).
+ */
+export async function apagarColecao(eventoId: string): Promise<boolean> {
+  const config = configRekognition();
+  if (!config) return false;
+  const CollectionId = colecao(config, eventoId);
+  colecoesCriadas.delete(CollectionId);
+  try {
+    await rekognition(config).send(new DeleteCollectionCommand({ CollectionId }));
+  } catch (erro) {
+    if (nomeDoErro(erro) !== "ResourceNotFoundException") throw erro;
+  }
+  return true;
 }
 
 /** O DeleteFaces aceita até 4096 rostos por chamada. */
