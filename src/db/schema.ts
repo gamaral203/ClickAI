@@ -1111,3 +1111,27 @@ export const configuracoesMarca = pgTable("configuracoes_marca", {
   regeracaoPedidaEm: data(),
   regeracaoPedidaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
 }).enableRLS();
+
+// ---------------------------------------------------------------- Moldura do evento
+
+export const formatoMoldura = pgEnum("formato_moldura", ["story", "feed"]);
+
+/**
+ * Moldura do evento (docs/arquitetura.md, "Moldura do evento"): a arte em PNG com transparência
+ * que o dono do evento envia, uma por formato (story 1080×1920, feed 1080×1350). É imagem de
+ * divulgação, como a capa enviada: `chave` é o PNG conferido e regravado no bucket público
+ * (`eventos/{evento}/moldura-...png`) ou, sem R2 (desenvolvimento), a própria imagem em data:.
+ * Quem comprou a foto baixa o original já encaixado nela (src/servicos/molduras.ts).
+ */
+export const moldurasEvento = pgTable(
+  "molduras_evento",
+  {
+    eventoId: uuid()
+      .notNull()
+      .references(() => eventos.id, { onDelete: "cascade" }),
+    formato: formatoMoldura().notNull(),
+    chave: text().notNull(),
+    atualizadaEm: momento(),
+  },
+  (t) => [primaryKey({ columns: [t.eventoId, t.formato] })],
+).enableRLS();

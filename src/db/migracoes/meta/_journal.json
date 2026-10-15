@@ -267,6 +267,13 @@
       "when": 1792027330215,
       "tag": "0037_protecao_das_previas",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792066161602,
+      "tag": "0038_moldura_do_evento",
+      "breakpoints": true
     }
   ]
 }
