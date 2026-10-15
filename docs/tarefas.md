@@ -321,6 +321,7 @@ O código está pronto (ver **Concluído**); falta a parte de fora do código, s
 - [ ] Envio de vídeos no painel, com upload multipart e retomada
 - [ ] Worker de vídeo com FFmpeg: prévia 720p com marca d'água, miniatura e quadros para o reconhecimento (testar com vídeos reais)
 - [ ] Indexar rostos e números no job (fotos e quadros de vídeo)
+- [ ] Menos chamadas do Rekognition por vídeo (hoje até 10, um quadro a cada 3 s) sem perder rosto pequeno. O mosaico dos quadros (2×2 ou 3×3 numa imagem só) foi avaliado e **não entrou**: o Rekognition garante rosto de 40×40 px só em imagem de até 1920×1080, e os quadros já têm 1920 px, então o mosaico dobraria (2×2) ou triplicaria (3×3) o tamanho mínimo do rosto em cada quadro, além de dividir entre os quadros o teto de 100 rostos por chamada ([arquitetura.md](arquitetura.md), "Vídeos"). Alternativas a medir com vídeos reais: pular quadros quase iguais ao anterior (comparação de miniaturas, na dúvida manda) ou um detector local de rostos que descarte os quadros sem ninguém
 - [ ] Rota de busca facial real: selfie só em memória, sem log, rate limit `[R-alta]`
 - [ ] Domínio de imagens na CDN da Cloudflare
 - [ ] Conferir que o token do R2 tem só **Object Read & Write** nos buckets `fotos-originais` e `fotos-publicas` ([seguranca.md](seguranca.md), item 18)
