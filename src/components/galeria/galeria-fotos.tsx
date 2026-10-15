@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 import { MAXIMO_ITENS } from "@/components/carrinho/carrinho";
 import { BarraSelecao } from "@/components/galeria/barra-selecao";
-import { IconeObturador } from "@/components/galeria/obturador";
+
 import { Paginacao } from "@/components/galeria/paginacao";
 import { PainelSelecao, rotuloQuantidade } from "@/components/galeria/painel-selecao";
 import type { FiltroGaleria } from "@/dados";
@@ -358,9 +358,7 @@ function BotaoSelecionar({
             <Check aria-hidden="true" className="size-4" strokeWidth={3} />
           </span>
         ) : (
-          <span className="flex size-7 items-center justify-center rounded-full bg-profundo/50 shadow-md">
-            <IconeObturador className="size-7" />
-          </span>
+          <span className="size-5 rounded-full border-2 border-white/60 shadow-md" />
         )}
       </button>
     </>
