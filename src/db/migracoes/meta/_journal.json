@@ -281,6 +281,13 @@
       "when": 1792071437088,
       "tag": "0039_moldura_do_evento",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792079913587,
+      "tag": "0040_financeiro_v2",
+      "breakpoints": true
     }
   ]
 }

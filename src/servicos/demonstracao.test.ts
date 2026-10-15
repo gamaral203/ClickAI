@@ -108,11 +108,12 @@ describe("conta de demonstração", () => {
       .where(eq(t.fotografos.id, criada.fotografoId));
     const conta = (await buscarContaDoFotografo(f.usuarioId))!;
     // Mesmo com uma chave Pix confirmada.
-    const r = await solicitarSaque(
-      { ...conta, cpfCnpj: "52998224725", chavePix: "52998224725" },
-      { id: f.usuarioId, email: EMAIL, nome: "Studio", papel: "fotografo" } as never,
-      false,
-    );
+    const r = await solicitarSaque({ ...conta, cpfCnpj: "52998224725", chavePix: "52998224725" }, {
+      id: f.usuarioId,
+      email: EMAIL,
+      nome: "Studio",
+      papel: "fotografo",
+    } as never);
     expect(r).toEqual({ ok: false, motivo: "demonstracao" });
   });
 

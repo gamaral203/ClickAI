@@ -59,6 +59,12 @@ export const statusPedido = pgEnum("status_pedido", [
 /** Por que o pedido foi estornado: reembolso (pelo gestor ou no Mercado Pago) ou chargeback perdido. */
 export const motivoEstorno = pgEnum("motivo_estorno", ["reembolso", "chargeback"]);
 export const statusSaque = pgEnum("status_saque", ["processando", "pago", "falhou"]);
+/** Frequência da transferência automática do saldo do fotógrafo (src/servicos/financeiro.ts). */
+export const frequenciaTransferencia = pgEnum("frequencia_transferencia", [
+  "diaria",
+  "semanal",
+  "mensal",
+]);
 export const alvoDenuncia = pgEnum("alvo_denuncia", ["evento", "foto"]);
 export const statusDenuncia = pgEnum("status_denuncia", [
   "recebida",
@@ -255,7 +261,7 @@ export const fotografos = pgTable(
      * depois dela (src/servicos/saques.ts), contra quem invade a conta e troca o documento.
      */
     documentoTrocadoEm: data(),
-    /** Comissão da plataforma no saque normal; o antecipado paga mais (src/servicos/saques.ts). */
+    /** Comissão da plataforma por venda, descontada uma vez só, no saque (src/servicos/financeiro.ts). */
     comissaoPct: integer().notNull().default(8),
     /** Modelo de marca d'água das prévias (src/lib/marca-dagua.ts); vale para as próximas fotos. */
     modeloMarca: text().notNull().default("padrao"),
@@ -264,6 +270,19 @@ export const fotografos = pgTable(
      * sem saque, fora dos rankings e dos números da gestão.
      */
     demonstracao: boolean().notNull().default(false),
+    /**
+     * "Antecipar automaticamente vendas no cartão": a venda no cartão fica disponível 1 dia depois
+     * do pagamento, com 1,99% sobre o bruto, em vez de 30 dias sem taxa. É liberação interna do
+     * ClicouAí: o gateway já libera o cartão na hora para a conta da plataforma.
+     */
+    anteciparCartao: boolean().notNull().default(false),
+    /** Transferência automática do saldo disponível: cria sozinha o pedido de saque. */
+    transferenciaAutomatica: boolean().notNull().default(false),
+    frequenciaTransferencia: frequenciaTransferencia().notNull().default("semanal"),
+    /** Quando a transferência automática foi ligada: conta o primeiro intervalo. */
+    transferenciaAutomaticaDesde: data(),
+    /** Último saque criado pela transferência automática: conta o próximo intervalo. */
+    ultimaTransferenciaAutomaticaEm: data(),
   },
   (t) => [uniqueIndex().on(t.usuarioId), uniqueIndex().on(t.slug)],
 ).enableRLS();
@@ -750,7 +769,14 @@ export const saques = pgTable(
       .references(() => fotografos.id),
     antecipado: boolean().notNull(),
     brutoCentavos: integer().notNull(),
+    /** Comissão mais antecipação: a soma das duas colunas abaixo. */
     taxaCentavos: integer().notNull(),
+    /**
+     * As partes da taxa, para auditoria e para o resumo do painel. Nos saques anteriores à
+     * migração 0040 elas foram derivadas da taxa gravada, que não mudou.
+     */
+    comissaoCentavos: integer().notNull().default(0),
+    taxaAntecipacaoCentavos: integer().notNull().default(0),
     liquidoCentavos: integer().notNull(),
     chavePix: text().notNull(),
     gatewayId: text(),

@@ -94,21 +94,21 @@ describe("primeiro envio", () => {
     mockFetch(() =>
       json({ id: "po-1", transactions: [{ status: "success", status_detail: "accredited" }] }),
     );
-    expect((await solicitarSaque(conta, usuario, false)).ok).toBe(true);
+    expect((await solicitarSaque(conta, usuario)).ok).toBe(true);
     expect(unicoSaque()).toMatchObject({ status: "pago", gatewayId: "po-1", liquidoCentavos: 900 });
     expect(saldoLivre()).toBe(0);
   });
 
   it("4xx claro (assinatura inválida): falhou e o saldo volta", async () => {
     mockFetch(() => json({ code: "invalid_signature" }, 400));
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(unicoSaque().status).toBe("falhou");
     expect(saldoLivre()).toBe(1);
   });
 
   it("4xx ambíguo (referência repetida): fica em processamento, sem devolver saldo", async () => {
     mockFetch(() => json({ code: "duplicated_external_reference" }, 400));
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(unicoSaque().status).toBe("processando");
     expect(saldoLivre()).toBe(0);
     expect(console.error).toHaveBeenCalledWith(
@@ -119,7 +119,7 @@ describe("primeiro envio", () => {
 
   it("timeout ou 5xx: fica em processamento", async () => {
     mockFetch(() => json({ message: "erro" }, 502));
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(unicoSaque().status).toBe("processando");
     expect(saldoLivre()).toBe(0);
   });
@@ -129,7 +129,7 @@ describe("primeiro envio", () => {
     vi.stubEnv("MP_PAYOUTS_PRIVATE_KEY", "qualquer");
     vi.stubEnv("MP_PAYOUTS_HABILITADO", "");
     const fetch = mockFetch(() => json({}));
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(fetch).not.toHaveBeenCalled();
     expect(unicoSaque().status).toBe("falhou");
     expect(saldoLivre()).toBe(1);
@@ -140,7 +140,7 @@ describe("primeiro envio", () => {
     vi.stubEnv("MP_PAYOUTS_PRIVATE_KEY", "");
     vi.stubEnv("MP_PAYOUTS_HABILITADO", "1");
     const fetch = mockFetch(() => json({}));
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(fetch).not.toHaveBeenCalled();
     expect(unicoSaque().status).toBe("falhou");
   });
@@ -151,7 +151,7 @@ describe("reenvio na conferência (primeiro envio ficou sem resposta)", () => {
     mockFetch(() => {
       throw new TypeError("fetch failed");
     });
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(unicoSaque()).toMatchObject({ status: "processando", gatewayId: null });
   }
 
@@ -191,7 +191,7 @@ describe("reenvio na conferência (primeiro envio ficou sem resposta)", () => {
 describe("conferência pelo status das transações", () => {
   async function saqueEnviado() {
     mockFetch(() => json({ id: "po-1", status: "created" }));
-    await solicitarSaque(conta, usuario, false);
+    await solicitarSaque(conta, usuario);
     expect(unicoSaque()).toMatchObject({ status: "processando", gatewayId: "po-1" });
   }
 

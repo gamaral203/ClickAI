@@ -1,6 +1,7 @@
 # Agenda dos jobs. /api/jobs/pedidos: expira Pix vencido, manda o lembrete do Pix 20 minutos
 # depois do pedido e o lembrete de carrinho. /api/jobs/revisao: confere no Mercado Pago os saques
-# em processamento e revisa as fotos presas em `processando`. O cron da Vercel no plano Hobby só
+# em processamento, cria os saques da transferência automática e revisa as fotos presas em
+# `processando`. O cron da Vercel no plano Hobby só
 # roda uma vez por dia, então quem chama a cada 10 minutos é o GitHub Actions (grátis). O GitHub
 # pode atrasar alguns minutos em horário de pico; o lembrete sai entre 20 e ~35 minutos.
 #

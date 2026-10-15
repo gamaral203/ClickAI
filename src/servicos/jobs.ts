@@ -29,7 +29,7 @@ import { avisarLotesLiberados, enviarLembrete, enviarLembretePix } from "./mensa
 import { lerNumerosPendentes, type ResultadoNumerosPendentes } from "./numeros";
 import { conferirCobrancaDoPedido, type ConferenciaDoPedido } from "./pagamentos";
 import { regerarPrevias, type ResultadoRegeracao } from "./regerar-previas";
-import { conferirSaques } from "./saques";
+import { conferirSaques, transferirAutomaticamente, type ResultadoTransferencias } from "./saques";
 
 // Job de pedidos (docs/arquitetura.md, "Carrinho abandonado"). Na Parte A roda pela rota
 // /api/jobs/pedidos; na Fase 13 o Inngest (ou o cron da Vercel) chama de hora em hora.
@@ -175,6 +175,8 @@ const PRAZO_DOS_NUMEROS_NO_JOB_MS = 30 * 1000;
 export type ResultadoJobRevisao = {
   /** Fotógrafos cujos saques em `processando` foram conferidos no Mercado Pago. */
   saquesConferidos: number;
+  /** Transferências automáticas do saldo (só quando alguma conta estava no intervalo). */
+  transferencias?: ResultadoTransferencias;
   fotos: ResultadoFotosPresas;
   /** Eventos arquivados reindexados porque alguém buscou neles (só quando houve algum). */
   reindexacao?: { eventos: number; concluidas: number; indexadas: number };
@@ -190,12 +192,15 @@ export type ResultadoJobRevisao = {
  *      de vendas: pago vira `pago`, recusa clara no primeiro envio devolve o saldo, e todo caso
  *      ambíguo (sem resposta, recusa num reenvio, Pix devolvido) continua em `processando` para
  *      revisão manual. O saldo nunca volta sem certeza de que o Pix não saiu;
- *   2. revisa fotos presas em `processando` (revisarFotosPresas);
- *   3. continua a reindexação dos eventos com rostos arquivados em que alguém buscou
+ *   2. cria os pedidos de saque da transferência automática das contas cujo intervalo venceu
+ *      (transferirAutomaticamente), depois da conferência para não esbarrar num saque que acabou
+ *      de ser pago; o Pix continua com a gestão enquanto o saque for manual;
+ *   3. revisa fotos presas em `processando` (revisarFotosPresas);
+ *   4. continua a reindexação dos eventos com rostos arquivados em que alguém buscou
  *      (src/servicos/colecoes.ts), até 50 s;
- *   3b. lê o número de peito das fotos pendentes dos eventos com a leitura ligada
+ *   5. lê o número de peito das fotos pendentes dos eventos com a leitura ligada
  *      (src/servicos/numeros.ts), até 30 s;
- *   4. com o tempo que sobra, regera as prévias de versão anterior da marca
+ *   6. com o tempo que sobra, regera as prévias de versão anterior da marca
  *      (src/servicos/regerar-previas.ts), até acabar.
  * Sem o Mercado Pago ou sem o R2 configurados (desenvolvimento e testes), a parte
  * correspondente não faz nada. Uma parte que falha não impede a outra.
@@ -222,6 +227,14 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
     } catch (erro) {
       console.error("[jobs] falha ao listar os saques em processamento", erro);
     }
+  }
+
+  // Não depende do gateway: no saque manual, o pedido fica para a gestão pagar.
+  try {
+    const transferencias = await transferirAutomaticamente(agora);
+    if (transferencias.vencidas > 0) resultado.transferencias = transferencias;
+  } catch (erro) {
+    console.error("[jobs] falha na transferência automática", erro);
   }
 
   try {
@@ -261,7 +274,7 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
     }
   }
 
-  // 4. Com o tempo que sobra, regera as prévias de versão anterior da marca, o evento mais
+  // 6. Com o tempo que sobra, regera as prévias de versão anterior da marca, o evento mais
   // recente primeiro, até acabar (src/servicos/regerar-previas.ts).
   const sobra = PRAZO_DO_JOB_MS - (Date.now() - inicio);
   if (sobra > ESPERA_MINIMA_PARA_REGERAR_MS) {

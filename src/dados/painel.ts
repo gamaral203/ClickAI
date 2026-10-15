@@ -16,12 +16,23 @@ import type { EscolhaLiberacao } from "@/lib/liberacao";
 import { capasDosEventos, capasParaODono } from "./capa";
 import imagens from "./exemplo/imagens.json";
 import { liberacaoParaEnvio } from "./liberacao";
-import { deIso, iso, paraEvento, paraFoto, paraLancamento, paraSaque } from "./mapas";
+import {
+  deIso,
+  iso,
+  paraEvento,
+  paraFoto,
+  paraFotografo,
+  paraLancamento,
+  paraSaque,
+} from "./mapas";
 import type {
   Categoria,
   Evento,
   Foto,
+  FotografoConta,
+  FrequenciaTransferencia,
   Lancamento,
+  MetodoPagamento,
   Saque,
   StatusEvento,
   StatusSaque,
@@ -604,11 +615,13 @@ export type LancamentoDoExtrato = Lancamento & {
   valorPagoCentavos: number;
   /** "autor": a foto é do fotógrafo; "dono": a parte dele como dono do evento de um colaborador. */
   papel: "autor" | "dono";
+  /** Como o pedido foi pago: define o prazo e a taxa de antecipação (src/servicos/financeiro.ts). */
+  metodo: MetodoPagamento;
 };
 
 /**
- * Lançamentos do fotógrafo com o evento e a data da venda, do mais recente para o mais
- * antigo. O cálculo de saldo e de saque fica em src/servicos/saques.ts.
+ * Lançamentos do fotógrafo com o evento, a data e o método de pagamento da venda, do mais
+ * recente para o mais antigo. O cálculo de saldo e de saque fica em src/servicos/financeiro.ts.
  */
 export async function listarLancamentosDoFotografo(
   fotografoId: string,
@@ -621,6 +634,7 @@ export async function listarLancamentosDoFotografo(
       lancamento: t.lancamentos,
       eventoTitulo: t.eventos.titulo,
       pagoEm: t.pedidos.pagoEm,
+      metodo: t.pedidos.metodo,
       precoCentavos: t.itensPedido.precoCentavos,
       descontoCentavos: t.itensPedido.descontoCentavos,
       autorId: t.itensPedido.fotografoId,
@@ -638,6 +652,7 @@ export async function listarLancamentosDoFotografo(
       pagoEm: iso(l.pagoEm),
       valorPagoCentavos: l.precoCentavos - l.descontoCentavos,
       papel: l.autorId === fotografoId ? ("autor" as const) : ("dono" as const),
+      metodo: l.metodo,
     }))
     .sort((a, b) => (b.pagoEm ?? "").localeCompare(a.pagoEm ?? ""));
 }
@@ -743,6 +758,73 @@ export async function listarSaquesProcessando(fotografoId: string): Promise<Saqu
     .from(t.saques)
     .where(and(eq(t.saques.fotografoId, fotografoId), eq(t.saques.status, "processando")));
   return linhas.map(paraSaque);
+}
+
+// ---------------------------------------------------------------- Configuração do recebimento
+
+/** Liga ou desliga "Antecipar automaticamente vendas no cartão" (vale já para o próximo saque). */
+export async function salvarAnteciparCartao(
+  fotografoId: string,
+  ligado: boolean,
+): Promise<FotografoConta | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .update(t.fotografos)
+    .set({ anteciparCartao: ligado })
+    .where(eq(t.fotografos.id, fotografoId))
+    .returning();
+  return linha ? paraFotografo(linha) : null;
+}
+
+/**
+ * Grava a transferência automática. Ao ligar (de desligada para ligada), `desde` passa a contar o
+ * primeiro intervalo; mudar só a frequência com ela ligada não reinicia a contagem. Desligada,
+ * `desde` volta a vazio. O CASE lê o valor antigo na mesma instrução, sem corrida entre abas.
+ */
+export async function salvarConfigTransferencia(
+  fotografoId: string,
+  config: { ligada: boolean; frequencia: FrequenciaTransferencia },
+  agora: number,
+): Promise<FotografoConta | null> {
+  const banco = await obterBanco();
+  const desde = config.ligada
+    ? sql`case when ${t.fotografos.transferenciaAutomatica} then ${t.fotografos.transferenciaAutomaticaDesde} else ${new Date(agora).toISOString()}::timestamptz end`
+    : null;
+  const [linha] = await banco
+    .update(t.fotografos)
+    .set({
+      transferenciaAutomatica: config.ligada,
+      frequenciaTransferencia: config.frequencia,
+      transferenciaAutomaticaDesde: desde,
+    })
+    .where(eq(t.fotografos.id, fotografoId))
+    .returning();
+  return linha ? paraFotografo(linha) : null;
+}
+
+/**
+ * Contas com a transferência automática ligada, sem as de demonstração (que nunca sacam). Quem
+ * confere o intervalo, a chave Pix e o saldo é src/servicos/financeiro.ts.
+ */
+export async function listarContasComTransferenciaAutomatica(): Promise<FotografoConta[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select()
+    .from(t.fotografos)
+    .where(
+      and(eq(t.fotografos.transferenciaAutomatica, true), eq(t.fotografos.demonstracao, false)),
+    )
+    .orderBy(asc(t.fotografos.ultimaTransferenciaAutomaticaEm));
+  return linhas.map(paraFotografo);
+}
+
+/** Registra o saque criado pela transferência automática: o próximo intervalo conta daqui. */
+export async function marcarTransferenciaAutomatica(fotografoId: string, agora: number) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotografos)
+    .set({ ultimaTransferenciaAutomaticaEm: new Date(agora) })
+    .where(eq(t.fotografos.id, fotografoId));
 }
 
 /** Guarda o modelo de marca d'água do fotógrafo (vale para as fotos enviadas daqui em diante). */

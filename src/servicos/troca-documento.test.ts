@@ -186,7 +186,7 @@ describe("troca de CPF/CNPJ do fotógrafo", () => {
     await saldoDisponivel(conta.id);
 
     // Logo depois da troca: bloqueado, com a hora em que libera.
-    const resultado = await solicitarSaque(conta, usuario, false);
+    const resultado = await solicitarSaque(conta, usuario);
     expect(resultado).toMatchObject({ ok: false, motivo: "documento_trocado" });
     const ate = new Date((resultado as { bloqueadoAte: string }).bloqueadoAte).getTime();
     const trocadoEm = new Date(conta.documentoTrocadoEm!).getTime();
@@ -203,7 +203,7 @@ describe("troca de CPF/CNPJ do fotógrafo", () => {
       .set({ documentoTrocadoEm: new Date(Date.now() - 25 * HORA) })
       .where(eq(t.fotografos.id, conta.id));
     conta = (await buscarContaDoFotografo(usuario.id))!;
-    const liberado = await solicitarSaque(conta, usuario, false);
+    const liberado = await solicitarSaque(conta, usuario);
     expect(liberado.ok).toBe(true);
     if (liberado.ok) expect(liberado.saque.chavePix).toBe(CPF_NOVO);
   });

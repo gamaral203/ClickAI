@@ -228,6 +228,8 @@ describe("exclusão de conta", () => {
           antecipado: true,
           brutoCentavos: bruto,
           taxaCentavos: 0,
+          comissaoCentavos: 0,
+          taxaAntecipacaoCentavos: 0,
           liquidoCentavos: bruto,
           chavePix: "00000000000",
           gatewayId: null,
