@@ -47,6 +47,25 @@ Legenda: ✅ feito · ⚠️ parcial (o código está pronto, falta configuraç�
 - **Abuso:** o reenvio não zera as tentativas (senão cada reenvio daria mais 5 chutes); outro envio em menos de 30 segundos não sai (clique duplo, tela recarregada: a tela diz "Já enviamos o código"); os limites de envio por e-mail/usuário e por IP continuam contando também o reenvio do mesmo código (cota do Resend).
 - **Sem o código no assunto nem no log:** o assunto é "Seu código ClicouAí (vale até HH:MM)"; o código só vai no corpo. A tela mostra o e-mail mascarado, a hora do envio e até quando o código vale.
 
+## Print e captura de tela das prévias (o que dá e o que não dá)
+
+Pesquisa de 15/10/2026, motivada por clientes que abrem a galeria no celular, tiram print e pedem a uma IA para apagar a marca. Resumo: **na web não existe forma de bloquear print**, em nenhum navegador, no celular ou no computador. O que protege é o que está nos pixels e no servidor.
+
+- **Celular, navegador:** nem o Android nem o iOS avisam a página de que um print foi tirado (botões físicos, gesto, gravação de tela ou espelhamento). O `FLAG_SECURE` do Android, que deixa a tela preta no print, só vale para apps nativos (e para o WebView dentro de um app que o liga); o Chrome e o Safari não o ligam para um site. No iOS, um app nativo só fica sabendo depois do print (`userDidTakeScreenshotNotification`), sem impedir; a página web nem isso.
+- **Computador:** o print do sistema (Win+Shift+S, Cmd+Shift+3/4/5, Ferramenta de Captura) é tratado pelo sistema antes do navegador; às vezes a página recebe o `keyup` da tecla PrintScreen ou perde o foco, mas o print já foi feito. Extensões, outro monitor, uma câmera apontada para a tela e o DevTools (aba Rede, com a URL da prévia) passam sempre.
+- **DRM:** vídeo cifrado (EME/Widevine/PlayReady/FairPlay com caminho protegido de hardware) pode sair preto no print em alguns aparelhos, mas só serve para vídeo, exige servidor de licenças (serviço pago) e não protege foto. Não adotado.
+- **CSS e eventos** (`user-select`, `-webkit-touch-callout`, `draggable=false`, `onContextMenu`): tiram o "Salvar imagem" e o arrastar do caso casual; não impedem print nem quem copia a URL. Ficam como complemento, sem prejudicar o resto: a galeria e a página da foto continuam com texto alternativo, foco pelo teclado (o link da foto recebe foco), zoom por pinça (o viewport não trava o zoom; não há `user-scalable=no` nem `touch-action` que o impeça) e a compra. O clique do meio e o Ctrl+clique ainda abrem a foto em outra aba; o botão direito na miniatura, não.
+- **Desfoque na hora do print** (`ProtecaoContraPrint`, de antes desta pesquisa): desfoca as prévias quando a janela perde o foco, o mouse sai da página ou a tecla PrintScreen chega; é fricção para o print do computador, não bloqueio, e não pega nenhum print do celular. Ao soltar a PrintScreen, ele também tenta esvaziar a área de transferência (`navigator.clipboard.writeText("")`), o que o navegador só permite com a página em foco e que apaga o que a pessoa tinha copiado: vale revisar se fica.
+- **O que de fato protege** (todas no servidor): a marca gravada nos pixels, distribuída e variando por foto, com logo grande sobre o centro e o terço de cima (um print ou um recorte levam a marca junto); a prévia bem menor que o original, com qualidade controlada pela gestão; o original só por URL assinada curta depois do pagamento; e o limite por IP contra baixar as prévias em massa. Mesmo assim, uma IA generativa pode refazer a foto sem a marca: o objetivo é que dê trabalho e saia pior que comprar, não que seja impossível.
+
+Roteiro de teste manual por aparelho (não há aparelhos no ambiente de desenvolvimento; a emulação de celular do Chrome sem janela cobriu menu de contexto, arrastar, foco, toque para abrir a foto e adicionar ao carrinho, mas não conseguiu simular a pinça nem nenhum print):
+
+| Aparelho | O que conferir |
+|---|---|
+| Android (Chrome) | Pinça amplia a galeria e a página da foto; toque longo na miniatura não oferece "Baixar imagem"; toque abre a foto; "Adicionar ao carrinho" e o checkout com Pix funcionam; print pelo botão sai com a marca (esperado: o print não é bloqueado) |
+| iPhone (Safari) | Pinça amplia; toque longo não abre o menu de "Salvar na Fotos" nem a prévia do link; toque abre a foto; carrinho e checkout; print sai com a marca |
+| Computador (Chrome, Edge, Firefox, Safari) | Botão direito na foto não mostra "Salvar imagem como"; arrastar a foto para a área de trabalho não copia o arquivo; Tab chega às fotos com o anel de foco; Ctrl+roda e Ctrl+"+" ampliam; carrinho e checkout; com a PrintScreen, a prévia desfoca por um instante, mas o print feito por outro programa sai com a marca |
+
 ## Passos que dependem de você
 
 ### Opt-out de serviços de IA da AWS (item 20, obrigatório)
