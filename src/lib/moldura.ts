@@ -50,9 +50,11 @@ export function nomeComMoldura(nomeOriginal: string, formato: FormatoMoldura) {
   return `${base}-${formato}.jpg`;
 }
 
-/** Endereço do download com moldura de um item comprado (com o token, quando há). */
-export function linkComMoldura(itemId: string, formato: FormatoMoldura, token: string | null) {
-  const busca = new URLSearchParams({ formato });
-  if (token) busca.set("token", token);
-  return `/api/compras/moldura/${itemId}?${busca}`;
+/**
+ * Endereço da foto do autor com a moldura do evento, no painel (com a liberação do evento, como o
+ * "Baixar original").
+ */
+export function linkComMoldura(fotoId: string, formato: FormatoMoldura, liberacao: string) {
+  const busca = new URLSearchParams({ formato, liberacao });
+  return `/api/painel/original-com-moldura/${fotoId}?${busca}`;
 }

@@ -5,11 +5,19 @@ import { useMemo, useState } from "react";
 import { Images } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { FormatoMoldura } from "@/lib/moldura";
 
+import { BaixarComMoldura } from "./baixar-com-moldura";
 import { BaixarOriginal } from "./baixar-original";
 import { VisualizadorFoto, type FotoParaVer } from "./visualizador-foto";
 
-type FotoMinha = { id: string; nomeArquivo: string; urlMiniatura: string; urlPrevia: string };
+type FotoMinha = {
+  id: string;
+  nomeArquivo: string;
+  urlMiniatura: string;
+  urlPrevia: string;
+  tipo: "foto" | "video";
+};
 
 const POR_VEZ = 24;
 
@@ -18,7 +26,16 @@ const POR_VEZ = 24;
  * uma (só o autor baixa o original; o servidor confere de novo). Fechado por padrão, para a
  * página de colaborações não ficar enorme.
  */
-export function MinhasFotosDoEvento({ eventoId, fotos }: { eventoId: string; fotos: FotoMinha[] }) {
+export function MinhasFotosDoEvento({
+  eventoId,
+  fotos,
+  formatosMoldura = [],
+}: {
+  eventoId: string;
+  fotos: FotoMinha[];
+  /** Formatos com moldura no evento: "Story"/"Feed" em cada foto, para divulgar o evento. */
+  formatosMoldura?: FormatoMoldura[];
+}) {
   const [mostrando, setMostrando] = useState(POR_VEZ);
   const [aberta, setAberta] = useState<number | null>(null);
   const paraVer = useMemo<FotoParaVer[]>(
@@ -58,6 +75,14 @@ export function MinhasFotosDoEvento({ eventoId, fotos }: { eventoId: string; fot
                 {foto.nomeArquivo}
               </p>
               <BaixarOriginal eventoId={eventoId} fotoId={foto.id} nomeArquivo={foto.nomeArquivo} />
+              {foto.tipo === "foto" && (
+                <BaixarComMoldura
+                  eventoId={eventoId}
+                  fotoId={foto.id}
+                  nomeArquivo={foto.nomeArquivo}
+                  formatos={formatosMoldura}
+                />
+              )}
             </li>
           ))}
         </ul>

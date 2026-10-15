@@ -24,6 +24,11 @@ function liberacaoGuardada(eventoId: string) {
   return guardada.token;
 }
 
+/** Esquece a liberação guardada (o servidor disse que ela venceu). */
+export function esquecerLiberacao(eventoId: string) {
+  liberacoes.delete(eventoId);
+}
+
 export type LiberacaoDoEvento =
   { ok: true; token: string } | { ok: false; erro: string; pedeCodigo: boolean };
 

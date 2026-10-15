@@ -161,7 +161,11 @@ async function emitirLiberacao(
   return { ok: true, liberacao: assinar(PROPOSITO, dados, VALIDADE_LIBERACAO_MS) };
 }
 
-function liberacaoConfere(token: string, usuarioId: string, eventoId: string) {
+/**
+ * A liberação (token assinado de 3 h) é deste usuário e deste evento. Também vale para a foto com
+ * a moldura do evento, que o autor baixa pelo painel (src/servicos/molduras.ts).
+ */
+export function liberacaoConfere(token: string, usuarioId: string, eventoId: string) {
   const dados = conferirAssinatura(PROPOSITO, token) as Partial<Liberacao> | null;
   return dados?.u === usuarioId && dados?.e === eventoId;
 }

@@ -17,6 +17,7 @@ import {
 } from "@/dados";
 import { descreverPadrao } from "@/lib/liberacao";
 import { formatarPeriodo } from "@/lib/formatar";
+import { FORMATOS_MOLDURA } from "@/lib/moldura";
 import { modoEnvio } from "@/lib/r2";
 import { enderecosDasMolduras } from "@/servicos/molduras";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -144,6 +145,7 @@ async function Conteudo() {
               <MinhasFotosDoEvento
                 eventoId={c.evento.id}
                 fotos={minhasFotos.get(c.evento.id) ?? []}
+                formatosMoldura={FORMATOS_MOLDURA.filter((f) => molduras.get(c.evento.id)?.[f])}
               />
               {molduras.has(c.evento.id) && (
                 <MolduraDoEvento

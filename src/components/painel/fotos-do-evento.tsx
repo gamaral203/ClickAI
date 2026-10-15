@@ -12,6 +12,7 @@ import { AtualizarNaHora } from "@/components/galeria/contagem-regressiva";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { EstadoLiberacao } from "@/lib/liberacao";
+import type { FormatoMoldura } from "@/lib/moldura";
 
 import { useEscolhaDeCapa } from "./capa-do-evento";
 import { GradeFotosPainel, type ItemDoPainel } from "./grade-fotos-painel";
@@ -38,6 +39,7 @@ export function FotosDoEvento({
   pastas,
   podeLiberar,
   capaFotoId,
+  formatosMoldura,
 }: {
   eventoId: string;
   itens: ItemDoPainel[];
@@ -45,6 +47,8 @@ export function FotosDoEvento({
   podeLiberar: boolean;
   /** Capa escolhida; sem o campo, a grade não oferece "Usar como capa" (só o dono escolhe). */
   capaFotoId?: string | null;
+  /** Formatos com moldura no evento: "Story"/"Feed" nas fotos do próprio autor. */
+  formatosMoldura?: FormatoMoldura[];
 }) {
   const capa = useEscolhaDeCapa(eventoId, capaFotoId ?? null);
   const router = useRouter();
@@ -224,6 +228,7 @@ export function FotosDoEvento({
         selecao={podeLiberar ? { selecionados, alternar } : undefined}
         capa={capaFotoId === undefined ? undefined : capa.escolha}
         vazio={itens.length === 0 ? undefined : "Nenhuma foto neste filtro."}
+        formatosMoldura={formatosMoldura}
       />
     </div>
   );

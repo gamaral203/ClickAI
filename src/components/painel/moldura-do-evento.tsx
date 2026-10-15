@@ -31,8 +31,8 @@ const PROPORCAO: Record<FormatoMoldura, string> = {
 
 /**
  * Moldura do evento (aba Design): uma arte em PNG com transparência para story e outra para feed.
- * Quem compra a foto baixa o original já encaixado nela. O PNG vai direto do navegador ao R2 por
- * URL assinada e o servidor confere (PNG, transparência, medidas) antes de valer. O colaborador
+ * Ferramenta de divulgação: na aba Fotos, o autor baixa uma foto dele já encaixada nela, para
+ * anunciar o evento nas redes. O PNG vai direto do navegador ao R2 por URL assinada e o servidor confere (PNG, transparência, medidas) antes de valer. O colaborador
  * só vê (`somenteLeitura`).
  */
 export function MolduraDoEvento({
@@ -56,8 +56,8 @@ export function MolduraDoEvento({
         </h3>
         <p className="text-sm text-muted-foreground">
           {somenteLeitura
-            ? "A arte que o dono do evento enviou. Quem compra a foto pode baixá-la já com a moldura, pronta para postar. Só o dono envia ou troca a moldura."
-            : "Envie a arte do evento (logo, patrocinadores, data) em PNG com transparência: a área transparente é onde a foto aparece. Quem comprar a foto pode baixá-la já com a moldura, pronta para postar. As prévias do site continuam sem moldura."}
+            ? "A arte que o dono do evento enviou. Em Minhas fotos neste evento, baixe uma foto sua já com a moldura (Story ou Feed) para divulgar o evento. Só o dono envia ou troca a moldura."
+            : "Envie a arte do evento (logo, patrocinadores, data) em PNG com transparência: a área transparente é onde a foto aparece. Na aba Fotos, baixe uma foto sua já com a moldura (Story ou Feed) para divulgar o evento nas redes. As prévias do site continuam sem moldura."}
         </p>
       </div>
       {modo === "indisponivel" && !somenteLeitura && (

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { NextRequest } from "next/server";
 import sharp from "sharp";
@@ -9,6 +9,10 @@ vi.mock("next/server", async (original) => ({
   ...(await original<typeof import("next/server")>()),
   connection: async () => {},
 }));
+// A rota lê o IP dos cabeçalhos da requisição.
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-forwarded-for": "203.0.113.9" }),
+}));
 // A rota lê a sessão; o teste escolhe quem está logado.
 const sessao = vi.hoisted(() => ({ usuario: null as unknown }));
 vi.mock("@/servicos/sessao", async (original) => ({
@@ -16,13 +20,15 @@ vi.mock("@/servicos/sessao", async (original) => ({
   usuarioAtual: async () => sessao.usuario,
 }));
 
-import { GET as rotaComMoldura } from "@/app/api/compras/moldura/[itemId]/route";
+import { GET as rotaComMoldura } from "@/app/api/painel/original-com-moldura/[fotoId]/route";
 import {
   criarContaDeFotografoSeNaoExistir,
   criarEvento,
   criarUsuario,
   formatosDeMoldura,
+  lotesDoDonoRegistrados,
   moldurasDoEvento,
+  type Usuario,
 } from "@/dados";
 import { categorias } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
@@ -31,19 +37,21 @@ import { LIMITE_MOLDURA_BYTES, MEDIDAS_MOLDURA, type FormatoMoldura } from "@/li
 import { gerarHashSenha } from "@/lib/senha";
 
 import { limiteAtingido } from "./limites";
+import { liberarOriginaisDoAutor } from "./originais-do-dono";
 import {
   comporComMoldura,
   conferirMoldura,
   confirmarEnvioDeMoldura,
-  fotoComMoldura,
+  fotoDoAutorComMoldura,
   modeloDaMoldura,
   removerMolduraDoEvento,
   salvarMolduraSimulada,
 } from "./molduras";
 
 // Moldura do evento (docs/arquitetura.md, "Moldura do evento"): a conferência do PNG, a
-// composição e, principalmente, que a foto com moldura segue a regra do original (só item de
-// pedido PAGO do próprio cliente, ou de quem tem o link do pedido).
+// composição e, principalmente, que a foto com moldura segue a regra do "Baixar original" do
+// painel (só o AUTOR da foto, com a liberação do evento): é ferramenta de divulgação do
+// fotógrafo, não download de quem comprou.
 
 /** Original de exemplo (fora da produção, o servidor lê a URL); aqui o fetch é simulado. */
 const ORIGINAL = "https://exemplo.test/original-moldura.jpg";
@@ -134,49 +142,6 @@ async function novaFoto(
   });
   return id;
 }
-
-type StatusPedido = (typeof t.statusPedido.enumValues)[number];
-
-/** Pedido com um item da foto, gravado direto no banco; devolve o token do link. */
-async function novoPedido(
-  fotoId: string,
-  fotografoId: string,
-  extra: Partial<typeof t.pedidos.$inferInsert> & { status?: StatusPedido } = {},
-) {
-  const banco = await obterBanco();
-  const token = randomUUID() + randomUUID();
-  const [pedido] = await banco
-    .insert(t.pedidos)
-    .values({
-      emailComprador: `${randomUUID()}@teste.com`,
-      nomeComprador: "Comprador",
-      tokenAcessoHash: createHash("sha256").update(token).digest("hex"),
-      subtotalCentavos: 1500,
-      descontoCentavos: 0,
-      totalCentavos: 1500,
-      metodo: "pix",
-      status: "pago",
-      expiraEm: new Date(Date.now() + 3_600_000),
-      ...extra,
-    })
-    .returning();
-  const [item] = await banco
-    .insert(t.itensPedido)
-    .values({
-      pedidoId: pedido.id,
-      fotoId,
-      fotografoId,
-      precoCentavos: 1500,
-      descontoCentavos: 0,
-      valorFotografoCentavos: 1500,
-      valorDonoEventoCentavos: 0,
-    })
-    .returning();
-  return { itemId: item.id, token };
-}
-
-/** IP novo a cada chamada: o limite por IP não interfere nos outros testes. */
-const ipNovo = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}-${randomUUID()}`;
 
 let moldura: Buffer;
 
@@ -381,7 +346,7 @@ describe("confirmação do envio pelo R2", () => {
   });
 });
 
-describe("download com moldura (mesma regra do original)", () => {
+describe("foto do autor com moldura (mesma regra do Baixar original)", () => {
   async function cenario() {
     const dono = await fotografoNovo("Lia Moldura");
     const evento = await novoEvento(dono.conta.id);
@@ -390,125 +355,153 @@ describe("download com moldura (mesma regra do original)", () => {
     return { dono, evento, fotoId };
   }
 
-  it("o cliente dono do pedido pago baixa a foto com a moldura", async () => {
-    const { dono, fotoId } = await cenario();
-    const cliente = await usuarioNovo("cliente");
-    const { itemId } = await novoPedido(fotoId, dono.conta.id, { clienteId: cliente.id });
+  async function liberacaoDe(usuario: Usuario, eventoId: string) {
+    const liberado = await liberarOriginaisDoAutor(usuario, eventoId, undefined);
+    if (!liberado.ok) throw new Error(liberado.erro);
+    return liberado.liberacao;
+  }
 
-    const resultado = await fotoComMoldura(itemId, "story", { clienteId: cliente.id }, ipNovo());
+  async function chamarRota(fotoId: string, formato: string, liberacao: string) {
+    const url = new URL(`http://localhost/api/painel/original-com-moldura/${fotoId}`);
+    url.searchParams.set("formato", formato);
+    url.searchParams.set("liberacao", liberacao);
+    return rotaComMoldura(new NextRequest(url), {
+      params: Promise.resolve({ fotoId }),
+    } as RouteContext<"/api/painel/original-com-moldura/[fotoId]">);
+  }
+
+  it("o autor baixa a própria foto com a moldura, como anexo JPEG, e fica registrado", async () => {
+    const { dono, evento, fotoId } = await cenario();
+    const liberacao = await liberacaoDe(dono.usuario, evento.id);
+
+    const resultado = await fotoDoAutorComMoldura(
+      dono.usuario,
+      { fotoId, formato: "story", liberacao },
+      "203.0.113.9",
+    );
     expect(resultado.ok).toBe(true);
     if (!resultado.ok) return;
     expect(resultado.nomeArquivo).toMatch(/-story\.jpg$/);
     const meta = await sharp(resultado.imagem).metadata();
     expect(meta).toMatchObject({ format: "jpeg", width: 1080, height: 1920 });
-  });
+    expect(meta.exif).toBeUndefined();
+    // Topo da moldura azul, meio com a foto vermelha.
+    expect(perto(await pixel(resultado.imagem, 540, 50), AZUL)).toBe(true);
+    expect(perto(await pixel(resultado.imagem, 540, 960), VERMELHO)).toBe(true);
+    const registros = await lotesDoDonoRegistrados(evento.id);
+    expect(registros[0]).toMatchObject({ modo: "individual", quantidade: 1 });
 
-  it("quem tem o link do pedido (sem conta) também baixa; pela rota, como anexo JPEG", async () => {
-    const { dono, fotoId } = await cenario();
-    const { itemId, token } = await novoPedido(fotoId, dono.conta.id);
-    const url = new URL(`http://localhost/api/compras/moldura/${itemId}`);
-    url.searchParams.set("formato", "story");
-    url.searchParams.set("token", token);
-    const resposta = await rotaComMoldura(
-      new NextRequest(url, { headers: { "x-forwarded-for": ipNovo() } }),
-      { params: Promise.resolve({ itemId }) } as RouteContext<"/api/compras/moldura/[itemId]">,
-    );
+    sessao.usuario = dono.usuario;
+    const resposta = await chamarRota(fotoId, "story", liberacao);
     expect(resposta.status).toBe(200);
     expect(resposta.headers.get("content-type")).toBe("image/jpeg");
     expect(resposta.headers.get("content-disposition")).toMatch(/^attachment;.*-story\.jpg/);
     expect(resposta.headers.get("cache-control")).toMatch(/no-store/);
   });
 
-  it("pedido pendente, estornado, com reembolso pedido ou de outro cliente não baixa", async () => {
-    const { dono, fotoId } = await cenario();
+  it("colaborador baixa só as fotos que ele enviou; dono não baixa a do colaborador", async () => {
+    const { dono, evento, fotoId } = await cenario();
+    const colaborador = await fotografoNovo("Pedro Colab");
+    const fotoDoColab = await novaFoto(evento.id, colaborador.conta.id);
+    const liberacaoColab = await liberacaoDe(colaborador.usuario, evento.id);
+    const liberacaoDono = await liberacaoDe(dono.usuario, evento.id);
+
+    const doColab = await fotoDoAutorComMoldura(
+      colaborador.usuario,
+      { fotoId: fotoDoColab, formato: "story", liberacao: liberacaoColab },
+      null,
+    );
+    expect(doColab.ok).toBe(true);
+    expect(
+      await fotoDoAutorComMoldura(
+        colaborador.usuario,
+        { fotoId, formato: "story", liberacao: liberacaoColab },
+        null,
+      ),
+    ).toEqual({ ok: false, motivo: "nao_encontrado" });
+    expect(
+      await fotoDoAutorComMoldura(
+        dono.usuario,
+        { fotoId: fotoDoColab, formato: "story", liberacao: liberacaoDono },
+        null,
+      ),
+    ).toEqual({ ok: false, motivo: "nao_encontrado" });
+  });
+
+  it("cliente, visitante e outro fotógrafo não baixam (a rota responde 404)", async () => {
+    const { dono, evento, fotoId } = await cenario();
+    const liberacao = await liberacaoDe(dono.usuario, evento.id);
     const cliente = await usuarioNovo("cliente");
-    const intruso = await usuarioNovo("cliente");
+    const outro = await fotografoNovo("Outro Moldura");
 
-    for (const extra of [
-      { status: "pendente" as const },
-      { status: "estornado" as const },
-      { status: "contestado" as const },
-      { reembolsoSolicitadoEm: new Date() },
-    ]) {
-      const { itemId } = await novoPedido(fotoId, dono.conta.id, {
-        clienteId: cliente.id,
-        ...extra,
-      });
-      expect(await fotoComMoldura(itemId, "story", { clienteId: cliente.id }, ipNovo())).toEqual({
-        ok: false,
-        motivo: "indisponivel",
-      });
+    for (const quem of [null, cliente, outro.usuario]) {
+      expect(
+        await fotoDoAutorComMoldura(quem, { fotoId, formato: "story", liberacao }, null),
+      ).toEqual({ ok: false, motivo: "nao_encontrado" });
     }
+    sessao.usuario = cliente;
+    expect((await chamarRota(fotoId, "story", liberacao)).status).toBe(404);
+    sessao.usuario = null;
+    expect((await chamarRota(fotoId, "story", liberacao)).status).toBe(404);
+  });
 
-    const pago = await novoPedido(fotoId, dono.conta.id, { clienteId: cliente.id });
-    expect(await fotoComMoldura(pago.itemId, "story", { clienteId: intruso.id }, ipNovo())).toEqual(
-      { ok: false, motivo: "indisponivel" },
-    );
-    // Token errado e nenhuma credencial também não.
-    expect(await fotoComMoldura(pago.itemId, "story", { token: "x".repeat(64) }, ipNovo())).toEqual(
-      { ok: false, motivo: "indisponivel" },
-    );
-    expect(await fotoComMoldura(pago.itemId, "story", {}, ipNovo())).toEqual({
-      ok: false,
-      motivo: "indisponivel",
-    });
+  it("sem a liberação do evento (ou com a de outro evento) não baixa", async () => {
+    const { dono, fotoId } = await cenario();
+    const outroEvento = await novoEvento(dono.conta.id);
+    await novaFoto(outroEvento.id, dono.conta.id);
+    const deOutro = await liberacaoDe(dono.usuario, outroEvento.id);
+    for (const liberacao of [null, "curta", "x".repeat(40), deOutro]) {
+      expect(
+        await fotoDoAutorComMoldura(dono.usuario, { fotoId, formato: "story", liberacao }, null),
+      ).toEqual({ ok: false, motivo: "liberacao" });
+    }
+    sessao.usuario = dono.usuario;
+    expect((await chamarRota(fotoId, "story", deOutro)).status).toBe(403);
   });
 
   it("evento sem a moldura do formato (ou sem moldura) e vídeo não baixam com moldura", async () => {
     const { dono, evento, fotoId } = await cenario();
-    const cliente = await usuarioNovo("cliente");
-    const { itemId } = await novoPedido(fotoId, dono.conta.id, { clienteId: cliente.id });
+    const liberacao = await liberacaoDe(dono.usuario, evento.id);
     // Só tem a de story.
-    expect(await fotoComMoldura(itemId, "feed", { clienteId: cliente.id }, ipNovo())).toEqual({
-      ok: false,
-      motivo: "indisponivel",
-    });
+    expect(
+      await fotoDoAutorComMoldura(dono.usuario, { fotoId, formato: "feed", liberacao }, null),
+    ).toEqual({ ok: false, motivo: "indisponivel" });
     // Formato que não existe.
-    expect(await fotoComMoldura(itemId, "reels", { clienteId: cliente.id }, ipNovo())).toEqual({
-      ok: false,
-      motivo: "indisponivel",
-    });
+    expect(
+      await fotoDoAutorComMoldura(dono.usuario, { fotoId, formato: "reels", liberacao }, null),
+    ).toEqual({ ok: false, motivo: "nao_encontrado" });
 
     const videoId = await novaFoto(evento.id, dono.conta.id, { tipo: "video" });
-    const video = await novoPedido(videoId, dono.conta.id, { clienteId: cliente.id });
     expect(
-      await fotoComMoldura(video.itemId, "story", { clienteId: cliente.id }, ipNovo()),
+      await fotoDoAutorComMoldura(
+        dono.usuario,
+        { fotoId: videoId, formato: "story", liberacao },
+        null,
+      ),
     ).toEqual({ ok: false, motivo: "indisponivel" });
 
     const semMoldura = await novoEvento(dono.conta.id);
     const outraFoto = await novaFoto(semMoldura.id, dono.conta.id);
-    const outro = await novoPedido(outraFoto, dono.conta.id, { clienteId: cliente.id });
+    const liberacaoSem = await liberacaoDe(dono.usuario, semMoldura.id);
     expect(
-      await fotoComMoldura(outro.itemId, "story", { clienteId: cliente.id }, ipNovo()),
+      await fotoDoAutorComMoldura(
+        dono.usuario,
+        { fotoId: outraFoto, formato: "story", liberacao: liberacaoSem },
+        null,
+      ),
     ).toEqual({ ok: false, motivo: "indisponivel" });
   });
 
   it("respeita o limite por usuário (e a rota responde 429)", async () => {
-    const { dono, fotoId } = await cenario();
-    const cliente = await usuarioNovo("cliente");
-    const { itemId } = await novoPedido(fotoId, dono.conta.id, { clienteId: cliente.id });
-    // Gasta a cota do usuário (60 em 10 minutos) sem compor 60 imagens.
-    for (let i = 0; i < 60; i++) await limiteAtingido("moldura_usuario", cliente.id);
-    expect(await fotoComMoldura(itemId, "story", { clienteId: cliente.id }, ipNovo())).toEqual({
-      ok: false,
-      motivo: "limite",
-    });
+    const { dono, evento, fotoId } = await cenario();
+    const liberacao = await liberacaoDe(dono.usuario, evento.id);
+    // Gasta a cota do usuário (30 em 10 minutos) sem compor 30 imagens.
+    for (let i = 0; i < 30; i++) await limiteAtingido("moldura_fotografo_usuario", dono.usuario.id);
+    expect(
+      await fotoDoAutorComMoldura(dono.usuario, { fotoId, formato: "story", liberacao }, null),
+    ).toEqual({ ok: false, motivo: "limite" });
 
-    sessao.usuario = cliente;
-    const url = new URL(`http://localhost/api/compras/moldura/${itemId}?formato=story`);
-    const resposta = await rotaComMoldura(
-      new NextRequest(url, { headers: { "x-forwarded-for": ipNovo() } }),
-      { params: Promise.resolve({ itemId }) } as RouteContext<"/api/compras/moldura/[itemId]">,
-    );
-    expect(resposta.status).toBe(429);
-  });
-
-  it("respeita o limite por IP, antes de conferir o pedido", async () => {
-    const ip = ipNovo();
-    for (let i = 0; i < 120; i++) await limiteAtingido("moldura_ip", ip);
-    expect(await fotoComMoldura(randomUUID(), "story", {}, ip)).toEqual({
-      ok: false,
-      motivo: "limite",
-    });
+    sessao.usuario = dono.usuario;
+    expect((await chamarRota(fotoId, "story", liberacao)).status).toBe(429);
   });
 });

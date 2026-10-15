@@ -37,7 +37,7 @@ const ABAS: { id: Aba; rotulo: string }[] = [
 
 /**
  * Aba Design do evento: a capa (o componente de escolha da capa entra como `capa`), a moldura
- * das fotos compradas (entra como `moldura`), o editor de
+ * de divulgação (entra como `moldura`), o editor de
  * artes para story e feed e o banner horizontal. As artes são geradas no servidor
  * (/painel/eventos/[id]/divulgacao/[formato]) com o modelo, a cor e a imagem escolhidos.
  */

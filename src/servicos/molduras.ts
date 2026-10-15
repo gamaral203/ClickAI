@@ -10,8 +10,10 @@ import {
   eventoEhDoDono,
   gravarMoldura,
   moldurasDoEvento,
-  registrarDownload,
+  originalDoAutor,
+  registrarLoteDoDono,
   removerMoldura,
+  type Usuario,
 } from "@/dados";
 import { emProducao } from "@/db/conexao";
 import {
@@ -39,11 +41,11 @@ import {
 } from "@/lib/r2";
 import { urlPublica } from "@/lib/url-publica";
 
-import { itemLiberadoParaDownload } from "./downloads";
 import { abrirOriginal } from "./imagens";
 import { limiteAtingido } from "./limites";
 import { lerArquivoDoOriginal } from "./miniatura-sem-marca";
-import type { Credencial } from "./pedidos";
+import { liberacaoConfere } from "./originais-do-dono";
+import { contaDoPainel } from "./sessao";
 
 // Moldura do evento (docs/arquitetura.md, "Moldura do evento").
 //
@@ -54,10 +56,13 @@ import type { Credencial } from "./pedidos";
 // divulgação, como a capa enviada. Sem R2 (só fora da produção), o PNG chega pela rota de envio
 // simulado e fica em data:.
 //
-// Quem COMPROU a foto baixa o original já encaixado na moldura: mesma checagem do download do
-// original (item de pedido pago do próprio cliente, src/servicos/downloads.ts), o original é
-// lido do R2, encaixado (cover centralizado, girado pelo EXIF), coberto pela moldura e entregue
-// em JPEG, sem gravar o resultado em lugar nenhum. A moldura nunca é aplicada sobre prévias.
+// A moldura é uma ferramenta de DIVULGAÇÃO do fotógrafo: no painel, o AUTOR de uma foto baixa
+// ela já encaixada na moldura (story ou feed) para anunciar nas redes que as fotos do evento
+// estão disponíveis. Mesma checagem do "Baixar original" do painel (só quem enviou a foto, com
+// a liberação do evento, src/servicos/originais-do-dono.ts): o original é lido do R2, encaixado
+// (cover centralizado, girado pelo EXIF), coberto pela moldura e entregue em JPEG, sem gravar o
+// resultado em lugar nenhum. Quem compra não baixa com moldura, e a moldura nunca é aplicada
+// sobre prévias.
 
 const ASSINATURA_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -327,7 +332,7 @@ export async function enderecosDasMolduras(
   };
 }
 
-// ---------------------------------------------------------------- Download de quem comprou
+// ---------------------------------------------------------------- Divulgação pelo autor
 
 /** O PNG da moldura gravada (R2 ou, fora da produção, data:), ou `null`. */
 async function lerMoldura(chave: string): Promise<Buffer | null> {
@@ -339,47 +344,65 @@ async function lerMoldura(chave: string): Promise<Buffer | null> {
 
 export type FotoComMoldura =
   | { ok: true; imagem: Buffer; nomeArquivo: string }
-  | { ok: false; motivo: "indisponivel" | "limite" };
+  | { ok: false; motivo: "nao_encontrado" | "liberacao" | "limite" | "indisponivel" };
 
 /**
- * A foto comprada encaixada na moldura do evento. Mesma regra do original: só item de pedido
- * pago do próprio cliente (ou de quem tem o link do pedido). Vídeo, evento sem a moldura do
- * formato e original ilegível dão `indisponivel`, como qualquer recusa (não revela o motivo).
+ * A foto do AUTOR encaixada na moldura do evento, para ele divulgar o evento (story ou feed).
+ * Mesma regra do "Baixar original" do painel (src/servicos/originais-do-dono.ts): só a conta de
+ * fotógrafo que enviou a foto (`fotos.enviada_por`), com a liberação do evento (verificação em
+ * duas etapas, se ligada) e limite por usuário; fica registrado em `downloads_do_dono` como um
+ * download individual. Vídeo, evento sem a moldura do formato e original ilegível dão
+ * `indisponivel`. A imagem é composta na hora e não fica guardada em lugar nenhum.
  */
-export async function fotoComMoldura(
-  itemId: unknown,
-  formato: unknown,
-  credencial: Credencial,
+export async function fotoDoAutorComMoldura(
+  usuario: Usuario | null,
+  entrada: { fotoId: unknown; formato: unknown; liberacao: unknown },
   ip: string | null,
 ): Promise<FotoComMoldura> {
-  const id = z.uuid().safeParse(itemId);
-  const qual = entradaFormato.safeParse(formato);
-  if (!id.success || !qual.success) return { ok: false, motivo: "indisponivel" };
-
-  // Antes de tudo, pelo IP: segura quem varre ids ou tokens.
-  if (await limiteAtingido("moldura_ip", ip ?? "local")) return { ok: false, motivo: "limite" };
-  const item = await itemLiberadoParaDownload(id.data, credencial);
-  if (!item) return { ok: false, motivo: "indisponivel" };
-  if (credencial.clienteId && (await limiteAtingido("moldura_usuario", credencial.clienteId))) {
+  const fotoId = z.uuid().safeParse(entrada.fotoId);
+  const formato = entradaFormato.safeParse(entrada.formato);
+  if (!usuario || !fotoId.success || !formato.success) {
+    return { ok: false, motivo: "nao_encontrado" };
+  }
+  const conta = await contaDoPainel(usuario);
+  if (!conta) return { ok: false, motivo: "nao_encontrado" };
+  const foto = await originalDoAutor(fotoId.data, conta.id);
+  if (!foto) return { ok: false, motivo: "nao_encontrado" };
+  const liberacao = z.string().min(20).max(1000).safeParse(entrada.liberacao);
+  if (!liberacao.success || !liberacaoConfere(liberacao.data, usuario.id, foto.eventoId)) {
+    return { ok: false, motivo: "liberacao" };
+  }
+  if (await limiteAtingido("moldura_fotografo_usuario", usuario.id)) {
     return { ok: false, motivo: "limite" };
   }
 
-  const original = await buscarOriginal(item.fotoId);
+  const original = await buscarOriginal(foto.id);
   if (!original || original.tipo !== "foto") return { ok: false, motivo: "indisponivel" };
-  const chaveMoldura = (await moldurasDoEvento(original.eventoId))[qual.data];
+  const chaveMoldura = (await moldurasDoEvento(foto.eventoId))[formato.data];
   if (!chaveMoldura) return { ok: false, motivo: "indisponivel" };
 
   try {
-    const [foto, moldura] = await Promise.all([
+    const [arquivo, moldura] = await Promise.all([
       lerArquivoDoOriginal(original.chave),
       lerMoldura(chaveMoldura),
     ]);
-    if (!foto || !moldura) return { ok: false, motivo: "indisponivel" };
-    const imagem = await comporComMoldura(foto, moldura, qual.data);
-    await registrarDownload(item.id, ip);
-    return { ok: true, imagem, nomeArquivo: nomeComMoldura(original.nomeArquivo, qual.data) };
+    if (!arquivo || !moldura) return { ok: false, motivo: "indisponivel" };
+    const imagem = await comporComMoldura(arquivo, moldura, formato.data);
+    await registrarLoteDoDono({
+      eventoId: foto.eventoId,
+      fotografoId: conta.id,
+      usuarioId: usuario.id,
+      modo: "individual",
+      quantidade: 1,
+      ip,
+    });
+    return {
+      ok: true,
+      imagem,
+      nomeArquivo: nomeComMoldura(original.nomeArquivo, formato.data),
+    };
   } catch (erro) {
-    console.error("[moldura] falha ao compor a foto", { item: item.id }, erro);
+    console.error("[moldura] falha ao compor a foto", { foto: foto.id }, erro);
     return { ok: false, motivo: "indisponivel" };
   }
 }
