@@ -5,7 +5,7 @@ import { Loader2, Lock } from "lucide-react";
 
 import { entrarNoEvento, type EstadoSenhaEvento } from "@/app/(publico)/eventos/[slug]/acoes";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { Label } from "@/components/ui/label";
 
 const inicial: EstadoSenhaEvento = { erro: null };
@@ -26,16 +26,15 @@ export function FormularioSenhaEvento({ slug }: { slug: string }) {
         <input type="hidden" name="slug" value={slug} />
         <div className="flex flex-col gap-2">
           <Label htmlFor="senha-evento">Senha do evento</Label>
-          <Input
+          <InputSenha
             id="senha-evento"
             name="senha"
-            type="password"
+            nome="senha do evento"
             autoComplete="off"
             required
             maxLength={50}
             aria-invalid={estado.erro ? true : undefined}
             aria-describedby={estado.erro ? "erro-senha-evento" : undefined}
-            className="h-11"
           />
         </div>
         {estado.erro && (

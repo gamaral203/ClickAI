@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { cadastrarAcao, entrarAcao, type EstadoFormulario } from "@/app/(cliente)/conta/acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { Label } from "@/components/ui/label";
 import { papelEscolhido } from "@/lib/cadastro";
 
@@ -45,14 +46,7 @@ export function FormularioEntrar({ proximo }: { proximo?: string }) {
             Esqueci a senha
           </Link>
         </div>
-        <Input
-          id="senha"
-          name="senha"
-          type="password"
-          autoComplete="current-password"
-          required
-          className="h-11"
-        />
+        <InputSenha id="senha" name="senha" autoComplete="current-password" required />
       </div>
       <Button type="submit" size="touch" disabled={enviando}>
         {enviando && (
@@ -137,7 +131,7 @@ export function FormularioCadastro({
       <CampoTexto
         id="senha"
         rotulo="Senha"
-        tipo="password"
+        senha
         autoComplete="new-password"
         ajuda="Pelo menos 8 caracteres."
         erro={erros.senha}
@@ -162,6 +156,7 @@ function CampoTexto({
   id,
   rotulo,
   tipo = "text",
+  senha = false,
   autoComplete,
   valor,
   ajuda,
@@ -170,6 +165,8 @@ function CampoTexto({
   id: string;
   rotulo: string;
   tipo?: string;
+  /** Campo de senha: ganha o botão de mostrar/ocultar. */
+  senha?: boolean;
   autoComplete: string;
   valor?: string;
   ajuda?: string;
@@ -179,17 +176,29 @@ function CampoTexto({
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor={id}>{rotulo}</Label>
-      <Input
-        id={id}
-        name={id}
-        type={tipo}
-        autoComplete={autoComplete}
-        defaultValue={valor}
-        required
-        aria-invalid={Boolean(erro)}
-        aria-describedby={descricao}
-        className="h-11"
-      />
+      {senha ? (
+        <InputSenha
+          id={id}
+          name={id}
+          autoComplete={autoComplete}
+          defaultValue={valor}
+          required
+          aria-invalid={Boolean(erro)}
+          aria-describedby={descricao}
+        />
+      ) : (
+        <Input
+          id={id}
+          name={id}
+          type={tipo}
+          autoComplete={autoComplete}
+          defaultValue={valor}
+          required
+          aria-invalid={Boolean(erro)}
+          aria-describedby={descricao}
+          className="h-11"
+        />
+      )}
       {erro ? (
         <p id={`${id}-erro`} className="text-sm text-destructive">
           {erro}

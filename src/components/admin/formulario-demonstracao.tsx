@@ -8,6 +8,7 @@ import {
 } from "@/app/(admin)/admin/demonstracao/acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { Label } from "@/components/ui/label";
 
 /** Formulário da gestão que cria a conta de demonstração. */
@@ -31,10 +32,9 @@ export function FormularioDemonstracao() {
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="demo-senha">Senha</Label>
-        <Input
+        <InputSenha
           id="demo-senha"
           name="senha"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           required

@@ -7,6 +7,7 @@ import { excluirContaAcao, type EstadoExclusao } from "@/app/(cliente)/conta/aco
 import { Campo, propsDeErro } from "@/components/painel/campos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/ui/input-senha";
 import { enviarSemLimpar } from "@/lib/formulario";
 
 const inicial: EstadoExclusao = {};
@@ -29,12 +30,10 @@ export function FormularioExclusao({ temSenha, email }: { temSenha: boolean; ema
 
       {temSenha ? (
         <Campo rotulo="Sua senha" id="senha" erro={erros.senha} ajuda="Para confirmar que é você.">
-          <Input
+          <InputSenha
             {...propsDeErro("senha", erros.senha)}
             name="senha"
-            type="password"
             autoComplete="current-password"
-            className="h-11"
           />
         </Campo>
       ) : (
