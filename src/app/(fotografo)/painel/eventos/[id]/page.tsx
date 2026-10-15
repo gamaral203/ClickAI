@@ -19,6 +19,7 @@ import { DesignDoEvento } from "@/components/painel/design-do-evento";
 import { EnvioFotos } from "@/components/painel/envio-fotos";
 import { FotosDoEvento } from "@/components/painel/fotos-do-evento";
 import { ReaproveitarEvento } from "@/components/painel/reaproveitar-evento";
+import { NumerosDoEvento } from "@/components/painel/numeros-do-evento";
 import { RostosDoEvento } from "@/components/painel/rostos-do-evento";
 import { TopCliques } from "@/components/painel/top-cliques";
 import { FormularioEvento } from "@/components/painel/formulario-evento";
@@ -34,8 +35,10 @@ import {
   listarItensDoPainel,
   horaDaRequisicao,
   listarPastasDoPainel,
+  numerosDasFotosDoEvento,
   resumoDaLiberacao,
   situacaoDaColecao,
+  situacaoDosNumeros,
   situacaoDosRostos,
   topCliquesDoEvento,
   totaisDoEvento,
@@ -54,6 +57,7 @@ import { estimarCustoDoCadastro } from "@/lib/custo-reconhecimento";
 import { provedorFacial } from "@/lib/reconhecimento";
 import { DIAS_SEM_ATIVIDADE_PARA_ARQUIVAR } from "@/servicos/colecoes";
 import { enderecosDasMolduras } from "@/servicos/molduras";
+import { provedorDeTexto } from "@/servicos/numeros";
 import { resumoParaODono } from "@/servicos/originais-do-dono";
 import { exigirFotografo } from "@/servicos/sessao";
 import { MAXIMO_DE_QUADROS } from "@/servicos/video";
@@ -109,6 +113,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     capas,
     originais,
     molduras,
+    numeros,
+    numerosPorFoto,
   ] = await Promise.all([
     listarItensDoPainel(evento.id, conta.id),
     listarFaixas(conta.id, evento.id),
@@ -126,7 +132,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     // Download dos originais: só o dono (conferido de novo no servidor a cada lote).
     resumoParaODono(usuario, evento.id),
     enderecosDasMolduras(evento.id),
+    situacaoDosNumeros(evento.id),
+    numerosDasFotosDoEvento(evento.id),
   ]);
+  // Números de peito na grade (com a correção à mão): com a leitura ligada ou já com números.
+  const mostrarNumeros = Boolean(evento.lerNumeros) || numerosPorFoto.size > 0;
   const capaAtual = capas.get(evento.id) ?? null;
   const capaFotoId = evento.capaFotoId ?? null;
   // Capa que o dono vê (foto pronta, mesmo não liberada) mas o site ainda não mostra.
@@ -283,6 +293,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     liberarEm: i.liberarEm,
                     // "Baixar original" só nas fotos que o dono enviou (não nas dos colaboradores).
                     doAutor: i.enviadaPor === conta.id,
+                    numeros: mostrarNumeros ? (numerosPorFoto.get(i.id) ?? []) : undefined,
                   }))}
                   pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
                 />
@@ -385,6 +396,21 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                   configurado={provedorFacial() === "rekognition"}
                 />
               </>
+            ),
+          },
+          {
+            id: "numeros",
+            icone: "numeros",
+            rotulo: "Número de peito",
+            conteudo: (
+              <NumerosDoEvento
+                eventoId={evento.id}
+                ligada={Boolean(evento.lerNumeros)}
+                prontas={numeros.prontas}
+                comNumero={numeros.comNumero}
+                pendentes={numeros.pendentes}
+                configurado={provedorDeTexto() !== "desligado"}
+              />
             ),
           },
           ...(originais
@@ -538,6 +564,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     liberadoEm: evento.liberadoEm ? isoParaCampo(evento.liberadoEm) : "",
                     filtroHorario: evento.filtroHorario,
                     listarNaoIdentificadas: evento.listarNaoIdentificadas,
+                    lerNumeros: evento.lerNumeros ?? false,
                     ordenacao: evento.ordenacao,
                   }}
                 />

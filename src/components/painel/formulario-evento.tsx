@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MENSAGEM_FIM_ANTES_DO_INICIO, separarCampo } from "@/lib/campo-data";
+import { categoriaComNumero } from "@/lib/numeros-de-peito";
 import type { PontoNoMapa } from "@/lib/mapa";
 
 import { UFS } from "@/lib/ufs";
@@ -37,6 +38,11 @@ export type ValoresEvento = {
   liberadoEm: string;
   filtroHorario: boolean;
   listarNaoIdentificadas: boolean;
+  /**
+   * Ler o número de peito nas fotos. `null` (evento novo): segue a categoria escolhida
+   * (src/lib/numeros-de-peito.ts) até o fotógrafo mexer na opção.
+   */
+  lerNumeros: boolean | null;
   ordenacao: "envio" | "captura" | "nome_arquivo" | "aleatoria";
 };
 
@@ -72,12 +78,18 @@ export function FormularioEvento({
   inicial,
 }: {
   eventoId?: string;
-  categorias: { id: string; nome: string }[];
+  categorias: { id: string; nome: string; slug?: string }[];
   inicial: ValoresEvento;
 }) {
   const [estado, acao, enviando] = useActionState(salvarEventoAcao, estadoInicial);
   const [visibilidade, setVisibilidade] = useState(inicial.visibilidade);
   const [liberacao, setLiberacao] = useState(inicial.liberacao);
+  // Leitura do número de peito: no evento novo, acompanha a categoria até o fotógrafo escolher.
+  const slugDaCategoria = (id: string) => categorias.find((c) => c.id === id)?.slug;
+  const [lerNumeros, setLerNumeros] = useState(
+    inicial.lerNumeros ?? categoriaComNumero(slugDaCategoria(inicial.categoriaId)),
+  );
+  const [lerNumerosEscolhido, setLerNumerosEscolhido] = useState(inicial.lerNumeros !== null);
   // Datas: o início limita os dias da data final e sugere a hora dela.
   const [inicio, setInicio] = useState(inicial.inicioEm);
   const [fim, setFim] = useState(inicial.fimEm);
@@ -164,6 +176,11 @@ export function FormularioEvento({
             <select
               {...props("categoriaId")}
               defaultValue={inicial.categoriaId}
+              onChange={(e) => {
+                if (!lerNumerosEscolhido) {
+                  setLerNumeros(categoriaComNumero(slugDaCategoria(e.target.value)));
+                }
+              }}
               className={classeSelect}
             >
               <option value="">Escolha</option>
@@ -356,6 +373,25 @@ export function FormularioEvento({
             <Opcao nome="listarNaoIdentificadas" marcado={inicial.listarNaoIdentificadas}>
               Mostrar a lista de fotos sem rosto ou número identificado
             </Opcao>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                name="lerNumeros"
+                checked={lerNumeros}
+                onChange={(e) => {
+                  setLerNumeros(e.target.checked);
+                  setLerNumerosEscolhido(true);
+                }}
+                className="mt-0.5 size-5 shrink-0 accent-primary"
+              />
+              <span className="flex flex-col gap-0.5">
+                Ler número de peito nas fotos
+                <span className="text-muted-foreground">
+                  Os clientes acham as fotos pelo número de peito. Ligado por padrão em corridas,
+                  ciclismo, esportes e esportes aquáticos.
+                </span>
+              </span>
+            </label>
           </Secao>
         </MaisOpcoes>
       </div>

@@ -96,6 +96,7 @@ import {
 } from "@/lib/tipos-video";
 
 import { copiaParaRostos, gerarVersoes } from "./imagens";
+import { lerNumerosDaFoto } from "./numeros";
 import { prepararVideo, VideoIlegivel } from "./video";
 
 export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
@@ -594,11 +595,18 @@ export async function confirmarEnvio(
     if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
-    // A foto já está pronta (à venda); os rostos servem à busca por selfie.
+    // A foto já está pronta (à venda); os rostos servem à busca por selfie e o número de peito
+    // à busca por número (só no evento com a leitura ligada). A cópia reduzida é a mesma.
+    const copia = umaVez(paraRostos);
+    const reconhecer = () =>
+      Promise.all([
+        indexarRostosDaFoto(foto.eventoId, foto.id, copia),
+        lerNumerosDaFoto(foto.eventoId, foto.id, copia),
+      ]);
     if (opcoes.depois) {
-      opcoes.depois(() => indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos));
+      opcoes.depois(reconhecer);
     } else {
-      await indexarRostosDaFoto(foto.eventoId, foto.id, paraRostos);
+      await reconhecer();
       medir("rostosMs");
     }
     return { eventoId: foto.eventoId };
@@ -619,6 +627,12 @@ export async function confirmarEnvio(
 }
 
 const ERRO_PROCESSAMENTO = "Não foi possível processar a foto. Envie de novo.";
+
+/** A mesma promessa para quem chamar: a cópia reduzida é codificada uma vez só. */
+function umaVez<T>(gerar: () => Promise<T>): () => Promise<T> {
+  let promessa: Promise<T> | null = null;
+  return () => (promessa ??= gerar());
+}
 
 /**
  * Vídeo que terminou de subir (docs/arquitetura.md, "Vídeos"): confere o tamanho, o formato pelo

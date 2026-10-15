@@ -4,6 +4,12 @@
 
 /** Preço estimado de cada imagem enviada ao IndexFaces, em dólares (região sa-east-1). */
 export const CUSTO_REKOGNITION_POR_IMAGEM_USD = 0.0013;
+/**
+ * Preço estimado de cada foto lida pelo DetectText (número de peito; "Group 2" da tabela de
+ * preços), em dólares, na região sa-east-1, até 1 milhão de imagens por mês. Conferido na lista
+ * de preços da AWS em 15/10/2026 (docs/deploy.md).
+ */
+export const CUSTO_DETECT_TEXT_POR_IMAGEM_USD = 0.0013;
 
 const dolares = (casas: number) =>
   new Intl.NumberFormat("pt-BR", {

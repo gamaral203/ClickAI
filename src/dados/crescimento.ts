@@ -273,6 +273,7 @@ export function configDoEvento(evento: Evento): ConfigModelo {
     filtroHorario: evento.filtroHorario,
     listarNaoIdentificadas: evento.listarNaoIdentificadas,
     ordenacao: evento.ordenacao,
+    lerNumeros: evento.lerNumeros ?? false,
   };
 }
 
