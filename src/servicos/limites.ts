@@ -159,14 +159,12 @@ const REGRAS = {
   /** Páginas de foto (cada uma com a prévia grande) por IP. */
   foto_ip: { limite: 1200, janelaMs: 10 * MINUTO },
   /**
-   * Fotos compradas baixadas com a moldura do evento (src/servicos/molduras.ts). Cada uma lê o
-   * original inteiro e compõe a imagem no servidor (CPU e memória da função), então o limite é
-   * bem mais baixo que o do original, que sai direto do R2. Por usuário logado: 60 em 10 minutos
-   * cobrem o story e o feed de um pacote grande baixado à mão.
+   * Fotos baixadas pelo autor com a moldura do evento, para divulgação (src/servicos/molduras.ts).
+   * Cada uma lê o original inteiro e compõe a imagem no servidor (CPU e memória da função), então
+   * o limite é bem mais baixo que o do original, que sai direto do R2. 30 em 10 minutos cobrem
+   * escolher algumas fotos para o story e o feed.
    */
-  moldura_usuario: { limite: 60, janelaMs: 10 * MINUTO },
-  /** O mesmo por IP (vale também para quem entra pelo link do pedido, sem conta). */
-  moldura_ip: { limite: 120, janelaMs: 10 * MINUTO },
+  moldura_fotografo_usuario: { limite: 30, janelaMs: 10 * MINUTO },
   /** Envios de moldura (URL assinada e confirmação, que lê e confere o PNG), por fotógrafo. */
   moldura_envio_usuario: { limite: 30, janelaMs: 10 * MINUTO },
   /** Buscas por número de peito por IP e evento (varrer de 0 a 999999 montaria a lista toda). */

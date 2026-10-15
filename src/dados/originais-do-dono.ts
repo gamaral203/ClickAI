@@ -215,6 +215,7 @@ export async function fotosDoAutorNoEvento(eventoId: string, fotografoId: string
       nomeArquivo: t.fotos.nomeArquivo,
       urlMiniatura: t.fotos.urlMiniatura,
       urlPrevia: t.fotos.urlPrevia,
+      tipo: t.fotos.tipo,
     })
     .from(t.fotos)
     .where(

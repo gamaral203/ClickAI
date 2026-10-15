@@ -50,6 +50,7 @@ import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
 import { estadoDaLiberacao, formatarAgendamento } from "@/lib/liberacao";
 import { pontoDoEvento } from "@/lib/mapa";
+import { FORMATOS_MOLDURA } from "@/lib/moldura";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
@@ -276,6 +277,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                   eventoId={evento.id}
                   podeLiberar
                   capaFotoId={capaFotoId}
+                  // "Story"/"Feed" com a moldura do evento, nas fotos do próprio autor (divulgação).
+                  formatosMoldura={FORMATOS_MOLDURA.filter((f) => molduras[f])}
                   itens={itens.map((i) => ({
                     id: i.id,
                     urlMiniatura: i.urlMiniatura,

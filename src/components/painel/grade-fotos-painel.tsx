@@ -14,7 +14,9 @@ import { podeSerCapa } from "@/lib/capa";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { formatarPreco } from "@/lib/formatar";
 import { rotuloDaLiberacao, type EstadoLiberacao } from "@/lib/liberacao";
+import type { FormatoMoldura } from "@/lib/moldura";
 
+import { BaixarComMoldura } from "./baixar-com-moldura";
 import { BaixarOriginal } from "./baixar-original";
 import { NumerosDaFoto } from "./numeros-do-evento";
 import { VisualizadorFoto, type FotoParaVer } from "./visualizador-foto";
@@ -75,6 +77,7 @@ export function GradeFotosPainel({
   selecao,
   capa,
   vazio = "Nenhuma foto enviada ainda.",
+  formatosMoldura = [],
 }: {
   /** Com o evento, a grade oferece "Baixar original" nas fotos do próprio usuário. */
   eventoId?: string;
@@ -83,6 +86,8 @@ export function GradeFotosPainel({
   selecao?: SelecaoDeFotos;
   capa?: EscolhaDeCapa;
   vazio?: string;
+  /** Formatos com moldura no evento: "Story"/"Feed" junto do "Baixar original". */
+  formatosMoldura?: FormatoMoldura[];
 }) {
   // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
   // celular, eram dezenas de milhares de pixels) nem pesada de carregar.
@@ -133,6 +138,7 @@ export function GradeFotosPainel({
             pastas={pastas}
             selecao={selecao}
             capa={capa}
+            formatosMoldura={formatosMoldura}
             aoAbrir={() => setAberta(item.id)}
           />
         ))}
@@ -163,6 +169,7 @@ function Cartao({
   pastas,
   selecao,
   capa,
+  formatosMoldura,
   aoAbrir,
 }: {
   eventoId?: string;
@@ -170,6 +177,7 @@ function Cartao({
   pastas: PastaOpcao[];
   selecao?: SelecaoDeFotos;
   capa?: EscolhaDeCapa;
+  formatosMoldura: FormatoMoldura[];
   /** Abre a foto no visualizador (só a foto pronta tem prévia). */
   aoAbrir: () => void;
 }) {
@@ -268,6 +276,14 @@ function Cartao({
       )}
       {eventoId && item.doAutor && item.status === "pronta" && (
         <BaixarOriginal eventoId={eventoId} fotoId={item.id} nomeArquivo={item.nomeArquivo} />
+      )}
+      {eventoId && item.doAutor && item.status === "pronta" && item.tipo !== "video" && (
+        <BaixarComMoldura
+          eventoId={eventoId}
+          fotoId={item.id}
+          nomeArquivo={item.nomeArquivo}
+          formatos={formatosMoldura}
+        />
       )}
       {item.numeros && item.status === "pronta" && item.tipo !== "video" && (
         <NumerosDaFoto fotoId={item.id} nomeArquivo={item.nomeArquivo} inicial={item.numeros} />

@@ -9,13 +9,12 @@ import { z } from "zod";
 import { BotaoSimularPagamento } from "@/components/carrinho/botao-simular-pagamento";
 import { CartaoMercadoPago } from "@/components/pagamento/cartao-mercadopago";
 import { AcessoAoPedido } from "@/components/pagamento/acesso-ao-pedido";
-import { BaixarComMoldura } from "@/components/pagamento/baixar-com-moldura";
 import { CompartilharFoto } from "@/components/pagamento/compartilhar-foto";
 import { PagamentoPix } from "@/components/pagamento/pagamento-pix";
 import { AtualizadorDePagamento, BotaoGerarPix } from "@/components/pagamento/pix";
 import { SeloPagamento } from "@/components/pagamento/selo-pagamento";
 import { buttonVariants } from "@/components/ui/button";
-import { autoresPorId, contarDownloads, detalharItensDoPedido, formatosDeMoldura } from "@/dados";
+import { autoresPorId, contarDownloads, detalharItensDoPedido } from "@/dados";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { emProducao } from "@/db/conexao";
 import { provedorDePagamento } from "@/lib/gateway";
@@ -63,8 +62,6 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
   const detalhes = await detalharItensDoPedido(itens);
   const autores = await autoresPorId(itens.map((i) => i.fotografoId));
   const baixados = await contarDownloads(itens.map((i) => i.id));
-  // Eventos com a moldura oficial: a foto paga pode ser baixada já com ela (story e feed).
-  const molduras = await formatosDeMoldura(detalhes.map((d) => d.eventoId));
   const gateway = provedorDePagamento();
   const chavePublica = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
   // Reembolso pedido pelo gestor: os downloads param antes de o gateway concluir a devolução.
@@ -217,7 +214,7 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
           Itens do pedido ({detalhes.length}) · {formatarPreco(pedido.totalCentavos)}
         </h2>
         <ul className="flex flex-col divide-y rounded-xl border">
-          {detalhes.map(({ item, tipo, urlMiniatura, eventoId, eventoTitulo }) => (
+          {detalhes.map(({ item, tipo, urlMiniatura, eventoTitulo }) => (
             <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
               <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted">
                 <Image src={urlMiniatura} alt="" fill sizes="64px" className="object-cover" />
@@ -247,13 +244,6 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
                       Baixado{" "}
                       {baixados.get(item.id) === 1 ? "1 vez" : `${baixados.get(item.id)} vezes`}
                     </span>
-                  )}
-                  {tipo === "foto" && (
-                    <BaixarComMoldura
-                      itemId={item.id}
-                      formatos={molduras.get(eventoId) ?? []}
-                      token={dados.data.token}
-                    />
                   )}
                   {tipo === "foto" && (
                     <CompartilharFoto
