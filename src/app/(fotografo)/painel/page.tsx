@@ -165,13 +165,13 @@ async function Conteudo() {
           <CartaoNumero
             icone={<Wallet aria-hidden="true" className="size-4" />}
             titulo="Saldo disponível"
-            valor={formatarPreco(saldo.disponivelCentavos)}
-            texto={`Você recebe ${formatarPreco(saldo.normal.liquidoCentavos)} no saque normal`}
+            valor={formatarPreco(saldo.brutoCentavos)}
+            texto={`Você recebe ${formatarPreco(saldo.liquidoCentavos)} na transferência`}
           />
           <CartaoNumero
             icone={<Clock aria-hidden="true" className="size-4" />}
             titulo="A receber"
-            valor={formatarPreco(saldo.antecipavelCentavos + saldo.aLiberarCentavos)}
+            valor={formatarPreco(saldo.aReceberCentavos)}
             texto={`${formatarPreco(saldo.antecipavelCentavos)} já dá para antecipar`}
           />
           <CartaoNumero

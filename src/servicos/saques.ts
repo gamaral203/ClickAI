@@ -3,11 +3,15 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import {
+  listarContasComTransferenciaAutomatica,
   listarLancamentosDoFotografo,
   listarSaquesDoFotografo,
   listarSaquesProcessando,
+  marcarTransferenciaAutomatica,
   mudarStatusSaque,
   reservarLancamentosParaSaque,
+  salvarAnteciparCartao,
+  salvarConfigTransferencia,
   soltarLancamentosDoSaque,
   type FotografoConta,
   type Lancamento,
@@ -27,28 +31,32 @@ import {
   type ResultadoPayout,
 } from "@/lib/gateway";
 
+import { avisarSaqueSolicitado } from "./avisos-saque";
+import {
+  calcularSaldo,
+  calcularSaque,
+  ehFrequenciaTransferencia,
+  resumoFinanceiro,
+  SAQUE_MINIMO_CENTAVOS,
+  transferenciaVencida,
+} from "./financeiro";
+
+export { SAQUE_MINIMO_CENTAVOS, TAXA_ANTECIPACAO_PCT, TAXA_ANTECIPACAO_TEXTO } from "./financeiro";
+
 // Saque do fotógrafo (docs/arquitetura.md, "Saque do fotógrafo"). O cliente paga na conta da
-// plataforma; o fotógrafo saca pelo painel e o dinheiro sai por Pix para o CPF/CNPJ dele, já
-// sem a comissão:
-//   - saque normal: vendas com 30 dias ou mais, comissão de 8%;
-//   - saque antecipado: vendas com 1 dia ou mais; o que ainda não tinha 30 dias paga 8% + 2%.
+// plataforma; o fotógrafo saca pelo painel (ou pela transferência automática) e o dinheiro sai
+// por Pix para o CPF/CNPJ dele, já sem a comissão. O que entra no saque e as taxas são de
+// src/servicos/financeiro.ts: Pix com 1 dia, sem taxa; cartão com 30 dias, sem taxa, ou com 1
+// dia e 1,99% se o fotógrafo liga a antecipação do cartão; comissão de 8% uma vez só.
 //
 // Por enquanto o saque é MANUAL: o pedido fica em `processando`, a gestão é avisada, faz o Pix
 // pelo app do banco em até 1 dia e marca como pago em /admin/saques. Com SAQUE_AUTOMATICO=1 (e o
 // Payouts liberado no gateway), o saque volta a sair sozinho pelo gateway.
 
-/** Taxa extra do saque antecipado, em pontos percentuais. */
-export const TAXA_ANTECIPACAO_PCT = 1.99;
-
-/** "1,99%": a única taxa que o fotógrafo vê (a comissão não aparece para ele). */
-export const TAXA_ANTECIPACAO_TEXTO = `${TAXA_ANTECIPACAO_PCT.toLocaleString("pt-BR")}%`;
-
 /** O saque sai sozinho pelo gateway? Só com SAQUE_AUTOMATICO=1; sem ele, a gestão paga à mão. */
 export function saqueAutomatico() {
   return process.env.SAQUE_AUTOMATICO === "1" && gatewayConfigurado();
 }
-/** Os gateways não enviam Pix abaixo de R$ 1,00. */
-export const SAQUE_MINIMO_CENTAVOS = 100;
 /**
  * Saques bloqueados por 24 horas depois de trocar o CPF/CNPJ (a chave Pix): quem invadir a conta
  * e trocar o documento não saca antes de a dona ver o aviso por e-mail (docs/riscos.md).
@@ -68,54 +76,6 @@ export function saqueBloqueadoAte(
   return ate > agora ? new Date(ate).toISOString() : null;
 }
 
-export type CalculoSaque = {
-  lancamentoIds: string[];
-  /** Vendas com 30 dias ou mais: pagam só a comissão. */
-  maduroCentavos: number;
-  /** Vendas entre 1 e 30 dias, só no saque antecipado: pagam comissão + antecipação. */
-  antecipadoCentavos: number;
-  brutoCentavos: number;
-  taxaCentavos: number;
-  liquidoCentavos: number;
-};
-
-/** Taxa sobre um valor, arredondada para baixo (o centavo fica com o fotógrafo). */
-function taxa(valorCentavos: number, pct: number) {
-  return Math.max(0, Math.floor((valorCentavos * pct) / 100));
-}
-
-/** Quanto um saque pagaria agora. Recebe só lançamentos ainda sem saque. */
-export function calcularSaque(
-  lancamentos: Pick<Lancamento, "id" | "valorCentavos" | "disponivelEm" | "antecipavelEm">[],
-  agora: number,
-  comissaoPct: number,
-  antecipado: boolean,
-): CalculoSaque {
-  const maduros = lancamentos.filter((l) => new Date(l.disponivelEm).getTime() <= agora);
-  const antecipados = antecipado
-    ? lancamentos.filter(
-        (l) =>
-          new Date(l.antecipavelEm).getTime() <= agora &&
-          new Date(l.disponivelEm).getTime() > agora,
-      )
-    : [];
-  const soma = (lista: typeof lancamentos) => lista.reduce((s, l) => s + l.valorCentavos, 0);
-  const maduroCentavos = soma(maduros);
-  const antecipadoCentavos = soma(antecipados);
-  const taxaCentavos =
-    taxa(maduroCentavos, comissaoPct) +
-    taxa(antecipadoCentavos, comissaoPct + TAXA_ANTECIPACAO_PCT);
-  const brutoCentavos = maduroCentavos + antecipadoCentavos;
-  return {
-    lancamentoIds: [...maduros, ...antecipados].map((l) => l.id),
-    maduroCentavos,
-    antecipadoCentavos,
-    brutoCentavos,
-    taxaCentavos,
-    liquidoCentavos: brutoCentavos - taxaCentavos,
-  };
-}
-
 /**
  * Liberação TEMPORÁRIA de teste: o gestor (papel `admin`) cujo e-mail está em
  * SAQUE_SEM_PRAZO_EMAILS (lista separada por vírgula) saca as próprias vendas sem esperar o
@@ -124,11 +84,14 @@ export function calcularSaque(
  * Remover a variável da produção depois do teste (docs/tarefas.md, Fase 14).
  */
 export function saqueSemPrazo(
-  usuario: Pick<Usuario, "id" | "email" | "papel">,
+  usuario: Pick<Usuario, "id" | "email" | "papel"> | null,
   conta: Pick<FotografoConta, "usuarioId">,
   lista = process.env.SAQUE_SEM_PRAZO_EMAILS,
 ) {
-  if (!lista || usuario.papel !== "admin" || conta.usuarioId !== usuario.id) return false;
+  // Sem usuário (transferência automática): nunca libera.
+  if (!lista || !usuario || usuario.papel !== "admin" || conta.usuarioId !== usuario.id) {
+    return false;
+  }
   const emails = lista
     .split(",")
     .map((e) => e.trim().toLowerCase())
@@ -136,7 +99,10 @@ export function saqueSemPrazo(
   return emails.includes(usuario.email.trim().toLowerCase());
 }
 
-/** Com a liberação de teste, todo lançamento conta como já disponível (venda com 30 dias). */
+/**
+ * Com a liberação de teste, todo lançamento conta como já disponível sem taxa de antecipação
+ * (como uma venda com 30 dias).
+ */
 export function aplicarLiberacao<T extends Pick<Lancamento, "disponivelEm" | "antecipavelEm">>(
   lancamentos: T[],
   agora: number,
@@ -151,38 +117,14 @@ export function aplicarLiberacao<T extends Pick<Lancamento, "disponivelEm" | "an
   );
 }
 
-export type SaldoDoFotografo = {
-  /** Vendas com 30 dias ou mais, prontas para o saque normal. */
-  disponivelCentavos: number;
-  /** Vendas entre 1 e 30 dias: só no saque antecipado. */
-  antecipavelCentavos: number;
-  /** Vendas de menos de 1 dia: ainda não dá para sacar. */
-  aLiberarCentavos: number;
-  normal: CalculoSaque;
-  antecipado: CalculoSaque;
-};
-
-export function calcularSaldo(
-  lancamentos: Lancamento[],
-  agora: number,
-  comissaoPct: number,
-): SaldoDoFotografo {
-  const livres = lancamentos.filter((l) => l.saqueId === null);
-  const normal = calcularSaque(livres, agora, comissaoPct, false);
-  const antecipado = calcularSaque(livres, agora, comissaoPct, true);
-  const total = livres.reduce((s, l) => s + l.valorCentavos, 0);
-  return {
-    disponivelCentavos: normal.maduroCentavos,
-    antecipavelCentavos: antecipado.antecipadoCentavos,
-    aLiberarCentavos: total - antecipado.brutoCentavos,
-    normal,
-    antecipado,
-  };
+/** A antecipação do cartão está ligada nesta conta? (desligada por padrão) */
+function antecipaCartao(conta: Pick<FotografoConta, "anteciparCartao">) {
+  return conta.anteciparCartao === true;
 }
 
 /**
- * O que a página de vendas mostra: saldo, extrato e saques, depois de conferir os saques em
- * processamento. A hora é lida aqui, como o NOW() do banco faria.
+ * O que a página de vendas mostra: saldo, resumo, extrato e saques, depois de conferir os saques
+ * em processamento. A hora é lida aqui, como o NOW() do banco faria.
  */
 export async function situacaoFinanceira(conta: FotografoConta, usuario: Usuario) {
   await conferirSaques(conta.id);
@@ -199,7 +141,8 @@ export async function situacaoFinanceira(conta: FotografoConta, usuario: Usuario
     saques,
     liberacaoTeste,
     bloqueadoAte: saqueBloqueadoAte(conta, agora),
-    saldo: calcularSaldo(lancamentos, agora, conta.comissaoPct),
+    saldo: calcularSaldo(lancamentos, agora, conta.comissaoPct, antecipaCartao(conta)),
+    resumo: resumoFinanceiro(lancamentos, saques, conta.comissaoPct),
   };
 }
 
@@ -318,17 +261,21 @@ async function enviar(saque: Saque, primeiroEnvio: boolean) {
   }
 }
 
-/** Pede o saque de todo o saldo que dá para sacar agora, normal ou antecipado. */
+/**
+ * Pede o saque de todo o saldo disponível agora. O que entra e as taxas seguem a configuração da
+ * conta (antecipação do cartão ligada ou não), nunca o navegador. `usuario` é quem pediu pelo
+ * painel; `null` na transferência automática (que nunca usa a liberação de teste).
+ */
 export async function solicitarSaque(
   conta: FotografoConta,
-  usuario: Usuario,
-  antecipado: boolean,
+  usuario: Usuario | null,
+  agora = Date.now(),
 ): Promise<ResultadoSaque> {
   // Conta de demonstração: o saldo é de vendas fictícias e nunca vira Pix.
   if (conta.demonstracao) return { ok: false, motivo: "demonstracao" };
   if (!chavePixValida(conta) || !conta.chavePix) return { ok: false, motivo: "sem_chave" };
   // CPF/CNPJ trocado há menos de 24 horas: nenhum saque, nem com a liberação de teste.
-  const bloqueadoAte = saqueBloqueadoAte(conta, Date.now());
+  const bloqueadoAte = saqueBloqueadoAte(conta, agora);
   if (bloqueadoAte) return { ok: false, motivo: "documento_trocado", bloqueadoAte };
   // Saque automático na produção sem as credenciais do gateway: recusa antes de reservar o saldo
   // (o saque sairia "pago" sem Pix nenhum). O manual não depende do gateway.
@@ -341,7 +288,6 @@ export async function solicitarSaque(
     return { ok: false, motivo: "saque_em_andamento" };
   }
 
-  const agora = Date.now();
   const liberacaoTeste = saqueSemPrazo(usuario, conta);
   const lancamentos = aplicarLiberacao(
     await listarLancamentosDoFotografo(conta.id),
@@ -352,18 +298,21 @@ export async function solicitarSaque(
     lancamentos.filter((l) => l.saqueId === null),
     agora,
     conta.comissaoPct,
-    antecipado,
+    antecipaCartao(conta),
   );
   if (calculo.liquidoCentavos < SAQUE_MINIMO_CENTAVOS) {
     return { ok: false, motivo: "abaixo_do_minimo" };
   }
 
+  // Bruto, comissão, antecipação e líquido ficam gravados: o saque é a auditoria do que foi pago.
   const saque: Saque = {
     id: randomUUID(),
     fotografoId: conta.id,
-    antecipado: antecipado && calculo.antecipadoCentavos > 0,
+    antecipado: calculo.taxaAntecipacaoCentavos > 0,
     brutoCentavos: calculo.brutoCentavos,
     taxaCentavos: calculo.taxaCentavos,
+    comissaoCentavos: calculo.comissaoCentavos,
+    taxaAntecipacaoCentavos: calculo.taxaAntecipacaoCentavos,
     liquidoCentavos: calculo.liquidoCentavos,
     chavePix: conta.chavePix,
     gatewayId: null,
@@ -402,4 +351,91 @@ export async function conferirSaques(fotografoId: string) {
       console.error("Falha ao consultar o saque no gateway", { saque: saque.id, erro });
     }
   }
+}
+
+// ---------------------------------------------------------------- Configuração do recebimento
+
+export type ResultadoConfiguracao =
+  { ok: true; conta: FotografoConta } | { ok: false; motivo: "invalido" | "falhou" };
+
+/**
+ * Liga ou desliga "Antecipar automaticamente vendas no cartão". Vale para o próximo saque (manual
+ * ou automático) sobre todas as vendas no cartão ainda sem saque; o que já foi sacado não muda.
+ */
+export async function salvarAntecipacao(
+  conta: Pick<FotografoConta, "id">,
+  ligado: unknown,
+): Promise<ResultadoConfiguracao> {
+  if (typeof ligado !== "boolean") return { ok: false, motivo: "invalido" };
+  const atualizada = await salvarAnteciparCartao(conta.id, ligado);
+  return atualizada ? { ok: true, conta: atualizada } : { ok: false, motivo: "falhou" };
+}
+
+/**
+ * Liga, desliga ou muda a frequência da transferência automática. Ao ligar, o primeiro saque
+ * automático sai depois de um intervalo da frequência (src/servicos/financeiro.ts).
+ */
+export async function salvarTransferenciaAutomatica(
+  conta: Pick<FotografoConta, "id">,
+  config: { ligada: unknown; frequencia: unknown },
+  agora = Date.now(),
+): Promise<ResultadoConfiguracao> {
+  if (typeof config.ligada !== "boolean" || !ehFrequenciaTransferencia(config.frequencia)) {
+    return { ok: false, motivo: "invalido" };
+  }
+  const atualizada = await salvarConfigTransferencia(
+    conta.id,
+    { ligada: config.ligada, frequencia: config.frequencia },
+    agora,
+  );
+  return atualizada ? { ok: true, conta: atualizada } : { ok: false, motivo: "falhou" };
+}
+
+// ---------------------------------------------------------------- Transferência automática
+
+type MotivoPulo = Exclude<ResultadoSaque, { ok: true }>["motivo"];
+
+export type ResultadoTransferencias = {
+  /** Contas com a transferência ligada e o intervalo vencido. */
+  vencidas: number;
+  /** Pedidos de saque criados. */
+  criadas: number;
+  /** Contas puladas, por motivo (sem chave Pix, abaixo do mínimo, saque em andamento...). */
+  puladas: Partial<Record<MotivoPulo, number>>;
+  /** Erros inesperados (ficam no log; o job segue para a próxima conta). */
+  falhas: number;
+};
+
+/**
+ * Transferência automática (job de revisão, a cada 10 minutos): para cada conta com ela ligada e
+ * o intervalo da frequência vencido, cria o pedido de saque com o saldo disponível pela
+ * configuração atual, pelo mesmo solicitarSaque do painel (mínimo, chave Pix, bloqueio de 24 h,
+ * um saque por vez e demonstração continuam valendo). O Pix continua com a equipe, até o
+ * SAQUE_AUTOMATICO. Conta pulada não marca a data: tenta de novo na próxima execução. Rodar duas
+ * vezes seguidas não cria dois saques: a data gravada fecha o intervalo e, antes disso, o saque em
+ * `processando` já barra o segundo.
+ */
+export async function transferirAutomaticamente(
+  agora = Date.now(),
+): Promise<ResultadoTransferencias> {
+  const resultado: ResultadoTransferencias = { vencidas: 0, criadas: 0, puladas: {}, falhas: 0 };
+  for (const conta of await listarContasComTransferenciaAutomatica()) {
+    if (!transferenciaVencida(conta, agora)) continue;
+    resultado.vencidas++;
+    try {
+      const saque = await solicitarSaque(conta, null, agora);
+      if (!saque.ok) {
+        resultado.puladas[saque.motivo] = (resultado.puladas[saque.motivo] ?? 0) + 1;
+        continue;
+      }
+      await marcarTransferenciaAutomatica(conta.id, agora);
+      resultado.criadas++;
+      // Manual: a gestão é avisada como no saque pedido pelo painel.
+      if (!saqueAutomatico()) await avisarSaqueSolicitado(saque.saque, conta);
+    } catch (erro) {
+      resultado.falhas++;
+      console.error(`[jobs] falha na transferência automática do fotógrafo ${conta.id}`, erro);
+    }
+  }
+  return resultado;
 }

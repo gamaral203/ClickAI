@@ -58,6 +58,8 @@ export function paraFotografo(r: typeof t.fotografos.$inferSelect): FotografoCon
   return {
     ...r,
     documentoTrocadoEm: iso(r.documentoTrocadoEm),
+    transferenciaAutomaticaDesde: iso(r.transferenciaAutomaticaDesde),
+    ultimaTransferenciaAutomaticaEm: iso(r.ultimaTransferenciaAutomaticaEm),
     modeloMarca: ehModeloMarca(r.modeloMarca) ? r.modeloMarca : MODELO_MARCA_PADRAO,
   };
 }

@@ -72,8 +72,21 @@ export type FotografoConta = Fotografo & {
   chavePix: string | null;
   /** Última troca do CPF/CNPJ (ISO): saques bloqueados por 24 horas depois dela. */
   documentoTrocadoEm?: string | null;
-  /** Comissão da plataforma, descontada no saque. */
+  /** Comissão da plataforma por venda, descontada uma vez só, no saque. */
   comissaoPct: number;
+  /**
+   * "Antecipar automaticamente vendas no cartão" (padrão: desligado). Ligado, a venda no cartão
+   * fica disponível 1 dia depois do pagamento, com 1,99% sobre o bruto; desligado, em 30 dias.
+   */
+  anteciparCartao?: boolean;
+  /** Transferência automática do saldo disponível (padrão: desligada). */
+  transferenciaAutomatica?: boolean;
+  /** Frequência da transferência automática (padrão: "semanal"). */
+  frequenciaTransferencia?: FrequenciaTransferencia;
+  /** Quando a transferência automática foi ligada (ISO). */
+  transferenciaAutomaticaDesde?: string | null;
+  /** Último saque criado pela transferência automática (ISO). */
+  ultimaTransferenciaAutomaticaEm?: string | null;
   /** Modelo de marca d'água das prévias (padrão quando ausente). */
   modeloMarca?: ModeloMarca;
   /** Conta de demonstração: vendas fictícias, sem saque (src/servicos/demonstracao.ts). */
@@ -400,6 +413,9 @@ export type Mensagem = {
 
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
+/** Transferência automática do saldo: a cada 1, 7 ou 30 dias. */
+export type FrequenciaTransferencia = "diaria" | "semanal" | "mensal";
+
 /** A parte de um fotógrafo num item vendido, ainda sem a comissão (que sai no saque). */
 export type Lancamento = {
   id: string;
@@ -407,9 +423,15 @@ export type Lancamento = {
   itemPedidoId: string;
   /** Valor bruto; negativo em estorno. */
   valorCentavos: number;
-  /** A partir daqui entra no saque normal (30 dias depois da venda). */
+  /**
+   * Cartão: disponível sem taxa a partir daqui (30 dias depois da venda). Pix: 1 dia nas vendas
+   * novas; nas antigas ficou 30 dias, mas o Pix vale pelo `antecipavelEm` (src/servicos/financeiro.ts).
+   */
   disponivelEm: string;
-  /** A partir daqui pode entrar no saque antecipado (1 dia depois da venda). */
+  /**
+   * 1 dia depois da venda: Pix disponível sem taxa; cartão disponível com 1,99% se o fotógrafo
+   * antecipa o cartão.
+   */
   antecipavelEm: string;
   saqueId: string | null;
   /** Lançamento que este desfaz (estorno ou volta de estorno); vazio na venda. */
@@ -422,10 +444,15 @@ export type StatusSaque = "processando" | "pago" | "falhou";
 export type Saque = {
   id: string;
   fotografoId: string;
+  /** Levou venda no cartão liberada antes dos 30 dias (pagou a taxa de antecipação). */
   antecipado: boolean;
   brutoCentavos: number;
-  /** Comissão (8%) mais a antecipação (2%) sobre o que ainda não tinha 30 dias. */
+  /** Comissão mais antecipação (`comissaoCentavos + taxaAntecipacaoCentavos`). */
   taxaCentavos: number;
+  /** Comissão da plataforma (8%) sobre o bruto do saque, uma vez só. */
+  comissaoCentavos: number;
+  /** 1,99% sobre as vendas no cartão liberadas antes dos 30 dias; 0 sem antecipação. */
+  taxaAntecipacaoCentavos: number;
   liquidoCentavos: number;
   /** CPF ou CNPJ do fotógrafo, só dígitos: o saque só vai para a chave Pix dele mesmo. */
   chavePix: string;

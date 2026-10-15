@@ -82,6 +82,8 @@ export async function semear(banco: Banco, { contasComSenha = false }: OpcoesSem
     exemplo.fotografos.map((f) => ({
       ...f,
       documentoTrocadoEm: data(f.documentoTrocadoEm ?? null),
+      transferenciaAutomaticaDesde: data(f.transferenciaAutomaticaDesde ?? null),
+      ultimaTransferenciaAutomaticaEm: data(f.ultimaTransferenciaAutomaticaEm ?? null),
     })),
   );
   await banco.insert(t.categorias).values(exemplo.categorias);

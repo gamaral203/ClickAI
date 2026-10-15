@@ -21,7 +21,7 @@ import { autorizarDownload } from "./downloads";
 import { reembolsarPedido, restaurarContestacao } from "./estornos";
 import { conferirCobrancaDoPedido, processarNotificacaoDeOrder } from "./pagamentos";
 import { confirmarPagamento } from "./pedidos";
-import { calcularSaque } from "./saques";
+import { calcularSaque } from "./financeiro";
 
 const GESTOR = { id: "05e70000-0000-4000-8000-000000000005" };
 // Pedido de teste no cartão, dois itens de R$ 10,00: cada fotógrafo deixa metade da taxa do
@@ -231,6 +231,8 @@ describe("reembolso pelo gestor (gateway simulado)", () => {
           antecipado: true,
           brutoCentavos: venda.valorCentavos,
           taxaCentavos: 110,
+          comissaoCentavos: 110,
+          taxaAntecipacaoCentavos: 0,
           liquidoCentavos: venda.valorCentavos - 110,
           chavePix: "12345678909",
           gatewayId: null,
@@ -261,7 +263,8 @@ describe("reembolso pelo gestor (gateway simulado)", () => {
       .where(eq(t.lancamentos.estornoDe, venda.id));
     expect(negativo.valorCentavos).toBe(-venda.valorCentavos);
     expect(negativo.saqueId).toBeNull();
-    // Disponível na hora: entra (negativo) no próximo saque, normal ou antecipado.
+    // Disponível na hora: entra (negativo) no próximo saque, com ou sem antecipação, e sem taxa
+    // de antecipação mesmo sendo cartão (ela já foi cobrada, se foi, no saque da venda).
     expect(negativo.disponivelEm.getTime()).toBeGreaterThanOrEqual(antes - 1000);
     const calculo = calcularSaque(
       [
@@ -270,14 +273,17 @@ describe("reembolso pelo gestor (gateway simulado)", () => {
           valorCentavos: negativo.valorCentavos,
           disponivelEm: negativo.disponivelEm.toISOString(),
           antecipavelEm: negativo.antecipavelEm.toISOString(),
+          saqueId: null,
+          metodo: "cartao",
         },
       ],
       Date.now() + 1000,
       10,
-      false,
+      true,
     );
     expect(calculo.lancamentoIds).toEqual([negativo.id]);
     expect(calculo.brutoCentavos).toBe(-venda.valorCentavos);
+    expect(calculo.taxaAntecipacaoCentavos).toBe(0);
   });
 });
 

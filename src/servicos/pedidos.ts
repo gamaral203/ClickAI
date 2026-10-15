@@ -31,9 +31,15 @@ import { avisarVenda, enviarEntrega, linkDoPedidoConfere } from "./mensagens";
 /** O Pix (e o pedido pendente) expira em 1 hora. */
 const VALIDADE_PEDIDO_MS = 60 * 60 * 1000;
 const DIA_MS = 24 * 60 * 60 * 1000;
-/** Prazo para a venda entrar no saque normal (taxa de 8%), seja Pix ou cartão. */
+/**
+ * Prazo da venda no cartão sem taxa de antecipação. É regra nossa, contra estorno e contestação:
+ * o Mercado Pago já libera o cartão na hora para a conta da plataforma.
+ */
 export const PRAZO_SAQUE_MS = 30 * DIA_MS;
-/** Prazo para a venda entrar no saque antecipado (taxa de 8% + 2%). */
+/**
+ * 1 dia depois do pagamento: o Pix fica disponível (sem taxa) e o cartão pode ser antecipado
+ * (com 1,99%, se o fotógrafo ligou a antecipação; src/servicos/financeiro.ts).
+ */
 export const PRAZO_ANTECIPACAO_MS = DIA_MS;
 
 export type DadosComprador = {
@@ -249,14 +255,18 @@ export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
 /**
  * Lançamentos de uma venda confirmada em `agora`: a parte do autor de cada item e, se o autor é
  * colaborador, a do dono do evento. No cartão, cada um deixa metade da taxa do Mercado Pago sobre a
- * sua parte (a outra metade o comprador pagou como acréscimo: src/lib/taxas.ts).
+ * sua parte (a outra metade o comprador pagou como acréscimo: src/lib/taxas.ts). O Pix fica
+ * disponível 1 dia depois, sem taxa; o cartão, em 30 dias (ou em 1 dia com a antecipação, que o
+ * saque decide pela configuração do fotógrafo: src/servicos/financeiro.ts).
  */
 export async function lancamentosDaVenda(
   itens: ItemPedido[],
   agora: number,
   metodo?: MetodoPagamento,
 ): Promise<Lancamento[]> {
-  const disponivelEm = new Date(agora + PRAZO_SAQUE_MS).toISOString();
+  const disponivelEm = new Date(
+    agora + (metodo === "pix" ? PRAZO_ANTECIPACAO_MS : PRAZO_SAQUE_MS),
+  ).toISOString();
   const pct = taxaCartaoPct();
   const liquido = (valor: number) =>
     metodo === "cartao" ? valor - parteDoVendedorNaTaxa(valor, pct) : valor;
