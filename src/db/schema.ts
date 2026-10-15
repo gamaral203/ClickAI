@@ -672,8 +672,9 @@ export const pedidos = pgTable(
     estornadoEm: data(),
     motivoEstorno: motivoEstorno(),
     /**
-     * Pedido fictício da conta de demonstração (src/servicos/demonstracao.ts): nunca passou pelo
-     * gateway; fica fora dos rankings e dos números da gestão.
+     * Pedido fictício da conta de demonstração (src/servicos/demonstracao.ts), ou pedido de teste da
+     * equipe marcado depois: fica fora dos rankings e dos números da gestão. Fora da conta de
+     * demonstração, as vendas dele também saem do Financeiro do fotógrafo (src/dados/painel.ts).
      */
     demonstracao: boolean().notNull().default(false),
     criadoEm: momento(),
@@ -781,6 +782,11 @@ export const saques = pgTable(
     chavePix: text().notNull(),
     gatewayId: text(),
     status: statusSaque().notNull().default("processando"),
+    /**
+     * Saque de teste (feito pela equipe enquanto testava o site): fica fora dos números da gestão
+     * e do Financeiro do fotógrafo, sem apagar o registro (src/dados/admin.ts, painel.ts).
+     */
+    demonstracao: boolean().notNull().default(false),
     criadoEm: momento(),
     pagoEm: data(),
   },

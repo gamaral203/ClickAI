@@ -4,7 +4,7 @@
 
 import "server-only";
 
-import { and, desc, eq, not, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, not, sql } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
@@ -37,6 +37,9 @@ export type ResumoGeral = {
  */
 const deDemonstracao = sql`${t.lancamentos.fotografoId} in (select ${t.fotografos.id} from ${t.fotografos} where ${t.fotografos.demonstracao})`;
 
+/** Lançamento de um pedido de teste (`pedidos.demonstracao`): fora dos números da gestão. */
+const dePedidoDeTeste = sql`${t.lancamentos.itemPedidoId} in (select ${t.itensPedido.id} from ${t.itensPedido} inner join ${t.pedidos} on ${t.pedidos.id} = ${t.itensPedido.pedidoId} where ${t.pedidos.demonstracao})`;
+
 /** Lançamento ainda não pago num saque: sem saque, ou num saque que não está pago. */
 const naoSacado = sql`(${t.lancamentos.saqueId} is null or ${t.lancamentos.saqueId} not in (select ${t.saques.id} from ${t.saques} where ${t.saques.status} = 'pago'))`;
 
@@ -60,11 +63,12 @@ export async function resumoGeral(): Promise<ResumoGeral> {
         taxas: sql<number>`coalesce(sum(${t.saques.taxaCentavos}) filter (where ${t.saques.status} = 'pago'), 0)::int`,
         processando: sql<number>`count(*) filter (where ${t.saques.status} = 'processando')::int`,
       })
-      .from(t.saques),
+      .from(t.saques)
+      .where(eq(t.saques.demonstracao, false)),
     banco
       .select({ total: sql<number>`coalesce(sum(${t.lancamentos.valorCentavos}), 0)::int` })
       .from(t.lancamentos)
-      .where(and(naoSacado, not(deDemonstracao))),
+      .where(and(naoSacado, not(deDemonstracao), not(dePedidoDeTeste))),
     banco
       .select({ papel: t.usuarios.papel, total: sql<number>`count(*)::int` })
       .from(t.usuarios)
@@ -111,7 +115,8 @@ export async function resumoPorFotografo(): Promise<ResumoFotografo[]> {
       })
       .from(t.fotografos)
       .innerJoin(t.usuarios, eq(t.usuarios.id, t.fotografos.usuarioId))
-      .where(eq(t.fotografos.demonstracao, false)),
+      // Contas excluídas (anonimizadas) não aparecem: não vendem mais e só poluíam a lista.
+      .where(and(eq(t.fotografos.demonstracao, false), isNull(t.usuarios.excluidoEm))),
     banco
       .select({
         id: t.lancamentos.fotografoId,
@@ -119,6 +124,7 @@ export async function resumoPorFotografo(): Promise<ResumoFotografo[]> {
         aPagar: sql<number>`coalesce(sum(${t.lancamentos.valorCentavos}) filter (where ${naoSacado}), 0)::int`,
       })
       .from(t.lancamentos)
+      .where(not(dePedidoDeTeste))
       .groupBy(t.lancamentos.fotografoId),
     banco
       .select({
@@ -127,7 +133,7 @@ export async function resumoPorFotografo(): Promise<ResumoFotografo[]> {
         taxas: sql<number>`sum(${t.saques.taxaCentavos})::int`,
       })
       .from(t.saques)
-      .where(eq(t.saques.status, "pago"))
+      .where(and(eq(t.saques.status, "pago"), eq(t.saques.demonstracao, false)))
       .groupBy(t.saques.fotografoId),
   ]);
   return contas
@@ -208,6 +214,7 @@ export async function listarSaquesDoAdmin(): Promise<SaqueDoAdmin[]> {
     .select({ saque: t.saques, nome: t.fotografos.nomePublico })
     .from(t.saques)
     .innerJoin(t.fotografos, eq(t.fotografos.id, t.saques.fotografoId))
+    .where(eq(t.saques.demonstracao, false))
     .orderBy(desc(t.saques.criadoEm));
   return linhas.map((l) => ({ ...paraSaque(l.saque), fotografoNome: l.nome }));
 }

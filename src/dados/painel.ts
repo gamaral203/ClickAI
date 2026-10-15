@@ -644,7 +644,15 @@ export async function listarLancamentosDoFotografo(
     .innerJoin(t.pedidos, eq(t.pedidos.id, t.itensPedido.pedidoId))
     .innerJoin(t.fotos, eq(t.fotos.id, t.itensPedido.fotoId))
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
-    .where(eq(t.lancamentos.fotografoId, fotografoId));
+    .where(
+      and(
+        eq(t.lancamentos.fotografoId, fotografoId),
+        // Pedido de teste da equipe (marcado como demonstração fora da conta de demonstração):
+        // não entra no saldo nem no histórico. Na conta de demonstração, as vendas fictícias
+        // aparecem, que é para isso que ela existe.
+        sql`not (${t.pedidos.demonstracao} and not exists (select 1 from ${t.fotografos} where ${t.fotografos.id} = ${t.lancamentos.fotografoId} and ${t.fotografos.demonstracao}))`,
+      ),
+    );
   return linhas
     .map((l) => ({
       ...paraLancamento(l.lancamento),
@@ -729,7 +737,8 @@ export async function listarSaquesDoFotografo(fotografoId: string): Promise<Saqu
   const linhas = await banco
     .select()
     .from(t.saques)
-    .where(eq(t.saques.fotografoId, fotografoId))
+    // Saques de teste da equipe ficam fora do Financeiro (o registro continua no banco).
+    .where(and(eq(t.saques.fotografoId, fotografoId), eq(t.saques.demonstracao, false)))
     .orderBy(desc(t.saques.criadoEm));
   return linhas.map(paraSaque);
 }
