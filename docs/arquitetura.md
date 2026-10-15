@@ -139,7 +139,7 @@ A prévia (1600 px no lado maior, WebP 72), a prévia do celular (1000 px, WebP 
 **Vídeos:**
 
 - O processamento roda num worker com FFmpeg (container em Fly.io ou Railway), chamado pelo job do Inngest, porque as funções da Vercel não têm FFmpeg nem tempo para vídeos de 500 MB.
-- O worker gera a prévia em 720p com marca d'água, a miniatura (um quadro do vídeo) e quadros a cada segundo para o reconhecimento facial e numérico. Os quadros são temporários e apagados depois da indexação.
+- O worker gera a prévia em 720p com marca d'água, a miniatura (um quadro do vídeo) e quadros a cada segundo para o reconhecimento facial e numérico. Os quadros são temporários e apagados depois da indexação. A prévia em MP4 sai sem os metadados do arquivo enviado (`-map_metadata -1`): o MOV do iPhone traz o GPS (`location`), que antes ia junto para o bucket público.
 - Vídeos não entram no desconto progressivo nem no pacote; cupons valem para eles.
 
 ## Modelo de dados

@@ -175,6 +175,12 @@ export async function prepararVideo(
       "[s]",
       "-map",
       "0:a?",
+      // Nada dos metadados do arquivo enviado vai para a prévia pública: o MOV do iPhone traz o GPS
+      // (location) e o modelo do aparelho, que o FFmpeg copiaria sem estas opções.
+      "-map_metadata",
+      "-1",
+      "-map_chapters",
+      "-1",
       "-c:v",
       "libx264",
       "-preset",
