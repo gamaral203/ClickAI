@@ -280,7 +280,6 @@ export async function lerTrecho(chave: string, inicio: number, fim: number): Pro
   return r.Body.transformToByteArray();
 }
 
-
 /** Prefixos que podem ir ao bucket público: prévias, miniaturas, capas de evento e da loja. */
 const PREFIXOS_PUBLICOS = /^(previas|miniaturas|eventos|perfis)\//;
 

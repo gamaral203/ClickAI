@@ -21,12 +21,7 @@ vi.mock("@/servicos/sessao", async (original) => ({
 
 import { GET as rotaOriginalDeExemplo } from "@/app/api/painel/originais/[eventoId]/[fotoId]/route";
 import { GET as rotaSemMarca } from "@/app/api/painel/sem-marca/[fotoId]/route";
-import {
-  buscarUsuario,
-  criarEvento,
-  criarUsuario,
-  type Usuario,
-} from "@/dados";
+import { buscarUsuario, criarEvento, criarUsuario, type Usuario } from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -208,7 +203,10 @@ describe("miniatura sem marca: só o autor, mesmo no evento colaborativo", () =>
   it("gestor (com a própria conta de fotógrafo criada no acesso) não recebe a foto de ninguém", async () => {
     const gestor = await usuarioNovo("admin");
     for (const foto of [f.lia, f.pedro]) {
-      expect(await miniaturaSemMarca(gestor, foto)).toEqual({ ok: false, motivo: "nao_encontrado" });
+      expect(await miniaturaSemMarca(gestor, foto)).toEqual({
+        ok: false,
+        motivo: "nao_encontrado",
+      });
     }
   });
 

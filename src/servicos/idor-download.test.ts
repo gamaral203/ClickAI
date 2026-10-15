@@ -191,7 +191,13 @@ describe("download do original: só pedido pago do próprio cliente", () => {
   });
 
   it("pedido pendente, expirado, cancelado, estornado ou contestado não baixa", async () => {
-    for (const status of ["pendente", "expirado", "cancelado", "estornado", "contestado"] as const) {
+    for (const status of [
+      "pendente",
+      "expirado",
+      "cancelado",
+      "estornado",
+      "contestado",
+    ] as const) {
       const { itemId, token } = await novoPedido(await novaFoto(), { status });
       expect(await autorizarDownload(itemId, { token }, null), status).toBeNull();
     }
