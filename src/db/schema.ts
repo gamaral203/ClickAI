@@ -421,7 +421,7 @@ export const pastas = pgTable(
       .references(() => eventos.id, { onDelete: "cascade" }),
     /**
      * Pasta de cima: nulo nas pastas de nível 1; numa subpasta, uma pasta de nível 1 do mesmo
-     * evento. No máximo 2 níveis (conferido no servidor e pelo gatilho da migração 0042).
+     * evento. No máximo 2 níveis (conferido no servidor e pelo gatilho da migração 0043).
      * Apagar a pasta de cima apaga as subpastas; as fotos ficam sem pasta (excluirPasta).
      */
     pastaPaiId: uuid().references((): AnyPgColumn => pastas.id, { onDelete: "cascade" }),

@@ -1,7 +1,7 @@
 // Pastas e subpastas das fotos de um evento (docs/arquitetura.md, "Pastas e subpastas"). No
 // máximo 2 níveis: pasta de nível 1 → subpasta, sempre no mesmo evento. Só o dono do evento
 // gerencia as pastas e muda a pasta das fotos; quem edita passa o id de quem está logado e a
-// checagem de dono fica aqui. O gatilho da migração 0042 recusa o 3º nível como última barreira.
+// checagem de dono fica aqui. O gatilho da migração 0043 recusa o 3º nível como última barreira.
 
 import "server-only";
 
