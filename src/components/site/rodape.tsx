@@ -123,9 +123,7 @@ function RodapeCompleto() {
             </p>
             <p className="mt-1 max-w-2xl text-sm">{EMPRESA.sobre}</p>
           </div>
-          <p className="text-xs leading-relaxed">
-            Empresa responsável: {EMPRESA.razaoSocial} · CNPJ {EMPRESA.cnpj} · {EMPRESA.endereco}
-          </p>
+          <p className="text-xs leading-relaxed">CNPJ {EMPRESA.cnpj}</p>
           <p className="flex items-center gap-2 text-xs">
             <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />©{" "}
             {new Date().getFullYear()} {EMPRESA.marca}. Todos os direitos reservados. Pagamento por
@@ -160,9 +158,7 @@ function RodapeCurto() {
           <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" />
           ClicouAí © {new Date().getFullYear()}
         </span>
-        <p className="basis-full text-xs">
-          {EMPRESA.razaoSocial} · CNPJ {EMPRESA.cnpj}
-        </p>
+        <p className="basis-full text-xs">CNPJ {EMPRESA.cnpj}</p>
       </div>
     </footer>
   );
