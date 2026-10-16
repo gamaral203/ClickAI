@@ -1,11 +1,11 @@
 // Pastas e subpastas das fotos de um evento (docs/arquitetura.md, "Pastas e subpastas"). No
 // máximo 2 níveis: pasta de nível 1 → subpasta, sempre no mesmo evento. Só o dono do evento
-// gerencia as pastas e muda a pasta das fotos; quem edita passa o id de quem está logado e a
-// checagem de dono fica aqui. O gatilho da migração 0043 recusa o 3º nível como última barreira.
+// gerencia as pastas; o colaborador com o convite aceito vê as pastas e põe nelas só as fotos
+// que ele enviou. Quem edita passa o id de quem está logado e a checagem fica aqui. O gatilho da migração 0043 recusa o 3º nível como última barreira.
 
 import "server-only";
 
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -28,6 +28,27 @@ async function eventoDoDono(eventoId: string, fotografoId: string) {
     .select({ id: t.eventos.id })
     .from(t.eventos)
     .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
+  return linha !== undefined;
+}
+
+/**
+ * O fotógrafo é o dono do evento ou colaborador com o convite aceito. O colaborador só VÊ as
+ * pastas e põe nelas as fotos que ele mesmo enviou; criar, renomear, mover e excluir pastas
+ * continua só do dono.
+ */
+async function eventoDoDonoOuColaborador(eventoId: string, fotografoId: string) {
+  if (await eventoDoDono(eventoId, fotografoId)) return true;
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.colaboradores.id })
+    .from(t.colaboradores)
+    .where(
+      and(
+        eq(t.colaboradores.eventoId, eventoId),
+        eq(t.colaboradores.fotografoId, fotografoId),
+        isNotNull(t.colaboradores.aceitoEm),
+      ),
+    );
   return linha !== undefined;
 }
 
@@ -70,6 +91,22 @@ export async function listarPastasDoPainel(
   fotografoId: string,
 ): Promise<PastaComTotal[] | null> {
   if (!(await eventoDoDono(eventoId, fotografoId))) return null;
+  return arvoreComTotais(eventoId);
+}
+
+/**
+ * Pastas do evento para o dono ou para um colaborador com o convite aceito (na página de
+ * colaborações, para pôr as fotos dele nas pastas). Outro fotógrafo recebe `null`.
+ */
+export async function listarPastasDoPainelOuColaborador(
+  eventoId: string,
+  fotografoId: string,
+): Promise<PastaComTotal[] | null> {
+  if (!(await eventoDoDonoOuColaborador(eventoId, fotografoId))) return null;
+  return arvoreComTotais(eventoId);
+}
+
+async function arvoreComTotais(eventoId: string): Promise<PastaComTotal[]> {
   const banco = await obterBanco();
   const [pastas, contagens] = await Promise.all([
     banco
@@ -269,6 +306,41 @@ export async function moverItensParaPasta(
   }
   if (pastaId !== null && !(await pastaDoEventoDoDono(eventoId, pastaId, fotografoId))) {
     return false;
+  }
+  await banco.update(t.fotos).set({ pastaId }).where(inArray(t.fotos.id, unicos));
+  return true;
+}
+
+/**
+ * Como `moverItensParaPasta`, mas aceita também o colaborador com o convite aceito: ele só
+ * move as fotos que ELE enviou (`fotos.enviada_por`), e só para uma pasta do mesmo evento. O
+ * dono continua movendo qualquer foto do evento.
+ */
+export async function moverItensParaPastaOuColaborador(
+  fotoIds: string[],
+  pastaId: string | null,
+  fotografoId: string,
+): Promise<boolean> {
+  const unicos = [...new Set(fotoIds)];
+  if (unicos.length === 0) return false;
+  const banco = await obterBanco();
+  const itens = await banco
+    .select({ id: t.fotos.id, eventoId: t.fotos.eventoId, autorId: t.fotos.enviadaPor })
+    .from(t.fotos)
+    .where(and(inArray(t.fotos.id, unicos), isNull(t.fotos.excluidaEm)));
+  if (itens.length !== unicos.length) return false;
+  const eventoId = itens[0].eventoId;
+  if (!itens.every((f) => f.eventoId === eventoId)) return false;
+  if (!(await eventoDoDono(eventoId, fotografoId))) {
+    if (!(await eventoDoDonoOuColaborador(eventoId, fotografoId))) return false;
+    if (!itens.every((f) => f.autorId === fotografoId)) return false;
+  }
+  if (pastaId !== null) {
+    const [pasta] = await banco
+      .select({ id: t.pastas.id })
+      .from(t.pastas)
+      .where(and(eq(t.pastas.id, pastaId), eq(t.pastas.eventoId, eventoId)));
+    if (!pasta) return false;
   }
   await banco.update(t.fotos).set({ pastaId }).where(inArray(t.fotos.id, unicos));
   return true;

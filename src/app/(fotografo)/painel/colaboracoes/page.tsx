@@ -13,6 +13,7 @@ import {
   fotosDoAutorNoEvento,
   horaDaRequisicao,
   listarColaboracoes,
+  listarPastasDoPainelOuColaborador,
   topCliquesDoEvento,
 } from "@/dados";
 import { descreverPadrao } from "@/lib/liberacao";
@@ -67,6 +68,17 @@ async function Conteudo() {
         .map(
           async (c) => [c.evento.id, await fotosDoAutorNoEvento(c.evento.id, conta.id)] as const,
         ),
+    ),
+  );
+  // Pastas do evento (só o dono cria e organiza): o colaborador põe nelas as fotos que enviou.
+  const pastas = new Map(
+    await Promise.all(
+      colaboracoes
+        .filter((c) => c.aceitoEm)
+        .map(async (c) => {
+          const arvore = await listarPastasDoPainelOuColaborador(c.evento.id, conta.id);
+          return [c.evento.id, (arvore ?? []).map((p) => ({ id: p.id, nome: p.caminho }))] as const;
+        }),
     ),
   );
   // Moldura do evento: o colaborador só vê a que o dono enviou (só o dono envia ou troca).
@@ -146,6 +158,7 @@ async function Conteudo() {
                 eventoId={c.evento.id}
                 fotos={minhasFotos.get(c.evento.id) ?? []}
                 formatosMoldura={FORMATOS_MOLDURA.filter((f) => molduras.get(c.evento.id)?.[f])}
+                pastas={pastas.get(c.evento.id) ?? []}
               />
               {molduras.has(c.evento.id) && (
                 <MolduraDoEvento
