@@ -220,6 +220,27 @@ export const codigosDeLogin = pgTable("codigos_de_login", {
 }).enableRLS();
 
 /**
+ * Código de confirmação por e-mail das ações sensíveis (src/servicos/codigo-acao.ts): saque,
+ * transferência automática, troca do CPF/CNPJ, troca de senha, download dos originais e ligar ou
+ * desligar a verificação em duas etapas. Um código por usuário e finalidade; só o HMAC fica
+ * guardado. Vale 10 minutos, uma vez só, com 5 tentativas.
+ */
+export const codigosDeAcao = pgTable(
+  "codigos_de_acao",
+  {
+    usuarioId: uuid()
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    finalidade: text().notNull(),
+    codigoHash: text().notNull(),
+    expiraEm: data().notNull(),
+    tentativas: integer().notNull().default(0),
+    enviadoEm: data().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.usuarioId, t.finalidade] })],
+).enableRLS();
+
+/**
  * Link de "Esqueci a senha" (src/servicos/redefinicao-senha.ts): só o SHA-256 do token, vale 30
  * minutos e uma vez só. Redefinir a senha apaga os outros links da conta.
  */

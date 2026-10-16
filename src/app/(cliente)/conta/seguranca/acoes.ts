@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { senhaNovaSchema, TAMANHO_MAXIMO_SENHA } from "@/lib/regras-senha";
-import { MENSAGENS_CODIGO } from "@/servicos/mfa";
+import { MENSAGENS_CODIGO_ACAO } from "@/servicos/codigo-acao";
 import { sessaoAtual } from "@/servicos/sessao";
 import { trocarSenha, type MotivoRecusaSenha } from "@/servicos/troca-senha";
 
@@ -47,9 +47,9 @@ const RESPOSTA: Record<MotivoRecusaSenha, EstadoSenha> = {
   gestor_ambiente: {
     erro: "A senha desta conta de gestor é definida pela equipe técnica e não muda por aqui.",
   },
-  codigo_faltando: { erros: { codigoMfa: MENSAGENS_CODIGO.faltando } },
-  codigo_invalido: { erros: { codigoMfa: MENSAGENS_CODIGO.invalido } },
-  codigo_bloqueado: { erros: { codigoMfa: MENSAGENS_CODIGO.bloqueado } },
+  codigo_faltando: { erros: { codigoMfa: MENSAGENS_CODIGO_ACAO.faltando } },
+  codigo_invalido: { erros: { codigoMfa: MENSAGENS_CODIGO_ACAO.invalido } },
+  codigo_bloqueado: { erros: { codigoMfa: MENSAGENS_CODIGO_ACAO.bloqueado } },
   mudou: { erro: "A senha da conta acabou de mudar. Recarregue a página e tente de novo." },
 };
 

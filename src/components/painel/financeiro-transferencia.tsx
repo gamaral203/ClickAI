@@ -9,9 +9,8 @@ import {
   type EstadoSaque,
 } from "@/app/(fotografo)/painel/vendas/acoes";
 import { InterruptorFinanceiro } from "@/components/painel/financeiro-interruptor";
+import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { FrequenciaTransferencia } from "@/dados";
 import { formatarData, formatarPreco } from "@/lib/formatar";
 import { FREQUENCIAS_TRANSFERENCIA, TAXA_ANTECIPACAO_TEXTO } from "@/servicos/financeiro";
@@ -47,23 +46,9 @@ function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?
   );
 }
 
-function CampoCodigo({ id }: { id: string }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>Código do app autenticador</Label>
-      <Input
-        id={id}
-        name="codigo"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        autoCapitalize="none"
-        spellCheck={false}
-        required
-        maxLength={40}
-        className="h-11 tracking-widest"
-      />
-    </div>
-  );
+/** Código de confirmação enviado ao e-mail da conta (src/servicos/codigo-acao.ts). */
+function CampoCodigo({ id, finalidade }: { id: string; finalidade: "saque" | "transferencia" }) {
+  return <CampoCodigoEmail finalidade={finalidade} id={id} />;
 }
 
 const inicial: EstadoSaque = {};
@@ -105,7 +90,7 @@ function TransferenciaManual({
           <Linha rotulo="Cai na sua conta" valor={formatarPreco(previa.liquidoCentavos)} forte />
         </div>
       </dl>
-      {pedeCodigo && liberado && <CampoCodigo id={codigoId} />}
+      {pedeCodigo && liberado && <CampoCodigo id={codigoId} finalidade="saque" />}
       <Button type="submit" size="touch" disabled={!liberado || enviando}>
         {enviando && (
           <Loader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
@@ -263,7 +248,7 @@ function TransferenciaAutomatica({
             A primeira sai {ROTULO_FREQUENCIA[escolhida].primeira} depois de ativar, com o saldo
             disponível nesse dia.
           </p>
-          {pedeCodigo && <CampoCodigo id={codigoId} />}
+          {pedeCodigo && <CampoCodigo id={codigoId} finalidade="transferencia" />}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button type="submit" size="touch" disabled={salvando}>
               {salvando && (

@@ -51,9 +51,12 @@ export const MAXIMO_REENVIOS_CODIGO_LOGIN = 3;
 
 const FINALIDADE = "codigo-login-gestor";
 
-/** O login deste usuário pede o código por e-mail? Só o do gestor. */
-export function exigeCodigoPorEmail(usuario: Pick<Usuario, "papel">): boolean {
-  return usuario.papel === "admin";
+/**
+ * O login deste usuário pede o código por e-mail? O do gestor, sempre; o de quem ligou a
+ * verificação em duas etapas (desde 16/10/2026 por e-mail, no lugar do app autenticador).
+ */
+export function exigeCodigoPorEmail(usuario: Pick<Usuario, "papel" | "mfaAtivo">): boolean {
+  return usuario.papel === "admin" || usuario.mfaAtivo;
 }
 
 /**
@@ -129,12 +132,15 @@ function validade(geradoEm: number, agora: number) {
 }
 
 async function mandar(
-  usuario: Pick<Usuario, "id" | "email" | "nome">,
+  usuario: Pick<Usuario, "id" | "email" | "nome"> & { papel?: Usuario["papel"] },
   loginId: string,
   codigo: string,
   dados: { mesmo: boolean; agora: number; expiraEm: number },
 ): Promise<ResultadoEnvioCodigoLogin> {
-  if (await enviarCodigoDeAcessoDoGestor(usuario.email, usuario.nome, codigo, dados.expiraEm)) {
+  const gestor = usuario.papel === undefined || usuario.papel === "admin";
+  if (
+    await enviarCodigoDeAcessoDoGestor(usuario.email, usuario.nome, codigo, dados.expiraEm, gestor)
+  ) {
     return {
       ok: true,
       mesmo: dados.mesmo,

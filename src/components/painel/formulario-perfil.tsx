@@ -8,6 +8,7 @@ import {
   type CampoPerfil,
   type EstadoPerfil,
 } from "@/app/(fotografo)/painel/perfil/acoes";
+import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputSenha } from "@/components/ui/input-senha";
@@ -135,25 +136,15 @@ export function FormularioPerfil({
         <p className="text-sm text-destructive">{erros.senhaAtual}</p>
       )}
       {pedeCodigo && (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="codigoMfa">Código do app autenticador (só para trocar o CPF/CNPJ)</Label>
-          <Input
-            id="codigoMfa"
-            name="codigoMfa"
-            autoComplete="one-time-code"
-            autoCapitalize="none"
-            spellCheck={false}
-            maxLength={40}
-            aria-invalid={Boolean(erros.codigoMfa)}
-            aria-describedby={erros.codigoMfa ? "codigoMfa-erro" : undefined}
-            className="h-11"
-          />
-          {erros.codigoMfa && (
-            <p id="codigoMfa-erro" className="text-sm text-destructive">
-              {erros.codigoMfa}
-            </p>
-          )}
-        </div>
+        // Trocar o CPF/CNPJ (a chave Pix dos saques) pede o código enviado ao e-mail da conta.
+        <CampoCodigoEmail
+          finalidade="documento"
+          id="codigoMfa"
+          name="codigoMfa"
+          rotulo="Código do e-mail (só para trocar o CPF/CNPJ)"
+          obrigatorio={false}
+          erro={erros.codigoMfa}
+        />
       )}
       <Button type="submit" size="touch" disabled={enviando} className="w-fit">
         {enviando && (

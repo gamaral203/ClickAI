@@ -1,11 +1,11 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { Download, Loader2, ShieldCheck } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
 import { liberarOriginalDoAutorAcao } from "@/app/(fotografo)/painel/eventos/originais-acoes";
+import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 // "Baixar original" de uma foto, só nas fotos que o próprio usuário enviou (dono ou
 // colaborador). O servidor confere tudo de novo na rota /api/painel/original/[fotoId], que
@@ -127,20 +127,12 @@ export function BaixarOriginal({
           liberarEBaixar(codigo);
         }}
       >
-        <label htmlFor={`${ids}-codigo`} className="flex items-center gap-1.5 text-xs font-medium">
-          <ShieldCheck aria-hidden="true" className="size-3.5 text-primary" />
-          Código do app autenticador
-        </label>
-        <Input
+        <CampoCodigoEmail
+          finalidade="originais"
           id={`${ids}-codigo`}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={40}
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          aria-invalid={Boolean(erro)}
-          aria-describedby={`${ids}-codigo-ajuda`}
-          className="h-9"
+          valor={codigo}
+          aoMudar={setCodigo}
+          enviarAoMostrar
         />
         <p id={`${ids}-codigo-ajuda`} className="text-xs text-muted-foreground">
           Libera o download das suas fotos deste evento por 3 horas.

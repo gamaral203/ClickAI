@@ -18,6 +18,7 @@ import {
   situacaoDoLancamento,
   TAXA_ANTECIPACAO_TEXTO,
 } from "@/servicos/financeiro";
+import { pedeCodigoDeAcao } from "@/servicos/codigo-acao";
 import {
   chavePixValida,
   mensagemDeBloqueio,
@@ -281,7 +282,8 @@ async function Conteudo({ searchParams }: { searchParams: Busca }) {
           comissaoPct={conta.comissaoPct}
           podeTransferir={temChave && !emAndamento && !bloqueadoAte && !conta.demonstracao}
           minimoCentavos={SAQUE_MINIMO_CENTAVOS}
-          pedeCodigo={usuario.mfaAtivo}
+          // Toda transferência (e ligar a automática) pede o código enviado ao e-mail.
+          pedeCodigo={pedeCodigoDeAcao(usuario, "saque")}
           automatica={{
             ligada: conta.transferenciaAutomatica === true,
             frequencia: conta.frequenciaTransferencia ?? FREQUENCIA_TRANSFERENCIA_PADRAO,

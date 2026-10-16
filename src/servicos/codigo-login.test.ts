@@ -29,10 +29,9 @@ vi.mock("next/headers", () => ({
 
 import { eq } from "drizzle-orm";
 
-import { buscarCodigoDeLogin, criarUsuario, type Papel } from "@/dados";
+import { buscarCodigoDeLogin, criarUsuario, ligarVerificacaoPorEmail, type Papel } from "@/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { codigoAtual } from "@/lib/mfa";
 import { gerarHashSenha } from "@/lib/senha";
 
 import {
@@ -44,7 +43,6 @@ import {
   VALIDADE_CODIGO_LOGIN_MS,
   verificacaoPorEmailAtiva,
 } from "./codigo-login";
-import { confirmarCadastroMfa, iniciarCadastroMfa } from "./mfa";
 import {
   concluirLoginComCodigo,
   entrar,
@@ -55,7 +53,6 @@ import {
 } from "./sessao";
 
 const SENHA = "senha-do-gestor-123";
-const PASSO_MS = 30_000;
 
 /** Códigos que o modo de desenvolvimento escreveu no log (sem o Resend). */
 let log: ReturnType<typeof vi.spyOn>;
@@ -88,20 +85,6 @@ async function novaConta(papel: Papel, googleId?: string) {
     emailConfirmado: true,
   });
   return { usuario, email };
-}
-
-/** Liga o app autenticador da conta (confirmado com o código do passo anterior). */
-async function ligarApp(usuarioId: string, email: string) {
-  const cadastro = await iniciarCadastroMfa({ id: usuarioId, email });
-  const segredo = cadastro!.segredo.replace(/\s+/g, "");
-  const agora = Date.now();
-  const ativacao = await confirmarCadastroMfa(
-    usuarioId,
-    codigoAtual(segredo, agora - PASSO_MS),
-    agora,
-  );
-  if (!ativacao.ok) throw new Error(`ativação falhou: ${ativacao.motivo}`);
-  return segredo;
 }
 
 beforeEach(() => {
@@ -236,28 +219,22 @@ describe("código por e-mail no login do gestor", () => {
     expect(await concluirLoginComCodigo(primeiro)).toMatchObject({ ok: true });
   });
 
-  it("gestor com o app ligado entra com o código do app ou com o do e-mail", async () => {
-    const { usuario, email } = await novaConta("admin");
-    const segredo = await ligarApp(usuario.id, email);
+  it("fotógrafo com a verificação em duas etapas ligada também recebe o código por e-mail", async () => {
+    const { usuario, email } = await novaConta("fotografo");
+    await ligarVerificacaoPorEmail(usuario.id);
 
-    await entrar(email, SENHA);
+    expect(await entrar(email, SENHA)).toMatchObject({
+      pedeCodigo: true,
+      envioCodigo: { ok: true },
+    });
+    expect(await sessaoAtual()).toBeNull();
     expect((await loginPendente())?.loginId).toBeTruthy();
-    expect(await concluirLoginComCodigo(codigoAtual(segredo))).toMatchObject({ ok: true });
-    // O código do e-mail desse login deixa de valer.
-    expect(await buscarCodigoDeLogin(usuario.id)).toBeNull();
-
-    em("b");
-    await entrar(email, SENHA);
+    expect(await concluirLoginComCodigo(errado(ultimoCodigo()))).toMatchObject({
+      ok: false,
+      motivo: "invalido_email",
+    });
     expect(await concluirLoginComCodigo(ultimoCodigo())).toMatchObject({ ok: true });
     expect((await sessaoAtual())?.usuario.id).toBe(usuario.id);
-
-    // Nenhum dos dois confere: mensagem para os dois.
-    em("c");
-    await entrar(email, SENHA);
-    expect(await concluirLoginComCodigo(errado(ultimoCodigo()))).toEqual({
-      ok: false,
-      motivo: "invalido_email_ou_app",
-    });
   });
 
   it("gestor que entra pelo Google também passa pelo código por e-mail", async () => {
@@ -301,14 +278,13 @@ describe("produção sem o Resend", () => {
     expect(codigos()).toHaveLength(0);
   });
 
-  it("gestor com o app ligado continua precisando do código do app", async () => {
-    const { usuario, email } = await novaConta("admin");
-    const segredo = await ligarApp(usuario.id, email);
+  it("quem ligou a verificação entra só com a senha (sem como mandar o código)", async () => {
+    const { usuario, email } = await novaConta("fotografo");
+    await ligarVerificacaoPorEmail(usuario.id);
     producaoSemResend();
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await entrar(email, SENHA)).toMatchObject({ pedeCodigo: true, envioCodigo: null });
-    expect((await loginPendente())?.loginId).toBeNull();
-    expect(await concluirLoginComCodigo(codigoAtual(segredo))).toMatchObject({ ok: true });
+    expect(await entrar(email, SENHA)).toMatchObject({ pedeCodigo: false });
+    expect((await sessaoAtual())?.usuario.id).toBe(usuario.id);
   });
 
   it("com o Resend configurado, a etapa vale também na produção", () => {

@@ -26,18 +26,18 @@ import {
   criarContaDeFotografoSeNaoExistir,
   criarEvento,
   criarUsuario,
+  ligarVerificacaoPorEmail,
   lotesDoDonoRegistrados,
   type Usuario,
 } from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { codigoAtual } from "@/lib/mfa";
 import { reiniciarClienteR2 } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 
 import { limiteAtingido } from "./limites";
-import { confirmarCadastroMfa, iniciarCadastroMfa } from "./mfa";
+import { codigoDeAcaoEnviado } from "./testes/codigo-email";
 import {
   liberarOriginais,
   liberarOriginaisDoAutor,
@@ -329,15 +329,7 @@ describe("original individual: o autor baixa", () => {
 
   it("com a verificação em duas etapas ligada, pede o código para liberar", async () => {
     const { usuario, conta } = await fotografoNovo("Com MFA");
-    const cadastro = await iniciarCadastroMfa(usuario);
-    const segredo = cadastro!.segredo.replace(/\s+/g, "");
-    const agora = Date.now();
-    const ativacao = await confirmarCadastroMfa(
-      usuario.id,
-      codigoAtual(segredo, agora - 30_000),
-      agora,
-    );
-    expect(ativacao.ok).toBe(true);
+    await ligarVerificacaoPorEmail(usuario.id);
     const comMfa = (await buscarUsuario(usuario.id))!;
     const doEvento = await novoEvento(conta.id, "Evento com MFA");
     const foto = await novaFoto(doEvento.id, conta.id);
@@ -349,7 +341,11 @@ describe("original individual: o autor baixa", () => {
     expect(await liberarOriginaisDoAutor(comMfa, doEvento.id, "000000")).toMatchObject({
       ok: false,
     });
-    const liberado = await liberarOriginaisDoAutor(comMfa, doEvento.id, codigoAtual(segredo));
+    const liberado = await liberarOriginaisDoAutor(
+      comMfa,
+      doEvento.id,
+      await codigoDeAcaoEnviado(comMfa, "originais"),
+    );
     if (!liberado.ok) throw new Error(liberado.erro);
     expect(
       (await originalIndividual(comMfa, { fotoId: foto, liberacao: liberado.liberacao }, null)).ok,

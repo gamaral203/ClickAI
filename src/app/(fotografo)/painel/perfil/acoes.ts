@@ -6,7 +6,7 @@ import { z } from "zod";
 import { atualizarContaDoFotografo, slugDeFotografoEmUso } from "@/dados";
 import { cpfOuCnpjValido, somenteDigitos } from "@/lib/documentos";
 import { FORMATO_SLUG } from "@/lib/slug";
-import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "@/servicos/mfa";
+import { exigirCodigoDeAcao, MENSAGENS_CODIGO_ACAO } from "@/servicos/codigo-acao";
 import { BLOQUEIO_SAQUE_APOS_TROCA_MS } from "@/servicos/saques";
 import { exigirFotografo, sessaoAtual } from "@/servicos/sessao";
 import { confirmarIdentidade, trocarDocumento } from "@/servicos/troca-documento";
@@ -101,9 +101,9 @@ export async function salvarPerfilAcao(
       case "google_antigo":
         return { reentrarComGoogle: true };
     }
-    // Com a verificação em duas etapas ligada, a senha sozinha não troca a chave do saque.
-    const codigo = await exigirCodigoSeLigado(usuario, codigoMfa);
-    if (codigo !== "ok") return { erros: { codigoMfa: MENSAGENS_CODIGO[codigo] } };
+    // A senha sozinha não troca a chave do saque: pede também o código enviado ao e-mail.
+    const codigo = await exigirCodigoDeAcao(usuario, "documento", codigoMfa);
+    if (codigo !== "ok") return { erros: { codigoMfa: MENSAGENS_CODIGO_ACAO[codigo] } };
   }
 
   await atualizarContaDoFotografo(usuario.id, {

@@ -52,9 +52,6 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/entrar/codigo">, "sea
       </div>
     );
   }
-  const totp = pendente.usuario.mfaAtivo;
-  if (!pendente.loginId) return <FormularioCodigoLogin porEmail={null} totp={totp} />;
-
   const { envio } = await searchParams;
   const aviso = typeof envio === "string" ? AVISOS_ENVIO[envio] : undefined;
   const [espera, situacao] = await Promise.all([
@@ -71,9 +68,8 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/entrar/codigo">, "sea
         <strong className="break-words text-foreground">
           {mascararEmail(pendente.usuario.email)}
         </strong>
-        {situacao && ` às ${formatarHora(situacao.enviadoEm)}`}. Digite abaixo para entrar na
-        gestão.
-        {totp && " Ou use o código do seu aplicativo autenticador."}
+        {situacao && ` às ${formatarHora(situacao.enviadoEm)}`}. Digite abaixo para entrar
+        {pendente.usuario.papel === "admin" ? " na gestão" : ""}.
       </p>
       {situacao && (
         <p className="text-sm text-muted-foreground">
@@ -92,7 +88,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/entrar/codigo">, "sea
           configurado, então o código aparece no terminal do servidor.
         </p>
       )}
-      <FormularioCodigoLogin porEmail={{ espera }} totp={totp} />
+      <FormularioCodigoLogin espera={espera} />
     </div>
   );
 }

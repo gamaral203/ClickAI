@@ -5,8 +5,8 @@ import { KeyRound, Loader2 } from "lucide-react";
 
 import { trocarSenhaAcao, type EstadoSenha } from "@/app/(cliente)/conta/seguranca/acoes";
 import { AvisoSalvo, Campo, propsDeErro } from "@/components/painel/campos";
+import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { InputSenha } from "@/components/ui/input-senha";
 import { enviarSemLimpar } from "@/lib/formulario";
 import { TAMANHO_MINIMO_SENHA } from "@/lib/regras-senha";
@@ -84,21 +84,13 @@ export function FormularioSenha({
         erro={erros.confirmacao}
       />
       {pedeCodigo && (
-        <Campo
-          rotulo="Código do app autenticador"
+        // Verificação em duas etapas ligada: a troca pede o código enviado ao e-mail.
+        <CampoCodigoEmail
+          finalidade="senha"
           id="codigoMfa"
+          name="codigoMfa"
           erro={erros.codigoMfa}
-          ajuda="O código de 6 dígitos do app, ou um código de recuperação."
-        >
-          <Input
-            {...propsDeErro("codigoMfa", erros.codigoMfa)}
-            name="codigoMfa"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={40}
-            className="h-11 max-w-48"
-          />
-        </Campo>
+        />
       )}
 
       <Button type="submit" size="touch" disabled={enviando} className="w-full sm:w-fit">

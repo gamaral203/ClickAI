@@ -13,6 +13,7 @@ import { avatarDoFotografo } from "@/lib/avatares";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { urlPublica } from "@/lib/url-publica";
 import { contaTemSenha } from "@/servicos/exclusao-conta";
+import { pedeCodigoDeAcao } from "@/servicos/codigo-acao";
 import { exigirFotografo } from "@/servicos/sessao";
 
 import { confirmarChavePixAcao } from "./acoes";
@@ -54,7 +55,7 @@ async function Conteudo() {
           cpfCnpj: conta.cpfCnpj ? formatarCpfCnpj(conta.cpfCnpj) : "",
         }}
         temSenha={temSenha}
-        pedeCodigo={mfa.ativo}
+        pedeCodigo={pedeCodigoDeAcao(usuario, "documento")}
       />
 
       <section className="flex flex-col gap-3 rounded-xl border p-5">
@@ -87,12 +88,7 @@ async function Conteudo() {
         )}
       </section>
 
-      <VerificacaoDuasEtapas
-        ativa={mfa.ativo}
-        ativadaEm={mfa.ativadoEm}
-        codigosRestantes={mfa.codigosRestantes}
-        temSenha={temSenha}
-      />
+      <VerificacaoDuasEtapas ativa={mfa.ativo} ativadaEm={mfa.ativadoEm} />
 
       <CartaoSeguranca />
 
