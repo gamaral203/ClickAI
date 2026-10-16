@@ -29,7 +29,14 @@ function Escala({ rotulo, nota, cor }: { rotulo: string; nota: number; cor: stri
  * Grade de modelos de marca d'água, cada um com a amostra numa foto de exemplo e as notas de
  * visibilidade e proteção. Clicar escolhe na hora; o modelo vale para as próximas fotos.
  */
-export function EscolhaDaMarca({ atual }: { atual: ModeloMarca }) {
+export function EscolhaDaMarca({
+  atual,
+  versaoDosAjustes = "padrao",
+}: {
+  atual: ModeloMarca;
+  /** Muda quando os ajustes da marca mudam: renova as amostras (que já trazem os ajustes salvos). */
+  versaoDosAjustes?: string;
+}) {
   const reduzir = useReducedMotion();
   const [escolhido, setEscolhido] = useState(atual);
   const [salvando, startSalvar] = useTransition();
@@ -91,7 +98,7 @@ export function EscolhaDaMarca({ atual }: { atual: ModeloMarca }) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- amostra gerada na hora, já otimizada */}
                 <img
-                  src={`/painel/marca-dagua/amostra/${modelo}`}
+                  src={`/painel/marca-dagua/amostra/${modelo}?v=${versaoDosAjustes}`}
                   alt={`Exemplo do modelo ${info.nome}`}
                   width={800}
                   height={533}

@@ -98,7 +98,6 @@ const formulario = z
     liberadoEm: z.string().optional(),
     filtroHorario: marcado,
     listarNaoIdentificadas: marcado,
-    previaDesfocada: marcado,
     lerNumeros: marcado,
     ordenacao: z.enum(["envio", "captura", "nome_arquivo", "aleatoria"], "Escolha a ordem."),
     // Ponto escolhido no mapa (campos ocultos; vazios quando não há mapa).
@@ -184,7 +183,6 @@ export async function salvarEventoAcao(
     liberadoEm,
     filtroHorario: d.filtroHorario,
     listarNaoIdentificadas: d.listarNaoIdentificadas,
-    previaDesfocada: d.previaDesfocada,
     // Ligada num evento com fotos, as que já estão prontas são lidas pelo botão "Ler números que
     // faltam" do painel ou pelo job de revisão (src/servicos/numeros.ts).
     lerNumeros: d.lerNumeros,

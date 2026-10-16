@@ -89,6 +89,10 @@ export type FotografoConta = Fotografo & {
   ultimaTransferenciaAutomaticaEm?: string | null;
   /** Modelo de marca d'água das prévias (padrão quando ausente). */
   modeloMarca?: ModeloMarca;
+  /** Ajustes da marca (tamanho, quantidade e opacidade, em % e logos); nulos: os da gestão. */
+  marcaTamanhoPct?: number | null;
+  marcaQuantidade?: number | null;
+  marcaOpacidadePct?: number | null;
   /** Conta de demonstração: vendas fictícias, sem saque (src/servicos/demonstracao.ts). */
   demonstracao?: boolean;
 };
@@ -227,7 +231,6 @@ export type ConfigModelo = Pick<
   | "liberacao"
   | "filtroHorario"
   | "listarNaoIdentificadas"
-  | "previaDesfocada"
   | "ordenacao"
   | "lerNumeros"
 >;

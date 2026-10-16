@@ -13,6 +13,7 @@ import { LocalNoMapa } from "@/components/painel/local-no-mapa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Interruptor } from "@/components/ui/interruptor";
 import { MENSAGEM_FIM_ANTES_DO_INICIO, separarCampo } from "@/lib/campo-data";
 import { categoriaComNumero } from "@/lib/numeros-de-peito";
 import type { PontoNoMapa } from "@/lib/mapa";
@@ -37,7 +38,6 @@ export type ValoresEvento = {
   liberacao: "automatica" | "manual" | "agendada";
   liberadoEm: string;
   filtroHorario: boolean;
-  previaDesfocada: boolean;
   listarNaoIdentificadas: boolean;
   /**
    * Ler o número de peito nas fotos. `null` (evento novo): segue a categoria escolhida
@@ -375,30 +375,13 @@ export function FormularioEvento({
               Mostrar a lista de fotos sem rosto ou número identificado
             </Opcao>
             <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                name="previaDesfocada"
-                defaultChecked={inicial.previaDesfocada}
-                className="mt-0.5 size-5 shrink-0 accent-primary"
-              />
-              <span className="flex flex-col gap-0.5">
-                Prévia desfocada com círculo de revelação
-                <span className="text-muted-foreground">
-                  Ao abrir uma foto, o cliente a vê desfocada e revela partes com o dedo ou o mouse.
-                  Desligado, vê a prévia nítida com a marca d&apos;água.
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
+              <Interruptor
                 name="lerNumeros"
                 checked={lerNumeros}
                 onChange={(e) => {
                   setLerNumeros(e.target.checked);
                   setLerNumerosEscolhido(true);
                 }}
-                className="mt-0.5 size-5 shrink-0 accent-primary"
               />
               <span className="flex flex-col gap-0.5">
                 Ler número de peito nas fotos
@@ -512,12 +495,7 @@ function Opcao({
 }) {
   return (
     <label className="flex items-start gap-3 text-sm">
-      <input
-        type="checkbox"
-        name={nome}
-        defaultChecked={marcado}
-        className="mt-0.5 size-5 shrink-0 accent-primary"
-      />
+      <Interruptor name={nome} defaultChecked={marcado} />
       {children}
     </label>
   );

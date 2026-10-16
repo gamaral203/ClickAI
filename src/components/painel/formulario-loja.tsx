@@ -12,6 +12,7 @@ import { enviarSemLimpar } from "@/lib/formulario";
 import { BlocoRecolhivel } from "@/components/painel/bloco-recolhivel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Interruptor } from "@/components/ui/interruptor";
 import { contraste, corDoTexto } from "@/lib/loja";
 
 import { AvisoSalvo, Campo, propsDeErro } from "./campos";
@@ -179,14 +180,9 @@ export function FormularioLoja({
         </div>
       </BlocoRecolhivel>
 
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
-          name="ativa"
-          defaultChecked={loja.ativa}
-          className="mt-0.5 size-5 shrink-0 accent-primary"
-        />
-        Loja no ar (desmarque para tirar do ar sem perder a configuração)
+      <label className="flex items-center gap-3 text-sm">
+        <Interruptor name="ativa" defaultChecked={loja.ativa} />
+        Loja no ar (desligue para tirar do ar sem perder a configuração)
       </label>
 
       <Button type="submit" size="touch" className="w-fit" disabled={salvando}>

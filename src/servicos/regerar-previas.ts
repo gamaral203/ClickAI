@@ -4,7 +4,7 @@ import {
   configuracaoDaMarca,
   contarFotosComPreviaAntiga,
   listarFotosComPreviaAntiga,
-  modeloMarcaDoEvento,
+  marcaDoDonoDoEvento,
   trocarPreviaDaFoto,
   type AlvoDaRegeracao,
   type ConfigMarcaEmVigor,
@@ -13,6 +13,7 @@ import {
 import { emParalelo } from "@/lib/concorrencia";
 import { LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
 import { chaveDaPreviaCelular, type ModeloMarca } from "@/lib/marca-dagua";
+import { aplicarAjustesDaMarca } from "@/lib/protecao-previas";
 import { gravarPublico, lerOriginal, modoEnvio, removerPublico } from "@/lib/r2";
 
 import { chavesDaFoto, PROCESSAMENTOS_NO_SERVIDOR, reservarMemoriaDoProcessamento } from "./envios";
@@ -77,17 +78,21 @@ export async function regerarPrevias({
   const marca = await configuracaoDaMarca();
   const alvo = alvoDaRegeracao(marca);
   const fotos = await listarFotosComPreviaAntiga(alvo, limite, eventoId);
-  const modelos = new Map<string, Promise<ModeloMarca>>();
-  const modeloDo = (id: string) => {
-    let modelo = modelos.get(id);
-    if (!modelo) modelos.set(id, (modelo = modeloMarcaDoEvento(id)));
-    return modelo;
+  // Modelo e ajustes do dono de cada evento, buscados uma vez por evento.
+  const marcas = new Map<string, ReturnType<typeof marcaDoDonoDoEvento>>();
+  const marcaDo = (id: string) => {
+    let doEvento = marcas.get(id);
+    if (!doEvento) marcas.set(id, (doEvento = marcaDoDonoDoEvento(id)));
+    return doEvento;
   };
 
   await emParalelo(fotos, PROCESSAMENTOS_NO_SERVIDOR, async (foto) => {
     if (Date.now() > fim) return;
     try {
-      if (await regerarUma(foto, await modeloDo(foto.eventoId), marca)) resultado.regeradas++;
+      const { modelo, ajustes } = await marcaDo(foto.eventoId);
+      if (await regerarUma(foto, modelo, aplicarAjustesDaMarca(marca, ajustes))) {
+        resultado.regeradas++;
+      }
     } catch (erro) {
       // Só o id: nada do arquivo vai para o log.
       console.error(`[previas] falha ao regerar a prévia da foto ${foto.id}`, erro);

@@ -287,6 +287,13 @@ export const fotografos = pgTable(
     /** Modelo de marca d'água das prévias (src/lib/marca-dagua.ts); vale para as próximas fotos. */
     modeloMarca: text().notNull().default("padrao"),
     /**
+     * Ajustes da marca feitos pelo fotógrafo (Painel > Marca d'água), por cima da configuração da
+     * gestão e dentro dos mesmos limites (src/lib/protecao-previas.ts). Nulos: vale o da gestão.
+     */
+    marcaTamanhoPct: integer(),
+    marcaQuantidade: integer(),
+    marcaOpacidadePct: integer(),
+    /**
      * Conta de demonstração (vídeos e tutoriais, src/servicos/demonstracao.ts): vendas fictícias,
      * sem saque, fora dos rankings e dos números da gestão.
      */

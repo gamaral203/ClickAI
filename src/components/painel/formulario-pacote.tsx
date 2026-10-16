@@ -7,6 +7,7 @@ import { salvarPacoteAcao, type EstadoPacote } from "@/app/(fotografo)/painel/ev
 import { enviarSemLimpar } from "@/lib/formulario";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Interruptor } from "@/components/ui/interruptor";
 
 import { AvisoSalvo, Campo, Escolha, propsDeErro } from "./campos";
 
@@ -40,13 +41,8 @@ export function FormularioPacote({
       <input type="hidden" name="eventoId" value={eventoId} />
       {estado.ok && <AvisoSalvo>Pacote salvo.</AvisoSalvo>}
 
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
-          name="ativo"
-          defaultChecked={pacote?.ativo ?? true}
-          className="mt-0.5 size-5 shrink-0 accent-primary"
-        />
+      <label className="flex items-center gap-3 text-sm">
+        <Interruptor name="ativo" defaultChecked={pacote?.ativo ?? true} />
         Oferecer o pacote depois da busca por selfie ou número de peito
       </label>
 
