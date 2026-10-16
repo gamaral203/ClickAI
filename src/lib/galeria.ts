@@ -1,10 +1,25 @@
-import type { FiltroGaleria } from "@/dados";
+import type { FiltroGaleria, OpcoesGaleria } from "@/dados";
 
 /**
  * Fotos por página da galeria do evento. 48 fecha a grade em todas as larguras (2, 3 e 4
  * colunas) e mantém a página leve no celular (24 linhas de 2 miniaturas).
  */
 export const FOTOS_POR_PAGINA = 48;
+
+/**
+ * Pastas que viram chips na galeria pública, ou `null` para não mostrar o filtro. Basta uma
+ * pasta de nível 1 com itens visíveis (o total dela já soma as subpastas): mesmo com uma pasta
+ * só, o comprador vê o nome e navega por ela. Pastas sem item visível ficam escondidas do
+ * comprador (`listarOpcoesGaleria` já tira as de total 0; aqui se tira de novo, por garantia,
+ * junto com a subpasta cuja pasta de cima não está na lista).
+ */
+export function pastasDoFiltro(pastas: OpcoesGaleria["pastas"]) {
+  const raizes = new Set(pastas.filter((p) => p.nivel === 1 && p.total > 0).map((p) => p.id));
+  if (raizes.size === 0) return null;
+  return pastas.filter(
+    (p) => p.total > 0 && (p.nivel === 1 || (p.pastaPaiId !== null && raizes.has(p.pastaPaiId))),
+  );
+}
 
 /** Página da galeria em que cai o item na posição `posicao` (começando em 1). */
 export function paginaDaPosicao(posicao: number, porPagina = FOTOS_POR_PAGINA) {

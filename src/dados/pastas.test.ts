@@ -28,6 +28,7 @@ import {
   type Pasta,
 } from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
+import { pastasDoFiltro } from "@/lib/galeria";
 import { pastaDeDestino } from "@/servicos/envios";
 
 const [lia, outro] = fotografos;
@@ -238,6 +239,37 @@ describe("subpastas: até 2 níveis", () => {
       ["Chegada", 1, 4],
     ]);
     expect(opcoes.pastas.find((p) => p.id === b2.id)?.pastaPaiId).toBe(largada.id);
+  });
+
+  it("uma pasta só com fotos já mostra o chip; a subpasta vazia fica escondida", async () => {
+    // Caso real: a pasta LARGADA com as 2 fotos e a subpasta PRIMEIRA LARGADA vazia.
+    const evento = await novoEvento();
+    const largada = await pasta(evento.id, "LARGADA");
+    await pasta(evento.id, "PRIMEIRA LARGADA", largada.id);
+    await enviar(evento.id, 2, largada.id);
+
+    const opcoes = await listarOpcoesGaleria(evento.id);
+    expect(opcoes.pastas.map((p) => [p.nome, p.nivel, p.total])).toEqual([["LARGADA", 1, 2]]);
+    expect(pastasDoFiltro(opcoes.pastas)?.map((p) => p.nome)).toEqual(["LARGADA"]);
+
+    // Fotos só na subpasta: o chip do nível 1 aparece com o total das subpastas.
+    const outroEvento = await novoEvento();
+    const chegada = await pasta(outroEvento.id, "Chegada");
+    const b1 = await pasta(outroEvento.id, "Bateria 1", chegada.id);
+    await pasta(outroEvento.id, "Vazia");
+    await enviar(outroEvento.id, 3, b1.id);
+    await enviar(outroEvento.id, 1);
+    const filtro = pastasDoFiltro((await listarOpcoesGaleria(outroEvento.id)).pastas);
+    expect(filtro?.map((p) => [p.nome, p.nivel, p.total])).toEqual([
+      ["Chegada", 1, 3],
+      ["Bateria 1", 2, 3],
+    ]);
+
+    // Sem nenhuma pasta com fotos visíveis, nada de filtro (só "Todas as fotos").
+    const semFotos = await novoEvento();
+    await pasta(semFotos.id, "Largada");
+    await enviar(semFotos.id, 2);
+    expect(pastasDoFiltro((await listarOpcoesGaleria(semFotos.id)).pastas)).toBeNull();
   });
 
   it("envio e mover fotos aceitam subpasta do mesmo evento", async () => {

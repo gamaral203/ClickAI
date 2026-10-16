@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Clock, Folder, ScanFace } from "lucide-react";
 
 import type { FiltroGaleria, OpcoesGaleria } from "@/dados";
-import { enderecoDaGaleria } from "@/lib/galeria";
+import { enderecoDaGaleria, pastasDoFiltro } from "@/lib/galeria";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -36,7 +36,7 @@ const inativo = "hover:bg-accent hover:text-accent-foreground";
 export function FiltrosGaleria({ slug, opcoes, filtro }: Props) {
   const horas = opcoes.horas && opcoes.horas.length > 1 ? opcoes.horas : null;
   const naoIdentificadas = opcoes.naoIdentificadas ? opcoes.naoIdentificadas : null;
-  const pastas = opcoes.pastas.length > 1 ? opcoes.pastas : null;
+  const pastas = pastasDoFiltro(opcoes.pastas);
   if (!horas && !naoIdentificadas && !pastas) return null;
   const comDia = horas ? new Set(horas.map((h) => h.hora.slice(0, 10))).size > 1 : false;
 
