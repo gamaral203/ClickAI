@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { CalendarClock, Loader2, Undo2, Unlock } from "lucide-react";
+import { CalendarClock, FolderInput, Loader2, Undo2, Unlock } from "lucide-react";
 
+import { moverParaPastaAcao } from "@/app/(fotografo)/painel/eventos/pastas-acoes";
 import {
   mudarLiberacaoAcao,
   type ResultadoLiberacao,
@@ -43,6 +44,7 @@ export function FotosDoEvento({
 }: {
   eventoId: string;
   itens: ItemDoPainel[];
+  /** Pastas em árvore, com o caminho no nome ("Largada › Bateria 1"). */
   pastas: { id: string; nome: string }[];
   podeLiberar: boolean;
   /** Capa escolhida; sem o campo, a grade não oferece "Usar como capa" (só o dono escolhe). */
@@ -102,6 +104,9 @@ export function FotosDoEvento({
       }
     });
   }
+
+  // Selecionadas que ainda existem na lista (para mover de pasta, liberadas ou não).
+  const marcadas = itens.filter((i) => selecionados.has(i.id));
 
   const textoAlvo =
     escolhidas.length > 0
@@ -216,6 +221,17 @@ export function FotosDoEvento({
         </div>
       )}
 
+      {podeLiberar && pastas.length > 0 && marcadas.length > 0 && (
+        <MoverSelecionadas
+          ids={marcadas.map((i) => i.id)}
+          pastas={pastas}
+          aoMover={() => {
+            setSelecionados(new Set());
+            router.refresh();
+          }}
+        />
+      )}
+
       {capa.erro && (
         <p role="alert" className="text-sm text-destructive">
           {capa.erro}
@@ -231,5 +247,79 @@ export function FotosDoEvento({
         formatosMoldura={formatosMoldura}
       />
     </div>
+  );
+}
+
+/** Até 500 por chamada (limite da ação de mover). */
+const MOVER_POR_VEZ = 500;
+
+/** Move as fotos selecionadas para uma pasta ou subpasta (ou tira da pasta). */
+function MoverSelecionadas({
+  ids,
+  pastas,
+  aoMover,
+}: {
+  ids: string[];
+  pastas: { id: string; nome: string }[];
+  aoMover: () => void;
+}) {
+  const [destino, setDestino] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [movendo, startTransition] = useTransition();
+
+  function mover() {
+    setErro(null);
+    startTransition(async () => {
+      for (let i = 0; i < ids.length; i += MOVER_POR_VEZ) {
+        const resultado = await moverParaPastaAcao(
+          ids.slice(i, i + MOVER_POR_VEZ),
+          destino || null,
+        ).catch(() => ({ erro: "Não foi possível mover." }));
+        if (resultado.erro) return setErro(resultado.erro);
+      }
+      aoMover();
+    });
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-xl border p-4 sm:flex-row sm:flex-wrap sm:items-end"
+      onSubmit={(e) => {
+        e.preventDefault();
+        mover();
+      }}
+    >
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <label htmlFor="mover-selecionadas" className="text-sm font-medium">
+          Mover {ids.length} {ids.length === 1 ? "selecionada" : "selecionadas"} para
+        </label>
+        <select
+          id="mover-selecionadas"
+          value={destino}
+          onChange={(e) => setDestino(e.target.value)}
+          className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-72"
+        >
+          <option value="">Sem pasta</option>
+          {pastas.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Button type="submit" size="touch" variant="outline" disabled={movendo}>
+        {movendo ? (
+          <Loader2 aria-hidden="true" className="animate-spin" />
+        ) : (
+          <FolderInput aria-hidden="true" />
+        )}
+        Mover
+      </Button>
+      {erro && (
+        <p role="alert" className="text-sm text-destructive sm:basis-full">
+          {erro}
+        </p>
+      )}
+    </form>
   );
 }

@@ -43,7 +43,7 @@ import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { ehNomeDeRaw, FORMATOS_ACEITOS, MENSAGEM_RAW } from "@/lib/tipos-imagem";
 import { UFS } from "@/lib/ufs";
-import { iniciarEnvio, type ItemDoEnvio } from "@/servicos/envios";
+import { iniciarEnvio, pastaDeDestino, type ItemDoEnvio } from "@/servicos/envios";
 import { limiteAtingido } from "@/servicos/limites";
 import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
 import { recusarSeEmManutencao } from "@/servicos/manutencao";
@@ -327,6 +327,7 @@ export async function enviarFotosAcao(
   eventoId: string,
   lista: unknown,
   liberacao: unknown = null,
+  pastaId: unknown = null,
 ): Promise<{ erro?: string; enviados?: number; repetidas?: number }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
@@ -338,6 +339,8 @@ export async function enviarFotosAcao(
   if (!idEvento.safeParse(eventoId).success) return { erro: "Evento não encontrado." };
   const escolha = escolhaLiberacaoSchema.nullable().safeParse(liberacao);
   if (!escolha.success) return { erro: "Escolha quando as fotos aparecem." };
+  const pasta = await pastaDeDestino(eventoId, pastaId, conta.id);
+  if (pasta === false) return { erro: "Pasta não encontrada. Atualize a página." };
   const dados = arquivos.safeParse(lista);
   if (!dados.success) {
     return { erro: `Envie fotos JPEG, PNG, WebP, TIFF ou AVIF de até ${LIMITE_FOTO_TEXTO} cada.` };
@@ -355,7 +358,7 @@ export async function enviarFotosAcao(
   const repetidas = dados.data.length - novos.length;
   if (novos.length === 0) return { enviados: 0, repetidas };
 
-  const criados = await adicionarItensSimulados(eventoId, conta.id, novos, escolha.data);
+  const criados = await adicionarItensSimulados(eventoId, conta.id, novos, escolha.data, pasta);
   if (!criados) return { erro: "Evento não encontrado." };
   await registrarHashes(
     eventoId,
@@ -379,6 +382,7 @@ export async function iniciarEnvioAcao(
   eventoId: string,
   lista: unknown,
   liberacao: unknown = null,
+  pastaId: unknown = null,
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
@@ -387,7 +391,7 @@ export async function iniciarEnvioAcao(
   if (await limiteAtingido("url_envio_usuario", conta.id)) {
     return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
   }
-  return iniciarEnvio(conta.id, eventoId, lista, liberacao);
+  return iniciarEnvio(conta.id, eventoId, lista, liberacao, pastaId);
 }
 
 /** Fotos por consulta da situação do envio (a tela divide as que acompanha). */

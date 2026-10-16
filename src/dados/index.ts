@@ -9,7 +9,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 
@@ -21,11 +21,13 @@ import { FOTOS_POR_PAGINA, limitarPagina, paginaDaPosicao } from "@/lib/galeria"
 import { normalizarNumero } from "@/lib/numeros-de-peito";
 import { eventoNoDia } from "@/lib/periodo-evento";
 import { HASH_FALSO, senhaConfere } from "@/lib/senha";
+import { arvoreDePastas, idsDaPastaComSubpastas } from "@/lib/pastas";
 import { urlDaPrevia } from "@/lib/url-publica";
 
 import { capasDosEventos, capasEnviadas } from "./capa";
 import { eventosDosCupons } from "./comum";
 import { fotosComNumeros } from "./numeros";
+import { pastasDoEvento } from "./pastas";
 import {
   deIso,
   iso,
@@ -548,7 +550,7 @@ export type FiltroGaleria = {
   hora?: string;
   /** Só itens em que o reconhecimento não achou rosto nem número (`listarNaoIdentificadas`). */
   naoIdentificadas?: boolean;
-  /** Só os itens desta pasta do evento. */
+  /** Só os itens desta pasta do evento; numa pasta de nível 1, também os das subpastas dela. */
   pasta?: string;
   /** Aba da galeria: só fotos ou só vídeos (evento com vídeos). */
   tipo?: "foto" | "video";
@@ -586,7 +588,11 @@ async function filtrarGaleria<T extends ChaveItem>(
     const identificados = await idsIdentificados(evento.id);
     resultado = resultado.filter((f) => !identificados.has(f.id));
   }
-  if (filtro.pasta) resultado = resultado.filter((f) => f.pastaId === filtro.pasta);
+  if (filtro.pasta) {
+    // Uma consulta só pelas pastas do evento; a pasta de nível 1 inclui as subpastas (IN).
+    const ids = idsDaPastaComSubpastas(filtro.pasta, await pastasDoEvento(evento.id));
+    resultado = resultado.filter((f) => f.pastaId !== null && ids.has(f.pastaId));
+  }
   if (filtro.tipo) resultado = resultado.filter((f) => f.tipo === filtro.tipo);
   return resultado;
 }
@@ -596,8 +602,11 @@ export type OpcoesGaleria = {
   horas: { hora: string; total: number }[] | null;
   /** Quantos itens não identificados; `null` quando o evento não lista os não identificados. */
   naoIdentificadas: number | null;
-  /** Pastas com itens visíveis, na ordem do fotógrafo. */
-  pastas: { id: string; nome: string; total: number }[];
+  /**
+   * Pastas com itens visíveis, em árvore (cada pasta de nível 1 seguida das subpastas). O
+   * total da pasta de nível 1 inclui os itens das subpastas.
+   */
+  pastas: { id: string; nome: string; pastaPaiId: string | null; nivel: 1 | 2; total: number }[];
 };
 
 /** Opções de filtro da galeria aberta, para quem pode vê-la agora. */
@@ -607,7 +616,6 @@ export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaler
   if (!evento || (await situacaoParaVisitante(evento, instante)).tipo !== "aberta") {
     return { horas: null, naoIdentificadas: null, pastas: [] };
   }
-  const banco = await obterBanco();
   const itens = await chavesVisiveisDoEvento(evento, instante);
   let horas: OpcoesGaleria["horas"] = null;
   if (evento.filtroHorario) {
@@ -621,21 +629,27 @@ export async function listarOpcoesGaleria(eventoId: string): Promise<OpcoesGaler
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([hora, total]) => ({ hora, total }));
   }
-  const pastas = await banco
-    .select()
-    .from(t.pastas)
-    .where(eq(t.pastas.eventoId, evento.id))
-    .orderBy(asc(t.pastas.ordem));
+  const porPasta = new Map<string, number>();
+  for (const f of itens) {
+    if (f.pastaId) porPasta.set(f.pastaId, (porPasta.get(f.pastaId) ?? 0) + 1);
+  }
+  const arvore = arvoreDePastas(await pastasDoEvento(evento.id));
+  const totalDa = (id: string) =>
+    (porPasta.get(id) ?? 0) +
+    arvore.filter((p) => p.pastaPaiId === id).reduce((s, p) => s + (porPasta.get(p.id) ?? 0), 0);
   return {
     horas,
     naoIdentificadas: evento.listarNaoIdentificadas
       ? (await filtrarGaleria(itens, evento, { naoIdentificadas: true })).length
       : null,
-    pastas: pastas
+    pastas: arvore
       .map((p) => ({
         id: p.id,
         nome: p.nome,
-        total: itens.filter((f) => f.pastaId === p.id).length,
+        // Subpasta só aparece debaixo da pasta de cima (arvoreDePastas já a pôs no nível 2).
+        pastaPaiId: p.nivel === 2 ? p.pastaPaiId : null,
+        nivel: p.nivel,
+        total: p.nivel === 1 ? totalDa(p.id) : (porPasta.get(p.id) ?? 0),
       }))
       .filter((p) => p.total > 0),
   };
@@ -1629,6 +1643,7 @@ export * from "./processamento";
 export * from "./admin";
 export * from "./vendas-painel";
 export * from "./loja-moderacao";
+export * from "./pastas";
 export * from "./crescimento";
 export * from "./rostos";
 export * from "./notificacoes";

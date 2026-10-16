@@ -26,6 +26,7 @@ import {
   listarFotosParadas,
   marcarFotoComErro,
   modeloMarcaDoEvento,
+  pastaDoEventoDoDono,
   registrarFotosEmEnvio,
   reservarFotoParaProcessar,
   salvarRostos,
@@ -171,6 +172,21 @@ export function chavesDaFoto(
   };
 }
 
+/**
+ * Pasta de destino de um envio: `null` sem pasta; o id, se for uma pasta (ou subpasta) do
+ * evento e quem envia for o dono; `false` se não vale (id estranho, outro evento, colaborador).
+ */
+export async function pastaDeDestino(
+  eventoId: string,
+  pastaId: unknown,
+  fotografoId: string,
+): Promise<string | null | false> {
+  if (pastaId === null || pastaId === undefined || pastaId === "") return null;
+  const id = z.uuid().safeParse(pastaId);
+  if (!id.success) return false;
+  return (await pastaDoEventoDoDono(eventoId, id.data, fotografoId)) ? id.data : false;
+}
+
 /** URLs de um envio em partes: uma por parte, na ordem (a parte 1 é `urls[0]`). */
 export type EnvioEmPartes = { uploadId: string; urls: string[] };
 
@@ -197,9 +213,13 @@ export async function iniciarEnvio(
   eventoId: string,
   lista: unknown,
   liberacao: unknown = null,
+  pastaId: unknown = null,
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   if (modoEnvio() !== "r2") return { erro: ERRO_SEM_ARMAZENAMENTO };
   if (!z.uuid().safeParse(eventoId).success) return { erro: "Evento não encontrado." };
+  // Pasta (ou subpasta) de destino do lote: só do mesmo evento e escolhida pelo dono.
+  const pasta = await pastaDeDestino(eventoId, pastaId, fotografoId);
+  if (pasta === false) return { erro: "Pasta não encontrada. Atualize a página." };
   // Liberação escolhida para o lote (só vale para o dono; src/dados/liberacao.ts).
   const escolha = escolhaLiberacaoSchema.nullable().safeParse(liberacao);
   if (!escolha.success) return { erro: "Escolha quando as fotos aparecem." };
@@ -238,6 +258,7 @@ export async function iniciarEnvio(
     })),
     (fotoId, i): ChavesDaFoto => chavesDaFoto(fotografoId, eventoId, fotoId, novos[i].formato),
     escolha.data,
+    pasta,
   );
   if (!ids) return { erro: "Evento não encontrado." };
 

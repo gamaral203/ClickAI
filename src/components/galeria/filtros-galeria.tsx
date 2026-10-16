@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, Folder, ScanFace } from "lucide-react";
+import { ChevronRight, Clock, Folder, ScanFace } from "lucide-react";
 
 import type { FiltroGaleria, OpcoesGaleria } from "@/dados";
 import { enderecoDaGaleria } from "@/lib/galeria";
@@ -24,6 +24,8 @@ function rotuloHora(hora: string, comDia: boolean) {
 
 const chip =
   "inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none";
+const chipPequeno =
+  "inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none";
 const ativo = "border-primary bg-primary text-primary-foreground";
 const inativo = "hover:bg-accent hover:text-accent-foreground";
 
@@ -40,37 +42,7 @@ export function FiltrosGaleria({ slug, opcoes, filtro }: Props) {
 
   return (
     <nav aria-label="Filtrar as fotos" className="flex flex-col gap-3">
-      {pastas && (
-        <div className="flex flex-col gap-2">
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <Folder aria-hidden="true" className="size-4" />
-            Pasta
-          </p>
-          <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-            <li>
-              <Link
-                href={endereco(slug, { ...filtro, pasta: undefined })}
-                aria-current={!filtro.pasta ? "true" : undefined}
-                className={cn(chip, !filtro.pasta ? ativo : inativo)}
-              >
-                Todas
-              </Link>
-            </li>
-            {pastas.map((p) => (
-              <li key={p.id}>
-                <Link
-                  href={endereco(slug, { ...filtro, pasta: p.id })}
-                  aria-current={filtro.pasta === p.id ? "true" : undefined}
-                  className={cn(chip, filtro.pasta === p.id ? ativo : inativo)}
-                >
-                  {p.nome}
-                  <span className="opacity-70">({p.total})</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {pastas && <FiltroDePastas slug={slug} pastas={pastas} filtro={filtro} />}
       {horas && (
         <div className="flex flex-col gap-2">
           <p className="flex items-center gap-2 text-sm font-medium">
@@ -119,5 +91,128 @@ export function FiltrosGaleria({ slug, opcoes, filtro }: Props) {
         </div>
       )}
     </nav>
+  );
+}
+
+type PastaDaGaleria = OpcoesGaleria["pastas"][number];
+
+/**
+ * Pastas da galeria: as de nível 1 em chips; ao escolher uma pasta com subpastas, as subpastas
+ * aparecem abaixo, com "Todas" (a pasta e as subpastas juntas). O caminho (Largada › Bateria 1)
+ * fica num breadcrumb acima. Tudo em links com `?pasta=<id>` (trocar volta para a página 1).
+ */
+function FiltroDePastas({
+  slug,
+  pastas,
+  filtro,
+}: {
+  slug: string;
+  pastas: PastaDaGaleria[];
+  filtro: FiltroGaleria;
+}) {
+  const raizes = pastas.filter((p) => p.nivel === 1);
+  const escolhida = pastas.find((p) => p.id === filtro.pasta);
+  const raiz =
+    escolhida?.nivel === 2 ? raizes.find((r) => r.id === escolhida.pastaPaiId) : escolhida;
+  const subpastas = raiz ? pastas.filter((p) => p.pastaPaiId === raiz.id) : [];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <Folder aria-hidden="true" className="size-4" />
+        Pasta
+      </p>
+      {escolhida && (
+        <nav aria-label="Pasta escolhida" className="text-sm">
+          <ol className="flex flex-wrap items-center gap-1 text-muted-foreground">
+            <li>
+              <Link
+                href={endereco(slug, { ...filtro, pasta: undefined })}
+                className="rounded underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                Todas as fotos
+              </Link>
+            </li>
+            {raiz && (
+              <li className="flex items-center gap-1">
+                <ChevronRight aria-hidden="true" className="size-3.5" />
+                {escolhida.nivel === 2 ? (
+                  <Link
+                    href={endereco(slug, { ...filtro, pasta: raiz.id })}
+                    className="rounded underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                    {raiz.nome}
+                  </Link>
+                ) : (
+                  <span aria-current="page" className="font-semibold text-foreground">
+                    {raiz.nome}
+                  </span>
+                )}
+              </li>
+            )}
+            {escolhida.nivel === 2 && (
+              <li className="flex items-center gap-1">
+                <ChevronRight aria-hidden="true" className="size-3.5" />
+                <span aria-current="page" className="font-semibold text-foreground">
+                  {escolhida.nome}
+                </span>
+              </li>
+            )}
+          </ol>
+        </nav>
+      )}
+      <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        <li>
+          <Link
+            href={endereco(slug, { ...filtro, pasta: undefined })}
+            aria-current={!filtro.pasta ? "true" : undefined}
+            className={cn(chip, !filtro.pasta ? ativo : inativo)}
+          >
+            Todas
+          </Link>
+        </li>
+        {raizes.map((p) => (
+          <li key={p.id}>
+            <Link
+              href={endereco(slug, { ...filtro, pasta: p.id })}
+              aria-current={raiz?.id === p.id ? "true" : undefined}
+              className={cn(chip, raiz?.id === p.id ? ativo : inativo)}
+            >
+              {p.nome}
+              <span className="opacity-70">({p.total})</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {raiz && subpastas.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-l-2 border-primary/40 pl-3">
+          <p className="text-xs font-medium text-muted-foreground">Subpastas de {raiz.nome}</p>
+          <ul className="-mr-4 flex gap-2 overflow-x-auto pr-4 pb-1">
+            <li>
+              <Link
+                href={endereco(slug, { ...filtro, pasta: raiz.id })}
+                aria-current={escolhida?.id === raiz.id ? "true" : undefined}
+                className={cn(chipPequeno, escolhida?.id === raiz.id ? ativo : inativo)}
+              >
+                Todas
+                <span className="opacity-70">({raiz.total})</span>
+              </Link>
+            </li>
+            {subpastas.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={endereco(slug, { ...filtro, pasta: p.id })}
+                  aria-current={escolhida?.id === p.id ? "true" : undefined}
+                  className={cn(chipPequeno, escolhida?.id === p.id ? ativo : inativo)}
+                >
+                  {p.nome}
+                  <span className="opacity-70">({p.total})</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }

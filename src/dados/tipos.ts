@@ -152,6 +152,8 @@ export type Evento = {
 export type Pasta = {
   id: string;
   eventoId: string;
+  /** Nulo na pasta de nível 1; na subpasta, a pasta de cima (no máximo 2 níveis). */
+  pastaPaiId: string | null;
   nome: string;
   ordem: number;
 };

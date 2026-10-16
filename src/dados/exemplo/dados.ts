@@ -328,9 +328,30 @@ export const senhasEventos = new Map<string, string>([
 // ---------------------------------------------------------------- Pastas e colaboradores
 
 export const pastas: Pasta[] = [
-  { id: uuid("ba57a000", 1), eventoId: ibirapuera.id, nome: "Largada", ordem: 1 },
-  { id: uuid("ba57a000", 2), eventoId: ibirapuera.id, nome: "Percurso", ordem: 2 },
-  { id: uuid("ba57a000", 3), eventoId: ibirapuera.id, nome: "Chegada", ordem: 3 },
+  { id: uuid("ba57a000", 1), eventoId: ibirapuera.id, pastaPaiId: null, nome: "Largada", ordem: 1 },
+  {
+    id: uuid("ba57a000", 2),
+    eventoId: ibirapuera.id,
+    pastaPaiId: null,
+    nome: "Percurso",
+    ordem: 2,
+  },
+  { id: uuid("ba57a000", 3), eventoId: ibirapuera.id, pastaPaiId: null, nome: "Chegada", ordem: 3 },
+  // Subpastas do Percurso (2º nível): as fotos do meio do evento se dividem entre elas.
+  {
+    id: uuid("ba57a000", 4),
+    eventoId: ibirapuera.id,
+    pastaPaiId: uuid("ba57a000", 2),
+    nome: "Km 5",
+    ordem: 1,
+  },
+  {
+    id: uuid("ba57a000", 5),
+    eventoId: ibirapuera.id,
+    pastaPaiId: uuid("ba57a000", 2),
+    nome: "Km 10",
+    ordem: 2,
+  },
 ];
 
 export const colaboradores: Colaborador[] = [
@@ -345,6 +366,12 @@ export const colaboradores: Colaborador[] = [
 ];
 
 // ---------------------------------------------------------------- Fotos
+
+/** Pasta de uma foto do Ibirapuera: o terço do evento; no Percurso, alterna entre as subpastas. */
+function pastaDeExemplo(terco: number, n: number) {
+  if (terco === 1) return pastas[3 + (n % 2)].id;
+  return pastas[terco].id;
+}
 
 function gerarFotos(): Foto[] {
   const fotos: Foto[] = [];
@@ -365,7 +392,7 @@ function gerarFotos(): Foto[] {
       fotos.push({
         id: uuid("f0700000", contador),
         eventoId: evento.id,
-        pastaId: ehIbirapuera ? pastas[terco].id : null,
+        pastaId: ehIbirapuera ? pastaDeExemplo(terco, n) : null,
         enviadaPor: ehIbirapuera && terco === 2 ? pedro.id : evento.fotografoId,
         tipo: "foto",
         urlPrevia: `/exemplo/previas/${imagem}.webp`,
