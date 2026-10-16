@@ -874,11 +874,15 @@ export function ajustesDaMarcaDaConta(conta: {
   marcaTamanhoPct?: number | null;
   marcaQuantidade?: number | null;
   marcaOpacidadePct?: number | null;
+  marcaLarguraPrevia?: number | null;
+  marcaVariacao?: boolean | null;
 }): AjustesDaMarca | null {
   const ajustes = {
     tamanhoPct: conta.marcaTamanhoPct ?? null,
     quantidade: conta.marcaQuantidade ?? null,
     opacidadePct: conta.marcaOpacidadePct ?? null,
+    larguraPrevia: conta.marcaLarguraPrevia ?? null,
+    variacao: conta.marcaVariacao ?? null,
   };
   return Object.values(ajustes).some((v) => v !== null) ? ajustes : null;
 }
@@ -886,7 +890,13 @@ export function ajustesDaMarcaDaConta(conta: {
 /** Grava os ajustes da marca do fotógrafo; `null` volta para os da gestão. */
 export async function salvarAjustesDaMarca(
   fotografoId: string,
-  ajustes: { tamanhoPct: number; quantidade: number; opacidadePct: number } | null,
+  ajustes: {
+    tamanhoPct: number;
+    quantidade: number;
+    opacidadePct: number;
+    larguraPrevia: number;
+    variacao: boolean;
+  } | null,
 ) {
   const banco = await obterBanco();
   await banco
@@ -895,6 +905,8 @@ export async function salvarAjustesDaMarca(
       marcaTamanhoPct: ajustes?.tamanhoPct ?? null,
       marcaQuantidade: ajustes?.quantidade ?? null,
       marcaOpacidadePct: ajustes?.opacidadePct ?? null,
+      marcaLarguraPrevia: ajustes?.larguraPrevia ?? null,
+      marcaVariacao: ajustes?.variacao ?? null,
     })
     .where(eq(t.fotografos.id, fotografoId));
 }
@@ -913,6 +925,8 @@ export async function marcaDoDonoDoEvento(
       marcaTamanhoPct: t.fotografos.marcaTamanhoPct,
       marcaQuantidade: t.fotografos.marcaQuantidade,
       marcaOpacidadePct: t.fotografos.marcaOpacidadePct,
+      marcaLarguraPrevia: t.fotografos.marcaLarguraPrevia,
+      marcaVariacao: t.fotografos.marcaVariacao,
     })
     .from(t.eventos)
     .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))

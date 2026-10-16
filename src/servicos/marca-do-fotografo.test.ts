@@ -27,17 +27,27 @@ const evento = eventos.find((e) => e.fotografoId === lia.id)!;
 
 describe("ajustes da marca do fotógrafo", () => {
   it("salvos na conta, valem nas fotos dos eventos dele; null volta ao padrão", async () => {
-    await salvarAjustesDaMarca(lia.id, { tamanhoPct: 150, quantidade: 30, opacidadePct: 60 });
+    await salvarAjustesDaMarca(lia.id, {
+      tamanhoPct: 150,
+      quantidade: 30,
+      opacidadePct: 60,
+      larguraPrevia: 1200,
+      variacao: false,
+    });
     expect((await marcaDoDonoDoEvento(evento.id)).ajustes).toEqual({
       tamanhoPct: 150,
       quantidade: 30,
       opacidadePct: 60,
+      larguraPrevia: 1200,
+      variacao: false,
     });
     const conta = (await buscarContaDoFotografo(lia.usuarioId))!;
     expect(ajustesDaMarcaDaConta(conta)).toEqual({
       tamanhoPct: 150,
       quantidade: 30,
       opacidadePct: 60,
+      larguraPrevia: 1200,
+      variacao: false,
     });
 
     await salvarAjustesDaMarca(lia.id, null);

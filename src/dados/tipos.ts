@@ -93,6 +93,8 @@ export type FotografoConta = Fotografo & {
   marcaTamanhoPct?: number | null;
   marcaQuantidade?: number | null;
   marcaOpacidadePct?: number | null;
+  marcaLarguraPrevia?: number | null;
+  marcaVariacao?: boolean | null;
   /** Conta de demonstração: vendas fictícias, sem saque (src/servicos/demonstracao.ts). */
   demonstracao?: boolean;
 };

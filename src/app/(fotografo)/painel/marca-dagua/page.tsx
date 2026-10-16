@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { AbasDaMarca } from "@/components/painel/abas-da-marca";
 import { AjustesDaMarca } from "@/components/painel/ajustes-da-marca";
 import { EscolhaDaMarca } from "@/components/painel/escolha-da-marca";
 import { PreviaDesfocadaPorEvento } from "@/components/painel/previa-desfocada-por-evento";
@@ -42,39 +43,33 @@ async function Conteudo() {
   const modelo = conta.modeloMarca ?? MODELO_MARCA_PADRAO;
   const ajustes = ajustesDaMarcaDaConta(conta);
   const salvos = ajustes ? aplicarAjustesDaMarca(global, ajustes) : null;
-  const padrao = {
-    tamanhoPct: global.tamanhoPct,
-    quantidade: global.quantidade,
-    opacidadePct: global.opacidadePct,
-  };
+  const doConfig = (c: typeof global) => ({
+    tamanhoPct: c.tamanhoPct,
+    quantidade: c.quantidade,
+    opacidadePct: c.opacidadePct,
+    larguraPrevia: c.larguraPrevia,
+    variacao: c.variacao,
+  });
+  const padrao = doConfig(global);
+  const versao = salvos ? Object.values(doConfig(salvos)).join("-") : "padrao";
   return (
-    <>
-      <PreviaDesfocadaPorEvento eventos={eventos} />
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Modelos de marca</h2>
-        {/* A versão dos ajustes renova as amostras dos modelos quando eles mudam. */}
-        <EscolhaDaMarca
-          atual={modelo}
-          versaoDosAjustes={
-            salvos ? `${salvos.tamanhoPct}-${salvos.quantidade}-${salvos.opacidadePct}` : "padrao"
-          }
+    // Um botão para cada parte: modelos, ajustes e prévia desfocada (src/components/painel/
+    // abas-da-marca.tsx).
+    <AbasDaMarca
+      modelos={
+        // A versão dos ajustes renova as amostras dos modelos quando eles mudam.
+        <EscolhaDaMarca atual={modelo} versaoDosAjustes={versao} />
+      }
+      previa={<PreviaDesfocadaPorEvento eventos={eventos} />}
+      ajustar={
+        <AjustesDaMarca
+          // Recomeça com os valores salvos quando eles mudam (salvar, voltar ao padrão).
+          key={versao}
+          modelo={modelo}
+          padrao={padrao}
+          salvos={salvos ? doConfig(salvos) : null}
         />
-      </section>
-      <AjustesDaMarca
-        // Recomeça com os valores salvos quando eles mudam (salvar, voltar ao padrão).
-        key={salvos ? `${salvos.tamanhoPct}-${salvos.quantidade}-${salvos.opacidadePct}` : "padrao"}
-        modelo={modelo}
-        padrao={padrao}
-        salvos={
-          salvos
-            ? {
-                tamanhoPct: salvos.tamanhoPct,
-                quantidade: salvos.quantidade,
-                opacidadePct: salvos.opacidadePct,
-              }
-            : null
-        }
-      />
-    </>
+      }
+    />
   );
 }

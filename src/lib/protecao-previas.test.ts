@@ -43,7 +43,38 @@ describe("ajustes da marca do fotógrafo", () => {
       esquemaAjustesMarca.safeParse({ tamanhoPct: 100, quantidade: 20, opacidadePct: 10 }).success,
     ).toBe(false);
     expect(
-      esquemaAjustesMarca.safeParse({ tamanhoPct: 100, quantidade: 20, opacidadePct: 50 }).success,
+      esquemaAjustesMarca.safeParse({
+        tamanhoPct: 100,
+        quantidade: 20,
+        opacidadePct: 50,
+        larguraPrevia: 1600,
+        variacao: true,
+      }).success,
     ).toBe(true);
+  });
+});
+
+describe("ajustes da marca: resolução e variação", () => {
+  it("o fotógrafo também ajusta a resolução e a variação, mas não a qualidade", () => {
+    const r = aplicarAjustesDaMarca(CONFIG_MARCA_PADRAO, { larguraPrevia: 1200, variacao: false });
+    expect(r.larguraPrevia).toBe(1200);
+    expect(r.variacao).toBe(false);
+    expect(r.qualidade).toBe(CONFIG_MARCA_PADRAO.qualidade);
+    expect(
+      aplicarAjustesDaMarca(CONFIG_MARCA_PADRAO, { larguraPrevia: 99_999 }).larguraPrevia,
+    ).toBe(LIMITES_MARCA.larguraPrevia.max);
+  });
+
+  it("a validação dos ajustes não aceita a qualidade", () => {
+    const r = esquemaAjustesMarca.safeParse({
+      tamanhoPct: 100,
+      quantidade: 20,
+      opacidadePct: 45,
+      larguraPrevia: 1600,
+      variacao: true,
+      qualidade: 85,
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect("qualidade" in r.data).toBe(false);
   });
 });

@@ -32,6 +32,8 @@ export async function GET(
       tamanhoPct: busca.get("tamanhoPct"),
       quantidade: busca.get("quantidade"),
       opacidadePct: busca.get("opacidadePct"),
+      larguraPrevia: busca.get("larguraPrevia"),
+      variacao: busca.get("variacao") === "1",
     });
     if (!daTela.success) return new Response(null, { status: 400 });
     ajustes = daTela.data;
@@ -41,7 +43,7 @@ export async function GET(
   }
 
   const config = aplicarAjustesDaMarca(await configuracaoDaMarca(), ajustes);
-  const chave = `${modelo}:${config.revisao}:${config.tamanhoPct}:${config.quantidade}:${config.opacidadePct}`;
+  const chave = `${modelo}:${config.revisao}:${config.tamanhoPct}:${config.quantidade}:${config.opacidadePct}:${config.larguraPrevia}:${config.variacao}`;
   let amostra = amostras.get(chave);
   if (!amostra) {
     if (amostras.size > 60) amostras.clear();
