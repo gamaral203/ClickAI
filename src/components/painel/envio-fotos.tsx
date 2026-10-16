@@ -421,10 +421,16 @@ export function EnvioFotos({
   modo,
   liberacao,
   aceitaVideo = false,
+  pastas = [],
 }: {
   eventoId: string;
   modo: ModoEnvio;
   liberacao?: LiberacaoDoEnvio;
+  /**
+   * Pastas do evento em árvore, com o caminho no nome ("Largada › Bateria 1"); só o dono
+   * escolhe a pasta de destino. Sem pastas, o seletor não aparece.
+   */
+  pastas?: { id: string; nome: string }[];
   /** Aceita vídeos de até 30 segundos (MP4 e MOV). */
   aceitaVideo?: boolean;
 }) {
@@ -435,6 +441,9 @@ export function EnvioFotos({
   const [horarioPassado, setHorarioPassado] = useState(false);
   /** Escolha fixada no início do envio: o "tentar de novo" usa a mesma. */
   const escolhaDoEnvio = useRef<EscolhaLiberacao | null>(null);
+  // Pasta (ou subpasta) de destino deste lote; fixada no início do envio, como a liberação.
+  const [pastaLote, setPastaLote] = useState("");
+  const pastaDoEnvio = useRef<string | null>(null);
   /** Os itens ficam fora do estado do React: com milhares de fotos, cada progresso de envio
    *  copiaria a lista inteira. A tela redesenha em intervalos curtos (redesenhar). */
   const itens = useRef<Item[]>([]);
@@ -616,6 +625,7 @@ export function EnvioFotos({
         duracaoS: itens.current[i].duracaoS,
       })),
       escolhaDoEnvio.current,
+      pastaDoEnvio.current,
     ).catch(() => ({ erro: "A conexão caiu. Tente de novo." }));
     telemetria.current.urls.lotes++;
     telemetria.current.urls.fotos += lote.length;
@@ -1006,6 +1016,7 @@ export function EnvioFotos({
           ...(itens.current[i].hash && { hash: itens.current[i].hash }),
         })),
         escolhaDoEnvio.current,
+        pastaDoEnvio.current,
       ).catch(() => ({ erro: "A conexão caiu." }));
       if (resultado.erro) return resultado.erro;
       for (const i of validos) {
@@ -1018,6 +1029,7 @@ export function EnvioFotos({
   /** Começa o envio com a liberação escolhida; agendada no passado não começa. */
   function comecar(indices: number[]) {
     setHorarioPassado(false);
+    pastaDoEnvio.current = pastas.some((p) => p.id === pastaLote) ? pastaLote : null;
     if (liberacao?.podeEscolher) {
       if (modoLote === "agendada") {
         const em = instanteDoCampo(emLote);
@@ -1342,6 +1354,28 @@ export function EnvioFotos({
                 setHorarioPassado(false);
               }}
             />
+          )}
+
+          {pastas.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`pasta-envio-${eventoId}`} className="font-medium">
+                Pasta de destino
+              </label>
+              <select
+                id={`pasta-envio-${eventoId}`}
+                value={pastaLote}
+                disabled={enviando}
+                onChange={(e) => setPastaLote(e.target.value)}
+                className="h-11 w-full max-w-md rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="">Sem pasta</option>
+                {pastas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">

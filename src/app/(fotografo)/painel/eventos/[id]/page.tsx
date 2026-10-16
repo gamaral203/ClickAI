@@ -149,6 +149,8 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
       liberadas: liberacao.liberadas,
     });
   const itens = itensDoPainel ?? [];
+  // Seletor de pasta (envio e fotos): a árvore, com o caminho ("Largada › Bateria 1").
+  const opcoesDePasta = (pastas ?? []).map((p) => ({ id: p.id, nome: p.caminho }));
   const regraPadrao = (faixasPadrao ?? [])
     .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
     .join(", ");
@@ -272,6 +274,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     podeEscolher: true,
                     descricao: "",
                   }}
+                  pastas={opcoesDePasta}
                 />
                 <FotosDoEvento
                   eventoId={evento.id}
@@ -298,7 +301,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     doAutor: i.enviadaPor === conta.id,
                     numeros: mostrarNumeros ? (numerosPorFoto.get(i.id) ?? []) : undefined,
                   }))}
-                  pastas={(pastas ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
+                  pastas={opcoesDePasta}
                 />
               </>
             ),
@@ -534,7 +537,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     pastas={(pastas ?? []).map((p) => ({
                       id: p.id,
                       nome: p.nome,
+                      pastaPaiId: p.pastaPaiId,
+                      nivel: p.nivel,
                       totalItens: p.totalItens,
+                      totalComSubpastas: p.totalComSubpastas,
+                      subpastas: p.subpastas,
                     }))}
                   />
                 </div>

@@ -244,7 +244,7 @@ function Cartao({
         {item.nomeArquivo}
       </p>
       <SeloLiberacao item={item} />
-      {selecao && item.estadoLiberacao !== "liberada" && (
+      {selecao && (
         <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium">
           <input
             type="checkbox"
