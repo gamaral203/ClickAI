@@ -302,6 +302,13 @@
       "when": 1792164608357,
       "tag": "0042_previa_desfocada",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792166115048,
+      "tag": "0043_subpastas",
+      "breakpoints": true
     }
   ]
 }

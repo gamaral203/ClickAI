@@ -377,6 +377,8 @@ export async function adicionarItensSimulados(
   fotografoId: string,
   arquivos: { nome: string; tamanhoBytes: number }[],
   escolha: EscolhaLiberacao | null = null,
+  /** Pasta de destino já conferida, ou nulo. */
+  pastaId: string | null = null,
 ): Promise<Foto[] | null> {
   // Defesa em profundidade: na produção, item de exemplo nunca entra (docs/tarefas.md, Fase 12).
   if (emProducao()) {
@@ -407,6 +409,7 @@ export async function adicionarItensSimulados(
       ordem: ultima + i + 1,
       status: "pronta" as const,
       criadoEm: new Date(agora + i),
+      pastaId,
       ...liberacao,
     };
   });
@@ -445,6 +448,8 @@ export async function registrarFotosEmEnvio(
   }[],
   chaves: (fotoId: string, indice: number) => ChavesDaFoto,
   escolha: EscolhaLiberacao | null = null,
+  /** Pasta de destino já conferida (pastaDeDestino em src/servicos/envios.ts), ou nulo. */
+  pastaId: string | null = null,
 ): Promise<string[] | null> {
   // Também confere se pode enviar (dono ou colaborador que aceitou).
   const liberacao = await liberacaoParaEnvio(eventoId, fotografoId, escolha);
@@ -494,6 +499,8 @@ export async function registrarFotosEmEnvio(
       erroMensagem: null,
       ...liberacao,
       avisoLiberacaoEm: null,
+      // Sem pasta escolhida, a foto reenviada fica onde estava.
+      ...(pastaId && { pastaId }),
     };
     if (existente) {
       await banco.update(t.fotos).set(dados).where(eq(t.fotos.id, existente));

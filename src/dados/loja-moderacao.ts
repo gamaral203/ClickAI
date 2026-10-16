@@ -1,27 +1,18 @@
-// Loja própria, denúncias e pastas (docs/arquitetura.md, "Loja própria", "Denúncia" e
-// "Galeria e busca"). Como no resto da camada de dados, quem edita passa o id de quem está
+// Loja própria e denúncias (docs/arquitetura.md, "Loja própria", "Denúncia" e
+// "Galeria e busca"; as pastas ficam em ./pastas.ts). Como no resto da camada de dados, quem edita passa o id de quem está
 // logado e a checagem de dono fica aqui.
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { urlDaPrevia, urlPublica } from "@/lib/url-publica";
 
-import { paraDenuncia, paraLoja, paraPasta } from "./mapas";
-import type { Denuncia, Evento, Fotografo, Loja, Pasta, StatusDenuncia } from "./tipos";
-
-async function eventoDoDono(eventoId: string, fotografoId: string) {
-  const banco = await obterBanco();
-  const [linha] = await banco
-    .select({ id: t.eventos.id })
-    .from(t.eventos)
-    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)));
-  return linha !== undefined;
-}
+import { paraDenuncia, paraLoja } from "./mapas";
+import type { Denuncia, Evento, Fotografo, Loja, StatusDenuncia } from "./tipos";
 
 // ---------------------------------------------------------------- Loja própria
 
@@ -304,110 +295,4 @@ export async function fotoEhDoEvento(fotoId: string, eventoId: string) {
     .from(t.fotos)
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)));
   return linha !== undefined;
-}
-
-// ---------------------------------------------------------------- Pastas
-
-export type PastaComTotal = Pasta & { totalItens: number };
-
-/** Pastas de um evento do fotógrafo, na ordem, com quantos itens têm. */
-export async function listarPastasDoPainel(
-  eventoId: string,
-  fotografoId: string,
-): Promise<PastaComTotal[] | null> {
-  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
-  const banco = await obterBanco();
-  const [pastas, contagens] = await Promise.all([
-    banco
-      .select()
-      .from(t.pastas)
-      .where(eq(t.pastas.eventoId, eventoId))
-      .orderBy(asc(t.pastas.ordem)),
-    banco
-      .select({ pastaId: t.fotos.pastaId, total: sql<number>`count(*)::int` })
-      .from(t.fotos)
-      .where(and(eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)))
-      .groupBy(t.fotos.pastaId),
-  ]);
-  return pastas.map((p) => ({
-    ...paraPasta(p),
-    totalItens: contagens.find((c) => c.pastaId === p.id)?.total ?? 0,
-  }));
-}
-
-export async function criarPasta(eventoId: string, fotografoId: string, nome: string) {
-  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
-  const banco = await obterBanco();
-  const [{ ultima }] = await banco
-    .select({ ultima: sql<number>`coalesce(max(${t.pastas.ordem}), 0)::int` })
-    .from(t.pastas)
-    .where(eq(t.pastas.eventoId, eventoId));
-  const [linha] = await banco
-    .insert(t.pastas)
-    .values({ eventoId, nome, ordem: ultima + 1 })
-    .returning();
-  return paraPasta(linha);
-}
-
-/** Condição: a pasta é de um evento deste fotógrafo. */
-function pastaDoDono(pastaId: string, fotografoId: string) {
-  return and(
-    eq(t.pastas.id, pastaId),
-    inArray(
-      t.pastas.eventoId,
-      sql`(select ${t.eventos.id} from ${t.eventos} where ${t.eventos.fotografoId} = ${fotografoId})`,
-    ),
-  );
-}
-
-export async function renomearPasta(pastaId: string, fotografoId: string, nome: string) {
-  const banco = await obterBanco();
-  const atualizadas = await banco
-    .update(t.pastas)
-    .set({ nome })
-    .where(pastaDoDono(pastaId, fotografoId))
-    .returning({ id: t.pastas.id });
-  return atualizadas.length > 0;
-}
-
-/** Apaga a pasta; os itens dela continuam no evento, sem pasta (ON DELETE SET NULL). */
-export async function excluirPasta(pastaId: string, fotografoId: string) {
-  const banco = await obterBanco();
-  const apagadas = await banco
-    .delete(t.pastas)
-    .where(pastaDoDono(pastaId, fotografoId))
-    .returning({ id: t.pastas.id });
-  return apagadas.length > 0;
-}
-
-/** Move itens de um evento do fotógrafo para uma pasta do mesmo evento (ou para nenhuma). */
-export async function moverItensParaPasta(
-  fotoIds: string[],
-  pastaId: string | null,
-  fotografoId: string,
-): Promise<boolean> {
-  const unicos = [...new Set(fotoIds)];
-  if (unicos.length === 0) return false;
-  const banco = await obterBanco();
-  const itens = await banco
-    .select({ id: t.fotos.id, eventoId: t.fotos.eventoId })
-    .from(t.fotos)
-    .where(and(inArray(t.fotos.id, unicos), isNull(t.fotos.excluidaEm)));
-  if (itens.length !== unicos.length) return false;
-  const eventoId = itens[0].eventoId;
-  if (
-    !itens.every((f) => f.eventoId === eventoId) ||
-    !(await eventoDoDono(eventoId, fotografoId))
-  ) {
-    return false;
-  }
-  if (pastaId !== null) {
-    const [pasta] = await banco
-      .select({ id: t.pastas.id })
-      .from(t.pastas)
-      .where(and(eq(t.pastas.id, pastaId), eq(t.pastas.eventoId, eventoId)));
-    if (!pasta) return false;
-  }
-  await banco.update(t.fotos).set({ pastaId }).where(inArray(t.fotos.id, unicos));
-  return true;
 }
