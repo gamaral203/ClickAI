@@ -26,7 +26,7 @@ import {
   listarFotosParadas,
   marcarFotoComErro,
   marcaDoDonoDoEvento,
-  pastaDoEventoDoDono,
+  pastaDoEventoParaEnvio,
   registrarFotosEmEnvio,
   reservarFotoParaProcessar,
   salvarRostos,
@@ -175,7 +175,8 @@ export function chavesDaFoto(
 
 /**
  * Pasta de destino de um envio: `null` sem pasta; o id, se for uma pasta (ou subpasta) do
- * evento e quem envia for o dono; `false` se não vale (id estranho, outro evento, colaborador).
+ * evento e quem envia for o dono ou um colaborador com o convite aceito; `false` se não vale
+ * (id estranho, pasta de outro evento, fotógrafo que não é dono nem colaborador do evento).
  */
 export async function pastaDeDestino(
   eventoId: string,
@@ -185,7 +186,7 @@ export async function pastaDeDestino(
   if (pastaId === null || pastaId === undefined || pastaId === "") return null;
   const id = z.uuid().safeParse(pastaId);
   if (!id.success) return false;
-  return (await pastaDoEventoDoDono(eventoId, id.data, fotografoId)) ? id.data : false;
+  return (await pastaDoEventoParaEnvio(eventoId, id.data, fotografoId)) ? id.data : false;
 }
 
 /** URLs de um envio em partes: uma por parte, na ordem (a parte 1 é `urls[0]`). */
@@ -218,7 +219,7 @@ export async function iniciarEnvio(
 ): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
   if (modoEnvio() !== "r2") return { erro: ERRO_SEM_ARMAZENAMENTO };
   if (!z.uuid().safeParse(eventoId).success) return { erro: "Evento não encontrado." };
-  // Pasta (ou subpasta) de destino do lote: só do mesmo evento e escolhida pelo dono.
+  // Pasta (ou subpasta) de destino do lote: só do mesmo evento (escolhe o dono ou o colaborador).
   const pasta = await pastaDeDestino(eventoId, pastaId, fotografoId);
   if (pasta === false) return { erro: "Pasta não encontrada. Atualize a página." };
   // Liberação escolhida para o lote (só vale para o dono; src/dados/liberacao.ts).

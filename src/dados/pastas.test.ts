@@ -17,7 +17,9 @@ import {
   criarEvento,
   criarPasta,
   excluirPasta,
+  fotosDoAutorNoEvento,
   listarFotosDoEvento,
+  listarItensDoPainel,
   listarOpcoesGaleria,
   listarPastasDoPainel,
   listarPastasDoPainelOuColaborador,
@@ -287,7 +289,7 @@ describe("subpastas: até 2 níveis", () => {
     expect(await pastaDeDestino(evento.id, null, lia.id)).toBeNull();
     expect(await pastaDeDestino(evento.id, deFora.id, lia.id)).toBe(false);
     expect(await pastaDeDestino(evento.id, "nao-e-uuid", lia.id)).toBe(false);
-    // Só o dono do evento escolhe a pasta (nem colaborador nem outro fotógrafo).
+    // Fotógrafo que não é dono nem colaborador do evento não escolhe pasta.
     expect(await pastaDeDestino(evento.id, bateria.id, outro.id)).toBe(false);
 
     const fotos = await enviar(evento.id, 2, bateria.id);
@@ -358,9 +360,7 @@ describe("subpastas: até 2 níveis", () => {
     const minhas = (await adicionarItensSimulados(evento.id, outro.id, [
       { nome: "COLAB.jpg", tamanhoBytes: 1000 },
     ]))!;
-    expect(await moverItensParaPastaOuColaborador([minhas[0].id], largada.id, outro.id)).toBe(
-      true,
-    );
+    expect(await moverItensParaPastaOuColaborador([minhas[0].id], largada.id, outro.id)).toBe(true);
     expect(await pastaDasFotos([minhas[0].id])).toEqual(new Set([largada.id]));
     // Foto da dona, pasta de outro evento ou mistura: recusado.
     expect(await moverItensParaPastaOuColaborador([daDona[0].id], largada.id, outro.id)).toBe(
@@ -369,13 +369,82 @@ describe("subpastas: até 2 níveis", () => {
     expect(
       await moverItensParaPastaOuColaborador([minhas[0].id, daDona[0].id], null, outro.id),
     ).toBe(false);
-    expect(await moverItensParaPastaOuColaborador([minhas[0].id], deFora.id, outro.id)).toBe(
-      false,
-    );
+    expect(await moverItensParaPastaOuColaborador([minhas[0].id], deFora.id, outro.id)).toBe(false);
     // Gerenciar pastas continua só da dona.
     expect(await renomearPasta(largada.id, outro.id, "Trocada")).toBe(false);
     expect(await excluirPasta(largada.id, outro.id)).toBeNull();
     // A dona move qualquer foto do evento, inclusive a do colaborador.
     expect(await moverItensParaPastaOuColaborador([minhas[0].id], null, lia.id)).toBe(true);
+  });
+
+  it("colaborador com convite aceito escolhe a pasta de destino do envio, só do mesmo evento", async () => {
+    const evento = await novoEvento();
+    const outroEvento = await novoEvento();
+    const largada = await pasta(evento.id, "Largada");
+    const bateria = await pasta(evento.id, "Bateria 1", largada.id);
+    const deFora = await pasta(outroEvento.id, "De fora");
+
+    expect(
+      await adicionarColaborador(evento.id, lia.id, {
+        fotografoId: outro.id,
+        comissaoDonoPct: 0,
+        nota: null,
+      }),
+    ).toBe("ok");
+    // Convite pendente: ainda não escolhe pasta (nem envia).
+    expect(await pastaDeDestino(evento.id, bateria.id, outro.id)).toBe(false);
+    const banco = await obterBanco();
+    const [convite] = await banco
+      .select({ id: t.colaboradores.id })
+      .from(t.colaboradores)
+      .where(eq(t.colaboradores.eventoId, evento.id));
+    expect(await responderConvite(convite.id, outro.id, true)).toBe(true);
+
+    // Vê a mesma árvore do dono e escolhe pasta ou subpasta do evento em que colabora.
+    expect(
+      (await listarPastasDoPainelOuColaborador(evento.id, outro.id))?.map((p) => p.caminho),
+    ).toEqual(["Largada", "Largada › Bateria 1"]);
+    expect(await pastaDeDestino(evento.id, bateria.id, outro.id)).toBe(bateria.id);
+    expect(await pastaDeDestino(evento.id, largada.id, outro.id)).toBe(largada.id);
+    expect(await pastaDeDestino(evento.id, "", outro.id)).toBeNull();
+    // IDOR: pasta de outro evento (mesmo da mesma dona) e evento em que não colabora.
+    expect(await pastaDeDestino(evento.id, deFora.id, outro.id)).toBe(false);
+    expect(await pastaDeDestino(outroEvento.id, deFora.id, outro.id)).toBe(false);
+    expect(await pastaDeDestino(outroEvento.id, bateria.id, outro.id)).toBe(false);
+    expect(await listarPastasDoPainelOuColaborador(outroEvento.id, outro.id)).toBeNull();
+    // Continua sem criar pasta no evento da dona.
+    expect(await criarPasta(evento.id, outro.id, "Intrusa")).toEqual({
+      erro: "Evento não encontrado.",
+    });
+
+    // Envio na subpasta escolhida: a foto fica no nome do colaborador e na subpasta.
+    const enviadas = (await adicionarItensSimulados(
+      evento.id,
+      outro.id,
+      [{ nome: "COLAB.jpg", tamanhoBytes: 1000 }],
+      null,
+      (await pastaDeDestino(evento.id, bateria.id, outro.id)) || null,
+    ))!;
+    const [linha] = await banco
+      .select({ pastaId: t.fotos.pastaId, enviadaPor: t.fotos.enviadaPor })
+      .from(t.fotos)
+      .where(eq(t.fotos.id, enviadas[0].id));
+    expect(linha).toEqual({ pastaId: bateria.id, enviadaPor: outro.id });
+    // Aparece na subpasta no painel dele, no do dono e na galeria (a de nível 1 inclui a subpasta).
+    expect(
+      (await fotosDoAutorNoEvento(evento.id, outro.id)).find((f) => f.id === enviadas[0].id)
+        ?.pastaId,
+    ).toBe(bateria.id);
+    expect(
+      (await listarItensDoPainel(evento.id, lia.id))?.find((f) => f.id === enviadas[0].id),
+    ).toMatchObject({ pastaId: bateria.id, enviadaPor: outro.id });
+    for (const pastaId of [bateria.id, largada.id]) {
+      const pagina = await listarFotosDoEvento(evento.id, { filtro: { pasta: pastaId } });
+      expect(pagina.fotos.map((f) => f.id)).toContain(enviadas[0].id);
+    }
+
+    // O dono continua escolhendo a pasta como antes.
+    expect(await pastaDeDestino(evento.id, largada.id, lia.id)).toBe(largada.id);
+    expect(await pastaDeDestino(evento.id, deFora.id, lia.id)).toBe(false);
   });
 });
