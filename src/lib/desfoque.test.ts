@@ -6,7 +6,9 @@ import {
   circuloDaRevelacao,
   FRACAO_DO_RAIO,
   fonteDaCaixa,
+  lenteDaRevelacao,
   sementeDoId,
+  ZOOM_DA_LENTE,
   tamanhoDaBase,
 } from "./desfoque";
 
@@ -103,5 +105,43 @@ describe("tamanhoDaBase", () => {
   it("reduz a prévia mantendo a proporção", () => {
     expect(tamanhoDaBase({ largura: 800, altura: 533 })).toEqual({ largura: 640, altura: 426 });
     expect(tamanhoDaBase({ largura: 300, altura: 200 })).toEqual({ largura: 300, altura: 200 });
+  });
+});
+
+describe("lenteDaRevelacao", () => {
+  // Foto de 400 x 300 na tela, a partir de (100, 50); canvas 800 x 600; prévia 1600 x 1200.
+  const caixa = { x: 100, y: 50, largura: 400, altura: 300 };
+  const canvas = { largura: 800, altura: 600 };
+  const imagem = { largura: 1600, altura: 1200 };
+
+  it("no mouse, centrada no cursor e ampliada", () => {
+    const l = lenteDaRevelacao({ x: 300, y: 200 }, caixa, canvas, imagem, { toque: false })!;
+    expect(l.circulo).toEqual({ x: 400, y: 300, r: 200 });
+    // A fonte é menor que o círculo na mesma proporção do zoom, centrada no cursor.
+    expect(l.fonte.sw).toBeCloseTo(((2 * 200) / ZOOM_DA_LENTE) * 2);
+    expect(l.fonte.sx + l.fonte.sw / 2).toBeCloseTo(800);
+    expect(l.fonte.sy + l.fonte.sh / 2).toBeCloseTo(600);
+    expect(l.destino).toEqual({ x: 200, y: 100, largura: 400, altura: 400 });
+  });
+
+  it("no toque, sobe para o dedo não tapar, mas a fonte continua sob o dedo", () => {
+    const l = lenteDaRevelacao({ x: 300, y: 250 }, caixa, canvas, imagem, { toque: true })!;
+    // Sob o dedo: y 400 no canvas. A lupa sobe até a borda de baixo dela ficar acima do dedo,
+    // sem sair do canvas.
+    expect(l.circulo.y + l.circulo.r).toBeLessThanOrEqual(400);
+    expect(l.circulo.y).toBeGreaterThanOrEqual(l.circulo.r);
+    expect(l.fonte.sy + l.fonte.sh / 2).toBeCloseTo(800);
+  });
+
+  it("perto da borda, encosta nela em vez de cortar", () => {
+    const l = lenteDaRevelacao({ x: 101, y: 51 }, caixa, canvas, imagem, { toque: true })!;
+    expect(l.circulo.x).toBe(l.circulo.r);
+    expect(l.circulo.y).toBe(l.circulo.r);
+    expect(l.fonte.sx).toBe(0);
+    expect(l.fonte.sy).toBe(0);
+  });
+
+  it("fora da foto, nada", () => {
+    expect(lenteDaRevelacao({ x: 50, y: 50 }, caixa, canvas, imagem, { toque: true })).toBeNull();
   });
 });

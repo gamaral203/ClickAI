@@ -66,7 +66,10 @@ export function vizinhas<T>(lista: readonly T[], indice: number): T[] {
  * existe, e a prévia normal no resto. Só lê os campos de prévia: o original não chega ao
  * navegador e não tem como sair daqui.
  */
-export function imagemDoVisualizador(foto: FotoDoVisualizador, telaEstreita: boolean) {
+export function imagemDoVisualizador(
+  foto: Pick<FotoDoVisualizador, "urlPrevia" | "urlPreviaCelular">,
+  telaEstreita: boolean,
+) {
   return telaEstreita && foto.urlPreviaCelular ? foto.urlPreviaCelular : foto.urlPrevia;
 }
 

@@ -6,8 +6,7 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "reac
 import { prepararPrevia, type PreviaPronta } from "@/components/galeria/previa-desfocada";
 import {
   caixaDoCirculo,
-  circuloDaRevelacao,
-  fonteDaCaixa,
+  lenteDaRevelacao,
   MIOLO_NITIDO,
   type Caixa,
   type Ponto,
@@ -15,8 +14,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export type ControleDaLanterna = {
-  /** Mostra o círculo nítido no ponto (coordenadas da tela). */
-  revelar: (ponto: Ponto) => void;
+  /**
+   * Mostra a lupa no ponto (coordenadas da tela). Com `toque`, ela sobe para o dedo não tapar o
+   * que está sendo revelado; no mouse, fica centrada no cursor.
+   */
+  revelar: (ponto: Ponto, toque?: boolean) => void;
   /** Volta a desfocar tudo. */
   esconder: () => void;
   /** O ponto está sobre a foto? */
@@ -25,8 +27,9 @@ export type ControleDaLanterna = {
 
 /**
  * Foto do visualizador, sempre desfocada: a base é a prévia (com marca d'água) desfocada e
- * pixelada no navegador; a "lanterna" desenha só um círculo nítido onde o dedo (ou o mouse)
- * está, num canvas por cima, com borda suave. A prévia nunca aparece nítida inteira: o círculo
+ * pixelada no navegador; a "lanterna" é uma lupa: desenha, num canvas por cima, um círculo com o
+ * pedaço da prévia sob o dedo (ou o mouse) ampliado, de borda suave e com um brilho em volta.
+ * No toque, o círculo fica acima do dedo (src/lib/desfoque.ts, lenteDaRevelacao). A prévia nunca aparece nítida inteira: o círculo
  * é desenhado pelo código e, sem ele, o canvas fica vazio (não há máscara de CSS que, sem
  * suporte do navegador, deixaria a imagem inteira à mostra).
  *
@@ -61,8 +64,14 @@ export function FotoDesfocada({
   const pronta = useRef<PreviaPronta | null>(null);
   const [carregada, setCarregada] = useState(false);
   const [mostrarDica, setMostrarDica] = useState(true);
-  const estado = useRef<{ ponto: Ponto | null; quadro: number; anterior: Caixa | null }>({
+  const estado = useRef<{
+    ponto: Ponto | null;
+    toque: boolean;
+    quadro: number;
+    anterior: Caixa | null;
+  }>({
     ponto: null,
+    toque: false,
     quadro: 0,
     anterior: null,
   });
@@ -116,20 +125,20 @@ export function FotoDesfocada({
     e.anterior = null;
     if (!e.ponto) return;
     const r = c.getBoundingClientRect();
-    const circulo = circuloDaRevelacao(
+    const lente = lenteDaRevelacao(
       e.ponto,
       { x: r.x, y: r.y, largura: r.width, altura: r.height },
       medida,
+      { largura: p.imagem.naturalWidth, altura: p.imagem.naturalHeight },
+      { toque: e.toque },
     );
-    if (!circulo) return;
-    const area = caixaDoCirculo(circulo, medida);
+    if (!lente) return;
+    const { circulo, fonte: f, destino: d } = lente;
+    // A área limpa no próximo quadro inclui o brilho, que passa um pouco da borda do círculo.
+    const area = caixaDoCirculo({ ...circulo, r: circulo.r * 1.2 }, medida);
     if (area.largura === 0 || area.altura === 0) return;
-    const f = fonteDaCaixa(area, medida, {
-      largura: p.imagem.naturalWidth,
-      altura: p.imagem.naturalHeight,
-    });
     ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(p.imagem, f.sx, f.sy, f.sw, f.sh, f.dx, f.dy, f.dw, f.dh);
+    ctx.drawImage(p.imagem, f.sx, f.sy, f.sw, f.sh, d.x, d.y, d.largura, d.altura);
     // Recorta o quadrado num círculo de borda suave.
     const gradiente = ctx.createRadialGradient(
       circulo.x,
@@ -143,18 +152,29 @@ export function FotoDesfocada({
     gradiente.addColorStop(1, "rgba(0,0,0,0)");
     ctx.globalCompositeOperation = "destination-in";
     ctx.fillStyle = gradiente;
-    ctx.fillRect(area.x, area.y, area.largura, area.altura);
+    ctx.fillRect(d.x, d.y, d.largura, d.altura);
     ctx.globalCompositeOperation = "source-over";
+    // Brilho da lente: um aro fino claro com um halo verde-limão (cor de destaque da marca).
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(circulo.x, circulo.y, circulo.r * 0.97, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(1.5, circulo.r * 0.02);
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.shadowColor = "rgba(184,255,50,0.8)";
+    ctx.shadowBlur = circulo.r * 0.16;
+    ctx.stroke();
+    ctx.restore();
     e.anterior = area;
   }
 
   useImperativeHandle(
     ref,
     () => ({
-      revelar(ponto) {
+      revelar(ponto, toque = false) {
         const c = lanterna.current;
         if (!c || !pronta.current) return;
         estado.current.ponto = ponto;
+        estado.current.toque = toque;
         c.style.transition = "none";
         c.style.opacity = "1";
         if (mostrarDica) setMostrarDica(false);
@@ -188,7 +208,7 @@ export function FotoDesfocada({
     <div
       ref={caixa}
       role="img"
-      aria-label={`${descricao}. Prévia desfocada com marca d'água; passe o dedo ou o mouse sobre ela para ver por partes.`}
+      aria-label={`${descricao}. Prévia desfocada com marca d'água; toque e segure, ou passe o mouse, para ver um detalhe ampliado.`}
       onContextMenu={(e) => e.preventDefault()}
       className="relative size-full overflow-hidden rounded-xl bg-white/5 select-none"
     >

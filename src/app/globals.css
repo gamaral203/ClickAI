@@ -234,3 +234,17 @@ html.protegido .imagem-protegida {
 .cabecalho-escuro a[aria-current="page"]:not(:where(.bg-popover *)) {
   color: #fff;
 }
+
+/*
+ * Barra fixa de compra da página da foto no celular ([data-barra-compra]): o botão e a janela do
+ * chat sobem para não cobrir o "Adicionar ao carrinho". Do computador em diante, não há barra.
+ */
+@media (width < 64rem) {
+  body:has([data-barra-compra]) .chat-flutuante-botao {
+    bottom: 5.75rem;
+  }
+  body:has([data-barra-compra]) .chat-flutuante-janela {
+    bottom: 10.25rem;
+    max-height: calc(100dvh - 11.5rem);
+  }
+}
