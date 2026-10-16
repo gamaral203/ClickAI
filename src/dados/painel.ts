@@ -10,6 +10,7 @@ import { obterBanco } from "@/db";
 import { emProducao } from "@/db/conexao";
 import * as t from "@/db/schema";
 import { ehModeloMarca, MODELO_MARCA_PADRAO, type ModeloMarca } from "@/lib/marca-dagua";
+import type { AjustesDaMarca } from "@/lib/protecao-previas";
 
 import type { EscolhaLiberacao } from "@/lib/liberacao";
 
@@ -864,4 +865,100 @@ export async function modeloMarcaDoEvento(eventoId: string): Promise<ModeloMarca
     .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))
     .where(eq(t.eventos.id, eventoId));
   return linha && ehModeloMarca(linha.modelo) ? linha.modelo : MODELO_MARCA_PADRAO;
+}
+
+// ---------------------------------------------------------------- Marca d'água do fotógrafo
+
+/** Ajustes da marca de uma conta (Painel > Marca d'água), ou `null` sem nenhum. */
+export function ajustesDaMarcaDaConta(conta: {
+  marcaTamanhoPct?: number | null;
+  marcaQuantidade?: number | null;
+  marcaOpacidadePct?: number | null;
+}): AjustesDaMarca | null {
+  const ajustes = {
+    tamanhoPct: conta.marcaTamanhoPct ?? null,
+    quantidade: conta.marcaQuantidade ?? null,
+    opacidadePct: conta.marcaOpacidadePct ?? null,
+  };
+  return Object.values(ajustes).some((v) => v !== null) ? ajustes : null;
+}
+
+/** Grava os ajustes da marca do fotógrafo; `null` volta para os da gestão. */
+export async function salvarAjustesDaMarca(
+  fotografoId: string,
+  ajustes: { tamanhoPct: number; quantidade: number; opacidadePct: number } | null,
+) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotografos)
+    .set({
+      marcaTamanhoPct: ajustes?.tamanhoPct ?? null,
+      marcaQuantidade: ajustes?.quantidade ?? null,
+      marcaOpacidadePct: ajustes?.opacidadePct ?? null,
+    })
+    .where(eq(t.fotografos.id, fotografoId));
+}
+
+/**
+ * Modelo e ajustes da marca das fotos de um evento: os do dono do evento (também nas fotos que um
+ * colaborador envia, para a galeria ficar igual).
+ */
+export async function marcaDoDonoDoEvento(
+  eventoId: string,
+): Promise<{ modelo: ModeloMarca; ajustes: AjustesDaMarca | null }> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({
+      modelo: t.fotografos.modeloMarca,
+      marcaTamanhoPct: t.fotografos.marcaTamanhoPct,
+      marcaQuantidade: t.fotografos.marcaQuantidade,
+      marcaOpacidadePct: t.fotografos.marcaOpacidadePct,
+    })
+    .from(t.eventos)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, t.eventos.fotografoId))
+    .where(eq(t.eventos.id, eventoId));
+  return {
+    modelo: linha && ehModeloMarca(linha.modelo) ? linha.modelo : MODELO_MARCA_PADRAO,
+    ajustes: linha ? ajustesDaMarcaDaConta(linha) : null,
+  };
+}
+
+export type EventoDaPreviaDesfocada = {
+  id: string;
+  titulo: string;
+  inicioEm: string;
+  previaDesfocada: boolean;
+};
+
+/** Eventos do fotógrafo (só os dele, não os colaborados) com a opção da prévia desfocada. */
+export async function eventosDaPreviaDesfocada(
+  fotografoId: string,
+): Promise<EventoDaPreviaDesfocada[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      id: t.eventos.id,
+      titulo: t.eventos.titulo,
+      inicioEm: t.eventos.inicioEm,
+      previaDesfocada: t.eventos.previaDesfocada,
+    })
+    .from(t.eventos)
+    .where(and(eq(t.eventos.fotografoId, fotografoId), ne(t.eventos.status, "arquivado")))
+    .orderBy(desc(t.eventos.inicioEm));
+  return linhas.map((l) => ({ ...l, inicioEm: l.inicioEm.toISOString() }));
+}
+
+/** Liga ou desliga a prévia desfocada de um evento do fotógrafo; `false` se não é dele. */
+export async function definirPreviaDesfocada(
+  eventoId: string,
+  fotografoId: string,
+  ligada: boolean,
+): Promise<boolean> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .update(t.eventos)
+    .set({ previaDesfocada: ligada })
+    .where(and(eq(t.eventos.id, eventoId), eq(t.eventos.fotografoId, fotografoId)))
+    .returning({ id: t.eventos.id });
+  return linhas.length > 0;
 }

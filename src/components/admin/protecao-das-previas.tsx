@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Interruptor } from "@/components/ui/interruptor";
 import { formatarDataEHora, formatarPreco } from "@/lib/formatar";
 import { INFO_MODELOS_MARCA, MODELOS_MARCA, type ModeloMarca } from "@/lib/marca-dagua";
 import {
@@ -136,14 +137,12 @@ export function ProtecaoDasPrevias({ situacao }: { situacao: SituacaoDaProtecao 
           ))}
 
           <div className="flex items-start gap-3">
-            <input
+            <Interruptor
               id={idVariacao}
-              type="checkbox"
               name="variacao"
               checked={valores.variacao}
               onChange={(e) => setValores((atual) => ({ ...atual, variacao: e.target.checked }))}
               aria-describedby={`${idVariacao}-ajuda`}
-              className="mt-0.5 size-5 shrink-0 accent-primary"
             />
             <div className="flex flex-col gap-0.5">
               <label htmlFor={idVariacao} className="text-sm font-medium">

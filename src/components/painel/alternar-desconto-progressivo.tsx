@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Interruptor } from "@/components/ui/interruptor";
 
 import { definirDescontoProgressivoAcao } from "@/app/(fotografo)/painel/descontos/acoes";
 
@@ -33,12 +34,10 @@ export function AlternarDescontoProgressivo({
   return (
     <div className="flex flex-col gap-1">
       <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
+        <Interruptor
           checked={valor}
           disabled={salvando}
           onChange={(e) => mudar(e.target.checked)}
-          className="mt-0.5 size-5 shrink-0 accent-primary"
         />
         <span>
           <span className="font-medium">Desconto progressivo ligado neste evento</span>

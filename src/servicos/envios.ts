@@ -25,7 +25,7 @@ import {
   hashesDoEvento,
   listarFotosParadas,
   marcarFotoComErro,
-  modeloMarcaDoEvento,
+  marcaDoDonoDoEvento,
   pastaDoEventoDoDono,
   registrarFotosEmEnvio,
   reservarFotoParaProcessar,
@@ -47,6 +47,7 @@ import {
 } from "@/lib/limites-envio";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
 import { sufixoDaVersao } from "@/lib/marca-dagua";
+import { aplicarAjustesDaMarca } from "@/lib/protecao-previas";
 import {
   abrirEnvioEmPartes,
   ERRO_SEM_ARMAZENAMENTO,
@@ -580,10 +581,12 @@ export async function confirmarEnvio(
 
     // Prévias geradas aqui, no servidor, sempre com marca d'água (no modelo do dono do evento,
     // com a configuração global em vigor e o desenho próprio da foto): nunca vindas do navegador.
-    const [modelo, marca] = await Promise.all([
-      modeloMarcaDoEvento(foto.eventoId),
+    const [{ modelo, ajustes }, configGlobal] = await Promise.all([
+      marcaDoDonoDoEvento(foto.eventoId),
       configuracaoDaMarca(),
     ]);
+    // Os ajustes do fotógrafo (Painel > Marca d'água) por cima da configuração da gestão.
+    const marca = aplicarAjustesDaMarca(configGlobal, ajustes);
     let versoes;
     try {
       versoes = await gerarVersoes(original, modelo, { semente: foto.id, config: marca });
@@ -716,10 +719,12 @@ async function confirmarVideo(
 
     await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
     movido = true;
-    const [modelo, marca] = await Promise.all([
-      modeloMarcaDoEvento(foto.eventoId),
+    const [{ modelo, ajustes }, configGlobal] = await Promise.all([
+      marcaDoDonoDoEvento(foto.eventoId),
       configuracaoDaMarca(),
     ]);
+    // Os ajustes do fotógrafo (Painel > Marca d'água) por cima da configuração da gestão.
+    const marca = aplicarAjustesDaMarca(configGlobal, ajustes);
     const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     let preparado;
     try {

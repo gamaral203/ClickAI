@@ -11,6 +11,7 @@ import {
 import { enviarSemLimpar } from "@/lib/formulario";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Interruptor } from "@/components/ui/interruptor";
 
 import { AvisoSalvo, Campo, Escolha, propsDeErro } from "./campos";
 
@@ -347,13 +348,8 @@ function FormularioCupom({
       </fieldset>
 
       <label className="flex items-center gap-3 text-sm">
-        <input
-          type="checkbox"
-          name="ativo"
-          defaultChecked={cupom?.ativo ?? true}
-          className="size-5 accent-primary"
-        />
-        Cupom ativo (desmarque para pausar sem apagar)
+        <Interruptor name="ativo" defaultChecked={cupom?.ativo ?? true} />
+        Cupom ativo (desligue para pausar sem apagar)
       </label>
 
       <Button type="submit" size="touch" className="w-fit" disabled={salvando}>

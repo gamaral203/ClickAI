@@ -43,8 +43,8 @@ export function TopCliques({
             Top Cliques
           </h2>
           <p className="text-sm text-muted-foreground">
-            Ranking da equipe deste evento. Só contam vendas pagas (estornos ficam de fora). Todos da
-            equipe aparecem com nome e foto.
+            Ranking da equipe deste evento. Só contam vendas pagas (estornos ficam de fora). Todos
+            da equipe aparecem com nome e foto.
           </p>
         </div>
         <div role="group" aria-label="Ordenar por" className="flex rounded-lg bg-muted p-1 text-sm">

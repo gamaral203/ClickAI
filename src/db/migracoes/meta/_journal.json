@@ -316,6 +316,13 @@
       "when": 1792167490860,
       "tag": "0044_codigo_por_email",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792182379746,
+      "tag": "0045_ajustes_da_marca",
+      "breakpoints": true
     }
   ]
 }

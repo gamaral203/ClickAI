@@ -43,7 +43,6 @@ const PADRAO = {
   liberacao: "automatica",
   liberadoEm: "",
   filtroHorario: false,
-  previaDesfocada: false,
   listarNaoIdentificadas: false,
   // Segue a categoria escolhida (src/lib/numeros-de-peito.ts).
   lerNumeros: null,
@@ -138,7 +137,6 @@ async function Formulario({
                 visibilidade: modelo.config.visibilidade,
                 liberacao: modelo.config.liberacao,
                 filtroHorario: modelo.config.filtroHorario,
-                previaDesfocada: modelo.config.previaDesfocada ?? false,
                 listarNaoIdentificadas: modelo.config.listarNaoIdentificadas,
                 // Modelo anterior à opção: segue a categoria.
                 lerNumeros: modelo.config.lerNumeros ?? null,
