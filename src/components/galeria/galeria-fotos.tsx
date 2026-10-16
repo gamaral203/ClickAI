@@ -56,6 +56,8 @@ type Props = {
    * usa a seleção, mas quem pode comprar compra pelo visualizador.
    */
   compraNoVisualizador?: boolean;
+  /** Opção do evento: o visualizador mostra a prévia desfocada com o círculo de revelação. */
+  previaDesfocada?: boolean;
   /** Nome público de quem fez cada foto, por `enviadaPor` (o visualizador mostra o autor). */
   autores?: Record<string, string>;
 };
@@ -109,6 +111,7 @@ export function GaleriaFotos({
   precoVideoPadraoCentavos = null,
   podeComprar = false,
   compraNoVisualizador = podeComprar,
+  previaDesfocada = false,
   autores = SEM_AUTORES,
 }: Props) {
   const router = useRouter();
@@ -456,6 +459,7 @@ export function GaleriaFotos({
           autores={autores}
           precoDe={precoDe}
           podeComprar={compraNoVisualizador}
+          previaDesfocada={previaDesfocada}
           origem={visualizador.origem}
           retanguloDaMiniatura={retanguloDaMiniatura}
           fechando={fechando}

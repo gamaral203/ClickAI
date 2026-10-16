@@ -139,6 +139,8 @@ export type Evento = {
   /** Horário padrão da liberação agendada (só vale com `liberacao` agendada). */
   liberadoEm: string | null;
   filtroHorario: boolean;
+  /** Prévia desfocada com o círculo de revelação (opção do evento; padrão: desligada). */
+  previaDesfocada?: boolean;
   listarNaoIdentificadas: boolean;
   ordenacao: Ordenacao;
   /** `false`: as faixas de desconto progressivo não valem neste evento (sem o campo, valem). */
@@ -223,6 +225,7 @@ export type ConfigModelo = Pick<
   | "liberacao"
   | "filtroHorario"
   | "listarNaoIdentificadas"
+  | "previaDesfocada"
   | "ordenacao"
   | "lerNumeros"
 >;

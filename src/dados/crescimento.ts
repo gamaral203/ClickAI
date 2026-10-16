@@ -272,6 +272,7 @@ export function configDoEvento(evento: Evento): ConfigModelo {
     liberacao: evento.liberacao === "agendada" ? "automatica" : evento.liberacao,
     filtroHorario: evento.filtroHorario,
     listarNaoIdentificadas: evento.listarNaoIdentificadas,
+    previaDesfocada: evento.previaDesfocada ?? false,
     ordenacao: evento.ordenacao,
     lerNumeros: evento.lerNumeros ?? false,
   };

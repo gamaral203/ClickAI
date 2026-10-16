@@ -214,6 +214,7 @@ async function Galeria({
       temNumeros={Boolean(evento.lerNumeros) || temNumeros}
       podeComprar={compra}
       precoFotoCentavos={evento.precoFotoCentavos}
+      previaDesfocada={Boolean(evento.previaDesfocada)}
     />
   );
   // Evento com vídeos: duas abas, Fotos (padrão) e Vídeos, para achar os vídeos mais fácil.
@@ -287,6 +288,7 @@ async function Galeria({
         tituloEvento={evento.titulo}
         fotos={paginaDeFotos.fotos}
         podeComprar={compra}
+        previaDesfocada={Boolean(evento.previaDesfocada)}
         precoPadraoCentavos={evento.precoFotoCentavos}
         precoVideoPadraoCentavos={evento.precoVideoCentavos}
         autores={Object.fromEntries([...autores].map(([id, a]) => [id, a.nome]))}
