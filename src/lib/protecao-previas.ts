@@ -175,19 +175,28 @@ export function estimarRegeracao(fotos: number): EstimativaRegeracao {
 // ---------------------------------------------------------------- Ajustes do fotógrafo
 
 /**
- * O que o fotógrafo ajusta na própria marca (Painel > Marca d'água): tamanho, quantidade e
- * opacidade das logos, por cima da configuração da gestão. Resolução, qualidade e variação ficam
- * só com a gestão. `null` em um campo: vale o da gestão.
+ * O que o fotógrafo ajusta na própria marca (Painel > Marca d'água), por cima da configuração da
+ * gestão: tudo o que a gestão ajusta menos a qualidade da compressão (que só a gestão mexe, pelo
+ * custo e pelo cuidado com o armazenamento). `null` em um campo: vale o da gestão.
  */
-export const CAMPOS_AJUSTE_MARCA = ["tamanhoPct", "quantidade", "opacidadePct"] as const;
+export const CAMPOS_AJUSTE_MARCA = [
+  "tamanhoPct",
+  "quantidade",
+  "opacidadePct",
+  "larguraPrevia",
+] as const;
 export type CampoAjusteMarca = (typeof CAMPOS_AJUSTE_MARCA)[number];
-export type AjustesDaMarca = { [C in CampoAjusteMarca]?: number | null };
+export type AjustesDaMarca = { [C in CampoAjusteMarca]?: number | null } & {
+  variacao?: boolean | null;
+};
 
 /** Validação dos ajustes do fotógrafo: os mesmos limites da gestão (a marca nunca some). */
 export const esquemaAjustesMarca = esquemaConfigMarca.pick({
   tamanhoPct: true,
   quantidade: true,
   opacidadePct: true,
+  larguraPrevia: true,
+  variacao: true,
 });
 
 /**
@@ -210,5 +219,7 @@ export function aplicarAjustesDaMarca<T extends ConfigMarca>(
     tamanhoPct: valor("tamanhoPct"),
     quantidade: valor("quantidade"),
     opacidadePct: valor("opacidadePct"),
+    larguraPrevia: valor("larguraPrevia"),
+    variacao: typeof ajustes.variacao === "boolean" ? ajustes.variacao : config.variacao,
   };
 }

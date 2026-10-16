@@ -323,6 +323,13 @@
       "when": 1792182379746,
       "tag": "0045_ajustes_da_marca",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792183934738,
+      "tag": "0046_ajustes_da_marca_completos",
+      "breakpoints": true
     }
   ]
 }

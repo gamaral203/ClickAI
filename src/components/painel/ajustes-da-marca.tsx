@@ -8,6 +8,7 @@ import {
   type ValoresDosAjustes,
 } from "@/app/(fotografo)/painel/marca-dagua/acoes";
 import { Button } from "@/components/ui/button";
+import { Interruptor } from "@/components/ui/interruptor";
 import { INFO_MODELOS_MARCA, type ModeloMarca } from "@/lib/marca-dagua";
 import { LIMITES_MARCA, type CampoAjusteMarca } from "@/lib/protecao-previas";
 
@@ -38,6 +39,13 @@ const CONTROLES: {
     unidade: "%",
     passo: 1,
     ajuda: "Mais forte é mais difícil de apagar, e mais aparece.",
+  },
+  {
+    campo: "larguraPrevia",
+    rotulo: "Resolução máxima da prévia",
+    unidade: " px",
+    passo: 40,
+    ajuda: "Lado maior da prévia na página da foto. Menor protege mais; maior mostra mais detalhe.",
   },
 ];
 
@@ -71,6 +79,8 @@ export function AjustesDaMarca({
         tamanhoPct: String(valores.tamanhoPct),
         quantidade: String(valores.quantidade),
         opacidadePct: String(valores.opacidadePct),
+        larguraPrevia: String(valores.larguraPrevia),
+        variacao: valores.variacao ? "1" : "0",
       });
       setCarregando(true);
       setSrc(`/painel/marca-dagua/amostra/${modelo}?${busca}`);
@@ -102,8 +112,9 @@ export function AjustesDaMarca({
           Ajustar a marca
         </h2>
         <p className="text-sm text-muted-foreground">
-          Deixe as marcas do modelo <strong>{INFO_MODELOS_MARCA[modelo].nome}</strong> maiores, em
-          maior número ou mais fortes. Vale para as próximas fotos que você enviar.
+          Ajuste as marcas do modelo <strong>{INFO_MODELOS_MARCA[modelo].nome}</strong>: tamanho,
+          quantidade, força, resolução da prévia e variação. Vale para as próximas fotos que você
+          enviar.
         </p>
       </div>
 
@@ -117,6 +128,19 @@ export function AjustesDaMarca({
               aoMudar={(v) => setValores((atual) => ({ ...atual, [c.campo]: v }))}
             />
           ))}
+          <label className="flex items-start gap-3 text-sm">
+            <Interruptor
+              checked={valores.variacao}
+              onChange={(e) => setValores((atual) => ({ ...atual, variacao: e.target.checked }))}
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Variar o desenho de cada foto</span>
+              <span className="text-xs text-muted-foreground">
+                Posição, tamanho, giro e força de cada logo mudam de uma foto para outra. Desligado,
+                todas as fotos ficam com o mesmo desenho, o que facilita apagar a marca em lote.
+              </span>
+            </span>
+          </label>
           {aviso && (
             <p
               role={aviso.erro ? "alert" : "status"}
@@ -210,7 +234,7 @@ function Deslizante({
           {rotulo}
         </label>
         <output htmlFor={id} className="text-sm font-semibold tabular-nums">
-          {valor}
+          {valor.toLocaleString("pt-BR")}
           {unidade}
         </output>
       </div>

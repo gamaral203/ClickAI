@@ -293,6 +293,8 @@ export const fotografos = pgTable(
     marcaTamanhoPct: integer(),
     marcaQuantidade: integer(),
     marcaOpacidadePct: integer(),
+    marcaLarguraPrevia: integer(),
+    marcaVariacao: boolean(),
     /**
      * Conta de demonstração (vídeos e tutoriais, src/servicos/demonstracao.ts): vendas fictícias,
      * sem saque, fora dos rankings e dos números da gestão.

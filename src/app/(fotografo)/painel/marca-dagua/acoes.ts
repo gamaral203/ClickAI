@@ -18,10 +18,17 @@ export async function escolherModeloMarcaAcao(modelo: unknown): Promise<{ erro?:
   return {};
 }
 
-export type ValoresDosAjustes = { tamanhoPct: number; quantidade: number; opacidadePct: number };
+export type ValoresDosAjustes = {
+  tamanhoPct: number;
+  quantidade: number;
+  opacidadePct: number;
+  larguraPrevia: number;
+  variacao: boolean;
+};
 
 /**
- * Salva os ajustes da marca do fotógrafo (tamanho, quantidade e opacidade), nos limites da gestão;
+ * Salva os ajustes da marca do fotógrafo (tamanho, quantidade, opacidade, resolução e variação),
+ * nos limites da gestão;
  * `null` volta para os valores da gestão. Valem para as próximas fotos, como o modelo.
  */
 export async function salvarAjustesDaMarcaAcao(
