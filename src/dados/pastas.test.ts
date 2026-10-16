@@ -12,6 +12,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import {
+  adicionarColaborador,
   adicionarItensSimulados,
   criarEvento,
   criarPasta,
@@ -19,12 +20,15 @@ import {
   listarFotosDoEvento,
   listarOpcoesGaleria,
   listarPastasDoPainel,
+  listarPastasDoPainelOuColaborador,
   moverItensParaPasta,
+  moverItensParaPastaOuColaborador,
   moverPasta,
   mudarStatusDoEvento,
   pastaDoEventoDoDono,
   renomearPasta,
   reordenarPasta,
+  responderConvite,
   type Pasta,
 } from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
@@ -320,5 +324,58 @@ describe("subpastas: até 2 níveis", () => {
     const arvore = await listarPastasDoPainel(evento.id, lia.id);
     expect(arvore?.map((p) => p.caminho)).toEqual(["Largada", "Largada › Bateria 1"]);
     expect(await pastaDasFotos([fotos[0].id])).toEqual(new Set([largada.id]));
+  });
+
+  it("colaborador com convite aceito vê as pastas e move só as fotos que enviou", async () => {
+    const evento = await novoEvento();
+    const outroEvento = await novoEvento();
+    const largada = await pasta(evento.id, "Largada");
+    const deFora = await pasta(outroEvento.id, "De fora");
+    const daDona = await enviar(evento.id, 1);
+
+    expect(
+      await adicionarColaborador(evento.id, lia.id, {
+        fotografoId: outro.id,
+        comissaoDonoPct: 10,
+        nota: null,
+      }),
+    ).toBe("ok");
+    // Convite pendente: ainda não vê nem move.
+    expect(await listarPastasDoPainelOuColaborador(evento.id, outro.id)).toBeNull();
+
+    const banco = await obterBanco();
+    const [convite] = await banco
+      .select({ id: t.colaboradores.id })
+      .from(t.colaboradores)
+      .where(eq(t.colaboradores.eventoId, evento.id));
+    expect(await responderConvite(convite.id, outro.id, true)).toBe(true);
+
+    const arvore = await listarPastasDoPainelOuColaborador(evento.id, outro.id);
+    expect(arvore?.map((p) => p.caminho)).toEqual(["Largada"]);
+    // O painel do dono continua só do dono.
+    expect(await listarPastasDoPainel(evento.id, outro.id)).toBeNull();
+
+    const minhas = (await adicionarItensSimulados(evento.id, outro.id, [
+      { nome: "COLAB.jpg", tamanhoBytes: 1000 },
+    ]))!;
+    expect(await moverItensParaPastaOuColaborador([minhas[0].id], largada.id, outro.id)).toBe(
+      true,
+    );
+    expect(await pastaDasFotos([minhas[0].id])).toEqual(new Set([largada.id]));
+    // Foto da dona, pasta de outro evento ou mistura: recusado.
+    expect(await moverItensParaPastaOuColaborador([daDona[0].id], largada.id, outro.id)).toBe(
+      false,
+    );
+    expect(
+      await moverItensParaPastaOuColaborador([minhas[0].id, daDona[0].id], null, outro.id),
+    ).toBe(false);
+    expect(await moverItensParaPastaOuColaborador([minhas[0].id], deFora.id, outro.id)).toBe(
+      false,
+    );
+    // Gerenciar pastas continua só da dona.
+    expect(await renomearPasta(largada.id, outro.id, "Trocada")).toBe(false);
+    expect(await excluirPasta(largada.id, outro.id)).toBeNull();
+    // A dona move qualquer foto do evento, inclusive a do colaborador.
+    expect(await moverItensParaPastaOuColaborador([minhas[0].id], null, lia.id)).toBe(true);
   });
 });

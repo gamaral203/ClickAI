@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   criarPasta,
   excluirPasta,
-  moverItensParaPasta,
+  moverItensParaPastaOuColaborador,
   moverPasta,
   renomearPasta,
   reordenarPasta,
@@ -89,15 +89,19 @@ export async function excluirPastaAcao(pastaId: string): Promise<Resultado> {
   return {};
 }
 
-/** Move itens para uma pasta ou subpasta do mesmo evento, ou tira da pasta (`pastaId` nulo). */
+/**
+ * Move itens para uma pasta ou subpasta do mesmo evento, ou tira da pasta (`pastaId` nulo). O
+ * dono move qualquer item do evento; o colaborador com o convite aceito, só os que ele enviou.
+ */
 export async function moverParaPastaAcao(fotoIds: unknown, pastaId: unknown): Promise<Resultado> {
   const { conta } = await exigirFotografo("/painel/eventos");
   const ids = z.array(id).min(1).max(500).safeParse(fotoIds);
   const pasta = id.nullable().safeParse(pastaId);
   if (!ids.success || !pasta.success) return { erro: "Não foi possível mover." };
-  if (!(await moverItensParaPasta(ids.data, pasta.data, conta.id))) {
+  if (!(await moverItensParaPastaOuColaborador(ids.data, pasta.data, conta.id))) {
     return { erro: "Não foi possível mover." };
   }
   revalidar();
+  revalidatePath("/painel/colaboracoes");
   return {};
 }
