@@ -1,0 +1,1 @@
+ALTER TABLE "eventos" ADD COLUMN "previa_desfocada" boolean DEFAULT false NOT NULL;

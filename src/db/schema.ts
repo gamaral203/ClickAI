@@ -368,6 +368,11 @@ export const eventos = pgTable(
     liberadoEm: data(),
     filtroHorario: boolean().notNull().default(false),
     listarNaoIdentificadas: boolean().notNull().default(false),
+    /**
+     * Prévia desfocada com o círculo de revelação no visualizador e na página da foto. Opcional:
+     * desligada, o cliente vê a prévia nítida com a marca d'água (o fotógrafo escolhe por evento).
+     */
+    previaDesfocada: boolean().notNull().default(false),
     ordenacao: ordenacao().notNull().default("captura"),
     /** Desligado, as faixas de desconto progressivo não valem neste evento. */
     descontoProgressivo: boolean().notNull().default(true),
