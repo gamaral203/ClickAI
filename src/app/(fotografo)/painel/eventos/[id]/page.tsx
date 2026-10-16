@@ -566,6 +566,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     liberacao: evento.liberacao,
                     liberadoEm: evento.liberadoEm ? isoParaCampo(evento.liberadoEm) : "",
                     filtroHorario: evento.filtroHorario,
+                    previaDesfocada: evento.previaDesfocada ?? false,
                     listarNaoIdentificadas: evento.listarNaoIdentificadas,
                     lerNumeros: evento.lerNumeros ?? false,
                     ordenacao: evento.ordenacao,

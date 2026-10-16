@@ -37,6 +37,7 @@ export type ValoresEvento = {
   liberacao: "automatica" | "manual" | "agendada";
   liberadoEm: string;
   filtroHorario: boolean;
+  previaDesfocada: boolean;
   listarNaoIdentificadas: boolean;
   /**
    * Ler o número de peito nas fotos. `null` (evento novo): segue a categoria escolhida
@@ -373,6 +374,21 @@ export function FormularioEvento({
             <Opcao nome="listarNaoIdentificadas" marcado={inicial.listarNaoIdentificadas}>
               Mostrar a lista de fotos sem rosto ou número identificado
             </Opcao>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                name="previaDesfocada"
+                defaultChecked={inicial.previaDesfocada}
+                className="mt-0.5 size-5 shrink-0 accent-primary"
+              />
+              <span className="flex flex-col gap-0.5">
+                Prévia desfocada com círculo de revelação
+                <span className="text-muted-foreground">
+                  Ao abrir uma foto, o cliente a vê desfocada e revela partes com o dedo ou o mouse.
+                  Desligado, vê a prévia nítida com a marca d&apos;água.
+                </span>
+              </span>
+            </label>
             <label className="flex items-start gap-3 text-sm">
               <input
                 type="checkbox"

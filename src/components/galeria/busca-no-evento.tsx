@@ -46,6 +46,7 @@ export function BuscaNoEvento({
   temNumeros,
   podeComprar = true,
   precoFotoCentavos = null,
+  previaDesfocada = false,
 }: {
   slug: string;
   tituloEvento: string;
@@ -55,6 +56,8 @@ export function BuscaNoEvento({
   podeComprar?: boolean;
   /** Preço do evento para foto sem preço próprio (o visualizador mostra no "Comprar"). */
   precoFotoCentavos?: number | null;
+  /** Opção do evento: o visualizador mostra a prévia desfocada com o círculo de revelação. */
+  previaDesfocada?: boolean;
 }) {
   const [aba, setAba] = useState<"selfie" | "numero">("selfie");
   const [dialogoAberto, setDialogoAberto] = useState(false);
@@ -318,6 +321,7 @@ export function BuscaNoEvento({
               fotos={resultado.fotos}
               recortes={resultado.recortes}
               compraNoVisualizador={podeComprar}
+              previaDesfocada={previaDesfocada}
               precoPadraoCentavos={precoFotoCentavos}
             />
           )}

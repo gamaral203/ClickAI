@@ -80,6 +80,11 @@ type Props = {
   autores: Record<string, string>;
   precoDe: (foto: Foto) => number | null;
   podeComprar: boolean;
+  /**
+   * Opção do evento: prévia desfocada com o círculo de revelação. Desligada (padrão), a prévia
+   * aparece nítida, com a marca d'água, e tocar na foto só serve para os gestos.
+   */
+  previaDesfocada?: boolean;
   /** Onde estava a miniatura tocada, para o zoom de abertura (`null`: só aparece). */
   origem: Retangulo | null;
   /** Onde está a miniatura de uma foto na grade agora (para fechar voltando a ela). */
@@ -129,6 +134,7 @@ export function VisualizadorFoto({
   autores: autoresIniciais,
   precoDe,
   podeComprar,
+  previaDesfocada = false,
   origem,
   retanguloDaMiniatura,
   fechando,
@@ -555,6 +561,7 @@ export function VisualizadorFoto({
                   partida={abertura?.id === foto.id ? abertura.origem : null}
                   refImagem={imagemAtual}
                   lanterna={lanterna}
+                  desfocada={previaDesfocada}
                   dica={
                     telaEstreita
                       ? "Toque e segure para revelar um detalhe da foto"
@@ -609,8 +616,10 @@ export function VisualizadorFoto({
             <AvisoVendoComoFotografo />
           )}
           <p className="hidden text-xs leading-relaxed text-white/70 md:block">
-            Aqui a prévia fica desfocada e com a marca do ClicouAí. Comprando, você recebe a foto
-            inteira, em alta resolução e sem marca d&apos;água.
+            {previaDesfocada
+              ? "Aqui a prévia fica desfocada e com a marca do ClicouAí."
+              : "Aqui a prévia tem a marca do ClicouAí."}{" "}
+            Comprando, você recebe a foto inteira, em alta resolução e sem marca d&apos;água.
           </p>
           {aviso && (
             <p role="status" className="hidden text-sm text-white/85 md:block">
@@ -684,6 +693,7 @@ function Slide({
   partida,
   refImagem,
   lanterna,
+  desfocada,
   dica,
 }: {
   foto: Foto;
@@ -695,6 +705,7 @@ function Slide({
   partida: Retangulo | null;
   refImagem: React.RefObject<HTMLDivElement | null>;
   lanterna: React.RefObject<ControleDaLanterna | null>;
+  desfocada: boolean;
   dica: string;
 }) {
   const interno = useRef<HTMLDivElement>(null);
@@ -745,16 +756,28 @@ function Slide({
         style={{ width: tamanho.largura, height: tamanho.altura }}
       >
         <div ref={interno} className="size-full">
-          <FotoDesfocada
-            ref={presente ? lanterna : undefined}
-            id={foto.id}
-            src={src}
-            miniatura={foto.urlMiniatura}
-            descricao={descricao}
-            tamanho={tamanho}
-            reduzir={reduzir}
-            dica={dica}
-          />
+          {desfocada ? (
+            <FotoDesfocada
+              ref={presente ? lanterna : undefined}
+              id={foto.id}
+              src={src}
+              miniatura={foto.urlMiniatura}
+              descricao={descricao}
+              tamanho={tamanho}
+              reduzir={reduzir}
+              dica={dica}
+            />
+          ) : (
+            // Opção desligada no evento: a prévia nítida, com a marca d'água nos pixels.
+            // eslint-disable-next-line @next/next/no-img-element -- prévia protegida, sem otimizador
+            <img
+              src={src}
+              alt={descricao}
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              className="size-full rounded-xl object-contain imagem-protegida select-none"
+            />
+          )}
         </div>
       </div>
     </motion.div>

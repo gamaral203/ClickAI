@@ -295,6 +295,13 @@
       "when": 1792082170839,
       "tag": "0041_saques_de_teste",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792164608357,
+      "tag": "0042_previa_desfocada",
+      "breakpoints": true
     }
   ]
 }

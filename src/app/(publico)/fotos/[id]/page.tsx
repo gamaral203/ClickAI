@@ -117,14 +117,20 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
                 aria-label={`Prévia do vídeo de ${evento.titulo}`}
                 className="absolute inset-0 size-full bg-black object-contain"
               />
-            ) : (
-              // Desfocada, com a lupa (a mesma do visualizador da galeria): nunca a prévia
-              // inteira nítida.
+            ) : evento.previaDesfocada ? (
+              // Opção do evento: desfocada, com o círculo de revelação (o mesmo do visualizador
+              // da galeria); nunca a prévia inteira nítida.
               <PreviaComLupa
                 id={foto.id}
                 urlPrevia={foto.urlPrevia}
                 urlPreviaCelular={foto.urlPreviaCelular ?? null}
                 urlMiniatura={foto.urlMiniatura}
+                descricao={descricao}
+              />
+            ) : (
+              <PreviaNitida
+                urlPrevia={foto.urlPrevia}
+                urlPreviaCelular={foto.urlPreviaCelular ?? null}
                 descricao={descricao}
               />
             )}
@@ -138,7 +144,9 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
           <figcaption className="text-xs text-muted-foreground sm:text-sm">
             {foto.tipo === "video"
               ? "Prévia do vídeo inteiro com marca d'água. O original sai sem marca, no tamanho enviado."
-              : "Prévia desfocada e com marca d'água. Comprando, você recebe a foto inteira, em alta resolução e sem marca."}
+              : evento.previaDesfocada
+                ? "Prévia desfocada e com marca d'água. Comprando, você recebe a foto inteira, em alta resolução e sem marca."
+                : "Prévia com marca d'água. O original sai sem marca e em alta resolução."}
           </figcaption>
         </figure>
 
@@ -259,5 +267,33 @@ function EsqueletoFoto() {
         <div className="h-40 animate-pulse rounded-xl bg-muted" />
       </div>
     </div>
+  );
+}
+
+/**
+ * Prévia nítida com a marca d'água (evento sem a prévia desfocada). No celular vai a versão de
+ * 1000 px (urlPreviaCelular), quando existe; as imagens não passam pelo otimizador (next.config),
+ * então a troca é por <picture>, que só baixa a versão da tela.
+ */
+function PreviaNitida({
+  urlPrevia,
+  urlPreviaCelular,
+  descricao,
+}: {
+  urlPrevia: string;
+  urlPreviaCelular: string | null;
+  descricao: string;
+}) {
+  return (
+    <picture>
+      <source media="(min-width: 768px)" srcSet={urlPrevia} />
+      <img
+        src={urlPreviaCelular ?? urlPrevia}
+        alt={descricao}
+        draggable={false}
+        fetchPriority="high"
+        className="absolute inset-0 size-full object-contain imagem-protegida"
+      />
+    </picture>
   );
 }
