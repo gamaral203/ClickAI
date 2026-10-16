@@ -8,7 +8,6 @@ import {
   fonteDaCaixa,
   lenteDaRevelacao,
   sementeDoId,
-  ZOOM_DA_LENTE,
   tamanhoDaBase,
 } from "./desfoque";
 
@@ -43,9 +42,9 @@ describe("circuloDaRevelacao", () => {
     ).toBeNull();
   });
 
-  it("o diâmetro fica perto de 50% da largura", () => {
+  it("o diâmetro fica perto de 64% da largura", () => {
     const c = circuloDaRevelacao({ x: 300, y: 200 }, caixa, canvas)!;
-    expect((2 * c.r) / canvas.largura).toBeCloseTo(0.5);
+    expect((2 * c.r) / canvas.largura).toBeCloseTo(0.64);
   });
 });
 
@@ -113,35 +112,39 @@ describe("lenteDaRevelacao", () => {
   const caixa = { x: 100, y: 50, largura: 400, altura: 300 };
   const canvas = { largura: 800, altura: 600 };
   const imagem = { largura: 1600, altura: 1200 };
+  const opcoes = (toque: boolean) => ({ toque, fracao: 0.25 });
 
-  it("no mouse, centrada no cursor e ampliada", () => {
-    const l = lenteDaRevelacao({ x: 300, y: 200 }, caixa, canvas, imagem, { toque: false })!;
+  it("no mouse, centrado no cursor, mostrando sem zoom o que está atrás dele", () => {
+    const l = lenteDaRevelacao({ x: 300, y: 200 }, caixa, canvas, imagem, opcoes(false))!;
     expect(l.circulo).toEqual({ x: 400, y: 300, r: 200 });
-    // A fonte é menor que o círculo na mesma proporção do zoom, centrada no cursor.
-    expect(l.fonte.sw).toBeCloseTo(((2 * 200) / ZOOM_DA_LENTE) * 2);
-    expect(l.fonte.sx + l.fonte.sw / 2).toBeCloseTo(800);
-    expect(l.fonte.sy + l.fonte.sh / 2).toBeCloseTo(600);
     expect(l.destino).toEqual({ x: 200, y: 100, largura: 400, altura: 400 });
+    // O mesmo quadrado na escala da prévia (2x): nada ampliado.
+    expect(l.fonte).toEqual({ sx: 400, sy: 200, sw: 800, sh: 800 });
   });
 
-  it("no toque, sobe para o dedo não tapar, mas a fonte continua sob o dedo", () => {
-    const l = lenteDaRevelacao({ x: 300, y: 250 }, caixa, canvas, imagem, { toque: true })!;
-    // Sob o dedo: y 400 no canvas. A lupa sobe até a borda de baixo dela ficar acima do dedo,
-    // sem sair do canvas.
+  it("no toque, sobe para o dedo não tapar e mostra o que está atrás do círculo", () => {
+    const l = lenteDaRevelacao({ x: 300, y: 250 }, caixa, canvas, imagem, opcoes(true))!;
+    // Sob o dedo: y 400 no canvas. O círculo sobe até a borda de baixo ficar acima do dedo.
     expect(l.circulo.y + l.circulo.r).toBeLessThanOrEqual(400);
     expect(l.circulo.y).toBeGreaterThanOrEqual(l.circulo.r);
-    expect(l.fonte.sy + l.fonte.sh / 2).toBeCloseTo(800);
+    expect(l.fonte.sy).toBeCloseTo((l.circulo.y - l.circulo.r) * 2);
+    expect(l.fonte.sh).toBeCloseTo(l.circulo.r * 4);
   });
 
   it("perto da borda, encosta nela em vez de cortar", () => {
-    const l = lenteDaRevelacao({ x: 101, y: 51 }, caixa, canvas, imagem, { toque: true })!;
+    const l = lenteDaRevelacao({ x: 101, y: 51 }, caixa, canvas, imagem, opcoes(true))!;
     expect(l.circulo.x).toBe(l.circulo.r);
     expect(l.circulo.y).toBe(l.circulo.r);
     expect(l.fonte.sx).toBe(0);
     expect(l.fonte.sy).toBe(0);
   });
 
+  it("o raio padrão é maior que o antigo (25% da largura)", () => {
+    const l = lenteDaRevelacao({ x: 300, y: 200 }, caixa, canvas, imagem, { toque: false })!;
+    expect(l.circulo.r).toBeGreaterThan(0.25 * canvas.largura);
+  });
+
   it("fora da foto, nada", () => {
-    expect(lenteDaRevelacao({ x: 50, y: 50 }, caixa, canvas, imagem, { toque: true })).toBeNull();
+    expect(lenteDaRevelacao({ x: 50, y: 50 }, caixa, canvas, imagem, opcoes(true))).toBeNull();
   });
 });

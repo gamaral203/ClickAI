@@ -27,10 +27,10 @@ export type ControleDaLanterna = {
 
 /**
  * Foto do visualizador, sempre desfocada: a base é a prévia (com marca d'água) desfocada e
- * pixelada no navegador; a "lanterna" é uma lupa: desenha, num canvas por cima, um círculo com o
- * pedaço da prévia sob o dedo (ou o mouse) ampliado, de borda suave e com um brilho em volta.
- * No toque, o círculo fica acima do dedo (src/lib/desfoque.ts, lenteDaRevelacao). A prévia nunca aparece nítida inteira: o círculo
- * é desenhado pelo código e, sem ele, o canvas fica vazio (não há máscara de CSS que, sem
+ * pixelada no navegador; a "lanterna" desenha, num canvas por cima, um círculo com o pedaço da
+ * prévia atrás dele nítido (sem zoom), de borda suave e com um brilho em volta. No toque, o
+ * círculo fica acima do dedo (src/lib/desfoque.ts, lenteDaRevelacao). A prévia nunca aparece
+ * nítida inteira: o círculo é desenhado pelo código e, sem ele, o canvas fica vazio (não há máscara de CSS que, sem
  * suporte do navegador, deixaria a imagem inteira à mostra).
  *
  * O círculo é redesenhado num requestAnimationFrame, fora do React (sem re-render a cada
@@ -208,7 +208,7 @@ export function FotoDesfocada({
     <div
       ref={caixa}
       role="img"
-      aria-label={`${descricao}. Prévia desfocada com marca d'água; toque e segure, ou passe o mouse, para ver um detalhe ampliado.`}
+      aria-label={`${descricao}. Prévia desfocada com marca d'água; toque e segure, ou passe o mouse, para ver um detalhe nítido.`}
       onContextMenu={(e) => e.preventDefault()}
       className="relative size-full overflow-hidden rounded-xl bg-white/5 select-none"
     >
