@@ -245,16 +245,47 @@ export async function enviarCodigoDeAcessoDoGestor(
   nome: string,
   codigo: string,
   expiraEm: number,
+  /** `false`: login de quem ligou a verificação em duas etapas (não é da gestão). */
+  gestor = true,
+) {
+  const onde = gestor ? "na gestão do ClicouAí" : "no ClicouAí";
+  return enviarComSegredo(
+    {
+      para,
+      assunto: gestor
+        ? `Seu código ClicouAí de acesso à gestão (vale até ${formatarHora(expiraEm)})`
+        : `Seu código de acesso ClicouAí (vale até ${formatarHora(expiraEm)})`,
+      paragrafos: [
+        `Olá, ${primeiroNome(nome)}! Para terminar de entrar ${onde}, digite este código na tela de verificação. Ele vale até ${formatarHora(expiraEm)} (horário de Brasília) e funciona uma vez só.`,
+        "Se chegou mais de um e-mail, o código é o mesmo em todos: é só usar este.",
+        "Não passe o código para ninguém: a equipe do ClicouAí nunca pede.",
+        "Se não foi você que tentou entrar, alguém sabe a sua senha: troque sua senha agora e avise a equipe.",
+      ],
+      destaque: codigo,
+    },
+    `código ${codigo}`,
+  );
+}
+
+/**
+ * Código de confirmação de uma ação sensível (src/servicos/codigo-acao.ts): saque, troca do
+ * CPF/CNPJ, etc. O assunto traz só a validade, nunca o código.
+ */
+export async function enviarCodigoDeAcaoPorEmail(
+  para: string,
+  nome: string,
+  codigo: string,
+  expiraEm: number,
+  acao: string,
 ) {
   return enviarComSegredo(
     {
       para,
-      assunto: `Seu código ClicouAí de acesso à gestão (vale até ${formatarHora(expiraEm)})`,
+      assunto: `Seu código de confirmação ClicouAí (vale até ${formatarHora(expiraEm)})`,
       paragrafos: [
-        `Olá, ${primeiroNome(nome)}! Para terminar de entrar na gestão do ClicouAí, digite este código na tela de verificação. Ele vale até ${formatarHora(expiraEm)} (horário de Brasília) e funciona uma vez só.`,
-        "Se chegou mais de um e-mail, o código é o mesmo em todos: é só usar este.",
+        `Olá, ${primeiroNome(nome)}! Use este código para ${acao}. Ele vale até ${formatarHora(expiraEm)} (horário de Brasília) e funciona uma vez só.`,
         "Não passe o código para ninguém: a equipe do ClicouAí nunca pede.",
-        "Se não foi você que tentou entrar, alguém sabe a sua senha: troque sua senha agora e avise a equipe.",
+        "Se não foi você, alguém pode estar usando a sua conta: troque a sua senha agora e avise a equipe.",
       ],
       destaque: codigo,
     },

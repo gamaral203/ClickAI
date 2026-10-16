@@ -6,6 +6,7 @@ import { ArrowLeft, CircleAlert, KeyRound, ShieldCheck } from "lucide-react";
 
 import { FormularioSenha } from "@/components/conta/formulario-senha";
 import { SairDeTodos } from "@/components/conta/sair-de-todos";
+import { pedeCodigoDeAcao } from "@/servicos/codigo-acao";
 import { podeUsarPainel, usuarioAtual } from "@/servicos/sessao";
 import { situacaoDaSenha } from "@/servicos/troca-senha";
 
@@ -78,7 +79,7 @@ async function Conteudo() {
             <FormularioSenha
               email={usuario.email}
               temSenha={situacao === "com_senha"}
-              pedeCodigo={usuario.mfaAtivo}
+              pedeCodigo={pedeCodigoDeAcao(usuario, "senha")}
             />
           </>
         )}
@@ -91,8 +92,8 @@ async function Conteudo() {
             Verificação em duas etapas
           </h2>
           <p className="text-sm text-muted-foreground">
-            {usuario.mfaAtivo ? "Ligada." : "Desligada."} Ligue, desligue ou gere códigos de
-            recuperação em{" "}
+            {usuario.mfaAtivo ? "Ligada." : "Desligada."} Ligada, o login pede um código que
+            enviamos para o seu e-mail. Ligue ou desligue em{" "}
             <Link href="/painel/perfil" className={linkTexto}>
               Perfil e recebimento
             </Link>

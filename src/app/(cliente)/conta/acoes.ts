@@ -17,7 +17,6 @@ import {
   loginDeuCerto,
 } from "@/servicos/limites";
 import { recusarSeEmManutencao } from "@/servicos/manutencao";
-import { MENSAGENS_CODIGO } from "@/servicos/mfa";
 import {
   cadastrar,
   comecarAVender,
@@ -87,16 +86,15 @@ function mensagemDoCodigoLogin(falha: FalhaCodigoLogin): string {
     case "invalido_email":
       return `Código incorreto. ${falha.restantes === 1 ? "Resta 1 tentativa" : `Restam ${falha.restantes} tentativas`} para este código.`;
     case "invalido_email_ou_app":
-      return "Código incorreto ou já usado. Confira o último e-mail que enviamos ou o app autenticador.";
+      return "Código incorreto ou já usado. Confira o último e-mail que enviamos.";
     case "codigo_bloqueado":
       return "Muitas tentativas erradas com este código. Peça um código novo abaixo.";
     case "codigo_vencido":
       return "Este código venceu ou foi trocado por um mais novo. Peça um código novo abaixo.";
-    case "invalido":
     case "bloqueado":
-      return MENSAGENS_CODIGO[falha.motivo];
+      return "Muitas tentativas erradas. Peça um código novo abaixo.";
     default:
-      return MENSAGENS_CODIGO.invalido;
+      return "Código incorreto. Confira o último e-mail que enviamos e tente de novo.";
   }
 }
 

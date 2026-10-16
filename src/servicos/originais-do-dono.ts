@@ -24,7 +24,7 @@ import { r2Configurado, urlDeDownload } from "@/lib/r2";
 import { nomeDoArquivoOriginal, tipoDoOriginal } from "@/lib/arquivo-original";
 
 import { limiteAtingido } from "./limites";
-import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "./mfa";
+import { exigirCodigoDeAcao, MENSAGENS_CODIGO_ACAO } from "./codigo-acao";
 import { contaDoPainel } from "./sessao";
 
 // Download dos originais pelo AUTOR da foto (docs/CLAUDE.md, exceção à regra "nenhum original
@@ -153,9 +153,10 @@ async function emitirLiberacao(
   eventoId: string,
   codigo: unknown,
 ): Promise<{ ok: true; liberacao: string } | { ok: false; erro: string; pedeCodigo?: boolean }> {
-  const resultado = await exigirCodigoSeLigado(usuario, codigo);
+  // Com a verificação em duas etapas ligada, pede o código enviado ao e-mail.
+  const resultado = await exigirCodigoDeAcao(usuario, "originais", codigo);
   if (resultado !== "ok") {
-    return { ok: false, erro: MENSAGENS_CODIGO[resultado], pedeCodigo: true };
+    return { ok: false, erro: MENSAGENS_CODIGO_ACAO[resultado], pedeCodigo: true };
   }
   const dados: Liberacao = { u: usuario.id, e: eventoId };
   return { ok: true, liberacao: assinar(PROPOSITO, dados, VALIDADE_LIBERACAO_MS) };

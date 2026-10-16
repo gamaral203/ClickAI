@@ -45,6 +45,11 @@ const REGRAS = {
    * (src/servicos/codigo-login.ts).
    */
   codigo_login_envio_usuario: { limite: 10, janelaMs: 60 * MINUTO },
+  /**
+   * Códigos de confirmação das ações sensíveis (saque, troca do CPF/CNPJ...) enviados por usuário
+   * (src/servicos/codigo-acao.ts). Cada código já aceita só 5 tentativas.
+   */
+  codigo_acao_envio_usuario: { limite: 10, janelaMs: 60 * MINUTO },
   /** Códigos de acesso do gestor enviados por IP. */
   codigo_login_envio_ip: { limite: 20, janelaMs: 60 * MINUTO },
   /**

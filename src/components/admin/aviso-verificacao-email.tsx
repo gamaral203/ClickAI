@@ -21,9 +21,9 @@ export async function AvisoVerificacaoEmail() {
     >
       <TriangleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-destructive" />
       <p>
-        <strong>Verificação por e-mail dos gestores inativa:</strong> configure RESEND_API_KEY e
-        EMAIL_REMETENTE. Até lá, os gestores entram só com a senha (e o app autenticador, se
-        ligado).
+        <strong>Verificação por e-mail inativa:</strong> configure RESEND_API_KEY e EMAIL_REMETENTE.
+        Até lá, gestores e fotógrafos entram só com a senha, e saques e troca de CPF/CNPJ não pedem
+        o código do e-mail.
       </p>
     </div>
   );

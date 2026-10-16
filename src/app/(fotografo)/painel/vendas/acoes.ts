@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { formatarPreco } from "@/lib/formatar";
-import { exigirCodigoSeLigado, MENSAGENS_CODIGO } from "@/servicos/mfa";
+import { exigirCodigoDeAcao, MENSAGENS_CODIGO_ACAO } from "@/servicos/codigo-acao";
 import { avisarSaqueSolicitado } from "@/servicos/avisos-saque";
 import { FREQUENCIAS_TRANSFERENCIA } from "@/servicos/financeiro";
 import {
@@ -49,9 +49,9 @@ export async function solicitarSaqueAcao(
   if (manutencao) return { erro: manutencao };
   const dados = entradaSaque.safeParse(Object.fromEntries(formulario));
   if (!dados.success) return { erro: MOTIVOS.falhou };
-  // Com a verificação em duas etapas ligada, cada saque pede o código do app.
-  const codigo = await exigirCodigoSeLigado(usuario, dados.data.codigo);
-  if (codigo !== "ok") return { erro: MENSAGENS_CODIGO[codigo] };
+  // Todo saque pede o código enviado ao e-mail da conta (src/servicos/codigo-acao.ts).
+  const codigo = await exigirCodigoDeAcao(usuario, "saque", dados.data.codigo);
+  if (codigo !== "ok") return { erro: MENSAGENS_CODIGO_ACAO[codigo] };
 
   const resultado = await solicitarSaque(conta, usuario);
   revalidatePath("/painel/vendas");
@@ -108,8 +108,9 @@ export async function salvarTransferenciaAutomaticaAcao(entrada: {
   const dados = entradaTransferencia.safeParse(entrada);
   if (!dados.success) return { erro: NAO_SALVOU };
   if (dados.data.ligada && !conta.transferenciaAutomatica) {
-    const codigo = await exigirCodigoSeLigado(usuario, dados.data.codigo);
-    if (codigo !== "ok") return { erro: MENSAGENS_CODIGO[codigo] };
+    // Ligar a transferência automática (cria saques sozinha) pede o código do e-mail.
+    const codigo = await exigirCodigoDeAcao(usuario, "transferencia", dados.data.codigo);
+    if (codigo !== "ok") return { erro: MENSAGENS_CODIGO_ACAO[codigo] };
   }
   const resultado = await salvarTransferenciaAutomatica(conta, {
     ligada: dados.data.ligada,

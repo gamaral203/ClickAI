@@ -27,11 +27,15 @@ vi.mock("next/headers", () => ({
 }));
 
 import { trocarSenhaAcao } from "@/app/(cliente)/conta/seguranca/acoes";
-import { buscarUsuarioParaLogin, criarUsuario, listarMensagens } from "@/dados";
-import { codigoAtual } from "@/lib/mfa";
+import {
+  buscarUsuarioParaLogin,
+  criarUsuario,
+  ligarVerificacaoPorEmail,
+  listarMensagens,
+} from "@/dados";
 import { gerarHashSenha } from "@/lib/senha";
 
-import { confirmarCadastroMfa, iniciarCadastroMfa } from "./mfa";
+import { codigoDeAcaoEnviado } from "./testes/codigo-email";
 import { entrar, sessaoAtual, usuarioAtual, type SessaoAtual } from "./sessao";
 import { LOGIN_GOOGLE_RECENTE_MS } from "./troca-documento";
 import { situacaoDaSenha, trocarSenha } from "./troca-senha";
@@ -146,13 +150,9 @@ describe("troca de senha", () => {
     expect(aviso?.texto).not.toContain(SENHA);
   });
 
-  it("com a verificação em duas etapas ligada, exige o código do app", async () => {
+  it("com a verificação em duas etapas ligada, exige o código do e-mail", async () => {
     const { usuario, email } = await usuarioLogado("fotografo");
-    const cadastro = await iniciarCadastroMfa(usuario);
-    const segredo = cadastro!.segredo.replace(/\s+/g, "");
-    const agora = Date.now();
-    const ativacao = await confirmarCadastroMfa(usuario.id, codigoAtual(segredo, agora), agora);
-    if (!ativacao.ok) throw new Error(`ativação falhou: ${ativacao.motivo}`);
+    await ligarVerificacaoPorEmail(usuario.id);
     const sessao = (await sessaoAtual())!;
     expect(sessao.usuario.mfaAtivo).toBe(true);
     const antes = (await buscarUsuarioParaLogin(email))!.senhaHash;
@@ -172,7 +172,8 @@ describe("troca de senha", () => {
     );
     expect(estado.erros?.codigoMfa).toMatch(/código/);
 
-    expect(await trocarSenha(sessao, { ...pedido, codigoMfa: ativacao.codigos[0] })).toEqual({
+    const codigo = await codigoDeAcaoEnviado(usuario, "senha");
+    expect(await trocarSenha(sessao, { ...pedido, codigoMfa: codigo })).toEqual({
       ok: true,
       criada: false,
     });

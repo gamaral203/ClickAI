@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { CheckCircle2, Download, Loader2, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, Download, Loader2, RotateCcw, X } from "lucide-react";
 import { cn } from "cn";
 
+import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   baixados,
   baixarPorLink,
@@ -289,19 +289,12 @@ export function BaixarEmLote({
 
       {pedeCodigo && !liberado && !baixando && (
         <div className="flex flex-col gap-2">
-          <label htmlFor={`${ids}-codigo`} className="flex items-center gap-2 text-sm font-medium">
-            <ShieldCheck aria-hidden="true" className="size-4 text-primary" />
-            Código do app autenticador
-          </label>
-          <Input
+          <CampoCodigoEmail
+            finalidade="originais"
             id={`${ids}-codigo`}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={40}
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
-            className="h-11 w-full sm:w-48"
-            aria-describedby={`${ids}-codigo-ajuda`}
+            valor={codigo}
+            aoMudar={setCodigo}
+            enviarAoMostrar
           />
           <p id={`${ids}-codigo-ajuda`} className="text-xs text-muted-foreground">
             {ajudaCodigo}

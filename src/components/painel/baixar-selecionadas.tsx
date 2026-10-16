@@ -1,10 +1,10 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Download, Loader2, ShieldCheck } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
+import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 import { baixarOriginal, liberarEvento } from "./baixar-original";
 
@@ -82,19 +82,12 @@ export function BaixarSelecionadas({ fotos, rotulo }: { fotos: FotoParaBaixar[];
           void baixarTodas(codigo);
         }}
       >
-        <label htmlFor={`${ids}-codigo`} className="flex items-center gap-1.5 text-xs font-medium">
-          <ShieldCheck aria-hidden="true" className="size-3.5 text-primary" />
-          Código do app autenticador
-        </label>
-        <Input
+        <CampoCodigoEmail
+          finalidade="originais"
           id={`${ids}-codigo`}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={40}
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          aria-invalid={Boolean(erro)}
-          className="h-9"
+          valor={codigo}
+          aoMudar={setCodigo}
+          enviarAoMostrar
         />
         {erro && (
           <p role="alert" className="text-xs text-destructive">

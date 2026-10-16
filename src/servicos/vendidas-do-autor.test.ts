@@ -13,6 +13,7 @@ import {
   criarContaDeFotografoSeNaoExistir,
   criarEvento,
   criarUsuario,
+  ligarVerificacaoPorEmail,
   listarVendidasDoAutor,
   lotesDoDonoRegistrados,
   type Usuario,
@@ -20,11 +21,10 @@ import {
 import { categorias } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { codigoAtual } from "@/lib/mfa";
 import { reiniciarClienteR2 } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 
-import { confirmarCadastroMfa, iniciarCadastroMfa } from "./mfa";
+import { codigoDeAcaoEnviado } from "./testes/codigo-email";
 import {
   liberarOriginaisDoAutor,
   liberarVendidasDoAutor,
@@ -373,21 +373,15 @@ describe("fotos vendidas: download em lote", () => {
 
   it("com a verificação em duas etapas ligada, pede o código para liberar", async () => {
     const { usuario } = await fotografoNovo("Com MFA Vendidas");
-    const cadastro = await iniciarCadastroMfa(usuario);
-    const segredo = cadastro!.segredo.replace(/\s+/g, "");
-    const agora = Date.now();
-    const ativacao = await confirmarCadastroMfa(
-      usuario.id,
-      codigoAtual(segredo, agora - 30_000),
-      agora,
-    );
-    expect(ativacao.ok).toBe(true);
+    await ligarVerificacaoPorEmail(usuario.id);
     const comMfa = (await buscarUsuario(usuario.id))!;
     expect(await liberarVendidasDoAutor(comMfa, undefined)).toMatchObject({
       ok: false,
       pedeCodigo: true,
     });
     expect(await liberarVendidasDoAutor(comMfa, "000000")).toMatchObject({ ok: false });
-    expect((await liberarVendidasDoAutor(comMfa, codigoAtual(segredo))).ok).toBe(true);
+    expect(
+      (await liberarVendidasDoAutor(comMfa, await codigoDeAcaoEnviado(comMfa, "originais"))).ok,
+    ).toBe(true);
   });
 });

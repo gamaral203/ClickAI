@@ -6,7 +6,7 @@ import { gerarHashSenha, senhaConfere } from "@/lib/senha";
 
 import { loginBloqueado } from "./limites";
 import { avisarTrocaDeSenha } from "./mensagens";
-import { exigirCodigoSeLigado } from "./mfa";
+import { exigirCodigoDeAcao } from "./codigo-acao";
 import { encerrarOutrasSessoes, type SessaoAtual } from "./sessao";
 import { LOGIN_GOOGLE_RECENTE_MS } from "./troca-documento";
 
@@ -80,12 +80,14 @@ export async function trocarSenha(
     if (!recente) return { ok: false, motivo: "google_antigo" };
   }
 
-  // O estado do MFA vem do banco, não da sessão lida no começo da requisição.
+  // A verificação em duas etapas vem do banco, não da sessão lida no começo da requisição.
+  // Ligada, a troca pede o código enviado ao e-mail (src/servicos/codigo-acao.ts).
   const atualizado = await buscarUsuario(usuario.id);
   if (!atualizado) return { ok: false, motivo: "senha" };
-  const codigo = await exigirCodigoSeLigado(atualizado, dados.codigoMfa);
+  const codigo = await exigirCodigoDeAcao(atualizado, "senha", dados.codigoMfa);
   if (codigo === "faltando") return { ok: false, motivo: "codigo_faltando" };
-  if (codigo === "invalido") return { ok: false, motivo: "codigo_invalido" };
+  if (codigo === "invalido" || codigo === "vencido")
+    return { ok: false, motivo: "codigo_invalido" };
   if (codigo === "bloqueado") return { ok: false, motivo: "codigo_bloqueado" };
 
   if (!(await definirSenhaDoUsuario(usuario.id, gerarHashSenha(dados.novaSenha), hashAnterior))) {

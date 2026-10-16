@@ -14,18 +14,18 @@ import {
   criarContaDeFotografoSeNaoExistir,
   criarEvento,
   criarUsuario,
+  ligarVerificacaoPorEmail,
   lotesDoDonoRegistrados,
   type Usuario,
 } from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { codigoAtual } from "@/lib/mfa";
 import { reiniciarClienteR2 } from "@/lib/r2";
 import { gerarHashSenha } from "@/lib/senha";
 
 import { limiteAtingido } from "./limites";
-import { confirmarCadastroMfa, iniciarCadastroMfa } from "./mfa";
+import { codigoDeAcaoEnviado } from "./testes/codigo-email";
 import {
   liberarOriginais,
   loteDeOriginais,
@@ -363,15 +363,7 @@ describe("originais do dono: quem pode", () => {
       nomePublico: "Com MFA",
       slug: `mfa-${randomUUID().slice(0, 8)}`,
     });
-    const cadastro = await iniciarCadastroMfa(usuario);
-    const segredo = cadastro!.segredo.replace(/\s+/g, "");
-    const agora = Date.now();
-    const ativacao = await confirmarCadastroMfa(
-      usuario.id,
-      codigoAtual(segredo, agora - 30_000),
-      agora,
-    );
-    expect(ativacao.ok).toBe(true);
+    await ligarVerificacaoPorEmail(usuario.id);
     const comMfa = (await buscarUsuario(usuario.id))!;
     expect(comMfa.mfaAtivo).toBe(true);
     const doEvento = await novoEvento(conta!.id, "Evento com MFA");
@@ -381,7 +373,10 @@ describe("originais do dono: quem pode", () => {
       pedeCodigo: true,
     });
     expect(await liberarOriginais(comMfa, doEvento.id, "000000")).toMatchObject({ ok: false });
-    expect((await liberarOriginais(comMfa, doEvento.id, codigoAtual(segredo))).ok).toBe(true);
+    expect(
+      (await liberarOriginais(comMfa, doEvento.id, await codigoDeAcaoEnviado(comMfa, "originais")))
+        .ok,
+    ).toBe(true);
   });
 });
 
