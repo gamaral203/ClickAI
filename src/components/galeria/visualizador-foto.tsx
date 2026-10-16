@@ -423,7 +423,7 @@ export function VisualizadorFoto({
       eixo: null,
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    if (sobre) lanterna.current?.revelar(ponto);
+    if (sobre) lanterna.current?.revelar(ponto, e.pointerType !== "mouse");
   }
 
   function aoMover(e: React.PointerEvent<HTMLDivElement>) {
@@ -439,7 +439,7 @@ export function VisualizadorFoto({
     }
     if (g.id !== e.pointerId) return;
     if (g.modo === "revelar") {
-      lanterna.current?.revelar(ponto);
+      lanterna.current?.revelar(ponto, e.pointerType !== "mouse");
       return;
     }
     const dx = ponto.x - g.x0;
@@ -509,7 +509,7 @@ export function VisualizadorFoto({
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         <motion.div
-          className="relative z-10 flex h-14 shrink-0 items-center justify-between gap-2 px-2 sm:px-4"
+          className="relative z-10 flex h-12 shrink-0 items-center justify-between gap-2 px-2 sm:h-14 sm:px-4"
           style={{ opacity: opacidadeDosControles }}
         >
           <div className="flex items-center gap-2 pl-2">
@@ -557,8 +557,8 @@ export function VisualizadorFoto({
                   lanterna={lanterna}
                   dica={
                     telaEstreita
-                      ? "Passe o dedo para ver por partes"
-                      : "Passe o mouse para ver por partes"
+                      ? "Toque e segure para revelar um detalhe da foto"
+                      : "Passe o mouse para revelar um detalhe da foto"
                   }
                 />
               )}
@@ -587,14 +587,17 @@ export function VisualizadorFoto({
 
       <motion.aside
         aria-label="Comprar esta foto"
-        className="relative z-10 shrink-0 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:flex md:w-[360px] md:flex-col md:justify-center md:px-5"
+        className="relative z-10 shrink-0 px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:flex md:w-[360px] md:flex-col md:justify-center md:px-5 md:pt-2 md:pb-3"
         style={{ opacity: opacidadeDosControles }}
       >
-        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-4 text-center backdrop-blur-md">
-          <div className="flex flex-col gap-0.5">
-            <p className="truncate font-bold">{tituloEvento}</p>
+        {/* No celular, uma linha só (evento e autor pequenos ao lado do Comprar): a foto fica
+            com quase toda a tela. A explicação e o anterior/próxima aparecem do tablet em diante
+            (no celular, o deslize e as setas sobre a foto já navegam). */}
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-2 pl-3 backdrop-blur-md md:flex-col md:items-stretch md:gap-3 md:p-4 md:text-center">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5 md:flex-none">
+            <p className="truncate text-sm font-bold md:text-base">{tituloEvento}</p>
             {autor && (
-              <p className="flex items-center justify-center gap-1.5 text-sm text-white/75">
+              <p className="flex items-center gap-1.5 text-xs text-white/75 md:justify-center md:text-sm">
                 <Camera aria-hidden="true" className="size-3.5 shrink-0 text-highlight" />
                 <span className="truncate">foto de {autor}</span>
               </p>
@@ -605,16 +608,16 @@ export function VisualizadorFoto({
           ) : (
             <AvisoVendoComoFotografo />
           )}
-          <p className="text-xs leading-relaxed text-white/70">
+          <p className="hidden text-xs leading-relaxed text-white/70 md:block">
             Aqui a prévia fica desfocada e com a marca do ClicouAí. Comprando, você recebe a foto
             inteira, em alta resolução e sem marca d&apos;água.
           </p>
           {aviso && (
-            <p role="status" className="text-sm text-white/85">
+            <p role="status" className="hidden text-sm text-white/85 md:block">
               {aviso}
             </p>
           )}
-          <nav aria-label="Outras fotos" className="grid grid-cols-2 gap-2">
+          <nav aria-label="Outras fotos" className="hidden grid-cols-2 gap-2 md:grid">
             <button
               type="button"
               onClick={() => void ir(-1)}
@@ -803,18 +806,19 @@ function Comprar({ fotoId, precoCentavos }: { fotoId: string; precoCentavos: num
       >
         <Check aria-hidden="true" className="size-5 shrink-0" strokeWidth={3} />
         <span>
-          No carrinho<span className="font-medium text-white/80"> · Ir para o carrinho</span>
+          No carrinho
+          <span className="hidden font-medium text-white/80 md:inline"> · Ir para o carrinho</span>
         </span>
       </Link>
     );
   }
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex shrink-0 flex-col gap-1.5">
       <button
         type="button"
         disabled={cheio}
         onClick={() => comprarFoto(fotoId)}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-highlight px-4 font-bold text-highlight-foreground shadow-lg outline-none hover:brightness-95 focus-visible:ring-3 focus-visible:ring-white disabled:opacity-50"
+        className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-highlight px-4 font-bold whitespace-nowrap text-highlight-foreground shadow-lg outline-none hover:brightness-95 focus-visible:ring-3 focus-visible:ring-white disabled:opacity-50"
       >
         <ShoppingCart aria-hidden="true" className="size-5" />
         {precoCentavos === null ? "Comprar foto" : `Comprar · ${formatarPreco(precoCentavos)}`}

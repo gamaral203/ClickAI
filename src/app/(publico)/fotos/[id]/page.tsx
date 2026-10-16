@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image, { getImageProps } from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -16,6 +15,7 @@ import {
 import { AvisoVendoComoFotografo } from "@/components/carrinho/aviso-vendo-como-fotografo";
 import { BotaoAdicionar } from "@/components/carrinho/botao-adicionar";
 import { LinkOutraFoto, VoltarParaGaleria } from "@/components/galeria/navegacao-da-foto";
+import { PreviaComLupa } from "@/components/galeria/previa-com-lupa";
 import { SemMenuDeContexto } from "@/components/galeria/sem-menu-de-contexto";
 import { RegistrarVisita } from "@/components/metricas/registrar";
 import { buttonVariants } from "@/components/ui/button";
@@ -80,7 +80,8 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
   const descricao = posicao ? `Foto ${posicao} de ${evento.titulo}` : `Foto de ${evento.titulo}`;
 
   return (
-    <div className="flex flex-col gap-6">
+    // No celular, espaço embaixo para a barra fixa de compra não cobrir o fim da página.
+    <div className="flex flex-col gap-4 pb-24 lg:gap-6 lg:pb-0">
       <RegistrarVisita fotoId={foto.id} />
       {/* Veio da galeria: volta no histórico, no mesmo ponto; senão, abre a página da galeria. */}
       <VoltarParaGaleria
@@ -101,7 +102,7 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
         <figure className="flex flex-col gap-3">
           <SemMenuDeContexto
             className="relative mx-auto w-full overflow-hidden rounded-xl bg-muted"
-            style={{ aspectRatio: `${foto.largura} / ${foto.altura}`, maxHeight: "75vh" }}
+            style={{ aspectRatio: `${foto.largura} / ${foto.altura}`, maxHeight: "78svh" }}
           >
             {foto.tipo === "video" && foto.previaVideo ? (
               // Vídeo: a prévia inteira, com a marca d'água em todos os quadros.
@@ -117,22 +118,27 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
                 className="absolute inset-0 size-full bg-black object-contain"
               />
             ) : (
-              <PreviaDaFoto
+              // Desfocada, com a lupa (a mesma do visualizador da galeria): nunca a prévia
+              // inteira nítida.
+              <PreviaComLupa
+                id={foto.id}
                 urlPrevia={foto.urlPrevia}
                 urlPreviaCelular={foto.urlPreviaCelular ?? null}
+                urlMiniatura={foto.urlMiniatura}
                 descricao={descricao}
               />
             )}
-            {/* Quem fez a foto, no canto inferior esquerdo (eventos com vários fotógrafos). */}
-            <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1.5 truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            {/* Quem fez a foto, no canto superior esquerdo (eventos com vários fotógrafos); embaixo
+                fica a dica da lupa. */}
+            <span className="pointer-events-none absolute top-2 left-2 z-10 flex max-w-[80%] items-center gap-1.5 truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
               <Camera aria-hidden="true" className="size-3.5 shrink-0" />
               {autor?.nome ?? evento.fotografo.nomePublico}
             </span>
           </SemMenuDeContexto>
-          <figcaption className="text-sm text-muted-foreground">
+          <figcaption className="text-xs text-muted-foreground sm:text-sm">
             {foto.tipo === "video"
               ? "Prévia do vídeo inteiro com marca d'água. O original sai sem marca, no tamanho enviado."
-              : "Prévia com marca d'água. O original sai sem marca e em alta resolução."}
+              : "Prévia desfocada e com marca d'água. Comprando, você recebe a foto inteira, em alta resolução e sem marca."}
           </figcaption>
         </figure>
 
@@ -161,7 +167,8 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-xl border bg-card p-5">
+          {/* No celular o comprar fica na barra fixa de baixo; aqui, do computador em diante. */}
+          <div className="hidden flex-col gap-4 rounded-xl border bg-card p-5 lg:flex">
             <p className="text-3xl font-bold">{formatarPreco(precoCentavos)}</p>
             <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
@@ -209,6 +216,27 @@ async function ConteudoFoto({ params }: Pick<PageProps<"/fotos/[id]">, "params">
             </nav>
           )}
 
+          {/* Barra fixa de compra no celular: o preço e o botão sempre à mão, sem cobrir a foto
+              (a página tem espaço embaixo para ela). */}
+          <div
+            data-barra-compra
+            className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden"
+          >
+            <div className="mx-auto flex max-w-xl items-center gap-3">
+              <div className="flex min-w-0 flex-col">
+                <span className="text-xs text-muted-foreground">Original sem marca</span>
+                <span className="text-xl font-bold">{formatarPreco(precoCentavos)}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                {podeComprar(usuario) ? (
+                  <BotaoAdicionar fotoId={foto.id} />
+                ) : (
+                  <AvisoVendoComoFotografo />
+                )}
+              </div>
+            </div>
+          </div>
+
           <Link
             href={`/denunciar?evento=${evento.slug}&foto=${foto.id}`}
             className="inline-flex h-11 w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -231,51 +259,5 @@ function EsqueletoFoto() {
         <div className="h-40 animate-pulse rounded-xl bg-muted" />
       </div>
     </div>
-  );
-}
-
-/**
- * Prévia da foto. No celular vai a versão de 1000 px (urlPreviaCelular): na tela fica igual, e
- * uma cópia "limpa" por IA sai pequena demais para imprimir. As imagens não passam pelo
- * otimizador (next.config), então a troca é por <picture>, que só baixa a versão da tela. Fotos
- * sem a versão do celular (prévias antigas, exemplos) usam a prévia normal.
- */
-function PreviaDaFoto({
-  urlPrevia,
-  urlPreviaCelular,
-  descricao,
-}: {
-  urlPrevia: string;
-  urlPreviaCelular: string | null;
-  descricao: string;
-}) {
-  const comum = {
-    alt: descricao,
-    fill: true,
-    loading: "eager" as const,
-    sizes: "(min-width: 1024px) 800px, 100vw",
-  };
-  if (!urlPreviaCelular) {
-    return (
-      <Image
-        {...comum}
-        alt={descricao}
-        src={urlPrevia}
-        draggable={false}
-        className="object-contain imagem-protegida"
-      />
-    );
-  }
-  const { props } = getImageProps({ ...comum, src: urlPreviaCelular });
-  return (
-    <picture>
-      <source media="(min-width: 768px)" srcSet={urlPrevia} />
-      <img
-        {...props}
-        alt={descricao}
-        draggable={false}
-        className="object-contain imagem-protegida"
-      />
-    </picture>
   );
 }

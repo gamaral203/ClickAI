@@ -109,7 +109,7 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
             exit={reduzir ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.96 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             style={{ transformOrigin: "bottom right" }}
-            className="fixed right-3 bottom-22 z-50 flex h-[min(440px,calc(100dvh-7rem))] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl sm:right-5 sm:h-[min(600px,calc(100dvh-7rem))]"
+            className="chat-flutuante-janela fixed right-3 bottom-22 z-50 flex h-[min(440px,calc(100dvh-7rem))] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl sm:right-5 sm:h-[min(600px,calc(100dvh-7rem))]"
           >
             <header className="flex items-center gap-3 bg-primary px-4 py-2.5 text-primary-foreground sm:px-5 sm:py-4">
               <span className="flex size-9 items-center justify-center rounded-full bg-white/20">
@@ -280,7 +280,7 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
         aria-expanded={aberto}
         whileHover={reduzir ? undefined : { scale: 1.06 }}
         whileTap={reduzir ? undefined : { scale: 0.94 }}
-        className="fixed right-3 bottom-4 z-50 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background focus-visible:ring-ring/60 focus-visible:outline-none sm:right-5 print:hidden"
+        className="chat-flutuante-botao fixed right-3 bottom-4 z-50 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background focus-visible:ring-ring/60 focus-visible:outline-none sm:right-5 print:hidden"
       >
         {aberto ? (
           <ChevronDown aria-hidden="true" className="size-7" />

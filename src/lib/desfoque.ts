@@ -66,6 +66,62 @@ export function fonteDaCaixa(caixa: Caixa, canvas: Medida, imagem: Medida) {
   };
 }
 
+/** Aumento da lupa: o círculo mostra um pedaço da foto 1,8 vez maior que na tela. */
+export const ZOOM_DA_LENTE = 1.8;
+/**
+ * No toque, a lupa sobe para não ficar embaixo do dedo: o centro fica a (1 + isto) raios acima
+ * do ponto tocado, então a borda de baixo do círculo fica um pouco acima da ponta do dedo.
+ */
+export const AFASTAMENTO_DO_DEDO = 0.35;
+
+export type Lente = {
+  /** Onde a lupa é desenhada no canvas (centro e raio). */
+  circulo: Circulo;
+  /** Pedaço da prévia (px da imagem) ampliado dentro da lupa: o que está sob o dedo. */
+  fonte: { sx: number; sy: number; sw: number; sh: number };
+  /** Quadrado do canvas em que a fonte é desenhada (o círculo recorta depois). */
+  destino: Caixa;
+};
+
+/**
+ * Lupa da revelação: amplia (ZOOM_DA_LENTE) o pedaço da prévia sob o dedo ou o mouse e o mostra
+ * num círculo. No mouse, o círculo fica centrado no cursor; no toque, sobe (AFASTAMENTO_DO_DEDO)
+ * para o dedo não tapar o que está sendo revelado. O círculo e a fonte nunca saem do canvas e
+ * da imagem: perto da borda eles encostam nela em vez de cortar. `null` fora da foto.
+ */
+export function lenteDaRevelacao(
+  ponto: Ponto,
+  caixa: Caixa,
+  canvas: Medida,
+  imagem: Medida,
+  {
+    toque,
+    zoom = ZOOM_DA_LENTE,
+    fracao = FRACAO_DO_RAIO,
+  }: { toque: boolean; zoom?: number; fracao?: number },
+): Lente | null {
+  const sob = circuloDaRevelacao(ponto, caixa, canvas, fracao);
+  if (!sob || imagem.largura <= 0 || imagem.altura <= 0) return null;
+  const r = Math.min(sob.r, canvas.largura / 2, canvas.altura / 2);
+  const limitar = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+  const x = limitar(sob.x, r, canvas.largura - r);
+  const y = limitar(sob.y - (toque ? r * (1 + AFASTAMENTO_DO_DEDO) : 0), r, canvas.altura - r);
+  const ex = imagem.largura / canvas.largura;
+  const ey = imagem.altura / canvas.altura;
+  const sw = Math.min(imagem.largura, ((2 * r) / zoom) * ex);
+  const sh = Math.min(imagem.altura, ((2 * r) / zoom) * ey);
+  return {
+    circulo: { x, y, r },
+    fonte: {
+      sx: limitar(sob.x * ex - sw / 2, 0, imagem.largura - sw),
+      sy: limitar(sob.y * ey - sh / 2, 0, imagem.altura - sh),
+      sw,
+      sh,
+    },
+    destino: { x: x - r, y: y - r, largura: 2 * r, altura: 2 * r },
+  };
+}
+
 /** Semente estável a partir do id da foto (o mosaico fica igual cada vez que ela abre). */
 export function sementeDoId(id: string) {
   let h = 2166136261;
