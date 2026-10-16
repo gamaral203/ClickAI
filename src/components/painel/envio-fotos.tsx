@@ -427,8 +427,9 @@ export function EnvioFotos({
   modo: ModoEnvio;
   liberacao?: LiberacaoDoEnvio;
   /**
-   * Pastas do evento em árvore, com o caminho no nome ("Largada › Bateria 1"); só o dono
-   * escolhe a pasta de destino. Sem pastas, o seletor não aparece.
+   * Pastas do evento em árvore, com o caminho no nome ("Largada › Bateria 1"), para escolher a
+   * pasta de destino do lote (o dono e o colaborador; o servidor confere em `pastaDeDestino`).
+   * Sem pastas, o seletor não aparece.
    */
   pastas?: { id: string; nome: string }[];
   /** Aceita vídeos de até 30 segundos (MP4 e MOV). */

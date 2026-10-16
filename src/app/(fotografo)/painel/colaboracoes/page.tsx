@@ -70,7 +70,8 @@ async function Conteudo() {
         ),
     ),
   );
-  // Pastas do evento (só o dono cria e organiza): o colaborador põe nelas as fotos que enviou.
+  // Pastas do evento (só o dono cria e organiza): o colaborador escolhe a pasta de destino do
+  // envio e põe nelas as fotos que enviou.
   const pastas = new Map(
     await Promise.all(
       colaboracoes
@@ -153,6 +154,7 @@ async function Conteudo() {
                   podeEscolher: false,
                   descricao: descreverPadrao(c.evento.liberacao, c.evento.liberadoEm, agora),
                 }}
+                pastas={pastas.get(c.evento.id) ?? []}
               />
               <MinhasFotosDoEvento
                 eventoId={c.evento.id}

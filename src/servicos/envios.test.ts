@@ -45,7 +45,12 @@ vi.mock("@/servicos/sessao", () => ({
 import { enviarFotosAcao, situacaoDoEnvioAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { POST as partesRota } from "@/app/api/envios/partes/route";
 import { POST as processarRota } from "@/app/api/envios/processar/route";
-import { adicionarItensSimulados, listarItensDoPainel, reservarFotoParaProcessar } from "@/dados";
+import {
+  adicionarItensSimulados,
+  criarPasta,
+  listarItensDoPainel,
+  reservarFotoParaProcessar,
+} from "@/dados";
 import { eventos, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -455,6 +460,46 @@ describe("envio de fotos ao R2", () => {
     expect((await linhaDaFoto(doPedro.fotoId)).enviadaPor).toBe(pedro.id);
     // E a Lia, dona do evento, não confirma o envio que é dele.
     expect(await confirmarEnvio(lia.id, doPedro.fotoId)).toEqual({ erro: "Foto não encontrada." });
+  });
+
+  it("colaborador envia para a pasta escolhida do evento, nunca para a de outro evento", async () => {
+    const naIbirapuera = await criarPasta(ibirapuera.id, lia.id, `Largada ${semente}`);
+    const naMeia = await criarPasta(evento.id, lia.id, `Chegada ${semente}`);
+    if ("erro" in naIbirapuera || "erro" in naMeia) throw new Error("pasta");
+    const lote = async (corpo: Buffer) => [
+      { nome: "c.jpg", tamanhoBytes: corpo.length, hash: await impressao(corpo), formato: "jpeg" },
+    ];
+
+    // Pasta do evento em que colabora: a foto entra nela, no nome dele.
+    const corpo = await jpeg();
+    const r = await iniciarEnvio(
+      pedro.id,
+      ibirapuera.id,
+      await lote(corpo),
+      null,
+      naIbirapuera.pasta.id,
+    );
+    if ("erro" in r) throw new Error(r.erro);
+    const [item] = r.itens as { fotoId: string }[];
+    simularPut(pedro.id, ibirapuera.id, item.fotoId, corpo);
+    expect(await confirmarEnvio(pedro.id, item.fotoId)).not.toHaveProperty("erro");
+    expect(await linhaDaFoto(item.fotoId)).toMatchObject({
+      pastaId: naIbirapuera.pasta.id,
+      enviadaPor: pedro.id,
+      status: "pronta",
+    });
+
+    // Pasta de outro evento (IDOR), id estranho e evento em que não colabora: recusados.
+    const erro = { erro: "Pasta não encontrada. Atualize a página." };
+    expect(
+      await iniciarEnvio(pedro.id, ibirapuera.id, await lote(await jpeg()), null, naMeia.pasta.id),
+    ).toEqual(erro);
+    expect(
+      await iniciarEnvio(pedro.id, ibirapuera.id, await lote(await jpeg()), null, "../x"),
+    ).toEqual(erro);
+    expect(
+      await iniciarEnvio(pedro.id, evento.id, await lote(await jpeg()), null, naMeia.pasta.id),
+    ).toEqual(erro);
   });
 
   it("download de foto enviada redireciona para a URL assinada do original", async () => {

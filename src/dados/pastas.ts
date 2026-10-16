@@ -1,7 +1,7 @@
 // Pastas e subpastas das fotos de um evento (docs/arquitetura.md, "Pastas e subpastas"). No
 // máximo 2 níveis: pasta de nível 1 → subpasta, sempre no mesmo evento. Só o dono do evento
-// gerencia as pastas; o colaborador com o convite aceito vê as pastas e põe nelas só as fotos
-// que ele enviou. Quem edita passa o id de quem está logado e a checagem fica aqui. O gatilho da migração 0043 recusa o 3º nível como última barreira.
+// gerencia as pastas; o colaborador com o convite aceito vê as pastas, escolhe uma delas como
+// destino do envio e põe nelas só as fotos que ele enviou. Quem edita passa o id de quem está logado e a checagem fica aqui. O gatilho da migração 0043 recusa o 3º nível como última barreira.
 
 import "server-only";
 
@@ -281,6 +281,25 @@ export async function pastaDoEventoDoDono(eventoId: string, pastaId: string, fot
   const banco = await obterBanco();
   const pasta = await pastaDoDono(banco, pastaId, fotografoId);
   return pasta !== null && pasta.eventoId === eventoId;
+}
+
+/**
+ * Pasta de destino de um envio: a pasta (de nível 1 ou subpasta) existe NESTE evento e quem
+ * envia é o dono ou um colaborador com o convite aceito. O colaborador só escolhe entre as
+ * pastas que o dono criou (não cria nem muda pastas); pasta de outro evento é recusada.
+ */
+export async function pastaDoEventoParaEnvio(
+  eventoId: string,
+  pastaId: string,
+  fotografoId: string,
+) {
+  if (!(await eventoDoDonoOuColaborador(eventoId, fotografoId))) return false;
+  const banco = await obterBanco();
+  const [pasta] = await banco
+    .select({ id: t.pastas.id })
+    .from(t.pastas)
+    .where(and(eq(t.pastas.id, pastaId), eq(t.pastas.eventoId, eventoId)));
+  return pasta !== undefined;
 }
 
 /** Move itens de um evento do fotógrafo para uma pasta (ou subpasta) do mesmo evento, ou para nenhuma. */
