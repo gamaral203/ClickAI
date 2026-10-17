@@ -8,6 +8,7 @@ const itens: ItemMenu[] = [
   { href: "/admin/vendas", rotulo: "Financeiro", icone: "financeiro" },
   { href: "/admin/saques", rotulo: "Saques", icone: "saques" },
   { href: "/admin/uso", rotulo: "Painel de uso", icone: "uso" },
+  { href: "/admin/armazenamento", rotulo: "Armazenamento", icone: "armazenamento" },
   { href: "/admin/suporte", rotulo: "Chat de ajuda", icone: "suporte" },
   { href: "/admin/sugestoes", rotulo: "Sugestões", icone: "sugestoes" },
   { href: "/admin/marca-dagua", rotulo: "Marca d'água", icone: "marca" },

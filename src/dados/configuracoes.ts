@@ -7,7 +7,7 @@
 
 import "server-only";
 
-import { and, avg, count, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, avg, count, eq, gte, isNull, or, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -367,4 +367,63 @@ export async function definirArmazenamentoDoEvento(
     .where(eq(t.eventos.id, eventoId))
     .returning({ id: t.eventos.id });
   return alteradas.length > 0;
+}
+
+export type EventoNoArmazenamento = {
+  id: string;
+  titulo: string;
+  slug: string;
+  fotografo: string;
+  armazenamento: ArmazenamentoDoEvento;
+  /** Fotos e vídeos `pronta` (inclusive os excluídos) por onde o original está gravado. */
+  fotosR2: number;
+  fotosDrive: number;
+};
+
+/**
+ * Eventos marcados como híbridos, mais os que voltaram ao R2 mas ainda têm originais no Drive
+ * (a gestão precisa saber onde estão). Para a tela de Armazenamento da gestão.
+ */
+export async function eventosHibridos(): Promise<EventoNoArmazenamento[]> {
+  const banco = await obterBanco();
+  const e = t.eventos;
+  const f = t.fotos;
+  const comFotoNoDrive = sql`exists (select 1 from ${f} where ${f.eventoId} = ${e.id} and ${f.provedorOriginal} = 'drive')`;
+  const linhas = await banco
+    .select({
+      id: e.id,
+      titulo: e.titulo,
+      slug: e.slug,
+      fotografo: t.fotografos.nomePublico,
+      armazenamento: e.armazenamentoOriginais,
+      fotosR2: sql<number>`count(${f.id}) filter (where ${f.provedorOriginal} = 'r2')`.mapWith(
+        Number,
+      ),
+      fotosDrive:
+        sql<number>`count(${f.id}) filter (where ${f.provedorOriginal} = 'drive')`.mapWith(Number),
+    })
+    .from(e)
+    .innerJoin(t.fotografos, eq(t.fotografos.id, e.fotografoId))
+    .leftJoin(f, and(eq(f.eventoId, e.id), eq(f.status, "pronta")))
+    .where(or(eq(e.armazenamentoOriginais, "hibrido"), comFotoNoDrive))
+    .groupBy(e.id, t.fotografos.nomePublico)
+    .orderBy(e.titulo);
+  return linhas;
+}
+
+/** Evento pelo endereço, só com o que a tela de Armazenamento precisa; `null` se não existe. */
+export async function eventoParaArmazenamento(
+  slug: string,
+): Promise<{ id: string; titulo: string; armazenamento: ArmazenamentoDoEvento } | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({
+      id: t.eventos.id,
+      titulo: t.eventos.titulo,
+      armazenamento: t.eventos.armazenamentoOriginais,
+    })
+    .from(t.eventos)
+    .where(eq(t.eventos.slug, slug))
+    .limit(1);
+  return linha ?? null;
 }

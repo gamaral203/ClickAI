@@ -9,6 +9,7 @@ import {
   Clapperboard,
   Flag,
   Gauge,
+  HardDrive,
   Handshake,
   Home,
   ImageDown,
@@ -54,6 +55,7 @@ const ICONES = {
   demonstracao: Clapperboard,
   lightroom: KeyRound,
   uso: Gauge,
+  armazenamento: HardDrive,
 } as const;
 
 export type ItemMenu = {

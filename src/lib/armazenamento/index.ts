@@ -128,6 +128,26 @@ function vigiado(provedor: ProvedorDeOriginais): ProvedorDeOriginais {
 }
 
 /**
+ * Esquece o access token do Drive guardado na memória do processo (ex.: ao desconectar a conta).
+ * O próximo uso, se houver outra conta, renova a partir da credencial nova.
+ */
+export function esquecerAcessoDrive() {
+  tokenEmCache = null;
+  renovacao = null;
+}
+
+/**
+ * Cliente do Drive autenticado com a conta conectada (mesmo cache e renovação de token do
+ * provedor), para a gestão testar a conexão e ler o espaço usado. Não grava último uso nem
+ * último erro: quem chama decide. Sem conta conectada, lança ERRO_DRIVE_NAO_CONECTADO.
+ */
+export async function clienteDriveConectado(): Promise<ClienteDrive> {
+  const credencial = await lerCredencialDrive();
+  if (!credencial) throw new Error(ERRO_DRIVE_NAO_CONECTADO);
+  return criarClienteDrive(tokenDoDrive(credencial.refreshTokenCifrado), { tentativas: 2 });
+}
+
+/**
  * O provedor de originais pelo nome. R2: exige as variáveis `R2_*`. Drive: exige a conta
  * conectada (a pasta `ClicouAI_Storage` é criada na primeira vez e o id fica guardado).
  */

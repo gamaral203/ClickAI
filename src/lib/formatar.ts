@@ -118,6 +118,11 @@ export function formatarBytes(bytes: number) {
   return `${Math.ceil(bytes / 1024)} KB`;
 }
 
+/** Bytes sempre em GB, com duas casas ("12,34 GB"), para comparar espaço usado e limite. */
+export function formatarGb(bytes: number) {
+  return `${(bytes / 1024 ** 3).toFixed(2).replace(".", ",")} GB`;
+}
+
 const formatoHora = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
