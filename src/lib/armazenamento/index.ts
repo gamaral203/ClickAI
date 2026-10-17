@@ -94,7 +94,8 @@ function tokenDoDrive(cifrado: string): ObterAccessToken {
 /**
  * Roda uma chamada ao Drive: no sucesso, marca o último uso (no máximo uma vez por minuto); no
  * erro do Drive (menos "não encontrado", que é fluxo normal), grava o último erro sem segredo e
- * relança. Token inválido também esquece o access token em cache.
+ * relança (416, trecho fora do arquivo, também não conta). Token inválido também esquece o
+ * access token em cache.
  */
 async function vigiarDrive<T>(chamada: () => Promise<T>): Promise<T> {
   try {
@@ -105,7 +106,8 @@ async function vigiarDrive<T>(chamada: () => Promise<T>): Promise<T> {
     }
     return resultado;
   } catch (erro) {
-    if (erro instanceof ErroDrive && erro.codigo !== "nao_encontrado") {
+    // 416 (trecho fora do arquivo) é pedido errado do navegador, não falha do Drive.
+    if (erro instanceof ErroDrive && erro.codigo !== "nao_encontrado" && erro.status !== 416) {
       if (erro.codigo === "token_invalido") tokenEmCache = null;
       await registrarErroDrive(erro).catch(() => {});
     }

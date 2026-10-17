@@ -1,6 +1,15 @@
 "use client";
 
-import { useActionState, useId, useState, useTransition } from "react";
+import {
+  createContext,
+  use,
+  useActionState,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { Activity, Link2, Loader2, Undo2, Unplug } from "lucide-react";
 
 import {
@@ -49,14 +58,21 @@ function Mensagem({ estado }: { estado: EstadoAcaoArmazenamento | null }) {
   return null;
 }
 
-/** Conectar (link para a rota do OAuth), testar e desconectar a conta do Google Drive. */
+/**
+ * Conectar (link para a rota do OAuth), testar e desconectar a conta do Google Drive. Com
+ * originais no Drive (`fotosNoDrive` > 0), a conta fica presa: sem "Desconectar", e o link só
+ * reconecta a mesma conta (para renovar a autorização); o servidor confere as duas coisas.
+ */
 export function AcoesConexaoDrive({
   configurado,
   conectado,
+  fotosNoDrive,
 }: {
   configurado: boolean;
   conectado: boolean;
+  fotosNoDrive: number;
 }) {
+  const presa = conectado && fotosNoDrive > 0;
   const [teste, setTeste] = useState<ResultadoTesteDrive | null>(null);
   const [estado, setEstado] = useState<EstadoAcaoArmazenamento | null>(null);
   const [aberto, setAberto] = useState(false);
@@ -76,8 +92,21 @@ export function AcoesConexaoDrive({
     });
   }
 
+  // Sem as variáveis do Drive e sem conta: não há ação possível (a linha "Configurado" explica).
+  if (!configurado && !conectado) return null;
+
   return (
     <div className="flex flex-col gap-3">
+      {presa && (
+        <p className="rounded-lg border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          {fotosNoDrive === 1
+            ? "1 foto ou vídeo tem o original nesta conta do Google Drive"
+            : `${fotosNoDrive.toLocaleString("pt-BR")} fotos ou vídeos têm o original nesta conta do Google Drive`}{" "}
+          (inclusive excluídos, que quem comprou continua baixando). Enquanto existirem, a conta não
+          pode ser desconectada nem trocada; reconectar serve só para renovar a autorização da mesma
+          conta.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {configurado && (
           // Link comum (não next/link): a rota redireciona para o Google e não pode ser pré-carregada.
@@ -89,7 +118,11 @@ export function AcoesConexaoDrive({
             })}
           >
             <Link2 aria-hidden="true" />
-            {conectado ? "Conectar outra conta" : "Conectar conta Google"}
+            {presa
+              ? "Reconectar a mesma conta"
+              : conectado
+                ? "Conectar outra conta"
+                : "Conectar conta Google"}
           </a>
         )}
         {conectado && (
@@ -102,34 +135,38 @@ export function AcoesConexaoDrive({
               )}
               Testar conexão
             </Button>
-            <AlertDialog open={aberto} onOpenChange={(abrir) => !desconectando && setAberto(abrir)}>
-              <AlertDialogTrigger render={<Button size="touch" variant="destructive" />}>
-                <Unplug aria-hidden="true" />
-                Desconectar
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Desconectar a conta do Google Drive?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    O acesso do ClicouAí é revogado no Google. Os originais já gravados no Drive
-                    continuam lá, mas ninguém consegue baixá-los até a mesma conta ser conectada de
-                    novo. Sem conta conectada, nenhuma foto nova é gravada no Drive.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={desconectando}>Cancelar</AlertDialogCancel>
-                  <Button
-                    size="touch"
-                    onClick={desconectar}
-                    disabled={desconectando}
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                  >
-                    {desconectando && <Loader2 aria-hidden="true" className="animate-spin" />}
-                    Sim, desconectar
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {!presa && (
+              <AlertDialog
+                open={aberto}
+                onOpenChange={(abrir) => !desconectando && setAberto(abrir)}
+              >
+                <AlertDialogTrigger render={<Button size="touch" variant="destructive" />}>
+                  <Unplug aria-hidden="true" />
+                  Desconectar
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Desconectar a conta do Google Drive?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      O acesso do ClicouAí é revogado no Google. Nenhuma foto tem o original nesta
+                      conta; sem conta conectada, nenhuma foto nova é gravada no Drive.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={desconectando}>Cancelar</AlertDialogCancel>
+                    <Button
+                      size="touch"
+                      onClick={desconectar}
+                      disabled={desconectando}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      {desconectando && <Loader2 aria-hidden="true" className="animate-spin" />}
+                      Sim, desconectar
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </>
         )}
       </div>
@@ -185,12 +222,34 @@ export function ChaveExperimental({ ativo }: { ativo: boolean }) {
   );
 }
 
+/** Versão da lista de eventos híbridos: muda quando um evento volta ao R2. */
+const ContextoListaHibridos = createContext<{ versao: number; mudou: () => void }>({
+  versao: 0,
+  mudou: () => {},
+});
+
+/**
+ * Envolve o formulário e a tabela de eventos híbridos: quando um evento volta ao R2, a mensagem
+ * do formulário (ex.: "“X” agora é híbrido.") sai da tela, porque deixou de valer.
+ */
+export function ListaDeEventosHibridos({ children }: { children: React.ReactNode }) {
+  const [versao, setVersao] = useState(0);
+  const mudou = useCallback(() => setVersao((v) => v + 1), []);
+  const valor = useMemo(() => ({ versao, mudou }), [versao, mudou]);
+  return <ContextoListaHibridos value={valor}>{children}</ContextoListaHibridos>;
+}
+
 /** Formulário "Marcar evento como híbrido" pelo endereço (slug). */
 export function FormularioEventoHibrido() {
   const [estado, acao, enviando] = useActionState<EstadoAcaoArmazenamento, FormData>(
     marcarEventoHibridoAcao,
     {},
   );
+  const { versao } = use(ContextoListaHibridos);
+  // A mensagem vale para a lista de quando ela chegou; se a lista mudou depois, some.
+  const [registro, setRegistro] = useState({ estado, versao });
+  if (registro.estado !== estado) setRegistro({ estado, versao });
+  const visivel = registro.estado === estado && registro.versao === versao ? estado : null;
   return (
     <form action={acao} className="flex min-w-0 flex-col gap-2 sm:max-w-lg">
       <Label htmlFor="evento-hibrido-slug">Endereço do evento</Label>
@@ -210,7 +269,7 @@ export function FormularioEventoHibrido() {
           Marcar como híbrido
         </Button>
       </div>
-      <Mensagem estado={estado} />
+      <Mensagem estado={visivel} />
     </form>
   );
 }
@@ -220,12 +279,14 @@ export function BotaoVoltarParaR2({ eventoId, titulo }: { eventoId: string; titu
   const [aberto, setAberto] = useState(false);
   const [estado, setEstado] = useState<EstadoAcaoArmazenamento | null>(null);
   const [enviando, iniciar] = useTransition();
+  const { mudou } = use(ContextoListaHibridos);
 
   function confirmar() {
     iniciar(async () => {
       const resultado = await voltarEventoParaR2Acao(eventoId);
       setAberto(false);
       if (resultado.erro) setEstado(resultado);
+      else mudou();
     });
   }
 

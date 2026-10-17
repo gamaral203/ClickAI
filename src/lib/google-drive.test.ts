@@ -325,6 +325,50 @@ describe("enviarArquivo", () => {
     expect(chamadas[2].init.body).toBeUndefined();
   });
 
+  it("parte que sempre falha desiste após as tentativas, mesmo com a consulta respondendo 308", async () => {
+    const conteudo = arquivo(1 * MiB);
+    const chamadas: Chamada[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        const chamada = { url: String(url), init };
+        chamadas.push(chamada);
+        // Trava de segurança do teste: o laço sem fim estouraria aqui.
+        if (chamadas.length > 50) throw new Error("laço sem fim no envio");
+        if (chamadas.length === 1) return abrirSessao();
+        // Consulta "bytes */total": 308 sem nada recebido; a parte: sempre 503.
+        if (cabecalho(chamada, "content-range")?.startsWith("bytes */")) {
+          return new Response(null, { status: 308 });
+        }
+        return new Response("Service Unavailable", { status: 503 });
+      }),
+    );
+    const { drive, esperas } = cliente({ tentativas: 3 });
+    const erro = await capturar(
+      drive.enviarArquivo({ nome: "a.jpg", pastaId: "p", conteudo, tipo: "image/jpeg" }),
+    );
+    expect(erro.codigo).not.toBe("rede");
+    // Abre a sessão + 3 partes (503) com 2 consultas entre elas.
+    expect(chamadas).toHaveLength(6);
+    expect(esperas).toHaveLength(2);
+  });
+
+  it("parte respondida com 308 sem avanço conta como falha e desiste", async () => {
+    const conteudo = arquivo(1 * MiB);
+    const chamadas = filaDeFetch([
+      abrirSessao(),
+      new Response(null, { status: 308 }),
+      new Response(null, { status: 308 }),
+      new Response(null, { status: 308 }),
+    ]);
+    const { drive } = cliente({ tentativas: 3 });
+    const erro = await capturar(
+      drive.enviarArquivo({ nome: "a.jpg", pastaId: "p", conteudo, tipo: "image/jpeg" }),
+    );
+    expect(erro.message).toContain("não aceitou a parte");
+    expect(chamadas).toHaveLength(4);
+  });
+
   it("retoma depois de erro de rede; consulta sem Range recomeça do zero", async () => {
     const conteudo = arquivo(1 * MiB);
     const chamadas = filaDeFetch([
@@ -436,6 +480,8 @@ describe("baixarArquivo e lerArquivo", () => {
     expect(r.corpo).toBeInstanceOf(ReadableStream);
     expect(chamadas[0].url).toBe("https://www.googleapis.com/drive/v3/files/arq%2F1?alt=media");
     expect(cabecalho(chamadas[0], "range")).toBe("bytes=100-199");
+    // Sem compressão: o Content-Length bate com os bytes do corpo.
+    expect(cabecalho(chamadas[0], "accept-encoding")).toBe("identity");
   });
 
   it("range aberto e tamanho pelo Content-Range quando falta Content-Length", async () => {
@@ -458,6 +504,7 @@ describe("baixarArquivo e lerArquivo", () => {
     expect(r.tamanho).toBe(3);
     expect(r.contentRange).toBeUndefined();
     expect(cabecalho(chamadas[0], "range")).toBeNull();
+    expect(cabecalho(chamadas[0], "accept-encoding")).toBe("identity");
     expect(Buffer.from(await new Response(r.corpo).arrayBuffer())).toEqual(Buffer.from([1, 2, 3]));
   });
 

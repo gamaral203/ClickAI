@@ -27,6 +27,11 @@ const TELA = "/admin/armazenamento";
 
 export type EstadoAcaoArmazenamento = { ok?: string; erro?: string };
 
+/** "1 foto ou vídeo" / "3 fotos ou vídeos". */
+function textoDeFotos(n: number) {
+  return n === 1 ? "Há 1 foto ou vídeo" : `Há ${n.toLocaleString("pt-BR")} fotos ou vídeos`;
+}
+
 /** Testa a conexão com o Drive (espaço usado + pasta raiz), com o tempo de resposta. */
 export async function testarConexaoDriveAcao(): Promise<ResultadoTesteDrive> {
   const gestor = await exigirGestor(TELA);
@@ -38,12 +43,22 @@ export async function testarConexaoDriveAcao(): Promise<ResultadoTesteDrive> {
   return resultado;
 }
 
-/** Revoga o acesso no Google e apaga a credencial. Os arquivos já gravados no Drive ficam lá. */
+/**
+ * Revoga o acesso no Google e apaga a credencial. Recusa enquanto houver original gravado no
+ * Drive (inclusive de foto excluída): sem a conta, ninguém mais baixaria esses arquivos.
+ */
 export async function desconectarDriveAcao(): Promise<EstadoAcaoArmazenamento> {
   await exigirGestor(TELA);
-  const { revogado } = await desconectarDrive();
+  const resultado = await desconectarDrive();
   revalidatePath(TELA);
-  return revogado
+  if (!resultado.ok) {
+    return {
+      erro:
+        `${textoDeFotos(resultado.fotosNoDrive)} com o original nesta conta do Google Drive. ` +
+        "Enquanto existirem, a conta não pode ser desconectada nem trocada.",
+    };
+  }
+  return resultado.revogado
     ? { ok: "Conta do Google Drive desconectada." }
     : {
         ok:

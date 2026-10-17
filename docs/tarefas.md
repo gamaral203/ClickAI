@@ -257,6 +257,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
   - [x] Página `/admin/armazenamento`: conectar a conta Google (cliente OAuth separado, `GOOGLE_DRIVE_CLIENT_ID/SECRET`), testar a conexão, espaço usado, fotos e falhas por provedor, tempos médios, ligar/desligar o experimental, marcar um evento como híbrido
   - [x] Upload em evento híbrido: o navegador continua enviando para `envios/` no R2; na confirmação o servidor grava o original no Drive e apaga o temporário
   - [x] Download de original no Drive: a rota do site faz streaming (com Range) depois de conferir o pedido pago; nenhum link do Drive sai do servidor; caminhos do dono (baixar originais, sem marca, rostos, regerar prévias, excluir evento) passam pelo provedor
+  - [x] Correções da revisão: ids e provedor do Drive fora do tipo `Foto`/`Evento`; conta presa enquanto houver original no Drive (sem desconectar nem trocar de conta); `HEAD` próprio e prazo da medição no streaming; falha passageira do Drive acompanhada pela tela; raiz `ClicouAI_Storage` recriada se sumir; upload retomável sem laço infinito; download contado só uma vez
   - [ ] Evento privado "Teste Armazenamento Drive": 10 e 100 fotos, compra simulada, download, falha de conexão e retomada, comparação com o R2
   - [ ] Antes de qualquer uso real: decidir sobre LGPD (sem DPA em conta Google One pessoal) e sobre o risco de suspensão da conta; conferir o plano da Vercel (Hobby é não comercial)
 

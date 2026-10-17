@@ -204,10 +204,15 @@ export function driveConfigurado() {
  * offline` garantem o refresh token mesmo numa reconexão; o `redirectUri` deve vir do APP_URL
  * configurado, nunca do Host da requisição, e o `state` precisa voltar igual no callback.
  */
-export function urlDeAutorizacaoDrive(args: { redirectUri: string; state: string }): string {
+export function urlDeAutorizacaoDrive(args: {
+  redirectUri: string;
+  state: string;
+  /** Conta sugerida na tela do Google (a que precisa ser a mesma ao reconectar). */
+  loginHint?: string;
+}): string {
   const config = exigirConfig();
   const url = new URL(AUTORIZACAO);
-  url.search = new URLSearchParams({
+  const parametros = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: args.redirectUri,
     response_type: "code",
@@ -216,7 +221,9 @@ export function urlDeAutorizacaoDrive(args: { redirectUri: string; state: string
     prompt: "consent",
     include_granted_scopes: "false",
     state: args.state,
-  }).toString();
+  });
+  if (args.loginHint) parametros.set("login_hint", args.loginHint);
+  url.search = parametros.toString();
   return url.toString();
 }
 
@@ -619,11 +626,26 @@ export function criarClienteDrive(
       }
       if (resposta?.status === 308) {
         descartar(resposta);
+        const anterior = enviado;
+        const eraConsulta = consultar;
         enviado = proximoByte(resposta);
         if (enviado > total) throw new ErroDrive("outro", "O Google Drive confirmou bytes demais");
         consultar = false;
-        falhas = 0;
-        aoProgredir?.(enviado);
+        if (enviado !== anterior) aoProgredir?.(enviado);
+        // Só o avanço zera as falhas: a consulta (`bytes */total`) responde 308 mesmo quando a
+        // parte anterior falhou, e zerar ali faria uma parte que sempre falha repetir sem fim.
+        if (enviado > anterior) {
+          falhas = 0;
+          continue;
+        }
+        // Parte enviada sem avanço nenhum também é falha (a consulta só diz de onde retomar).
+        if (!eraConsulta) {
+          falhas++;
+          if (falhas >= tentativas) {
+            throw new ErroDrive("outro", "O Google Drive não aceitou a parte enviada", 308);
+          }
+          await esperar(atraso(falhas - 1));
+        }
         continue;
       }
       if (resposta?.status === 404 || resposta?.status === 410) {
@@ -658,7 +680,9 @@ export function criarClienteDrive(
   }
 
   async function baixarArquivo(id: string, range?: { inicio: number; fim?: number }) {
-    const cabecalhos: Record<string, string> = {};
+    // Sem compressão: o Content-Length (repassado ao navegador) precisa ser o tamanho do corpo
+    // que sai daqui, e o fetch descomprime gzip sozinho.
+    const cabecalhos: Record<string, string> = { "Accept-Encoding": "identity" };
     if (range) cabecalhos.Range = `bytes=${range.inicio}-${range.fim ?? ""}`;
     const resposta = await chamar({ url: `${arquivo(id)}?alt=media`, cabecalhos });
     if (!resposta.body)

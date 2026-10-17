@@ -111,6 +111,52 @@ export function driveIndisponivel() {
 }
 
 /**
+ * Prazo máximo para o fim do fluxo ser medido. Fica abaixo do `maxDuration` (300 s) das rotas:
+ * a métrica, gravada no `after`, nunca segura a função até o teto, mesmo que o fim do fluxo
+ * (último byte ou desistência) não chegue a ser visto.
+ */
+export const PRAZO_DA_MEDICAO_MS = 290_000;
+
+/** Cabeçalhos do anexo do original, iguais no GET e no HEAD. */
+function cabecalhosDoAnexo(nomeArquivo: string, tipoMime: string) {
+  return new Headers({
+    "Content-Type": tipoMime,
+    "Content-Disposition": dispositionDeAnexo(nomeArquivo),
+    "Cache-Control": "no-store",
+    "Accept-Ranges": "bytes",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+  });
+}
+
+/**
+ * Resposta ao HEAD do original no Drive, para quem JÁ foi autorizado: só os cabeçalhos do GET
+ * (tipo, anexo, tamanho, `Accept-Ranges`, sem cache), sem abrir o fluxo nem medir. O tamanho
+ * vem dos metadados do Drive. `null` se o arquivo não existe (ou está na lixeira); 503 se o
+ * Drive não respondeu.
+ */
+export async function cabecalhosDoOriginalEmFluxo(args: {
+  foto: OriginalDaFoto;
+  nomeArquivo: string;
+  tipoMime: string;
+}): Promise<Response | null> {
+  let total: number | null;
+  try {
+    const provedor = await provedorDeOriginais("drive");
+    total = await provedor.tamanhoDoOriginal(referenciaNoDrive(args.foto));
+  } catch (erro) {
+    console.error(
+      `[originais] falha ao ler o tamanho do original no Drive: ${erro instanceof ErroDrive ? erro.codigo : erro instanceof Error ? erro.name : "erro"}`,
+    );
+    return new Response(null, { status: 503, headers: driveIndisponivel().headers });
+  }
+  if (total === null) return null;
+  const headers = cabecalhosDoAnexo(args.nomeArquivo, args.tipoMime);
+  headers.set("Content-Length", String(total));
+  return new Response(null, { status: 200, headers });
+}
+
+/**
  * Repassa o original do Drive como fluxo, para quem JÁ foi autorizado (pedido pago, ou o autor
  * com a liberação). Responde 200 ou 206 (com `Range`) com o tipo, o nome de anexo, o tamanho
  * quando o Drive informa, `Accept-Ranges` e sem cache; 416 para um trecho fora do arquivo. `null`
@@ -127,6 +173,8 @@ export async function respostaDoOriginalEmFluxo(args: {
   range: string | null;
   operacao: "download_original" | "leitura_original";
   depois: (tarefa: () => Promise<unknown>) => void;
+  /** `request.signal`: o navegador desistiu, o fluxo do Drive é cancelado na hora. */
+  sinal?: AbortSignal;
   fotoId?: string;
   eventoId?: string;
 }): Promise<Response | null> {
@@ -176,6 +224,13 @@ export async function respostaDoOriginalEmFluxo(args: {
   let entregues = 0;
   let avisar!: (fim: { sucesso: boolean; erro?: unknown }) => void;
   const terminou = new Promise<{ sucesso: boolean; erro?: unknown }>((r) => (avisar = r));
+  // Pedido abortado (o navegador fechou a conexão): cancela o fluxo do Drive e fecha a medição.
+  const aoAbortar = () => {
+    leitor.cancel("Pedido abortado").catch(() => {});
+    avisar({ sucesso: false, erro: "Download interrompido pelo navegador" });
+  };
+  if (args.sinal?.aborted) aoAbortar();
+  else args.sinal?.addEventListener("abort", aoAbortar, { once: true });
   const corpo = new ReadableStream<Uint8Array>({
     async pull(controle) {
       try {
@@ -198,18 +253,22 @@ export async function respostaDoOriginalEmFluxo(args: {
     },
   });
   args.depois(async () => {
-    const fim = await terminou;
+    // Com prazo: um fluxo que ninguém lê até o fim (ex.: HEAD tratado como GET) não segura a
+    // função até o `maxDuration`.
+    let relogio: ReturnType<typeof setTimeout> | undefined;
+    const prazo = new Promise<{ sucesso: boolean; erro?: unknown }>((r) => {
+      relogio = setTimeout(
+        () => r({ sucesso: false, erro: "Fluxo sem fim dentro do prazo da medição" }),
+        PRAZO_DA_MEDICAO_MS,
+      );
+    });
+    const fim = await Promise.race([terminou, prazo]);
+    clearTimeout(relogio);
+    args.sinal?.removeEventListener("abort", aoAbortar);
     await registrar(fim.sucesso, entregues, fim.erro);
   });
 
-  const headers = new Headers({
-    "Content-Type": args.tipoMime,
-    "Content-Disposition": dispositionDeAnexo(args.nomeArquivo),
-    "Cache-Control": "no-store",
-    "Accept-Ranges": "bytes",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-  });
+  const headers = cabecalhosDoAnexo(args.nomeArquivo, args.tipoMime);
   if (fluxo.tamanho !== null) headers.set("Content-Length", String(fluxo.tamanho));
   if (fluxo.status === 206 && fluxo.contentRange) headers.set("Content-Range", fluxo.contentRange);
   return new Response(corpo, { status: fluxo.status, headers });

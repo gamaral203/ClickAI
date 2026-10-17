@@ -7,11 +7,13 @@ import {
   BotaoVoltarParaR2,
   ChaveExperimental,
   FormularioEventoHibrido,
+  ListaDeEventosHibridos,
 } from "@/components/admin/armazenamento";
 import { Celula, CartaoNumero, Tabela } from "@/components/admin/tabela";
 import {
   armazenamentoExperimentalAtivo,
   eventosHibridos,
+  fotosNoDrive,
   resumoMetricasArmazenamento,
   situacaoDaConexaoDrive,
 } from "@/dados/configuracoes";
@@ -41,6 +43,8 @@ const ERROS: Record<string, string> = {
   pasta:
     "A conta foi conectada, mas a pasta ClicouAI_Storage não foi criada agora. Ela será criada no primeiro uso; use “Testar conexão” para conferir.",
   falha: "Não foi possível conectar o Google Drive. Tente de novo.",
+  conta_diferente:
+    "Essa não é a conta do Google Drive que guarda os originais. Enquanto houver fotos gravadas no Drive, só a mesma conta pode ser conectada; a conexão atual continua como estava.",
 };
 
 export default function PaginaArmazenamento({ searchParams }: PageProps<"/admin/armazenamento">) {
@@ -110,11 +114,13 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/admin/armazenamento">
   const conectouAgora = params.ok === "conectado";
 
   const configurado = conexaoDriveConfigurada();
-  const [ativo, conexao, metricas, eventos] = await Promise.all([
+  const [ativo, conexao, metricas, eventos, noDrive] = await Promise.all([
     armazenamentoExperimentalAtivo(),
     situacaoDaConexaoDrive(),
     resumoMetricasArmazenamento(),
     eventosHibridos(),
+    // Todas as fotos com original no Drive, inclusive excluídas e não prontas: prendem a conta.
+    fotosNoDrive(),
   ]);
 
   return (
@@ -192,7 +198,7 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/admin/armazenamento">
             </>
           )}
         </dl>
-        <AcoesConexaoDrive configurado={configurado} conectado={!!conexao} />
+        <AcoesConexaoDrive configurado={configurado} conectado={!!conexao} fotosNoDrive={noDrive} />
       </section>
 
       <section aria-labelledby="titulo-metricas" className="flex flex-col gap-3">
@@ -274,41 +280,43 @@ async function Conteudo({ searchParams }: Pick<PageProps<"/admin/armazenamento">
           gravadas. As fotos já gravadas ficam onde estão (R2 ou Drive) e continuam sendo entregues
           a quem comprou.
         </p>
-        <FormularioEventoHibrido />
-        <Tabela
-          colunas={[
-            { rotulo: "Evento" },
-            { rotulo: "Fotógrafo" },
-            { rotulo: "Fotos no R2", direita: true },
-            { rotulo: "Fotos no Drive", direita: true },
-            { rotulo: "Ação", direita: true },
-          ]}
-          vazio="Nenhum evento híbrido ainda."
-        >
-          {eventos.map((e) => (
-            <tr key={e.id}>
-              <Celula>
-                <span className="flex flex-col">
-                  <span className="font-medium">{e.titulo}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {e.slug}
-                    {e.armazenamento === "r2" && " · voltou ao R2 (fotos antigas no Drive)"}
+        <ListaDeEventosHibridos>
+          <FormularioEventoHibrido />
+          <Tabela
+            colunas={[
+              { rotulo: "Evento" },
+              { rotulo: "Fotógrafo" },
+              { rotulo: "Fotos no R2", direita: true },
+              { rotulo: "Fotos no Drive", direita: true },
+              { rotulo: "Ação", direita: true },
+            ]}
+            vazio="Nenhum evento híbrido ainda."
+          >
+            {eventos.map((e) => (
+              <tr key={e.id}>
+                <Celula>
+                  <span className="flex flex-col">
+                    <span className="font-medium">{e.titulo}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {e.slug}
+                      {e.armazenamento === "r2" && " · voltou ao R2 (fotos antigas no Drive)"}
+                    </span>
                   </span>
-                </span>
-              </Celula>
-              <Celula>{e.fotografo}</Celula>
-              <Celula direita>{e.fotosR2}</Celula>
-              <Celula direita>{e.fotosDrive}</Celula>
-              <Celula direita>
-                {e.armazenamento === "hibrido" ? (
-                  <BotaoVoltarParaR2 eventoId={e.id} titulo={e.titulo} />
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </Celula>
-            </tr>
-          ))}
-        </Tabela>
+                </Celula>
+                <Celula>{e.fotografo}</Celula>
+                <Celula direita>{e.fotosR2}</Celula>
+                <Celula direita>{e.fotosDrive}</Celula>
+                <Celula direita>
+                  {e.armazenamento === "hibrido" ? (
+                    <BotaoVoltarParaR2 eventoId={e.id} titulo={e.titulo} />
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </Celula>
+              </tr>
+            ))}
+          </Tabela>
+        </ListaDeEventosHibridos>
       </section>
     </>
   );

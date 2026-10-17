@@ -11,6 +11,8 @@ import { derivarChave } from "./assinatura";
 // Trocar o APP_SECRET invalida os segredos guardados (é preciso conectar a conta de novo).
 
 const VERSAO = "v1";
+/** Tag do GCM com o tamanho cheio: tag curta (truncada) é recusada, não aceita com menos segurança. */
+const TAMANHO_DA_TAG = 16;
 
 function chave(finalidade: string) {
   return derivarChave(`segredo:${finalidade}`);
@@ -46,14 +48,19 @@ export function decifrarSegredo(
   if (!cifrado || !finalidade) return null;
   const [versao, iv, tag, corpo, ...resto] = cifrado.split(".");
   if (versao !== VERSAO || !iv || !tag || !corpo || resto.length > 0) return null;
+  const tagEmBytes = Buffer.from(tag, "base64url");
+  if (tagEmBytes.length !== TAMANHO_DA_TAG) return null;
   try {
     const decifra = createDecipheriv(
       "aes-256-gcm",
       chave(finalidade),
       Buffer.from(iv, "base64url"),
+      {
+        authTagLength: TAMANHO_DA_TAG,
+      },
     );
     decifra.setAAD(aad(finalidade));
-    decifra.setAuthTag(Buffer.from(tag, "base64url"));
+    decifra.setAuthTag(tagEmBytes);
     return Buffer.concat([
       decifra.update(Buffer.from(corpo, "base64url")),
       decifra.final(),

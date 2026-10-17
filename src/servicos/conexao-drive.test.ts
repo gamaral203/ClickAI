@@ -43,6 +43,7 @@ import {
   armazenamentoExperimentalAtivo,
   eventosHibridos,
   FINALIDADE_REFRESH_TOKEN_DRIVE,
+  fotosNoDrive,
   lerCredencialDrive,
   situacaoDaConexaoDrive,
 } from "@/dados/configuracoes";
@@ -65,6 +66,12 @@ const google = vi.hoisted(() => ({
   chamadas: [] as string[],
   escopo: "https://www.googleapis.com/auth/drive.file",
   revogados: [] as string[],
+  /** E-mail da conta que autoriza (`null`: o Google não informa). */
+  email: "dono.da.conta@gmail.com" as string | null,
+  /** Ids de arquivo que a conta que autorizou NÃO enxerga (404 nos metadados). */
+  invisiveis: new Set<string>(),
+  /** Refresh token que o Google devolve na próxima troca de código. */
+  refresh: "1//refresh-de-teste",
 }));
 
 function json(corpo: unknown, status = 200) {
@@ -85,7 +92,7 @@ async function googleFalso(entrada: RequestInfo | URL, init?: RequestInit) {
     return json({
       access_token: "ya29.acesso",
       expires_in: 3600,
-      refresh_token: REFRESH,
+      refresh_token: google.refresh,
       scope: google.escopo,
     });
   }
@@ -102,10 +109,10 @@ async function googleFalso(entrada: RequestInfo | URL, init?: RequestInit) {
           limit: String(15 * 1024 ** 3),
           usageInDrive: "10",
         },
-        user: { emailAddress: "dono.da.conta@gmail.com" },
+        user: { emailAddress: google.email },
       });
     }
-    return json({ user: { emailAddress: "dono.da.conta@gmail.com" } });
+    return json({ user: google.email ? { emailAddress: google.email } : {} });
   }
   if (url.pathname === "/drive/v3/files" && (init?.method ?? "GET") === "GET") {
     return json({ files: [] });
@@ -114,6 +121,8 @@ async function googleFalso(entrada: RequestInfo | URL, init?: RequestInit) {
     return json({ id: "pasta-raiz-id" });
   }
   if (url.pathname.startsWith("/drive/v3/files/")) {
+    const id = decodeURIComponent(url.pathname.slice("/drive/v3/files/".length));
+    if (google.invisiveis.has(id)) return json({ error: { message: "File not found" } }, 404);
     return json({ id: "pasta-raiz-id", name: "ClicouAI_Storage", trashed: false });
   }
   return json({ error: { message: "rota não simulada" } }, 500);
@@ -135,8 +144,15 @@ beforeEach(async () => {
   google.chamadas = [];
   google.revogados = [];
   google.escopo = "https://www.googleapis.com/auth/drive.file";
+  google.email = "dono.da.conta@gmail.com";
+  google.invisiveis = new Set();
+  google.refresh = REFRESH;
   reiniciarArmazenamento();
   const banco = await obterBanco();
+  await banco
+    .update(t.fotos)
+    .set({ provedorOriginal: "r2", driveArquivoId: null })
+    .where(eq(t.fotos.provedorOriginal, "drive"));
   await banco.delete(t.credenciaisGoogleDrive);
   await banco.delete(t.configuracoes);
   await banco
@@ -372,5 +388,121 @@ describe("ações da tela de Armazenamento", () => {
     expect((await desconectarDriveAcao()).ok).toBe("Conta do Google Drive desconectada.");
     expect(google.revogados).toEqual([REFRESH]);
     expect(await lerCredencialDrive()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------- Conta presa aos originais
+
+describe("com originais no Drive, a conta não pode ser trocada nem desconectada", () => {
+  const ARQUIVO = "arquivo-original-no-drive";
+
+  /** Põe o original de uma foto do evento no Drive (excluída: ainda conta). */
+  async function fotoNoDrive() {
+    const banco = await obterBanco();
+    const [foto] = await banco
+      .select({ id: t.fotos.id })
+      .from(t.fotos)
+      .where(eq(t.fotos.eventoId, evento.id))
+      .limit(1);
+    await banco
+      .update(t.fotos)
+      .set({ provedorOriginal: "drive", driveArquivoId: ARQUIVO, excluidaEm: new Date() })
+      .where(eq(t.fotos.id, foto.id));
+    return foto.id;
+  }
+
+  afterEach(async () => {
+    const banco = await obterBanco();
+    await banco
+      .update(t.fotos)
+      .set({ excluidaEm: null })
+      .where(eq(t.fotos.driveArquivoId, ARQUIVO));
+  });
+
+  it("desconectar é recusado e explica quantas fotos dependem da conta", async () => {
+    await conectar();
+    await fotoNoDrive();
+    expect(await fotosNoDrive()).toBe(1);
+    const resultado = await desconectarDriveAcao();
+    expect(resultado.ok).toBeUndefined();
+    expect(resultado.erro).toContain("Há 1 foto ou vídeo");
+    expect(resultado.erro).toContain("não pode ser desconectada");
+    expect(google.revogados).toEqual([]);
+    expect(await lerCredencialDrive()).not.toBeNull();
+  });
+
+  it("outra conta no callback: revoga o token novo e mantém a credencial atual", async () => {
+    await conectar();
+    await fotoNoDrive();
+    const antes = await lerCredencialDrive();
+
+    google.email = "outra.conta@gmail.com";
+    google.refresh = "1//refresh-da-outra-conta";
+    const resposta = await conectar();
+    expect(resposta.headers.get("location")).toBe(
+      `${BASE}/admin/armazenamento?erro=conta_diferente`,
+    );
+    expect(google.revogados).toEqual(["1//refresh-da-outra-conta"]);
+    const depois = await lerCredencialDrive();
+    expect(depois?.contaEmail).toBe("dono.da.conta@gmail.com");
+    expect(depois?.refreshTokenCifrado).toBe(antes?.refreshTokenCifrado);
+    expect(depois?.pastaRaizId).toBe("pasta-raiz-id");
+  });
+
+  it("a mesma conta (e-mail em outra caixa) pode reconectar para renovar a autorização", async () => {
+    await conectar();
+    await fotoNoDrive();
+    google.email = "Dono.Da.Conta@Gmail.com";
+    google.refresh = "1//refresh-renovado";
+    const resposta = await conectar();
+    expect(resposta.headers.get("location")).toBe(`${BASE}/admin/armazenamento?ok=conectado`);
+    expect(google.revogados).toEqual([]);
+    const credencial = await lerCredencialDrive();
+    expect(decifrarSegredo(credencial!.refreshTokenCifrado, FINALIDADE_REFRESH_TOKEN_DRIVE)).toBe(
+      "1//refresh-renovado",
+    );
+    // Mesma conta: a pasta raiz guardada continua valendo.
+    expect(credencial?.pastaRaizId).toBe("pasta-raiz-id");
+  });
+
+  it("sem o e-mail da conta, decide por o token novo enxergar um original já gravado", async () => {
+    google.email = null;
+    await conectar();
+    await fotoNoDrive();
+
+    // A conta que voltou não enxerga o arquivo: é outra.
+    google.invisiveis.add(ARQUIVO);
+    google.refresh = "1//refresh-sem-email";
+    const recusada = await conectar();
+    expect(recusada.headers.get("location")).toBe(
+      `${BASE}/admin/armazenamento?erro=conta_diferente`,
+    );
+    expect(google.revogados).toEqual(["1//refresh-sem-email"]);
+
+    // Enxerga: é a mesma.
+    google.invisiveis.clear();
+    const aceita = await conectar();
+    expect(aceita.headers.get("location")).toBe(`${BASE}/admin/armazenamento?ok=conectado`);
+  });
+
+  it("sem originais no Drive, trocar de conta e desconectar continuam livres", async () => {
+    await conectar();
+    google.email = "outra.conta@gmail.com";
+    expect((await conectar()).headers.get("location")).toBe(
+      `${BASE}/admin/armazenamento?ok=conectado`,
+    );
+    expect((await lerCredencialDrive())?.contaEmail).toBe("outra.conta@gmail.com");
+    expect((await desconectarDriveAcao()).ok).toBe("Conta do Google Drive desconectada.");
+  });
+
+  it("o início da conexão sugere ao Google a conta que precisa ser a mesma", async () => {
+    await conectar();
+    const semFotos = await iniciarRota(pedido("/api/admin/armazenamento/google"));
+    expect(new URL(semFotos.headers.get("location")!).searchParams.has("login_hint")).toBe(false);
+    await fotoNoDrive();
+    const comFotos = await iniciarRota(pedido("/api/admin/armazenamento/google"));
+    expect(new URL(comFotos.headers.get("location")!).searchParams.get("login_hint")).toBe(
+      "dono.da.conta@gmail.com",
+    );
   });
 });

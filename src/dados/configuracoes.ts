@@ -7,7 +7,7 @@
 
 import "server-only";
 
-import { and, avg, count, eq, gte, isNull, or, sql } from "drizzle-orm";
+import { and, avg, count, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -194,6 +194,31 @@ export async function apagarCredencialDrive(): Promise<void> {
   });
 }
 
+/**
+ * Fotos e vídeos com o original no Drive, em qualquer situação (inclusive os excluídos, que quem
+ * comprou continua baixando). Enquanto houver algum, a conta conectada não pode ser trocada nem
+ * desconectada: o escopo `drive.file` só enxerga os arquivos da própria conta.
+ */
+export async function fotosNoDrive(): Promise<number> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ total: count() })
+    .from(t.fotos)
+    .where(eq(t.fotos.provedorOriginal, "drive"));
+  return Number(linha?.total ?? 0);
+}
+
+/** Id de um arquivo qualquer gravado no Drive (para conferir se uma conta o enxerga), ou `null`. */
+export async function umArquivoNoDrive(): Promise<string | null> {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.fotos.driveArquivoId })
+    .from(t.fotos)
+    .where(and(eq(t.fotos.provedorOriginal, "drive"), isNotNull(t.fotos.driveArquivoId)))
+    .limit(1);
+  return linha?.id ?? null;
+}
+
 /** Guarda o id da pasta `ClicouAI_Storage` criada (ou achada) no Drive. */
 export async function definirPastaRaizDrive(pastaRaizId: string): Promise<void> {
   const banco = await obterBanco();
@@ -201,6 +226,21 @@ export async function definirPastaRaizDrive(pastaRaizId: string): Promise<void> 
     .update(t.credenciaisGoogleDrive)
     .set({ pastaRaizId })
     .where(eq(t.credenciaisGoogleDrive.chave, LINHA_DA_CREDENCIAL));
+}
+
+/**
+ * Esquece a pasta raiz (apagada ou na lixeira do Drive) e o cache das pastas, que ficavam dentro
+ * dela: o próximo uso acha ou cria `ClicouAI_Storage` de novo.
+ */
+export async function esquecerPastaRaizDrive(): Promise<void> {
+  const banco = await obterBanco();
+  await banco.transaction(async (tx) => {
+    await tx
+      .update(t.credenciaisGoogleDrive)
+      .set({ pastaRaizId: null })
+      .where(eq(t.credenciaisGoogleDrive.chave, LINHA_DA_CREDENCIAL));
+    await tx.delete(t.pastasDrive);
+  });
 }
 
 /** Último erro do Drive (curto e sem segredo), para a gestão ver. */

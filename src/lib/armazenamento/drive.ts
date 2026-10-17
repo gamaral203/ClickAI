@@ -1,6 +1,13 @@
 import "server-only";
 
-import { esquecerPastaDrive, gravarPastaDrive, pastaDrive } from "@/dados/configuracoes";
+import {
+  definirPastaRaizDrive,
+  esquecerPastaDrive,
+  esquecerPastaRaizDrive,
+  gravarPastaDrive,
+  PASTA_RAIZ_DRIVE,
+  pastaDrive,
+} from "@/dados/configuracoes";
 import { type ClienteDrive, ErroDrive } from "@/lib/google-drive";
 
 import type { IntervaloDeBytes, ProvedorDeOriginais, ReferenciaOriginal } from "./tipos";
@@ -49,6 +56,25 @@ export function criarProvedorDrive({
   cliente: ClienteDrive;
   pastaRaizId: string;
 }): ProvedorDeOriginais {
+  /** A raiz em uso; muda se a `ClicouAI_Storage` sumir do Drive e for criada de novo. */
+  let raiz = pastaRaizId;
+
+  /** A pasta raiz existe e não está na lixeira (apagada ou na lixeira conta como não encontrada). */
+  async function raizExiste(): Promise<boolean> {
+    const meta = await cliente.metadados(raiz);
+    return !!meta && !meta.lixeira;
+  }
+
+  /**
+   * Raiz apagada ou na lixeira: esquece o id guardado na credencial e o cache das pastas (que
+   * ficavam dentro dela) e acha ou cria `ClicouAI_Storage` de novo.
+   */
+  async function refazerRaiz(): Promise<void> {
+    await esquecerPastaRaizDrive();
+    raiz = await cliente.garantirPasta(PASTA_RAIZ_DRIVE, null);
+    await definirPastaRaizDrive(raiz);
+  }
+
   /** Id da pasta no Drive (cache primeiro; senão acha ou cria e guarda no cache). */
   async function pasta(
     fotografoId: string,
@@ -63,7 +89,10 @@ export function criarProvedorDrive({
   }
 
   async function pastaDoEvento(fotografoId: string, eventoId: string): Promise<string> {
-    const doFotografo = await pasta(fotografoId, null, fotografoId, pastaRaizId);
+    // A pasta do fotógrafo vai ser criada (ou achada) dentro da raiz: confere antes que a raiz
+    // ainda existe, para não criar pasta dentro de uma raiz apagada ou na lixeira.
+    if (!(await pastaDrive(fotografoId, null)) && !(await raizExiste())) await refazerRaiz();
+    const doFotografo = await pasta(fotografoId, null, fotografoId, raiz);
     return pasta(fotografoId, eventoId, eventoId, doFotografo);
   }
 
@@ -83,11 +112,19 @@ export function criarProvedorDrive({
       try {
         enviado = await enviar();
       } catch (erro) {
-        // Pasta do cache apagada no Drive: esquece as duas e tenta uma vez de novo.
+        // Pasta do cache apagada no Drive: esquece as duas (e a raiz, se ela também sumiu) e
+        // tenta uma vez de novo.
         if (!naoEncontrado(erro)) throw erro;
         await esquecerPastaDrive(fotografoId, eventoId);
         await esquecerPastaDrive(fotografoId, null);
-        enviado = await enviar();
+        if (!(await raizExiste())) await refazerRaiz();
+        try {
+          enviado = await enviar();
+        } catch (erroDeNovo) {
+          // Ainda não encontrada: a próxima tentativa recomeça pela raiz.
+          if (naoEncontrado(erroDeNovo)) await esquecerPastaRaizDrive().catch(() => {});
+          throw erroDeNovo;
+        }
       }
       // O cliente já confere tamanho e MD5; esta conferência barata fica como segunda trava.
       if (enviado.tamanho !== conteudo.length) {

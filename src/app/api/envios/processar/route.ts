@@ -82,5 +82,10 @@ export async function POST(request: NextRequest) {
   const tempos: TemposDoProcessamento = {};
   const resultado = await confirmarEnvio(conta.id, dados.data.fotoId, { tempos, depois: after });
   if ("erro" in resultado) return resposta({ erro: resultado.erro, tempos }, 422);
+  // `aguardando`: falha passageira ao gravar o original no Drive; a foto continua em
+  // `processando` e o job tenta de novo. A tela acompanha pela situação até `pronta` ou `erro`.
+  if ("aguardando" in resultado) {
+    return resposta({ ok: true, emAndamento: true, aguardando: true, tempos });
+  }
   return resposta({ ok: true, emAndamento: "emAndamento" in resultado, tempos });
 }

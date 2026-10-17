@@ -34,4 +34,17 @@ describe("segredo cifrado", () => {
     expect(decifrarSegredo("lixo", FINALIDADE)).toBeNull();
     expect(decifrarSegredo(null, FINALIDADE)).toBeNull();
   });
+
+  it("recusa a tag truncada (só aceita a tag de 16 bytes)", () => {
+    const cifrado = cifrarSegredo("segredo", FINALIDADE);
+    const [versao, iv, tag, corpo] = cifrado.split(".");
+    const bytes = Buffer.from(tag, "base64url");
+    expect(bytes.length).toBe(16);
+    for (const tamanho of [4, 8, 12, 15]) {
+      const curta = bytes.subarray(0, tamanho).toString("base64url");
+      expect(decifrarSegredo([versao, iv, curta, corpo].join("."), FINALIDADE)).toBeNull();
+    }
+    const longa = Buffer.concat([bytes, Buffer.from([0])]).toString("base64url");
+    expect(decifrarSegredo([versao, iv, longa, corpo].join("."), FINALIDADE)).toBeNull();
+  });
 });

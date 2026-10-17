@@ -142,6 +142,8 @@ type DriveFalso = ClienteDrive & {
   /** Faz o próximo envio devolver um tamanho errado. */
   tamanhoErrado: boolean;
   apagados: string[];
+  /** Ids de pastas na lixeira (o Drive não as acha mais por nome). */
+  lixeira: Set<string>;
 };
 
 function criarDriveFalso(): DriveFalso {
@@ -153,10 +155,11 @@ function criarDriveFalso(): DriveFalso {
     chamadasGarantirPasta: 0,
     tamanhoErrado: false,
     apagados: [],
+    lixeira: new Set(),
     async garantirPasta(nomePasta, paiId) {
       falso.chamadasGarantirPasta++;
       for (const [id, p] of falso.pastas) {
-        if (p.nome === nomePasta && p.paiId === paiId) return id;
+        if (p.nome === nomePasta && p.paiId === paiId && !falso.lixeira.has(id)) return id;
       }
       const id = novoId("pasta");
       falso.pastas.set(id, { nome: nomePasta, paiId });
@@ -194,6 +197,11 @@ function criarDriveFalso(): DriveFalso {
       return Buffer.from(arquivo.conteudo);
     },
     async metadados(id) {
+      const pasta = falso.pastas.get(id);
+      if (pasta) {
+        const lixeira = falso.lixeira.has(id);
+        return { id, nome: pasta.nome, tamanho: null, md5: null, tipo: null, lixeira };
+      }
       const arquivo = falso.arquivos.get(id);
       if (!arquivo) return null;
       return {
@@ -365,6 +373,78 @@ describe("adaptador do Drive", () => {
     });
     expect(cliente.arquivos.has(ref.driveArquivoId!)).toBe(true);
     expect(await pastaDrive(evento.fotografoId, evento.id)).not.toBe("apagada-2");
+  });
+
+  it("raiz apagada ou na lixeira: esquece o id guardado e cria a ClicouAI_Storage de novo", async () => {
+    await gravarCredencialDrive({
+      refreshToken: "1//refresh-de-teste",
+      contaEmail: "drive@exemplo.com",
+      escopo: null,
+      usuarioId: null,
+    });
+    const banco = await obterBanco();
+    const cliente = criarDriveFalso();
+    const raizVelha = await cliente.garantirPasta("ClicouAI_Storage", null);
+    await banco.update(t.credenciaisGoogleDrive).set({ pastaRaizId: raizVelha });
+    const provedor = criarProvedorDrive({ cliente, pastaRaizId: raizVelha });
+    const gravar = (fotoId: string) =>
+      provedor.gravarOriginal({
+        chave: chaveDe(fotoId),
+        conteudo: conteudo(),
+        tipo: "image/jpeg",
+        fotografoId: evento.fotografoId,
+        eventoId: evento.id,
+        fotoId,
+      });
+
+    // Sem pasta no cache e com a raiz na lixeira: não cria nada dentro dela.
+    cliente.lixeira.add(raizVelha);
+    const primeira = await gravar(randomUUID());
+    const raizNova = (await lerCredencialDrive())!.pastaRaizId!;
+    expect(raizNova).not.toBe(raizVelha);
+    expect(cliente.pastas.get(raizNova)).toEqual({ nome: "ClicouAI_Storage", paiId: null });
+    const pastaEvento = cliente.pastas.get(
+      cliente.arquivos.get(primeira.driveArquivoId!)!.pastaId,
+    )!;
+    expect(cliente.pastas.get(pastaEvento.paiId!)!.paiId).toBe(raizNova);
+
+    // Cache apontando para pastas que sumiram e a raiz apagada de vez: refaz tudo e grava.
+    cliente.pastas.clear();
+    const segunda = await gravar(randomUUID());
+    const raizDeNovo = (await lerCredencialDrive())!.pastaRaizId!;
+    expect(raizDeNovo).not.toBe(raizNova);
+    expect(cliente.pastas.get(raizDeNovo)?.nome).toBe("ClicouAI_Storage");
+    expect(cliente.arquivos.has(segunda.driveArquivoId!)).toBe(true);
+  });
+
+  it("pasta ainda não encontrada depois de refazer: limpa a raiz guardada e falha", async () => {
+    await gravarCredencialDrive({
+      refreshToken: "1//refresh-de-teste",
+      contaEmail: "drive@exemplo.com",
+      escopo: null,
+      usuarioId: null,
+    });
+    const banco = await obterBanco();
+    const cliente = criarDriveFalso();
+    const raiz = await cliente.garantirPasta("ClicouAI_Storage", null);
+    await banco.update(t.credenciaisGoogleDrive).set({ pastaRaizId: raiz });
+    cliente.enviarArquivo = async () => {
+      throw new ErroDrive("nao_encontrado", "Pasta não encontrada", 404);
+    };
+    const provedor = criarProvedorDrive({ cliente, pastaRaizId: raiz });
+    const fotoId = randomUUID();
+    await expect(
+      provedor.gravarOriginal({
+        chave: chaveDe(fotoId),
+        conteudo: conteudo(),
+        tipo: "image/jpeg",
+        fotografoId: evento.fotografoId,
+        eventoId: evento.id,
+        fotoId,
+      }),
+    ).rejects.toMatchObject({ codigo: "nao_encontrado" });
+    expect((await lerCredencialDrive())!.pastaRaizId).toBeNull();
+    expect(await pastaDrive(evento.fotografoId, null)).toBeNull();
   });
 
   it("confere o tamanho gravado: diferente, apaga e falha", async () => {

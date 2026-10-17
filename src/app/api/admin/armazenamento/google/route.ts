@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import {
   CAMINHO_COOKIE_DRIVE,
   conexaoDriveConfigurada,
+  contaPresaAoDrive,
   COOKIE_DRIVE,
   iniciarConexaoDrive,
   VALIDADE_STATE_MS,
@@ -29,7 +30,10 @@ export async function GET(request: NextRequest) {
   if (!conexaoDriveConfigurada()) return voltar("nao_configurado");
   if (await limiteAtingido("drive_conexao_usuario", gestor.id)) return voltar("limite");
 
-  const { url, state } = iniciarConexaoDrive(gestor.id);
+  // Com originais no Drive só a mesma conta pode voltar (o callback confere): o Google já abre
+  // sugerindo essa conta.
+  const presa = await contaPresaAoDrive();
+  const { url, state } = iniciarConexaoDrive(gestor.id, presa?.contaEmail);
   (await cookies()).set(COOKIE_DRIVE, state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

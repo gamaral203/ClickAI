@@ -29,6 +29,8 @@ export type OriginalParaDownload =
       tipoMime: string;
       fotoId: string;
       eventoId: string;
+      /** Item do pedido: a rota registra o download só quando ele começa de verdade. */
+      itemId: string;
     };
 
 /** Onde baixar o original, ou `null` se ele não está disponível. */
@@ -49,6 +51,7 @@ async function enderecoDoOriginal(
       tipoMime: tipoDoOriginal(chave).mime,
       fotoId,
       eventoId: original.eventoId,
+      itemId,
     };
   }
   if (chave.startsWith("originais/")) {
@@ -91,17 +94,39 @@ export async function itemLiberadoParaDownload(itemId: string, credencial: Crede
 /**
  * Autoriza o download de um item e devolve o original (endereço temporário e nome do
  * arquivo), ou `null` (ver itemLiberadoParaDownload).
+ *
+ * O download é registrado aqui para o R2 e o exemplo (o endereço sai uma vez por clique), salvo
+ * com `registrar: false` (HEAD). O original no Drive (`fluxo`) NÃO é registrado aqui: um
+ * download em streaming pode vir em vários pedidos com Range, e o Drive pode falhar (503); a
+ * rota registra com `registrarDownloadDoFluxo` só quando `contaComoDownload` aceita a resposta.
  */
 export async function autorizarDownload(
   itemId: string,
   credencial: Credencial,
   ip: string | null,
+  opcoes: { registrar?: boolean } = {},
 ): Promise<OriginalParaDownload | null> {
   const item = await itemLiberadoParaDownload(itemId, credencial);
   if (!item) return null;
 
   const original = await enderecoDoOriginal(item.fotoId, item.id);
   if (!original) return null;
-  await registrarDownload(item.id, ip);
+  if (original.tipo !== "fluxo" && opcoes.registrar !== false) {
+    await registrarDownload(item.id, ip);
+  }
   return original;
+}
+
+/**
+ * A resposta do streaming conta como um download: 200 (o arquivo inteiro) ou o PRIMEIRO trecho
+ * de um download em partes (206 a partir do byte 0). Trechos seguintes, 416 e 503 não contam.
+ */
+export function contaComoDownload(resposta: Response): boolean {
+  if (resposta.status === 200) return true;
+  return resposta.status === 206 && /^bytes 0-/.test(resposta.headers.get("content-range") ?? "");
+}
+
+/** Registra o download de um original entregue por streaming (ver `contaComoDownload`). */
+export async function registrarDownloadDoFluxo(itemId: string, ip: string | null) {
+  await registrarDownload(itemId, ip);
 }

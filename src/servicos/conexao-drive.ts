@@ -5,11 +5,13 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
   apagarCredencialDrive,
   FINALIDADE_REFRESH_TOKEN_DRIVE,
+  fotosNoDrive,
   gravarCredencialDrive,
   lerCredencialDrive,
   registrarErroDrive,
   registrarUsoDrive,
   situacaoDaConexaoDrive,
+  umArquivoNoDrive,
 } from "@/dados/configuracoes";
 import { assinar, conferirAssinatura } from "@/lib/assinatura";
 import {
@@ -19,6 +21,7 @@ import {
 } from "@/lib/armazenamento";
 import {
   type CodigoErroDrive,
+  criarClienteDrive,
   driveConfigurado,
   emailDaConta,
   ErroDrive,
@@ -62,14 +65,67 @@ export function redirectUriDrive(): string {
   return `${base}${CAMINHO_COOKIE_DRIVE}/callback`;
 }
 
-/** Endereço de consentimento do Google e o `state` que precisa voltar igual. */
-export function iniciarConexaoDrive(usuarioId: string): { url: string; state: string } {
+/**
+ * Endereço de consentimento do Google e o `state` que precisa voltar igual. `contaEmail` (a
+ * conta que precisa ser a mesma) vai como sugestão de login ao Google.
+ */
+export function iniciarConexaoDrive(
+  usuarioId: string,
+  contaEmail?: string | null,
+): { url: string; state: string } {
   const state = assinar(
     PROPOSITO_STATE,
     { u: usuarioId, n: randomBytes(16).toString("base64url") },
     VALIDADE_STATE_MS,
   );
-  return { url: urlDeAutorizacaoDrive({ redirectUri: redirectUriDrive(), state }), state };
+  const url = urlDeAutorizacaoDrive({
+    redirectUri: redirectUriDrive(),
+    state,
+    loginHint: contaEmail ?? undefined,
+  });
+  return { url, state };
+}
+
+/**
+ * Conta do Drive que precisa continuar conectada: a gravada, quando algum original (mesmo de
+ * foto excluída) está nela. O escopo `drive.file` só enxerga os arquivos da própria conta;
+ * trocar de conta ou desconectar deixaria esses originais inacessíveis. `null` quando a troca
+ * está livre (nenhuma conta conectada ou nenhum original no Drive).
+ */
+export async function contaPresaAoDrive(): Promise<{
+  contaEmail: string | null;
+  fotos: number;
+} | null> {
+  const conexao = await situacaoDaConexaoDrive();
+  if (!conexao) return null;
+  const fotos = await fotosNoDrive();
+  return fotos > 0 ? { contaEmail: conexao.contaEmail, fotos } : null;
+}
+
+const mesmoEmail = (a: string | null, b: string | null) =>
+  !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * A conta que acabou de autorizar é a mesma que guarda os originais. Pelo e-mail, quando os
+ * dois são conhecidos; senão, se o token novo enxerga um original já gravado (o `drive.file`
+ * só mostra os arquivos da própria conta).
+ */
+async function mesmaContaDosOriginais(
+  gravado: string | null,
+  novo: string | null,
+  accessToken: string,
+): Promise<boolean> {
+  if (gravado && novo) return mesmoEmail(gravado, novo);
+  const arquivo = await umArquivoNoDrive();
+  if (!arquivo) return false;
+  try {
+    const meta = await criarClienteDrive(async () => accessToken, { tentativas: 2 }).metadados(
+      arquivo,
+    );
+    return !!meta;
+  } catch {
+    return false;
+  }
 }
 
 function iguais(a: string, b: string) {
@@ -92,7 +148,7 @@ export function stateDriveValido(
 }
 
 /** Códigos curtos do `?erro=` da tela; a tela traduz cada um. */
-export type ErroConexaoDrive = "sem_permissao" | "token" | "pasta" | "falha";
+export type ErroConexaoDrive = "sem_permissao" | "token" | "pasta" | "falha" | "conta_diferente";
 
 /**
  * Troca o código pelos tokens, lê o e-mail da conta, grava a credencial (cifrada) e cria a pasta
@@ -113,6 +169,16 @@ export async function concluirConexaoDrive(
 
   // Sem o e-mail a conexão funciona; só a tela fica sem mostrar a conta.
   const contaEmail = await emailDaConta(tokens.accessToken).catch(() => null);
+
+  // Com originais no Drive, só a MESMA conta pode voltar (para renovar uma autorização
+  // revogada): outra conta não enxergaria os arquivos gravados. O token novo é revogado e a
+  // credencial atual fica como estava.
+  const presa = await contaPresaAoDrive();
+  if (presa && !(await mesmaContaDosOriginais(presa.contaEmail, contaEmail, tokens.accessToken))) {
+    await revogarToken(tokens.refreshToken).catch(() => {});
+    return "conta_diferente";
+  }
+
   try {
     await gravarCredencialDrive({
       refreshToken: tokens.refreshToken,
@@ -219,10 +285,17 @@ export async function espacoDoDrive(): Promise<{
  * Desconecta: revoga o refresh token no Google e apaga a credencial (e o cache de pastas). Os
  * arquivos no Drive ficam. Se o Google não confirmar a revogação, a credencial é apagada mesmo
  * assim e `revogado` volta `false` (a gestão remove o acesso pela conta Google).
+ *
+ * Recusado (`ok: false`) enquanto houver qualquer original no Drive, inclusive de foto
+ * excluída: sem a conta, ninguém mais baixaria esses arquivos.
  */
-export async function desconectarDrive(): Promise<{ revogado: boolean }> {
+export async function desconectarDrive(): Promise<
+  { ok: true; revogado: boolean } | { ok: false; fotosNoDrive: number }
+> {
   const credencial = await lerCredencialDrive();
-  if (!credencial) return { revogado: true };
+  if (!credencial) return { ok: true, revogado: true };
+  const fotos = await fotosNoDrive();
+  if (fotos > 0) return { ok: false, fotosNoDrive: fotos };
   let revogado = false;
   const refreshToken = decifrarSegredo(
     credencial.refreshTokenCifrado,
@@ -238,5 +311,5 @@ export async function desconectarDrive(): Promise<{ revogado: boolean }> {
   }
   await apagarCredencialDrive();
   esquecerAcessoDrive();
-  return { revogado };
+  return { ok: true, revogado };
 }

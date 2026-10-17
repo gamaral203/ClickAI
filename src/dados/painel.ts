@@ -586,8 +586,9 @@ export async function concluirFoto(
     duracaoS?: number;
     previaVideo?: string;
     /**
-     * Onde ficou o original (padrão: o R2). No Drive, com o id do arquivo; a mensagem de uma
-     * tentativa anterior que falhou no Drive é apagada.
+     * Onde ficou o original (padrão: o R2). No Drive, com o id do arquivo. A mensagem de uma
+     * tentativa anterior que falhou (ex.: no Drive) é apagada em qualquer provedor: a foto
+     * pronta não tem erro, mesmo que a nova tentativa tenha ido ao R2.
      */
     provedorOriginal?: "r2" | "drive";
     driveArquivoId?: string | null;
@@ -598,7 +599,7 @@ export async function concluirFoto(
   if (noDrive && !dados.driveArquivoId) throw new Error("Original no Drive sem o id do arquivo");
   const atualizadas = await banco
     .update(t.fotos)
-    .set({ ...dados, status: "pronta", ...(noDrive ? { erroMensagem: null } : {}) })
+    .set({ ...dados, status: "pronta", erroMensagem: null })
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")))
     .returning({ id: t.fotos.id });
   return atualizadas.length > 0;

@@ -41,6 +41,11 @@ async function rodarDepois() {
   while (depois.tarefas.length > 0) await depois.tarefas.shift()!();
 }
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+// A rota do plugin lê o IP (limite por IP) pelos cabeçalhos do Next.
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-forwarded-for": "198.51.100.21" }),
+  cookies: async () => ({ get: () => undefined, set: () => {} }),
+}));
 // As rotas leem a sessão; o teste escolhe quem está logado.
 const sessao = vi.hoisted(() => ({ usuario: null as unknown }));
 vi.mock("@/servicos/sessao", async (original) => ({
@@ -54,6 +59,8 @@ const drive = vi.hoisted(() => ({
   pastas: new Map<string, { nome: string; paiId: string | null }>(),
   /** Erros que os próximos envios ao Drive lançam, um por envio. */
   falhas: [] as Error[],
+  /** Erros que os próximos downloads do Drive lançam, um por download. */
+  falhasDownload: [] as Error[],
   proximo: 0,
 }));
 vi.mock("@/lib/google-drive", async (original) => {
@@ -86,6 +93,8 @@ vi.mock("@/lib/google-drive", async (original) => {
       return { id, tamanho: conteudo.length, md5: null };
     },
     async baixarArquivo(id, range) {
+      const falha = drive.falhasDownload.shift();
+      if (falha) throw falha;
       const arquivo = drive.arquivos.get(id);
       if (!arquivo) throw new real.ErroDrive("nao_encontrado", "Arquivo não encontrado", 404);
       const total = arquivo.conteudo.length;
@@ -129,8 +138,13 @@ vi.mock("@/lib/google-drive", async (original) => {
   };
 });
 
-import { GET as rotaDeDownload } from "@/app/api/download/[itemId]/route";
-import { GET as rotaDoDono } from "@/app/api/painel/originais/[eventoId]/[fotoId]/route";
+import { GET as rotaDeDownload, HEAD as headDoDownload } from "@/app/api/download/[itemId]/route";
+import { POST as rotaDeProcessar } from "@/app/api/envios/processar/route";
+import { POST as rotaDoPlugin } from "@/app/api/plugin/envios/confirmar/route";
+import {
+  GET as rotaDoDono,
+  HEAD as headDoDono,
+} from "@/app/api/painel/originais/[eventoId]/[fotoId]/route";
 import {
   buscarUsuario,
   criarEvento,
@@ -148,9 +162,10 @@ import { ErroDrive } from "@/lib/google-drive";
 import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
 import { reiniciarClienteR2 } from "@/lib/r2";
 
+import { gerarChaveApi } from "./chaves-api";
 import { autorizarDownload } from "./downloads";
 import { miniaturaSemMarca } from "./miniatura-sem-marca";
-import { removerOriginaisDoDrive } from "./original-da-foto";
+import { PRAZO_DA_MEDICAO_MS, removerOriginaisDoDrive } from "./original-da-foto";
 import {
   chavesDaFoto,
   confirmarEnvio,
@@ -345,22 +360,37 @@ async function novoPedido(fotoId: string, status: "pago" | "pendente" = "pago") 
   return { itemId: item.id, token };
 }
 
-function baixar(itemId: string, token: string, range?: string) {
+function baixar(
+  itemId: string,
+  token: string,
+  range?: string,
+  opcoes: { metodo?: "GET" | "HEAD"; sinal?: AbortSignal } = {},
+) {
   const url = new URL(`http://localhost/api/download/${itemId}`);
   url.searchParams.set("token", token);
   const headers: Record<string, string> = { "x-forwarded-for": "198.51.100.20" };
   if (range) headers.range = range;
-  return rotaDeDownload(new NextRequest(url, { headers }), {
+  const metodo = opcoes.metodo ?? "GET";
+  const rota = metodo === "HEAD" ? headDoDownload : rotaDeDownload;
+  return rota(new NextRequest(url, { method: metodo, headers, signal: opcoes.sinal }), {
     params: Promise.resolve({ itemId }),
   } as RouteContext<"/api/download/[itemId]">);
 }
 
-function rotaDoDonoPara(endereco: string) {
+function rotaDoDonoPara(endereco: string, metodo: "GET" | "HEAD" = "GET") {
   const url = new URL(endereco, "http://localhost");
   const [, , , , eventoId, fotoId] = url.pathname.split("/");
-  return rotaDoDono(new NextRequest(url), {
+  const rota = metodo === "HEAD" ? headDoDono : rotaDoDono;
+  return rota(new NextRequest(url, { method: metodo }), {
     params: Promise.resolve({ eventoId, fotoId }),
   } as RouteContext<"/api/painel/originais/[eventoId]/[fotoId]">);
+}
+
+/** Downloads registrados do item (a tabela `downloads`). */
+async function downloadsDoItem(itemId: string) {
+  const banco = await obterBanco();
+  const linhas = await banco.select().from(t.downloads).where(eq(t.downloads.itemPedidoId, itemId));
+  return linhas.length;
 }
 
 beforeAll(async () => {
@@ -384,6 +414,7 @@ beforeEach(async () => {
   reiniciarClienteR2();
   reiniciarArmazenamento();
   drive.falhas.length = 0;
+  drive.falhasDownload.length = 0;
   depois.tarefas.length = 0;
   sessao.usuario = null;
   await ligarExperimental(true);
@@ -468,6 +499,83 @@ describe("confirmação do envio em evento híbrido", () => {
     });
     expect(drive.arquivos.get(linha.driveArquivoId!)?.conteudo.equals(corpo)).toBe(true);
     expect(noR2(chaves.temporaria)).toBe(false);
+  });
+
+  it("falha passageira pelas rotas: responde que ainda está processando, não pronta", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Painel (/api/envios/processar).
+    const painel = await enviarFoto(await jpeg());
+    drive.falhas.push(new ErroDrive("rede", "Falha de rede ao falar com o Google"));
+    sessao.usuario = usuarioLia;
+    const resposta = await rotaDeProcessar(
+      new NextRequest("https://clicouai.test/api/envios/processar", {
+        method: "POST",
+        headers: {
+          host: "clicouai.test",
+          origin: "https://clicouai.test",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ fotoId: painel.fotoId }),
+      }),
+    );
+    expect(resposta.status).toBe(200);
+    expect(await resposta.json()).toMatchObject({ ok: true, emAndamento: true, aguardando: true });
+    expect((await linhaDaFoto(painel.fotoId)).status).toBe("processando");
+
+    // Plugin do Lightroom (/api/plugin/envios/confirmar).
+    const plugin = await enviarFoto(await jpeg());
+    drive.falhas.push(new ErroDrive("rede", "Falha de rede ao falar com o Google"));
+    const chave = (await gerarChaveApi(lia.id, "Teste do Drive"))!.chave;
+    const doPlugin = await rotaDoPlugin(
+      new Request("http://localhost/api/plugin/envios/confirmar", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ fotoId: plugin.fotoId }),
+      }),
+    );
+    expect(doPlugin.status).toBe(200);
+    expect(await doPlugin.json()).toMatchObject({ ok: true, emAndamento: true, aguardando: true });
+    expect((await linhaDaFoto(plugin.fotoId)).status).toBe("processando");
+
+    // Sem falha, a mesma rota responde como sempre (pronta, sem `aguardando`).
+    const normal = await enviarFoto(await jpeg());
+    const pronta = await rotaDeProcessar(
+      new NextRequest("https://clicouai.test/api/envios/processar", {
+        method: "POST",
+        headers: {
+          host: "clicouai.test",
+          origin: "https://clicouai.test",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ fotoId: normal.fotoId }),
+      }),
+    );
+    const corpo = await pronta.json();
+    expect(corpo).toMatchObject({ ok: true, emAndamento: false });
+    expect(corpo).not.toHaveProperty("aguardando");
+    await rodarDepois();
+  });
+
+  it("falha no Drive e nova tentativa no R2 (trava desligada): pronta sem a mensagem antiga", async () => {
+    const { fotoId } = await enviarFoto(await jpeg());
+    drive.falhas.push(new ErroDrive("rede", "Falha de rede ao falar com o Google"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ aguardando: true });
+    expect((await linhaDaFoto(fotoId)).erroMensagem).toBeTruthy();
+
+    await ligarExperimental(false);
+    const banco = await obterBanco();
+    await banco
+      .update(t.fotos)
+      .set({ envioIniciadoEm: new Date(Date.now() - ESPERA_FOTO_PRESA_MS - 60_000) })
+      .where(eq(t.fotos.id, fotoId));
+    await revisarFotosPresas();
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "pronta",
+      provedorOriginal: "r2",
+      erroMensagem: null,
+    });
   });
 
   it("falha passageira depois do prazo de 30 minutos vira erro", async () => {
@@ -607,11 +715,90 @@ describe("download de original guardado no Drive", () => {
     await rodarDepois();
   });
 
-  it("trecho fora do arquivo responde 416", async () => {
+  it("trecho fora do arquivo responde 416 (e não vira último erro do Drive)", async () => {
+    const banco = await obterBanco();
+    await banco.update(t.credenciaisGoogleDrive).set({ ultimoErro: null, ultimoErroEm: null });
     const { itemId, token } = await novoPedido(fotoId);
     const resposta = await baixar(itemId, token, `bytes=${corpo.length + 10}-`);
     expect(resposta.status).toBe(416);
     expect(resposta.headers.get("content-range")).toBe(`bytes */${corpo.length}`);
+    const [credencial] = await banco.select().from(t.credenciaisGoogleDrive);
+    expect(credencial.ultimoErro).toBeNull();
+  });
+
+  it("HEAD responde só os cabeçalhos, sem abrir o fluxo, medir nem registrar download", async () => {
+    const { itemId, token } = await novoPedido(fotoId);
+    const resposta = await baixar(itemId, token, undefined, { metodo: "HEAD" });
+    expect(resposta.status).toBe(200);
+    expect(resposta.body).toBeNull();
+    expect(resposta.headers.get("content-length")).toBe(String(corpo.length));
+    expect(resposta.headers.get("accept-ranges")).toBe("bytes");
+    expect(resposta.headers.get("content-type")).toBe("image/jpeg");
+    expect(resposta.headers.get("content-disposition")).toMatch(/^attachment; filename=".+\.jpg"/);
+    expect(resposta.headers.get("cache-control")).toBe("no-store");
+    // Nenhuma medição pendurada no `after` e nenhum download contado.
+    expect(depois.tarefas).toHaveLength(0);
+    expect(await downloadsDoItem(itemId)).toBe(0);
+
+    // Mesma autorização do GET: sem pedido pago, o mesmo 404 (sem corpo).
+    const pendente = await novoPedido(fotoId, "pendente");
+    const recusada = await baixar(pendente.itemId, pendente.token, undefined, { metodo: "HEAD" });
+    expect(recusada.status).toBe(404);
+    expect(recusada.body).toBeNull();
+  });
+
+  it("conta o download uma vez: 200 ou o primeiro trecho; outros trechos e 503 não contam", async () => {
+    const { itemId, token } = await novoPedido(fotoId);
+    await (await baixar(itemId, token)).arrayBuffer();
+    expect(await downloadsDoItem(itemId)).toBe(1);
+
+    // Download em partes: só o trecho do byte 0 conta.
+    await (await baixar(itemId, token, "bytes=0-99")).arrayBuffer();
+    expect(await downloadsDoItem(itemId)).toBe(2);
+    await (await baixar(itemId, token, "bytes=100-199")).arrayBuffer();
+    await (await baixar(itemId, token, `bytes=${corpo.length + 10}-`)).arrayBuffer();
+    expect(await downloadsDoItem(itemId)).toBe(2);
+
+    // O Drive não respondeu: 503, não conta.
+    drive.falhasDownload.push(new ErroDrive("rede", "Falha de rede ao falar com o Google"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const falhou = await baixar(itemId, token);
+    expect(falhou.status).toBe(503);
+    expect(await downloadsDoItem(itemId)).toBe(2);
+    await rodarDepois();
+  });
+
+  it("pedido abortado cancela o fluxo e fecha a medição na hora", async () => {
+    const { itemId, token } = await novoPedido(fotoId);
+    const controle = new AbortController();
+    const resposta = await baixar(itemId, token, undefined, { sinal: controle.signal });
+    expect(resposta.status).toBe(200);
+    controle.abort();
+    await rodarDepois();
+    const lista = await metricas("download_original", fotoId);
+    expect(lista.at(-1)).toMatchObject({
+      sucesso: false,
+      erro: expect.stringMatching(/interrompido/),
+    });
+  });
+
+  it("fluxo que ninguém lê até o fim: a medição desiste no prazo, antes do teto da função", async () => {
+    expect(PRAZO_DA_MEDICAO_MS).toBeLessThan(300_000);
+    const { itemId, token } = await novoPedido(fotoId);
+    const resposta = await baixar(itemId, token);
+    expect(resposta.status).toBe(200);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let medicao: unknown;
+    try {
+      medicao = depois.tarefas.shift()!();
+      await vi.advanceTimersByTimeAsync(PRAZO_DA_MEDICAO_MS);
+    } finally {
+      vi.useRealTimers();
+    }
+    await medicao;
+    const lista = await metricas("download_original", fotoId);
+    expect(lista.at(-1)).toMatchObject({ sucesso: false, erro: expect.stringMatching(/prazo/) });
+    await resposta.body?.cancel();
   });
 
   it("sem pedido pago, 404 genérico (o Drive nem é chamado)", async () => {
@@ -661,9 +848,19 @@ describe("originais do autor guardados no Drive", () => {
     const lista = await metricas("leitura_original", fotoId);
     expect(lista.at(-1)).toMatchObject({ provedor: "drive", sucesso: true });
 
+    // HEAD: só os cabeçalhos, com o tamanho, sem abrir o fluxo.
+    const head = await rotaDoDonoPara(item.url, "HEAD");
+    expect(head.status).toBe(200);
+    expect(head.body).toBeNull();
+    expect(head.headers.get("content-length")).toBe(String(corpo.length));
+    expect(head.headers.get("accept-ranges")).toBe("bytes");
+    expect(head.headers.get("cache-control")).toBe("no-store");
+    expect(depois.tarefas).toHaveLength(0);
+
     // Outra pessoa logada com o mesmo endereço, ou ninguém logado: recusado.
     sessao.usuario = usuarioPedro;
     expect((await rotaDoDonoPara(item.url)).status).toBe(403);
+    expect((await rotaDoDonoPara(item.url, "HEAD")).status).toBe(403);
     sessao.usuario = null;
     expect((await rotaDoDonoPara(item.url)).status).toBe(403);
     // Token de uma foto não serve para outra.
