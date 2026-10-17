@@ -1672,3 +1672,4 @@ export * from "./colecoes";
 export * from "./historico-financeiro";
 export * from "./molduras";
 export * from "./numeros";
+export * from "./configuracoes";

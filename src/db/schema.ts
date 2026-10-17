@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   date,
   doublePrecision,
   index,
@@ -21,6 +22,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -89,6 +91,14 @@ export const tipoMensagem = pgEnum("tipo_mensagem", [
   "ranking",
 ]);
 export const tipoMetrica = pgEnum("tipo_metrica", ["visita_evento", "visita_foto", "carrinho"]);
+/**
+ * Onde ficam os originais do evento (protótipo, docs/arquitetura.md, "Armazenamento"): `r2` (o
+ * padrão, bucket privado) ou `hibrido` (original no Google Drive da plataforma; prévias e
+ * miniaturas continuam no R2 público). Só vale com `configuracoes.armazenamento_experimental`.
+ */
+export const modoArmazenamentoOriginais = pgEnum("armazenamento_originais", ["r2", "hibrido"]);
+/** Onde está o original de UMA foto (src/lib/armazenamento): decide quem lê e quem entrega. */
+export const provedorOriginal = pgEnum("provedor_original", ["r2", "drive"]);
 
 // ---------------------------------------------------------------- Núcleo
 
@@ -428,6 +438,11 @@ export const eventos = pgTable(
     reindexacaoPedidaEm: data(),
     /** Reserva da reindexação em andamento (uma por vez por evento), até esta hora. */
     reindexacaoAte: data(),
+    /**
+     * Onde gravar os originais das próximas fotos (protótipo do Google Drive). As fotos já
+     * enviadas não mudam: cada uma guarda o seu `fotos.provedor_original`.
+     */
+    armazenamentoOriginais: modoArmazenamentoOriginais().notNull().default("r2"),
   },
   (t) => [uniqueIndex().on(t.slug), index().on(t.fotografoId), index().on(t.status, t.inicioEm)],
 ).enableRLS();
@@ -526,6 +541,14 @@ export const fotos = pgTable(
     liberarEm: data(),
     /** Quando saiu o aviso de lote agendado liberado (job de pedidos): o aviso não se repete. */
     avisoLiberacaoEm: data(),
+    /**
+     * Onde está o original. A `chave_original` continua sendo a chave lógica
+     * (`originais/{fotografo}/{evento}/{foto}.{ext}`, de onde saem extensão, tipo e nome) nos
+     * dois provedores; no Drive, o arquivo é achado pelo `drive_arquivo_id`.
+     */
+    provedorOriginal: provedorOriginal().notNull().default("r2"),
+    /** Id do arquivo no Google Drive (só com `provedor_original = drive`). Nunca vai ao navegador. */
+    driveArquivoId: text(),
   },
   (t) => [
     index().on(t.eventoId, t.ordem),
@@ -1226,4 +1249,88 @@ export const moldurasEvento = pgTable(
     atualizadaEm: momento(),
   },
   (t) => [primaryKey({ columns: [t.eventoId, t.formato] })],
+).enableRLS();
+
+// ---------------------------------------------------------------- Armazenamento experimental (Drive)
+
+/**
+ * Configurações gerais da plataforma, chave e valor em JSON (src/dados/configuracoes.ts). Primeira
+ * chave: `armazenamento_experimental` = `{ "ativo": boolean }`, a trava do protótipo do Drive.
+ */
+export const configuracoes = pgTable("configuracoes", {
+  chave: text().primaryKey(),
+  valor: jsonb().notNull(),
+  atualizadoEm: momento(),
+  atualizadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+}).enableRLS();
+
+/**
+ * A conta do Google Drive conectada pela gestão (uma linha só: `chave` = 'principal', travada
+ * pelo CHECK). O refresh token fica cifrado com AES-256-GCM (src/lib/segredo-cifrado.ts, chave
+ * derivada do APP_SECRET): quem lê só o banco não acessa o Drive. O access token nunca é gravado.
+ */
+export const credenciaisGoogleDrive = pgTable(
+  "credenciais_google_drive",
+  {
+    chave: text().primaryKey().default("principal"),
+    contaEmail: text(),
+    refreshTokenCifrado: text().notNull(),
+    escopo: text(),
+    /** Id da pasta `ClicouAI_Storage` no Drive, criada na primeira gravação. */
+    pastaRaizId: text(),
+    conectadoEm: momento(),
+    conectadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+    /** Último erro do Drive (sem segredo: só a mensagem curta), para a tela da gestão. */
+    ultimoErro: text(),
+    ultimoErroEm: data(),
+    ultimoUsoEm: data(),
+  },
+  (t) => [check("credenciais_google_drive_linha_unica", sql`${t.chave} = 'principal'`)],
+).enableRLS();
+
+/**
+ * Cache dos ids das pastas no Drive: `ClicouAI_Storage/{fotografo}` (evento nulo) e
+ * `ClicouAI_Storage/{fotografo}/{evento}`. Único com NULLS NOT DISTINCT: só uma pasta do
+ * fotógrafo sem evento.
+ */
+export const pastasDrive = pgTable(
+  "pastas_drive",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    fotografoId: uuid()
+      .notNull()
+      .references(() => fotografos.id),
+    eventoId: uuid().references(() => eventos.id, { onDelete: "cascade" }),
+    driveId: text().notNull(),
+    criadoEm: momento(),
+  },
+  (t) => [unique("pastas_drive_fotografo_evento").on(t.fotografoId, t.eventoId).nullsNotDistinct()],
+).enableRLS();
+
+export const operacaoArmazenamento = pgEnum("operacao_armazenamento", [
+  "upload_original",
+  "download_original",
+  "leitura_original",
+]);
+
+/**
+ * Medições das operações com originais, por provedor, para comparar R2 e Drive no protótipo.
+ * Sem chave estrangeira em foto e evento: é telemetria e não pode travar uma exclusão.
+ */
+export const metricasArmazenamento = pgTable(
+  "metricas_armazenamento",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    provedor: provedorOriginal().notNull(),
+    operacao: operacaoArmazenamento().notNull(),
+    duracaoMs: integer().notNull(),
+    bytes: bigint({ mode: "number" }),
+    sucesso: boolean().notNull(),
+    /** Mensagem curta do erro, sem segredo nem URL. */
+    erro: text(),
+    fotoId: uuid(),
+    eventoId: uuid(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.provedor, t.operacao, t.criadoEm)],
 ).enableRLS();
