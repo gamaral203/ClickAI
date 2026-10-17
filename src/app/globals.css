@@ -248,3 +248,17 @@ html.protegido .imagem-protegida {
     max-height: calc(100dvh - 11.5rem);
   }
 }
+
+/*
+ * Barra de seleção da grade de fotos do painel no celular ([data-barra-selecao-painel], fixa
+ * embaixo com "Mover para…" e "Limpar seleção"): o botão do chat sobe para não cobri-la.
+ */
+@media (width < 40rem) {
+  body:has([data-barra-selecao-painel]) .chat-flutuante-botao {
+    bottom: 9rem;
+  }
+  body:has([data-barra-selecao-painel]) .chat-flutuante-janela {
+    bottom: 13.5rem;
+    max-height: calc(100dvh - 14.75rem);
+  }
+}

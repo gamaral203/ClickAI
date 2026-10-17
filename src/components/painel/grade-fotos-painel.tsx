@@ -51,6 +51,9 @@ export type ItemDoPainel = {
    * mostra os números e a correção à mão.
    */
   numeros?: string[];
+  /** Para os filtros por dia do painel (src/lib/filtro-painel.ts). */
+  criadoEm?: string;
+  capturadaEm?: string | null;
 };
 
 /** Seleção de fotos para liberar ou agendar (só o dono do evento). */
@@ -78,6 +81,8 @@ export function GradeFotosPainel({
   capa,
   vazio = "Nenhuma foto enviada ainda.",
   formatosMoldura = [],
+  mostrando: mostrandoDeFora,
+  aoMostrarMais,
 }: {
   /** Com o evento, a grade oferece "Baixar original" nas fotos do próprio usuário. */
   eventoId?: string;
@@ -88,10 +93,17 @@ export function GradeFotosPainel({
   vazio?: string;
   /** Formatos com moldura no evento: "Story"/"Feed" junto do "Baixar original". */
   formatosMoldura?: FormatoMoldura[];
+  /**
+   * Quantas mostrar, quando quem usa a grade controla (o "Selecionar todas desta página" do
+   * painel precisa saber quais estão na tela). Sem o campo, a grade controla sozinha.
+   */
+  mostrando?: number;
+  aoMostrarMais?: () => void;
 }) {
   // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
   // celular, eram dezenas de milhares de pixels) nem pesada de carregar.
-  const [mostrando, setMostrando] = useState(POR_VEZ);
+  const [mostrandoProprio, setMostrando] = useState(POR_VEZ);
+  const mostrando = mostrandoDeFora ?? mostrandoProprio;
   // Foto aberta no visualizador (clique na miniatura): a prévia grande e, nas fotos do próprio
   // usuário, "Baixar sem marca d'água". Navega por todas as prontas, não só as já mostradas.
   const [aberta, setAberta] = useState<string | null>(null);
@@ -144,7 +156,11 @@ export function GradeFotosPainel({
         ))}
       </ul>
       {restantes > 0 && (
-        <Button variant="outline" size="touch" onClick={() => setMostrando((n) => n + POR_VEZ)}>
+        <Button
+          variant="outline"
+          size="touch"
+          onClick={() => (aoMostrarMais ? aoMostrarMais() : setMostrando((n) => n + POR_VEZ))}
+        >
           Mostrar mais {Math.min(POR_VEZ, restantes)} de {restantes}
         </Button>
       )}
@@ -159,7 +175,7 @@ export function GradeFotosPainel({
   );
 }
 
-const POR_VEZ = 24;
+export const POR_VEZ = 24;
 /** Intervalo da atualização automática enquanto há fotos em processamento. */
 const ATUALIZAR_A_CADA_MS = 15_000;
 

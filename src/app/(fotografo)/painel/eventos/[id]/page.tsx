@@ -150,7 +150,12 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     });
   const itens = itensDoPainel ?? [];
   // Seletor de pasta (envio e fotos): a árvore, com o caminho ("Largada › Bateria 1").
-  const opcoesDePasta = (pastas ?? []).map((p) => ({ id: p.id, nome: p.caminho }));
+  const opcoesDePasta = (pastas ?? []).map((p) => ({
+    id: p.id,
+    nome: p.caminho,
+    pastaPaiId: p.pastaPaiId,
+    nivel: p.nivel,
+  }));
   const regraPadrao = (faixasPadrao ?? [])
     .map((f) => `${f.descontoPct}% a partir de ${f.quantidadeMin} fotos`)
     .join(", ");
@@ -279,6 +284,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                 <FotosDoEvento
                   eventoId={evento.id}
                   podeLiberar
+                  agora={agora}
                   capaFotoId={capaFotoId}
                   // "Story"/"Feed" com a moldura do evento, nas fotos do próprio autor (divulgação).
                   formatosMoldura={FORMATOS_MOLDURA.filter((f) => molduras[f])}
@@ -297,6 +303,9 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                     pastaId: i.pastaId,
                     estadoLiberacao: estadoDaLiberacao(i.liberarEm, agora),
                     liberarEm: i.liberarEm,
+                    // Filtro por dia (Brasília): envio e captura (EXIF), src/lib/filtro-painel.ts.
+                    criadoEm: i.criadoEm,
+                    capturadaEm: i.capturadaEm,
                     // "Baixar original" só nas fotos que o dono enviou (não nas dos colaboradores).
                     doAutor: i.enviadaPor === conta.id,
                     numeros: mostrarNumeros ? (numerosPorFoto.get(i.id) ?? []) : undefined,
