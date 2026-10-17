@@ -19,6 +19,9 @@ export type FotoComPreviaAntiga = {
   urlPrevia: string;
   urlMiniatura: string;
   tamanhoBytes: number | null;
+  /** Onde está o original (Drive só em evento `hibrido`); a chave continua `originais/...`. */
+  provedorOriginal: "r2" | "drive";
+  driveArquivoId: string | null;
 };
 
 /**
@@ -42,8 +45,8 @@ function precisaRegerar(alvo: AlvoDaRegeracao) {
 }
 
 /**
- * Condição das fotos a regerar: fotos (não vídeos) prontas, com o original no R2
- * (`originais/`), a prévia no bucket público (`previas/`) e a chave fora do alvo. Inclui as
+ * Condição das fotos a regerar: fotos (não vídeos) prontas, com o original guardado (chave
+ * `originais/`, no R2 ou no Drive), a prévia no bucket público (`previas/`) e a chave fora do alvo. Inclui as
  * excluídas: quem comprou ainda vê a miniatura no pedido. Fotos de exemplo (caminhos
  * `/exemplo/...`) ficam de fora.
  */
@@ -77,6 +80,8 @@ export async function listarFotosComPreviaAntiga(
       urlPrevia: t.fotos.urlPrevia,
       urlMiniatura: t.fotos.urlMiniatura,
       tamanhoBytes: t.fotos.tamanhoBytes,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
     })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))

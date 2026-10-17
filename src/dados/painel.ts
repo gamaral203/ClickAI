@@ -282,7 +282,13 @@ export async function mudarStatusDoEvento(
 }
 
 export type ResultadoExclusaoEvento =
-  | { ok: true; chavesOriginais: string[] }
+  | {
+      ok: true;
+      /** Chaves dos originais no R2 (e dos temporários de `envios/`). */
+      chavesOriginais: string[];
+      /** Originais guardados no Google Drive (evento `hibrido`), para apagar pelo provedor. */
+      originaisNoDrive: { chave: string; driveArquivoId: string }[];
+    }
   | { ok: false; motivo: "nao_encontrado" | "revisao" | "tem_pedidos" | "tem_denuncias" };
 
 /**
@@ -319,12 +325,22 @@ export async function excluirEventoSemPedidos(
       .where(eq(t.denuncias.eventoId, eventoId))
       .limit(1);
     if (denuncia) return { ok: false, motivo: "tem_denuncias" };
-    const apagadas = await tx
-      .delete(t.fotos)
-      .where(eq(t.fotos.eventoId, eventoId))
-      .returning({ chave: t.fotos.chaveOriginal });
+    const apagadas = await tx.delete(t.fotos).where(eq(t.fotos.eventoId, eventoId)).returning({
+      chave: t.fotos.chaveOriginal,
+      provedor: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
+    });
     await tx.delete(t.eventos).where(eq(t.eventos.id, eventoId));
-    return { ok: true, chavesOriginais: apagadas.flatMap((f) => (f.chave ? [f.chave] : [])) };
+    const noDrive = (f: (typeof apagadas)[number]) => f.provedor === "drive" && !!f.driveArquivoId;
+    return {
+      ok: true,
+      chavesOriginais: apagadas.flatMap((f) => (f.chave && !noDrive(f) ? [f.chave] : [])),
+      originaisNoDrive: apagadas.flatMap((f) =>
+        f.chave && f.driveArquivoId && noDrive(f)
+          ? [{ chave: f.chave, driveArquivoId: f.driveArquivoId }]
+          : [],
+      ),
+    };
   });
 }
 
@@ -524,7 +540,11 @@ export async function registrarFotosEmEnvio(
   return ids;
 }
 
-/** Foto em `processando` enviada pelo fotógrafo, com o que a confirmação precisa, ou `null`. */
+/**
+ * Foto em `processando` enviada pelo fotógrafo, com o que a confirmação precisa, ou `null`.
+ * `inicio` é a marca do envio antes de qualquer reserva (para o prazo de uma nova tentativa) e
+ * `armazenamento`, onde o evento guarda os originais (`r2` ou `hibrido`).
+ */
 export async function buscarFotoEmEnvio(fotoId: string, fotografoId: string) {
   const banco = await obterBanco();
   const [linha] = await banco
@@ -534,8 +554,11 @@ export async function buscarFotoEmEnvio(fotoId: string, fotografoId: string) {
       chaveTemporaria: t.fotos.chaveOriginal,
       hash: t.fotos.hashConteudo,
       tamanhoBytes: t.fotos.tamanhoBytes,
+      inicio: sql<Date>`coalesce(${t.fotos.envioIniciadoEm}, ${t.fotos.criadoEm})`,
+      armazenamento: t.eventos.armazenamentoOriginais,
     })
     .from(t.fotos)
+    .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
     .where(
       and(
         eq(t.fotos.id, fotoId),
@@ -544,7 +567,8 @@ export async function buscarFotoEmEnvio(fotoId: string, fotografoId: string) {
         isNull(t.fotos.excluidaEm),
       ),
     );
-  return linha ?? null;
+  // O coalesce volta como texto em alguns drivers: normaliza para Date.
+  return linha ? { ...linha, inicio: new Date(linha.inicio) } : null;
 }
 
 /** Marca a foto como `pronta`, com o original no lugar definitivo. Só a partir de `processando`. */
@@ -561,12 +585,21 @@ export async function concluirFoto(
     /** Vídeo: a duração lida pelo FFmpeg e a chave da prévia em MP4. */
     duracaoS?: number;
     previaVideo?: string;
+    /**
+     * Onde ficou o original (padrão: o R2). No Drive, com o id do arquivo. A mensagem de uma
+     * tentativa anterior que falhou (ex.: no Drive) é apagada em qualquer provedor: a foto
+     * pronta não tem erro, mesmo que a nova tentativa tenha ido ao R2.
+     */
+    provedorOriginal?: "r2" | "drive";
+    driveArquivoId?: string | null;
   },
 ): Promise<boolean> {
   const banco = await obterBanco();
+  const noDrive = dados.provedorOriginal === "drive";
+  if (noDrive && !dados.driveArquivoId) throw new Error("Original no Drive sem o id do arquivo");
   const atualizadas = await banco
     .update(t.fotos)
-    .set({ ...dados, status: "pronta" })
+    .set({ ...dados, status: "pronta", erroMensagem: null })
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")))
     .returning({ id: t.fotos.id });
   return atualizadas.length > 0;

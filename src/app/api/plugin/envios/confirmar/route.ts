@@ -21,6 +21,9 @@ export async function POST(request: Request) {
     if (!dados.success) return resposta({ erro: "Pedido inválido." }, 400);
     const r = await confirmarEnvio(dono.fotografoId, dados.data.fotoId, { depois: after });
     if ("erro" in r) return resposta({ erro: r.erro }, 422);
+    // `aguardando`: falha passageira ao gravar o original no Drive; a foto continua em
+    // `processando` e o job termina sozinho (não está pronta ainda).
+    if ("aguardando" in r) return resposta({ ok: true, emAndamento: true, aguardando: true });
     // `emAndamento`: outra chamada está processando, ou a foto já ficou pronta antes.
     return resposta({ ok: true, emAndamento: "emAndamento" in r });
   });

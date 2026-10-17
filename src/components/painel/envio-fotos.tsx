@@ -347,6 +347,11 @@ type RespostaDoProcessamento = {
   erro?: string;
   /** Outra chamada (entrega em segundo plano ou job) já estava processando, ou já está pronta. */
   emAndamento?: boolean;
+  /**
+   * A foto NÃO ficou pronta: falha passageira ao guardar o original (Google Drive, evento
+   * híbrido) e ela voltou à fila do servidor. A tela acompanha pela situação, como as entregues.
+   */
+  aguardando?: boolean;
   tempos?: Partial<Record<EtapaDoServidor, number>>;
 };
 
@@ -844,6 +849,11 @@ export function EnvioFotos({
       const { status, dados } = await postJson<RespostaDoProcessamento>("/api/envios/processar", {
         fotoId,
       });
+      if (status === 200 && dados.aguardando) {
+        // Acompanhada por acompanharNoServidor (ao fim do envio) até `pronta` ou `erro`.
+        atualizar(i, { estado: "no-servidor", problema: null });
+        return;
+      }
       if (status === 200 && dados.emAndamento) {
         atualizar(i, { estado: "pronta", problema: null });
         return;

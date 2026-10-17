@@ -35,7 +35,7 @@ import {
   mudarStatusDoEvento,
 } from "@/dados";
 import { categorias, fotografos } from "@/dados/exemplo/dados";
-import { paraFoto } from "@/dados/mapas";
+import { paraEvento, paraFoto } from "@/dados/mapas";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { gravarPublico, reiniciarClienteR2, removerPublico } from "@/lib/r2";
@@ -67,6 +67,8 @@ const fotosProntas: string[] = [];
 let fotoEmEnvio = "";
 let video = "";
 let ordem = 0;
+/** Id do arquivo no Drive da foto de evento híbrido (também não pode aparecer em nada público). */
+const DRIVE_ARQUIVO = `arquivo-drive-${randomUUID()}`;
 
 async function novaFoto(extra: Partial<typeof t.fotos.$inferInsert> = {}) {
   const banco = await obterBanco();
@@ -103,6 +105,9 @@ function semOriginal(valor: unknown, onde: string) {
   expect(json, onde).not.toMatch(/fotos-originais/);
   expect(json, onde).not.toMatch(/X-Amz-/i);
   expect(json, onde).not.toMatch(/chaveOriginal|chave_original|hashConteudo|tamanhoBytes/);
+  // Onde o original está guardado (R2 ou Drive) e o id do arquivo no Drive também são internos.
+  expect(json, onde).not.toMatch(/provedorOriginal|driveArquivoId|armazenamentoOriginais/);
+  expect(json, onde).not.toContain(DRIVE_ARQUIVO);
   for (const chave of chavesOriginais) expect(json, onde).not.toContain(chave);
 }
 
@@ -156,6 +161,8 @@ beforeAll(async () => {
   expect(await mudarStatusDoEvento(evento.id, lia.id, "rascunho", "publicado")).toBe(true);
 
   for (let i = 0; i < 3; i++) fotosProntas.push(await novaFoto());
+  // Original guardado no Drive (evento híbrido): o id do arquivo fica só no servidor.
+  fotosProntas.push(await novaFoto({ provedorOriginal: "drive", driveArquivoId: DRIVE_ARQUIVO }));
   // Excluída: não aparece no público, mas a chave dela também não pode vazar.
   await novaFoto({ excluidaEm: new Date() });
   // Ainda chegando: a chave é a do envio (envios/), no bucket privado.
@@ -196,7 +203,18 @@ describe("o tipo Foto (src/dados/mapas.ts, paraFoto)", () => {
       expect(foto).not.toHaveProperty("hashConteudo");
       semOriginal(foto, `paraFoto ${linha.id}`);
       soPublicas(foto);
+      expect(foto).not.toHaveProperty("provedorOriginal");
+      expect(foto).not.toHaveProperty("driveArquivoId");
     }
+  });
+
+  it("o tipo Evento (paraEvento) não leva o modo de armazenamento dos originais", async () => {
+    const banco = await obterBanco();
+    const [linha] = await banco.select().from(t.eventos).where(eq(t.eventos.id, evento.id));
+    const mapeado = paraEvento({ ...linha, armazenamentoOriginais: "hibrido" });
+    expect(mapeado).not.toHaveProperty("armazenamentoOriginais");
+    expect(mapeado).not.toHaveProperty("senhaHash");
+    semOriginal(mapeado, "paraEvento");
   });
 });
 

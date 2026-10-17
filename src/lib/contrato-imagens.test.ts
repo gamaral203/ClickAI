@@ -44,7 +44,8 @@ describe("contrato das imagens públicas", () => {
     expect(
       ocorrencias(
         /drive\.google|googleusercontent|drive\.usercontent|googleapis\.com\/drive|webContentLink|thumbnailLink|webViewLink/i,
-        ["src/lib/url-publica.ts"],
+        // google-drive.ts fala com a API no servidor e nunca monta link de imagem
+        ["src/lib/url-publica.ts", "src/lib/google-drive.ts"],
       ),
     ).toEqual([]);
   });

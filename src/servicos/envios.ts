@@ -18,6 +18,8 @@ import sharp from "sharp";
 import { z } from "zod";
 
 import {
+  adiarProcessamento,
+  armazenamentoExperimentalAtivo,
   buscarFotoEmEnvio,
   concluirFoto,
   configuracaoDaMarca,
@@ -30,11 +32,18 @@ import {
   registrarFotosEmEnvio,
   reservarFotoParaProcessar,
   salvarRostos,
+  situacaoDaConexaoDrive,
   situacaoDaFoto,
   type ChavesDaFoto,
 } from "@/dados";
+import {
+  medir as medirArmazenamento,
+  provedorDeOriginais,
+  type ReferenciaOriginal,
+} from "@/lib/armazenamento";
 import { emParalelo, Orcamento } from "@/lib/concorrencia";
 import { dataDeCaptura } from "@/lib/exif";
+import { ErroDrive } from "@/lib/google-drive";
 import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
 import {
   FOTOS_POR_LOTE,
@@ -472,8 +481,134 @@ export type ResultadoDoProcessamento =
   | { eventoId: string }
   /** Outra chamada está processando a foto agora, ou ela já ficou pronta. */
   | { emAndamento: true }
-  /** Só no job: o arquivo ainda não chegou e o envio é recente; a foto volta para a fila. */
+  /**
+   * A foto volta para a fila do job, ainda em `processando`: no job, o arquivo ainda não chegou e
+   * o envio é recente; em qualquer chamada, uma falha passageira ao gravar o original no Google
+   * Drive (evento `hibrido`), dentro do prazo de ENVIO_PODE_ESTAR_SUBINDO_MS.
+   */
   | { aguardando: true };
+
+/**
+ * Onde gravar o original (docs/arquitetura.md, "Armazenamento experimental"): no Google Drive só
+ * no evento `hibrido`, com a trava `armazenamento_experimental` ligada e a conta do Drive
+ * conectada; senão, no R2, como sempre. Decidido a cada tentativa: desligar a trava (ou
+ * desconectar o Drive) manda as próximas tentativas para o R2.
+ */
+async function destinoDoOriginal(armazenamento: "r2" | "hibrido"): Promise<"r2" | "drive"> {
+  if (armazenamento !== "hibrido") return "r2";
+  if (!(await armazenamentoExperimentalAtivo())) return "r2";
+  return (await situacaoDaConexaoDrive()) ? "drive" : "r2";
+}
+
+/**
+ * Falha ao gravar o original no Drive. `passageira` (limite de taxa, rede, 5xx, autorização a
+ * renovar, Drive desconectado no meio): a foto fica em `processando` e o job tenta de novo.
+ * Cota cheia e falta de permissão viram erro na hora. A mensagem é a que o fotógrafo vê, sem
+ * nada do Drive (o detalhe sem segredo fica no último erro da conexão e na métrica).
+ */
+class FalhaNoDrive extends Error {
+  constructor(
+    mensagem: string,
+    readonly passageira: boolean,
+    readonly codigo: string,
+  ) {
+    super(mensagem);
+  }
+}
+
+const ERRO_DRIVE_PASSAGEIRO =
+  "O armazenamento dos originais não respondeu. A foto será processada de novo em alguns minutos.";
+const ERRO_DRIVE_CHEIO = "O armazenamento dos originais está cheio. Fale com o suporte.";
+const ERRO_DRIVE_PERMISSAO =
+  "Sem permissão para gravar no armazenamento dos originais. Fale com o suporte.";
+
+function falhaNoDrive(erro: unknown): FalhaNoDrive {
+  if (erro instanceof ErroDrive) {
+    if (erro.codigo === "quota") return new FalhaNoDrive(ERRO_DRIVE_CHEIO, false, erro.codigo);
+    if (erro.codigo === "sem_permissao") {
+      return new FalhaNoDrive(ERRO_DRIVE_PERMISSAO, false, erro.codigo);
+    }
+    // Outro 4xx (pedido que o Drive recusa sempre igual): repetir não ajuda.
+    const status = erro.status ?? 0;
+    if (erro.codigo === "outro" && status >= 400 && status < 500 && status !== 408) {
+      return new FalhaNoDrive(ERRO_PROCESSAMENTO, false, `${erro.codigo}_${status}`);
+    }
+    return new FalhaNoDrive(ERRO_DRIVE_PASSAGEIRO, true, erro.codigo);
+  }
+  // Drive desconectado entre a escolha e a gravação, tamanho gravado diferente: tenta de novo
+  // (a próxima tentativa escolhe o destino outra vez).
+  return new FalhaNoDrive(ERRO_DRIVE_PASSAGEIRO, true, erro instanceof Error ? erro.name : "erro");
+}
+
+/** Grava o original já conferido no Drive, com a métrica `upload_original`. */
+async function gravarNoDrive(args: {
+  chave: string;
+  conteudo: Buffer;
+  tipo: string;
+  fotografoId: string;
+  eventoId: string;
+  fotoId: string;
+}): Promise<ReferenciaOriginal> {
+  try {
+    const provedor = await provedorDeOriginais("drive");
+    return await medirArmazenamento(
+      "drive",
+      "upload_original",
+      () => provedor.gravarOriginal(args),
+      { bytes: args.conteudo.length, fotoId: args.fotoId, eventoId: args.eventoId },
+    );
+  } catch (erro) {
+    throw falhaNoDrive(erro);
+  }
+}
+
+/** Apaga um original gravado no Drive que não chegou a valer (melhor esforço). */
+async function descartarDoDrive(ref: ReferenciaOriginal) {
+  try {
+    await (await provedorDeOriginais("drive")).removerOriginal(ref);
+  } catch {
+    // Fica só um arquivo órfão na pasta do evento no Drive.
+  }
+}
+
+/**
+ * Prévias no R2 e original no Drive ao mesmo tempo. Se o Drive falhar, a falha dele sobe (para
+ * a nova tentativa); se só as prévias falharem, o original recém-gravado no Drive é apagado.
+ */
+async function gravarComPrevias(
+  previas: Promise<unknown>[],
+  gravar: () => Promise<ReferenciaOriginal>,
+): Promise<ReferenciaOriginal> {
+  const [publicas, original] = await Promise.allSettled([Promise.all(previas), gravar()]);
+  if (original.status === "rejected") throw original.reason;
+  if (publicas.status === "rejected") {
+    await descartarDoDrive(original.value);
+    throw publicas.reason;
+  }
+  return original.value;
+}
+
+/**
+ * Falha ao gravar no Drive: passageira e dentro do prazo, a foto volta para a fila (como o
+ * arquivo que ainda está subindo), com o motivo em `erro_mensagem`; senão, `erro` como hoje.
+ */
+async function tratarFalhaNoDrive(
+  fotoId: string,
+  falha: FalhaNoDrive,
+  inicio: Date,
+  agora: number,
+  mensagemFinal: string,
+): Promise<ResultadoDoProcessamento> {
+  // Só o id e o código: nada do arquivo, do token nem do id no Drive.
+  console.error(`[envios] falha ao gravar no Drive o original de ${fotoId}: ${falha.codigo}`);
+  if (falha.passageira && agora - inicio.getTime() < ENVIO_PODE_ESTAR_SUBINDO_MS) {
+    await adiarProcessamento(fotoId, inicio, falha.message);
+    return { aguardando: true };
+  }
+  const mensagem = falha.passageira ? mensagemFinal : falha.message;
+  await marcarFotoComErro(fotoId, mensagem);
+  return { erro: mensagem };
+}
 
 /**
  * Confere e processa uma foto depois que o navegador terminou de enviá-la: tamanho (o mesmo
@@ -508,6 +643,8 @@ export async function confirmarEnvio(
     return confirmarVideo(fotografoId, { ...valida, formato: valida.formato }, opcoes);
   }
   const { foto, chaves, formato } = { ...valida, formato: valida.formato as FormatoAceito };
+  // Para o prazo de uma nova tentativa depois de uma falha passageira no Drive.
+  const inicioDoEnvio = opcoes.inicioDoEnvio ?? foto.inicio;
 
   let marco = performance.now();
   const medir = (etapa: keyof TemposDoProcessamento) => {
@@ -537,7 +674,10 @@ export async function confirmarEnvio(
     liberar();
     return { emAndamento: true };
   }
+  /** Original já gravado no Drive e a foto ainda não `pronta` (apagado se der errado). */
+  let pendenteNoDrive: ReferenciaOriginal | null = null;
   try {
+    const destino = await destinoDoOriginal(foto.armazenamento);
     const lido = await lerEnviado(chaves.temporaria, LIMITE_FOTO_BYTES);
     medir("leituraMs");
     if (lido.situacao === "ausente") {
@@ -599,12 +739,31 @@ export async function confirmarEnvio(
     const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     medir("versoesMs");
     // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
-    await Promise.all([
+    const previas = [
       gravarPublico(publicas.previa, previa.buffer, "image/webp"),
       gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
-      moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
-    ]);
+    ];
+    if (destino === "r2") {
+      await Promise.all([
+        ...previas,
+        moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
+      ]);
+    } else {
+      // Evento `hibrido`: o original vai ao Drive; o temporário do R2 só sai depois que a foto
+      // estiver pronta apontando para o arquivo no Drive.
+      pendenteNoDrive = await gravarComPrevias(previas, () =>
+        gravarNoDrive({
+          chave: chaves.original,
+          conteudo: original,
+          tipo: DADOS_DO_FORMATO[formato].mime,
+          fotografoId,
+          eventoId: foto.eventoId,
+          fotoId: foto.id,
+        }),
+      );
+    }
+    const noDrive = pendenteNoDrive;
 
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
@@ -615,9 +774,22 @@ export async function confirmarEnvio(
       largura: info.autoOrient.width,
       altura: info.autoOrient.height,
       capturadaEm: dataDeCaptura(info.exif),
+      ...(noDrive
+        ? { provedorOriginal: "drive" as const, driveArquivoId: noDrive.driveArquivoId }
+        : {}),
     });
     medir("gravacaoMs");
-    if (!concluiu) return { emAndamento: true };
+    if (!concluiu) {
+      // A foto não aponta para o arquivo gravado agora no Drive: ele sai de lá.
+      if (noDrive) await descartarDoDrive(noDrive);
+      return { emAndamento: true };
+    }
+    if (noDrive) {
+      pendenteNoDrive = null;
+      // A foto já aponta para o Drive: o temporário sai do R2 (se falhar, a regra de ciclo de
+      // vida de envios/ apaga depois).
+      await removerOriginal(chaves.temporaria).catch(() => {});
+    }
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
     // A foto já está pronta (à venda); os rostos servem à busca por selfie e o número de peito
@@ -636,6 +808,10 @@ export async function confirmarEnvio(
     }
     return { eventoId: foto.eventoId };
   } catch (erro) {
+    if (pendenteNoDrive) await descartarDoDrive(pendenteNoDrive);
+    if (erro instanceof FalhaNoDrive) {
+      return tratarFalhaNoDrive(foto.id, erro, inicioDoEnvio, agora, ERRO_PROCESSAMENTO);
+    }
     if (erro instanceof ArquivoRecusado) {
       await marcarFotoComErro(foto.id, erro.message);
       // O arquivo recusado não fica no bucket (a regra de ciclo de vida de envios/ é a reserva).
@@ -676,6 +852,7 @@ async function confirmarVideo(
   opcoes: OpcoesDoProcessamento,
 ): Promise<ResultadoDoProcessamento> {
   const { foto, chaves, formato } = valida;
+  const inicioDoEnvio = opcoes.inicioDoEnvio ?? foto.inicio;
   // Arquivo, prévia e quadros na memória ao mesmo tempo: reserva com folga.
   const liberar = await memoria.reservar(
     Math.min(ORCAMENTO_DE_MEMORIA_BYTES, (foto.tamanhoBytes || LIMITE_VIDEO_BYTES) * 2),
@@ -698,7 +875,9 @@ async function confirmarVideo(
     return { emAndamento: true };
   }
   let movido = false;
+  let pendenteNoDrive: ReferenciaOriginal | null = null;
   try {
+    const destino = await destinoDoOriginal(foto.armazenamento);
     const tamanho = await tamanhoDoEnviado(chaves.temporaria);
     if (tamanho === null) {
       const inicio = opcoes.inicioDoEnvio;
@@ -718,8 +897,12 @@ async function confirmarVideo(
     );
     if (conferida !== foto.hash) throw new ArquivoRecusado(ERRO_DIFERENTE);
 
-    await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
-    movido = true;
+    // Evento `hibrido`: o vídeo fica no temporário até ir ao Drive, depois das prévias.
+    let video: Buffer | null = null;
+    if (destino === "r2") {
+      await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
+      movido = true;
+    }
     const [{ modelo, ajustes }, configGlobal] = await Promise.all([
       marcaDoDonoDoEvento(foto.eventoId),
       configuracaoDaMarca(),
@@ -730,7 +913,9 @@ async function confirmarVideo(
     let preparado;
     try {
       preparado = await prepararVideo(
-        await lerOriginal(chaves.original),
+        destino === "r2"
+          ? await lerOriginal(chaves.original)
+          : (video = await lerOriginal(chaves.temporaria)),
         modelo,
         (duracao) => duracao <= DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S,
         { semente: foto.id, config: marca },
@@ -748,12 +933,29 @@ async function confirmarVideo(
       semente: foto.id,
       config: marca,
     });
-    await Promise.all([
+    const previas = [
       gravarPublico(publicas.previa, previa.buffer, "image/webp"),
       gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
       gravarPublico(chaves.previaVideo, preparado.previa, "video/mp4"),
-    ]);
+    ];
+    if (destino === "r2" || !video) {
+      await Promise.all(previas);
+    } else {
+      const conteudo = video;
+      pendenteNoDrive = await gravarComPrevias(previas, () =>
+        gravarNoDrive({
+          chave: chaves.original,
+          conteudo,
+          tipo: DADOS_DO_VIDEO[formato].mime,
+          fotografoId,
+          eventoId: foto.eventoId,
+          fotoId: foto.id,
+        }),
+      );
+      video = null;
+    }
+    const noDrive = pendenteNoDrive;
     const concluiu = await concluirFoto(foto.id, {
       chaveOriginal: chaves.original,
       urlPrevia: publicas.previa,
@@ -763,8 +965,18 @@ async function confirmarVideo(
       altura: preparado.altura,
       capturadaEm: null,
       duracaoS: Math.max(1, Math.round(preparado.duracaoS)),
+      ...(noDrive
+        ? { provedorOriginal: "drive" as const, driveArquivoId: noDrive.driveArquivoId }
+        : {}),
     });
-    if (!concluiu) return { emAndamento: true };
+    if (!concluiu) {
+      if (noDrive) await descartarDoDrive(noDrive);
+      return { emAndamento: true };
+    }
+    if (noDrive) {
+      pendenteNoDrive = null;
+      await removerOriginal(chaves.temporaria).catch(() => {});
+    }
     // O vídeo já está à venda; os rostos dos quadros servem à busca por selfie.
     const { quadrosParaRostos } = preparado;
     if (opcoes.depois) {
@@ -774,6 +986,16 @@ async function confirmarVideo(
     }
     return { eventoId: foto.eventoId };
   } catch (erro) {
+    if (pendenteNoDrive) await descartarDoDrive(pendenteNoDrive);
+    if (erro instanceof FalhaNoDrive) {
+      return tratarFalhaNoDrive(
+        foto.id,
+        erro,
+        inicioDoEnvio,
+        agora,
+        "Não foi possível processar o vídeo. Envie de novo.",
+      );
+    }
     if (erro instanceof ArquivoRecusado) {
       await marcarFotoComErro(foto.id, erro.message);
       // O arquivo recusado não fica guardado (nem o temporário, nem o original já movido).

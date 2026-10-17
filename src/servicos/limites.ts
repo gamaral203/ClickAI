@@ -174,6 +174,14 @@ const REGRAS = {
   moldura_envio_usuario: { limite: 30, janelaMs: 10 * MINUTO },
   /** Buscas por número de peito por IP e evento (varrer de 0 a 999999 montaria a lista toda). */
   busca_numero_ip: { limite: 120, janelaMs: 10 * MINUTO },
+  /**
+   * Conexões da conta do Google Drive iniciadas pela gestão (protótipo de originais), por
+   * usuário. Cada uma abre um consentimento no Google; 10 por hora cobrem errar a conta algumas
+   * vezes.
+   */
+  drive_conexao_usuario: { limite: 10, janelaMs: 60 * MINUTO },
+  /** "Testar conexão" do Google Drive na gestão, por usuário (cada teste chama a API do Drive). */
+  drive_teste_usuario: { limite: 20, janelaMs: 10 * MINUTO },
 } as const;
 
 export type Regra = keyof typeof REGRAS;

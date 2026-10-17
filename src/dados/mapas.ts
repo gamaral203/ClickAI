@@ -66,7 +66,8 @@ export function paraFotografo(r: typeof t.fotografos.$inferSelect): FotografoCon
 
 export function paraEvento(r: typeof t.eventos.$inferSelect): Evento {
   // `fotosSoAposBusca` ficou sem uso (a opção saiu): a coluna segue no banco até ser removida.
-  const e = omitir(r, "senhaHash", "fotosSoAposBusca");
+  // Onde ficam os originais (R2 ou híbrido com o Drive) é interno: não vai ao navegador.
+  const e = omitir(r, "senhaHash", "fotosSoAposBusca", "armazenamentoOriginais");
   return {
     ...e,
     inicioEm: iso(e.inicioEm),
@@ -90,6 +91,9 @@ export function paraFoto(r: typeof t.fotos.$inferSelect): Foto {
     "avisoLiberacaoEm",
     "streamUid",
     "numerosLidosEm",
+    // Onde o original está guardado (R2 ou Drive) e o id do arquivo no Drive: nunca ao navegador.
+    "provedorOriginal",
+    "driveArquivoId",
   );
   // Só prévia protegida chega ao navegador, e só da foto pronta (src/lib/url-publica.ts): a
   // chave da prévia é gravada antes de o arquivo existir, e qualquer valor fora do bucket de

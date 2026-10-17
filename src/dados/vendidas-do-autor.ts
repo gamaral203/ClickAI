@@ -242,6 +242,8 @@ export async function loteVendidasDoAutor(opcoes: {
       nomeArquivo: t.fotos.nomeArquivo,
       tamanhoBytes: t.fotos.tamanhoBytes,
       excluidaEm: t.fotos.excluidaEm,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
     })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
@@ -263,5 +265,7 @@ export async function loteVendidasDoAutor(opcoes: {
     nomeArquivo: l.nomeArquivo,
     tamanhoBytes: l.tamanhoBytes,
     excluida: l.excluidaEm !== null,
+    provedorOriginal: l.provedorOriginal,
+    driveArquivoId: l.driveArquivoId,
   }));
 }

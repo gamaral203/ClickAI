@@ -10,7 +10,7 @@ import {
   soltarReindexacao,
 } from "@/dados";
 import { emParalelo } from "@/lib/concorrencia";
-import { lerOriginal, r2Configurado } from "@/lib/r2";
+import { r2Configurado } from "@/lib/r2";
 import {
   apagarColecao,
   ehErroDeCredencial,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/reconhecimento";
 
 import { indexarRostosDaFoto, indexarRostosDoVideo, type IndexacaoDeRostos } from "./envios";
+import { lerOriginalDaFoto } from "./original-da-foto";
 import { quadrosParaRostos } from "./video";
 
 // Coleções de rostos de eventos parados (docs/arquitetura.md, "Coleções arquivadas"). O
@@ -87,10 +88,17 @@ export async function arquivarColecoesInativas(
   return resultado;
 }
 
-type ItemParaIndexar = { id: string; chaveOriginal: string | null; tipo: "foto" | "video" };
+type ItemParaIndexar = {
+  id: string;
+  chaveOriginal: string | null;
+  tipo: "foto" | "video";
+  /** Onde está o original (Drive só em evento `hibrido`); sem isto, o R2. */
+  provedorOriginal?: "r2" | "drive";
+  driveArquivoId?: string | null;
+};
 
 /**
- * Lê o original do item no R2 e cadastra os rostos (foto inteira, ou os quadros do vídeo). Nunca
+ * Lê o original do item (no R2, ou no Drive em evento `hibrido`) e cadastra os rostos (foto inteira, ou os quadros do vídeo). Nunca
  * lança: devolve como terminou. Usado aqui e no "Cadastrar rostos que faltam" do painel.
  */
 export async function indexarItemDoEvento(
@@ -100,7 +108,14 @@ export async function indexarItemDoEvento(
   if (!item.chaveOriginal) return "sem_original";
   let original: Buffer;
   try {
-    original = await lerOriginal(item.chaveOriginal);
+    original = await lerOriginalDaFoto(
+      {
+        chave: item.chaveOriginal,
+        provedorOriginal: item.provedorOriginal,
+        driveArquivoId: item.driveArquivoId,
+      },
+      { fotoId: item.id, eventoId },
+    );
   } catch (erro) {
     console.error(`[rostos] falha ao ler o original do item ${item.id}: ${nomeDoErro(erro)}`);
     return "falha";
