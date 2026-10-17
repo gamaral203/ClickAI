@@ -59,6 +59,19 @@ export async function devolverReserva(fotoId: string, inicio: Date) {
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
 }
 
+/**
+ * Como `devolverReserva`, mas por uma falha passageira ao gravar o original (Google Drive fora
+ * do ar, limite de taxa): a foto continua em `processando`, volta para a fila do job com o
+ * horário original e guarda o motivo (curto, sem segredo) em `erro_mensagem`.
+ */
+export async function adiarProcessamento(fotoId: string, inicio: Date, mensagem: string) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotos)
+    .set({ envioIniciadoEm: inicio, erroMensagem: mensagem.slice(0, 300) })
+    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
+}
+
 /** Situação atual da foto do fotógrafo (para responder a quem chegou depois da reserva). */
 export async function situacaoDaFoto(fotoId: string, fotografoId: string) {
   const banco = await obterBanco();

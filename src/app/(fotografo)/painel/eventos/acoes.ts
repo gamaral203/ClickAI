@@ -45,6 +45,7 @@ import { ehNomeDeRaw, FORMATOS_ACEITOS, MENSAGEM_RAW } from "@/lib/tipos-imagem"
 import { UFS } from "@/lib/ufs";
 import { iniciarEnvio, pastaDeDestino, type ItemDoEnvio } from "@/servicos/envios";
 import { limiteAtingido } from "@/servicos/limites";
+import { removerOriginaisDoDrive } from "@/servicos/original-da-foto";
 import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
 import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -275,6 +276,8 @@ export async function excluirEventoAcao(eventoId: string): Promise<{ erro?: stri
   if (r2Configurado()) {
     await Promise.allSettled(resultado.chavesOriginais.map((chave) => removerOriginal(chave)));
   }
+  // Originais guardados no Google Drive (evento `hibrido`): apagados pelo provedor do Drive.
+  await removerOriginaisDoDrive(resultado.originaisNoDrive);
   revalidatePath("/painel/eventos");
   return {};
 }

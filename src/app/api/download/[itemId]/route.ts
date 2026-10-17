@@ -1,11 +1,18 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { dispositionDeAnexo } from "@/lib/r2";
 import { autorizarDownload } from "@/servicos/downloads";
 import { limiteAtingido } from "@/servicos/limites";
+import { respostaDoOriginalEmFluxo } from "@/servicos/original-da-foto";
 import { usuarioAtual } from "@/servicos/sessao";
 import { respostaDaManutencao } from "@/servicos/manutencao";
+
+/**
+ * Teto da função: no R2 a rota só responde um 302, mas o original no Google Drive (evento
+ * `hibrido`) passa por aqui em streaming, e um vídeo de 300 MB numa conexão lenta leva minutos.
+ */
+export const maxDuration = 300;
 
 // Token do link (convidado) ou sessão (cliente logado); um dos dois é conferido no serviço.
 const parametros = z.object({ itemId: z.uuid(), token: z.string().min(20).max(400).nullable() });
@@ -56,6 +63,23 @@ export async function GET(
       status: 302,
       headers: { Location: original.url, "Cache-Control": "no-store" },
     });
+  }
+
+  // Original no Google Drive (evento `hibrido`, protótipo): o Drive não tem URL assinada
+  // temporária, então a rota repassa o arquivo em streaming (com Range), já autorizada acima.
+  // Nada do Drive (id, link) sai na resposta.
+  if (original.tipo === "fluxo") {
+    const resposta = await respostaDoOriginalEmFluxo({
+      foto: original.ref,
+      nomeArquivo: original.nomeArquivo,
+      tipoMime: original.tipoMime,
+      range: request.headers.get("range"),
+      operacao: "download_original",
+      depois: (tarefa) => after(tarefa),
+      fotoId: original.fotoId,
+      eventoId: original.eventoId,
+    });
+    return resposta ?? indisponivel();
   }
 
   // Dados de exemplo (fora da produção): o servidor busca a imagem de exemplo e entrega como

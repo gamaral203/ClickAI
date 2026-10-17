@@ -156,7 +156,13 @@ export async function situacaoDosRostos(eventoId: string) {
 export async function fotosParaIndexar(eventoId: string, depoisDe: string | null, limite: number) {
   const banco = await obterBanco();
   return banco
-    .select({ id: t.fotos.id, chaveOriginal: t.fotos.chaveOriginal, tipo: t.fotos.tipo })
+    .select({
+      id: t.fotos.id,
+      chaveOriginal: t.fotos.chaveOriginal,
+      tipo: t.fotos.tipo,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
+    })
     .from(t.fotos)
     .where(
       and(

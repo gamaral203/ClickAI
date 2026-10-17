@@ -254,9 +254,9 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [ ] **Protótipo: originais no Google Drive** (branch `feat/armazenamento-drive`, só teste; decisão de 16/10/2026, ver [arquitetura.md](arquitetura.md), "Armazenamento experimental"). Nada muda para eventos existentes; tudo desligado por padrão.
   - [x] Migração 0047: `eventos.armazenamento_originais` (r2 | hibrido), `fotos.provedor_original` e `fotos.drive_arquivo_id`, tabelas `configuracoes`, `credenciais_google_drive`, `pastas_drive` e `metricas_armazenamento`
   - [x] Camada de provedores de originais (`src/lib/armazenamento/`), cliente da Drive API (`src/lib/google-drive.ts`, OAuth `drive.file`, upload retomável em partes de 8 MiB, download com Range, backoff) e cifra genérica de segredos (`src/lib/segredo-cifrado.ts`)
-  - [ ] Página `/admin/armazenamento`: conectar a conta Google (cliente OAuth separado, `GOOGLE_DRIVE_CLIENT_ID/SECRET`), testar a conexão, espaço usado, fotos e falhas por provedor, tempos médios, ligar/desligar o experimental, marcar um evento como híbrido
-  - [ ] Upload em evento híbrido: o navegador continua enviando para `envios/` no R2; na confirmação o servidor grava o original no Drive e apaga o temporário
-  - [ ] Download de original no Drive: a rota do site faz streaming (com Range) depois de conferir o pedido pago; nenhum link do Drive sai do servidor; caminhos do dono (baixar originais, sem marca, rostos, regerar prévias, excluir evento) passam pelo provedor
+  - [x] Página `/admin/armazenamento`: conectar a conta Google (cliente OAuth separado, `GOOGLE_DRIVE_CLIENT_ID/SECRET`), testar a conexão, espaço usado, fotos e falhas por provedor, tempos médios, ligar/desligar o experimental, marcar um evento como híbrido
+  - [x] Upload em evento híbrido: o navegador continua enviando para `envios/` no R2; na confirmação o servidor grava o original no Drive e apaga o temporário
+  - [x] Download de original no Drive: a rota do site faz streaming (com Range) depois de conferir o pedido pago; nenhum link do Drive sai do servidor; caminhos do dono (baixar originais, sem marca, rostos, regerar prévias, excluir evento) passam pelo provedor
   - [ ] Evento privado "Teste Armazenamento Drive": 10 e 100 fotos, compra simulada, download, falha de conexão e retomada, comparação com o R2
   - [ ] Antes de qualquer uso real: decidir sobre LGPD (sem DPA em conta Google One pessoal) e sobre o risco de suspensão da conta; conferir o plano da Vercel (Hobby é não comercial)
 

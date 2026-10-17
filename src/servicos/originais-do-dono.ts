@@ -25,6 +25,7 @@ import { nomeDoArquivoOriginal, tipoDoOriginal } from "@/lib/arquivo-original";
 
 import { limiteAtingido } from "./limites";
 import { exigirCodigoDeAcao, MENSAGENS_CODIGO_ACAO } from "./codigo-acao";
+import type { OriginalDaFoto } from "./original-da-foto";
 import { contaDoPainel } from "./sessao";
 
 // Download dos originais pelo AUTOR da foto (docs/CLAUDE.md, exceção à regra "nenhum original
@@ -51,6 +52,12 @@ import { contaDoPainel } from "./sessao";
 // registrado em `downloads_do_dono` (quem, evento, opção, quantos, IP; sem URLs). Com a
 // verificação em duas etapas ligada, o código é pedido uma vez por evento, e a liberação (token
 // assinado, preso ao usuário e ao evento) vale por 3 horas, para os lotes e as fotos individuais.
+//
+// Original no Google Drive (evento `hibrido`, protótipo): o Drive não tem URL assinada, então a
+// "URL" entregue é a rota do próprio site /api/painel/originais/[eventoId]/[fotoId] com um token
+// assinado de 15 minutos (preso ao usuário e à foto, como a URL assinada do R2), emitido só
+// depois das mesmas conferências; a rota confere de novo a sessão, o token e a autoria e faz o
+// streaming. O navegador baixa igual (mesma origem) e nunca recebe nada do Drive.
 
 export const ORIGINAIS_POR_LOTE = 50;
 export const VALIDADE_LIBERACAO_MS = 3 * 60 * 60 * 1000;
@@ -60,6 +67,21 @@ const PROPOSITO = "originais-do-dono";
  * liberação de um evento (nem a de um evento vale aqui).
  */
 const LIBERACAO_VENDIDAS = "vendidas_geral";
+const PROPOSITO_FLUXO = "original-do-autor-fluxo";
+/** Validade do endereço de um original no Drive: a mesma das URLs assinadas do R2. */
+export const VALIDADE_FLUXO_MS = 15 * 60 * 1000;
+
+type Fluxo = { u: string; f: string };
+
+/** Endereço (mesma origem) que entrega o original no Drive a este usuário, por 15 minutos. */
+function enderecoDoFluxo(usuarioId: string, eventoId: string, fotoId: string) {
+  const fluxo = assinar(
+    PROPOSITO_FLUXO,
+    { u: usuarioId, f: fotoId } satisfies Fluxo,
+    VALIDADE_FLUXO_MS,
+  );
+  return `/api/painel/originais/${eventoId}/${fotoId}?${new URLSearchParams({ fluxo })}`;
+}
 
 export const MODOS_ORIGINAIS = [
   "vendidas",
@@ -201,8 +223,14 @@ async function enderecoDoOriginal(
     eventoId: string;
     modo: ModoLoteOriginais | "vendidas_geral";
     liberacao: string;
+    usuarioId: string;
   },
 ) {
+  if (item.chave.startsWith("originais/") && item.provedorOriginal === "drive") {
+    return item.driveArquivoId
+      ? enderecoDoFluxo(contexto.usuarioId, contexto.eventoId, item.id)
+      : null;
+  }
   if (item.chave.startsWith("originais/")) {
     if (!r2Configurado()) return null;
     return urlDeDownload(item.chave, nome, tipoDoOriginal(item.chave).mime);
@@ -252,7 +280,12 @@ export async function loteDeOriginais(
   const indisponiveis: string[] = [];
   for (const item of linhas) {
     const nome = nomeDoOriginal(item);
-    const url = await enderecoDoOriginal(item, nome, { eventoId, modo, liberacao });
+    const url = await enderecoDoOriginal(item, nome, {
+      eventoId,
+      modo,
+      liberacao,
+      usuarioId: usuario.id,
+    });
     if (!url) {
       indisponiveis.push(item.id);
       continue;
@@ -396,6 +429,7 @@ export async function loteDeVendidasDoAutor(
       eventoId: item.eventoId,
       modo: "vendidas_geral",
       liberacao,
+      usuarioId: usuario.id,
     });
     if (!url) {
       indisponiveis.push(item.id);
@@ -438,6 +472,42 @@ async function vendidaDeExemploParaOAutor(
   return { url: item.chave, nome: nomeDaVendida(item) };
 }
 
+/**
+ * Original no Drive para a rota do painel, pelo endereço de 15 minutos de `enderecoDoFluxo`:
+ * confere a sessão, o token (deste usuário e desta foto, no prazo), que a conta de fotógrafo do
+ * usuário é a autora da foto, que ela é do evento do endereço e que está no Drive. `null` em
+ * qualquer recusa. As conferências do lote (dono do evento, liberação com a verificação em duas
+ * etapas, limite) já foram feitas ao emitir o endereço.
+ */
+export async function originalEmFluxoParaOAutor(
+  usuario: Usuario | null,
+  entrada: { eventoId: string; fotoId: string; fluxo: unknown },
+): Promise<{
+  foto: OriginalDaFoto;
+  nome: string;
+  tipoMime: string;
+  fotoId: string;
+  eventoId: string;
+} | null> {
+  const fluxo = z.string().min(20).max(1000).safeParse(entrada.fluxo);
+  const fotoId = z.uuid().safeParse(entrada.fotoId);
+  if (!usuario || !fluxo.success || !fotoId.success) return null;
+  const dados = conferirAssinatura(PROPOSITO_FLUXO, fluxo.data) as Partial<Fluxo> | null;
+  if (dados?.u !== usuario.id || dados?.f !== fotoId.data) return null;
+  const conta = await contaDoPainel(usuario);
+  if (!conta) return null;
+  const foto = await originalDoAutor(fotoId.data, conta.id);
+  if (!foto || foto.eventoId !== entrada.eventoId) return null;
+  if (foto.provedorOriginal !== "drive" || !foto.driveArquivoId) return null;
+  return {
+    foto: { chave: foto.chave, provedorOriginal: "drive", driveArquivoId: foto.driveArquivoId },
+    nome: nomeDoOriginal(foto),
+    tipoMime: tipoDoOriginal(foto.chave).mime,
+    fotoId: foto.id,
+    eventoId: foto.eventoId,
+  };
+}
+
 export type ResultadoIndividual =
   | {
       ok: true;
@@ -477,7 +547,10 @@ export async function originalIndividual(
   const nome = nomeDoOriginal(foto);
   let url: string | null = null;
   let exemplo = false;
-  if (foto.chave.startsWith("originais/")) {
+  if (foto.chave.startsWith("originais/") && foto.provedorOriginal === "drive") {
+    // A rota individual responde 302 (ou a URL em JSON) para o endereço do streaming.
+    if (foto.driveArquivoId) url = enderecoDoFluxo(usuario.id, foto.eventoId, foto.id);
+  } else if (foto.chave.startsWith("originais/")) {
     if (r2Configurado()) {
       url = await urlDeDownload(foto.chave, nome, tipoDoOriginal(foto.chave).mime);
     }

@@ -14,10 +14,11 @@ import { emParalelo } from "@/lib/concorrencia";
 import { LIMITE_FOTO_BYTES } from "@/lib/limites-envio";
 import { chaveDaPreviaCelular, type ModeloMarca } from "@/lib/marca-dagua";
 import { aplicarAjustesDaMarca } from "@/lib/protecao-previas";
-import { gravarPublico, lerOriginal, modoEnvio, removerPublico } from "@/lib/r2";
+import { gravarPublico, modoEnvio, removerPublico } from "@/lib/r2";
 
 import { chavesDaFoto, PROCESSAMENTOS_NO_SERVIDOR, reservarMemoriaDoProcessamento } from "./envios";
 import { gerarVersoes } from "./imagens";
+import { lerOriginalDaFoto } from "./original-da-foto";
 
 // Regera prévia e miniatura das fotos já enviadas com uma versão anterior da marca d'água
 // (docs/riscos.md, "Marca d'água removida com ferramentas de IA"; docs/arquitetura.md, "Upload").
@@ -112,7 +113,14 @@ async function regerarUma(
   const novas = chavesDaFoto(foto.enviadaPor, foto.eventoId, foto.id, "jpeg", marca.revisao);
   const liberar = await reservarMemoriaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   try {
-    const original = await lerOriginal(foto.chaveOriginal);
+    const original = await lerOriginalDaFoto(
+      {
+        chave: foto.chaveOriginal,
+        provedorOriginal: foto.provedorOriginal,
+        driveArquivoId: foto.driveArquivoId,
+      },
+      { fotoId: foto.id, eventoId: foto.eventoId },
+    );
     const { previa, previaCelular, miniatura } = await gerarVersoes(original, modelo, {
       semente: foto.id,
       config: marca,

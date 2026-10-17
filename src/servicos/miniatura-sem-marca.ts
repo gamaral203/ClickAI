@@ -8,6 +8,7 @@ import { lerOriginal, r2Configurado } from "@/lib/r2";
 
 import { abrirOriginal } from "./imagens";
 import { limiteAtingido } from "./limites";
+import { estaNoDrive, lerOriginalDaFoto, type OriginalDaFoto } from "./original-da-foto";
 import { contaDoPainel } from "./sessao";
 
 // Miniatura SEM marca d'água de uma foto, só para o AUTOR dela (docs/CLAUDE.md, exceção do
@@ -42,7 +43,7 @@ export async function miniaturaSemMarca(
 
   let original: Buffer | null = null;
   try {
-    original = await lerArquivoDoOriginal(foto.chave);
+    original = await lerArquivoDoOriginal(foto, { fotoId: foto.id, eventoId: foto.eventoId });
   } catch (erro) {
     console.error("[sem-marca] falha ao ler o original", { foto: foto.id }, erro);
   }
@@ -67,9 +68,16 @@ export async function miniaturaSemMarca(
 
 /**
  * O arquivo original inteiro, para processar no servidor (miniatura sem marca do autor, foto
- * comprada com a moldura do evento), ou `null` se não há original para ler.
+ * comprada com a moldura do evento), ou `null` se não há original para ler. Com a foto (e não só
+ * a chave), lê do provedor dela: no Google Drive, em evento `hibrido`.
  */
-export async function lerArquivoDoOriginal(chave: string): Promise<Buffer | null> {
+export async function lerArquivoDoOriginal(
+  original: string | OriginalDaFoto,
+  extras: { fotoId?: string; eventoId?: string } = {},
+): Promise<Buffer | null> {
+  const foto = typeof original === "string" ? { chave: original } : original;
+  const { chave } = foto;
+  if (chave.startsWith("originais/") && estaNoDrive(foto)) return lerOriginalDaFoto(foto, extras);
   if (chave.startsWith("originais/")) return r2Configurado() ? lerOriginal(chave) : null;
   // Dados de exemplo (só fora da produção): o original é uma imagem pública de exemplo.
   if (/^https:\/\//.test(chave) && !emProducao()) {

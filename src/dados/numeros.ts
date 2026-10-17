@@ -89,7 +89,12 @@ export async function fotosParaLerNumeros(
 ) {
   const banco = await obterBanco();
   return banco
-    .select({ id: t.fotos.id, chaveOriginal: t.fotos.chaveOriginal })
+    .select({
+      id: t.fotos.id,
+      chaveOriginal: t.fotos.chaveOriginal,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
+    })
     .from(t.fotos)
     .where(
       and(
@@ -110,7 +115,13 @@ export async function fotosParaLerNumeros(
 export async function fotosPendentesDeNumeros(prontasAntesDe: Date, limite: number) {
   const banco = await obterBanco();
   return banco
-    .select({ id: t.fotos.id, eventoId: t.fotos.eventoId, chaveOriginal: t.fotos.chaveOriginal })
+    .select({
+      id: t.fotos.id,
+      eventoId: t.fotos.eventoId,
+      chaveOriginal: t.fotos.chaveOriginal,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
+    })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
     .where(

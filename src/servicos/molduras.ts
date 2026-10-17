@@ -383,7 +383,7 @@ export async function fotoDoAutorComMoldura(
 
   try {
     const [arquivo, moldura] = await Promise.all([
-      lerArquivoDoOriginal(original.chave),
+      lerArquivoDoOriginal(original, { fotoId: foto.id, eventoId: foto.eventoId }),
       lerMoldura(chaveMoldura),
     ]);
     if (!arquivo || !moldura) return { ok: false, motivo: "indisponivel" };

@@ -1216,6 +1216,9 @@ export type OriginalDoItem = {
   /** Evento da foto (o download com moldura usa a moldura dele). */
   eventoId: string;
   tipo: "foto" | "video";
+  /** Onde o original está guardado (`drive` só em evento `hibrido`) e o id do arquivo no Drive. */
+  provedorOriginal: "r2" | "drive";
+  driveArquivoId: string | null;
 };
 
 /**
@@ -1231,6 +1234,8 @@ export async function buscarOriginal(fotoId: string): Promise<OriginalDoItem | n
       slug: t.eventos.slug,
       eventoId: t.fotos.eventoId,
       tipo: t.fotos.tipo,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
     })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
@@ -1241,6 +1246,8 @@ export async function buscarOriginal(fotoId: string): Promise<OriginalDoItem | n
     nomeArquivo: `${linha.slug}-${linha.nome}`,
     eventoId: linha.eventoId,
     tipo: linha.tipo,
+    provedorOriginal: linha.provedorOriginal,
+    driveArquivoId: linha.driveArquivoId,
   };
 }
 

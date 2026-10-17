@@ -5,6 +5,7 @@ import { emProducao } from "@/db/conexao";
 import { r2Configurado, urlDeDownload } from "@/lib/r2";
 import { nomeDoArquivoOriginal, tipoDoOriginal } from "@/lib/arquivo-original";
 
+import type { OriginalDaFoto } from "./original-da-foto";
 import { podeAcessar, type Credencial } from "./pedidos";
 
 // Regra central do produto: nenhum original fica acessível sem um pedido pago
@@ -14,13 +15,42 @@ export type OriginalParaDownload =
   /** Foto enviada: URL assinada do R2 (~15 min), já com Content-Disposition de anexo. */
   | { tipo: "r2"; url: string; nomeArquivo: string }
   /** Dados de exemplo (fora da produção): a imagem de exemplo, entregue pela rota. */
-  | { tipo: "exemplo"; url: string; nomeArquivo: string };
+  | { tipo: "exemplo"; url: string; nomeArquivo: string }
+  /**
+   * Original no Google Drive (evento `hibrido`): a rota faz o streaming (o Drive não tem URL
+   * assinada temporária). `ref` fica no servidor; nada dele vai ao navegador. `url` é a própria
+   * rota do site (`/api/download/{itemId}`), nunca um endereço do Drive.
+   */
+  | {
+      tipo: "fluxo";
+      url: string;
+      ref: OriginalDaFoto;
+      nomeArquivo: string;
+      tipoMime: string;
+      fotoId: string;
+      eventoId: string;
+    };
 
 /** Onde baixar o original, ou `null` se ele não está disponível. */
-async function enderecoDoOriginal(fotoId: string): Promise<OriginalParaDownload | null> {
+async function enderecoDoOriginal(
+  fotoId: string,
+  itemId: string,
+): Promise<OriginalParaDownload | null> {
   const original = await buscarOriginal(fotoId);
   if (!original) return null;
   const { chave, nomeArquivo } = original;
+  if (chave.startsWith("originais/") && original.provedorOriginal === "drive") {
+    if (!original.driveArquivoId) return null;
+    return {
+      tipo: "fluxo",
+      url: `/api/download/${itemId}`,
+      ref: { chave, provedorOriginal: "drive", driveArquivoId: original.driveArquivoId },
+      nomeArquivo: nomeDoArquivoOriginal(nomeArquivo, chave),
+      tipoMime: tipoDoOriginal(chave).mime,
+      fotoId,
+      eventoId: original.eventoId,
+    };
+  }
   if (chave.startsWith("originais/")) {
     if (!r2Configurado()) return null;
     // O original sai no formato em que foi enviado (JPEG, PNG, WebP, TIFF ou AVIF): o tipo e a
@@ -70,7 +100,7 @@ export async function autorizarDownload(
   const item = await itemLiberadoParaDownload(itemId, credencial);
   if (!item) return null;
 
-  const original = await enderecoDoOriginal(item.fotoId);
+  const original = await enderecoDoOriginal(item.fotoId, item.id);
   if (!original) return null;
   await registrarDownload(item.id, ip);
   return original;

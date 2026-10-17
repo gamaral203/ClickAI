@@ -11,7 +11,9 @@ import { respostaDaManutencao } from "@/servicos/manutencao";
 // Tudo é conferido no servidor (sessão, autoria, liberação do evento com a verificação em duas
 // etapas, limite por usuário) e a resposta é um 302 para a URL assinada do R2 (~15 min, como
 // anexo): o arquivo nunca passa pelo Next.js. Só os dados de exemplo, fora da produção, saem por
-// aqui (o CSP não deixa o navegador buscar o host de exemplo direto).
+// aqui (o CSP não deixa o navegador buscar o host de exemplo direto). Foto com o original no
+// Google Drive (evento `hibrido`): a URL é o endereço de 15 minutos da rota
+// /api/painel/originais/[eventoId]/[fotoId]?fluxo=, que faz o streaming (mesma origem).
 //
 // Com `formato=json` (os botões do painel), a resposta é a URL em JSON, ou o erro em JSON com o
 // mesmo status: o navegador abre o link e baixa sem sair da página, e um erro aparece na tela em

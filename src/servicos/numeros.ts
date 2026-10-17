@@ -25,7 +25,7 @@ import {
 import { emProducao } from "@/db/conexao";
 import { emParalelo } from "@/lib/concorrencia";
 import { confiancaMinima, extrairNumeros, type TextoDetectado } from "@/lib/numeros-de-peito";
-import { lerOriginal, r2Configurado } from "@/lib/r2";
+import { r2Configurado } from "@/lib/r2";
 import {
   detectarTexto,
   ehErroDeCredencial,
@@ -34,6 +34,7 @@ import {
 } from "@/lib/reconhecimento";
 
 import { copiaParaRostos } from "./imagens";
+import { lerOriginalDaFoto } from "./original-da-foto";
 
 /**
  * Como terminou a leitura de uma foto: `lida` (mesmo sem número), `desligada` (evento sem a
@@ -119,7 +120,12 @@ export async function lerNumerosDaFoto(
   }
 }
 
-type FotoParaLer = { id: string; chaveOriginal: string | null };
+type FotoParaLer = {
+  id: string;
+  chaveOriginal: string | null;
+  provedorOriginal?: "r2" | "drive";
+  driveArquivoId?: string | null;
+};
 
 /** Lê uma foto já pronta a partir do original no R2 (lote do painel e job). */
 async function lerItem(eventoId: string, foto: FotoParaLer): Promise<LeituraDeNumeros> {
@@ -129,7 +135,17 @@ async function lerItem(eventoId: string, foto: FotoParaLer): Promise<LeituraDeNu
   return lerNumerosDaFoto(
     eventoId,
     foto.id,
-    async () => copiaParaRostos(await lerOriginal(chave!)),
+    async () =>
+      copiaParaRostos(
+        await lerOriginalDaFoto(
+          {
+            chave: chave!,
+            provedorOriginal: foto.provedorOriginal,
+            driveArquivoId: foto.driveArquivoId,
+          },
+          { fotoId: foto.id, eventoId },
+        ),
+      ),
     { conferirEvento: false },
   );
 }

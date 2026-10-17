@@ -35,6 +35,9 @@ export type OriginalDoDono = {
   nomeArquivo: string;
   tamanhoBytes: number | null;
   excluida: boolean;
+  /** Onde o original está (`drive` só em evento `hibrido`). Só para o servidor. */
+  provedorOriginal: "r2" | "drive";
+  driveArquivoId: string | null;
 };
 
 export type ResumoOriginais = {
@@ -136,6 +139,8 @@ export async function loteOriginaisDoDono(opcoes: {
       nomeArquivo: t.fotos.nomeArquivo,
       tamanhoBytes: t.fotos.tamanhoBytes,
       excluidaEm: t.fotos.excluidaEm,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
     })
     .from(t.fotos)
     .innerJoin(t.eventos, eq(t.eventos.id, t.fotos.eventoId))
@@ -154,6 +159,8 @@ export async function loteOriginaisDoDono(opcoes: {
     nomeArquivo: l.nomeArquivo,
     tamanhoBytes: l.tamanhoBytes,
     excluida: l.excluidaEm !== null,
+    provedorOriginal: l.provedorOriginal,
+    driveArquivoId: l.driveArquivoId,
   }));
 }
 
@@ -174,6 +181,8 @@ export async function originalDoAutor(
       nomeArquivo: t.fotos.nomeArquivo,
       tamanhoBytes: t.fotos.tamanhoBytes,
       excluidaEm: t.fotos.excluidaEm,
+      provedorOriginal: t.fotos.provedorOriginal,
+      driveArquivoId: t.fotos.driveArquivoId,
     })
     .from(t.fotos)
     .where(
@@ -192,6 +201,8 @@ export async function originalDoAutor(
     nomeArquivo: linha.nomeArquivo,
     tamanhoBytes: linha.tamanhoBytes,
     excluida: linha.excluidaEm !== null,
+    provedorOriginal: linha.provedorOriginal,
+    driveArquivoId: linha.driveArquivoId,
   };
 }
 
