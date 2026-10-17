@@ -5,11 +5,33 @@
 
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
-import { arvoreDePastas, type PastaNaArvore } from "@/lib/pastas";
+import {
+  DIA_TODOS,
+  intervaloDoDia,
+  PASTA_TODAS,
+  SEM_DATA,
+  SEM_PASTA,
+  type FiltroDoPainel,
+} from "@/lib/filtro-painel";
+import { arvoreDePastas, idsDaPastaComSubpastas, type PastaNaArvore } from "@/lib/pastas";
 
 import { paraPasta } from "./mapas";
 import type { Pasta } from "./tipos";
@@ -378,4 +400,123 @@ export async function pastasDoEvento(eventoId: string) {
     .from(t.pastas)
     .where(eq(t.pastas.eventoId, eventoId))
     .orderBy(asc(t.pastas.ordem));
+}
+
+// ---------------------------------------------------------------- Mover em massa (painel)
+
+/** O que mover: ids escolhidos na grade ou "todas do filtro" (o filtro, não milhares de ids). */
+export type SelecaoParaMover =
+  { tipo: "ids"; ids: string[] } | { tipo: "filtro"; filtro: FiltroDoPainel };
+
+export type ResultadoMoverFotos = { movidas: number } | { erro: string };
+
+/**
+ * Condições SQL do filtro da grade do painel, iguais às de `filtrarItensDoPainel`
+ * (src/lib/filtro-painel.ts): sempre o evento e só as fotos não excluídas (o painel não mostra
+ * as excluídas). `null` quando a pasta do filtro não é deste evento.
+ */
+async function condicoesDoFiltro(
+  db: Banco | Transacao,
+  eventoId: string,
+  filtro: FiltroDoPainel,
+  agora: number,
+): Promise<SQL[] | null> {
+  const condicoes: SQL[] = [eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)];
+  const momento = new Date(agora);
+  if (filtro.liberacao === "liberada") condicoes.push(lte(t.fotos.liberarEm, momento));
+  if (filtro.liberacao === "agendada") condicoes.push(gt(t.fotos.liberarEm, momento));
+  if (filtro.liberacao === "manual") condicoes.push(isNull(t.fotos.liberarEm));
+  if (filtro.pasta === SEM_PASTA) {
+    condicoes.push(isNull(t.fotos.pastaId));
+  } else if (filtro.pasta !== PASTA_TODAS) {
+    const pastas = await db
+      .select({ id: t.pastas.id, pastaPaiId: t.pastas.pastaPaiId })
+      .from(t.pastas)
+      .where(eq(t.pastas.eventoId, eventoId));
+    if (!pastas.some((p) => p.id === filtro.pasta)) return null;
+    condicoes.push(inArray(t.fotos.pastaId, [...idsDaPastaComSubpastas(filtro.pasta, pastas)]));
+  }
+  if (filtro.dia !== DIA_TODOS) {
+    if (filtro.dia === SEM_DATA) {
+      if (filtro.base === "envio") return null;
+      condicoes.push(isNull(t.fotos.capturadaEm));
+    } else {
+      const intervalo = intervaloDoDia(filtro.dia);
+      if (!intervalo) return null;
+      const coluna = filtro.base === "envio" ? t.fotos.criadoEm : t.fotos.capturadaEm;
+      condicoes.push(gte(coluna, intervalo.inicio), lt(coluna, intervalo.fim));
+    }
+  }
+  return condicoes;
+}
+
+/** Quantas fotos o filtro pega agora, reavaliado no servidor. Só o dono do evento. */
+export async function contarFotosDoFiltro(
+  eventoId: string,
+  fotografoId: string,
+  filtro: FiltroDoPainel,
+  agora = Date.now(),
+): Promise<number | null> {
+  if (!(await eventoDoDono(eventoId, fotografoId))) return null;
+  const banco = await obterBanco();
+  const condicoes = await condicoesDoFiltro(banco, eventoId, filtro, agora);
+  if (!condicoes) return null;
+  const [{ total }] = await banco
+    .select({ total: sql<number>`count(*)::int` })
+    .from(t.fotos)
+    .where(and(...condicoes));
+  return Number(total);
+}
+
+/**
+ * Move para uma pasta (ou subpasta) do evento, ou tira da pasta (`pastaId` nulo), as fotos
+ * escolhidas por id ou todas as do filtro, reavaliado aqui na hora (do navegador vem só o
+ * filtro). Só o dono do evento; pasta de outro evento e foto de outro evento são recusadas.
+ * Um UPDATE só, numa transação. O colaborador continua movendo só as fotos dele, uma por vez,
+ * em Colaborações (`moverItensParaPastaOuColaborador`).
+ */
+export async function moverFotosDoPainel(
+  eventoId: string,
+  fotografoId: string,
+  selecao: SelecaoParaMover,
+  pastaId: string | null,
+  agora = Date.now(),
+): Promise<ResultadoMoverFotos> {
+  if (!(await eventoDoDono(eventoId, fotografoId))) return { erro: "Evento não encontrado." };
+  const banco = await obterBanco();
+  return banco.transaction(async (tx): Promise<ResultadoMoverFotos> => {
+    if (pastaId !== null) {
+      const [pasta] = await tx
+        .select({ id: t.pastas.id })
+        .from(t.pastas)
+        .where(and(eq(t.pastas.id, pastaId), eq(t.pastas.eventoId, eventoId)));
+      if (!pasta) return { erro: NAO_ENCONTRADA };
+    }
+    let condicoes: SQL[];
+    if (selecao.tipo === "ids") {
+      const unicos = [...new Set(selecao.ids)];
+      if (unicos.length === 0) return { erro: "Nenhuma foto selecionada." };
+      condicoes = [
+        eq(t.fotos.eventoId, eventoId),
+        isNull(t.fotos.excluidaEm),
+        inArray(t.fotos.id, unicos),
+      ];
+      // Tudo ou nada: um id de outro evento (ou já excluído) recusa o lote inteiro.
+      const [{ total }] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(t.fotos)
+        .where(and(...condicoes));
+      if (Number(total) !== unicos.length) return { erro: "Algumas fotos não são deste evento." };
+    } else {
+      const doFiltro = await condicoesDoFiltro(tx, eventoId, selecao.filtro, agora);
+      if (!doFiltro) return { erro: NAO_ENCONTRADA };
+      condicoes = doFiltro;
+    }
+    const movidas = await tx
+      .update(t.fotos)
+      .set({ pastaId })
+      .where(and(...condicoes))
+      .returning({ id: t.fotos.id });
+    return { movidas: movidas.length };
+  });
 }

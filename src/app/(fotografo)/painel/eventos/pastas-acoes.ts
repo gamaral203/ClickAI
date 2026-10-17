@@ -6,11 +6,13 @@ import { z } from "zod";
 import {
   criarPasta,
   excluirPasta,
+  moverFotosDoPainel,
   moverItensParaPastaOuColaborador,
   moverPasta,
   renomearPasta,
   reordenarPasta,
 } from "@/dados";
+import { filtroDoPainelSchema } from "@/lib/filtro-painel";
 import { exigirFotografo } from "@/servicos/sessao";
 
 // Pastas e subpastas de um evento no painel (ex.: Largada › Bateria 1), no máximo 2 níveis.
@@ -31,7 +33,7 @@ export async function criarPastaAcao(
   eventoId: string,
   texto: string,
   pastaPaiId: unknown = null,
-): Promise<Resultado> {
+): Promise<Resultado & { pastaId?: string }> {
   const { conta } = await exigirFotografo("/painel/eventos");
   const dados = nome.safeParse(texto);
   const pai = id.nullable().safeParse(pastaPaiId);
@@ -41,7 +43,8 @@ export async function criarPastaAcao(
   const resultado = await criarPasta(eventoId, conta.id, dados.data, pai.data);
   if ("erro" in resultado) return { erro: resultado.erro };
   revalidar();
-  return {};
+  // O id volta para o diálogo "Mover para…" usar a pasta nova como destino na hora.
+  return { pastaId: resultado.pasta.id };
 }
 
 export async function renomearPastaAcao(pastaId: string, texto: string): Promise<Resultado> {
@@ -104,4 +107,32 @@ export async function moverParaPastaAcao(fotoIds: unknown, pastaId: unknown): Pr
   revalidar();
   revalidatePath("/painel/colaboracoes");
   return {};
+}
+
+/** Ids da grade (até 5.000 por chamada) ou "todas do filtro", que o servidor reavalia. */
+const selecaoParaMover = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("ids"), ids: z.array(id).min(1).max(5000) }),
+  z.object({ tipo: z.literal("filtro"), filtro: filtroDoPainelSchema }),
+]);
+
+const entradaMoverFotos = z.object({
+  eventoId: id,
+  selecao: selecaoParaMover,
+  /** Pasta ou subpasta do mesmo evento; nulo tira da pasta ("Sem pasta"). */
+  pastaId: id.nullable(),
+});
+
+/**
+ * "Mover para…" da grade do painel: as fotos escolhidas por id ou todas as do filtro atual
+ * (o filtro é reavaliado no servidor na hora, num UPDATE só). Só o dono do evento.
+ */
+export async function moverFotosAcao(dados: unknown): Promise<{ erro?: string; movidas?: number }> {
+  const { conta } = await exigirFotografo("/painel/eventos");
+  const entrada = entradaMoverFotos.safeParse(dados);
+  if (!entrada.success) return { erro: "Não foi possível mover. Atualize a página." };
+  const { eventoId, selecao, pastaId } = entrada.data;
+  const resultado = await moverFotosDoPainel(eventoId, conta.id, selecao, pastaId);
+  if ("erro" in resultado) return { erro: resultado.erro };
+  revalidar();
+  return { movidas: resultado.movidas };
 }
