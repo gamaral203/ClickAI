@@ -485,6 +485,21 @@ export function FotosDoEvento({
             />
             Selecionar todas desta página ({numero.format(naPagina.length)})
           </label>
+          {visiveis.length > naPagina.length && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={todasDoFiltro}
+                onChange={() => {
+                  if (todasDoFiltro) return limparSelecao();
+                  setTodasDoFiltro(true);
+                  setSelecionados(new Set());
+                }}
+                className="size-5 accent-primary"
+              />
+              Selecionar todas as {fotos(visiveis.length)} deste filtro
+            </label>
+          )}
         </div>
       )}
 
