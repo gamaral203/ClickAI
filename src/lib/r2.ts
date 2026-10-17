@@ -317,6 +317,62 @@ export async function moverOriginal(de: string, para: string, tipo: string) {
   await removerOriginal(de);
 }
 
+/**
+ * Grava um original já conferido pelo servidor no bucket privado (src/lib/armazenamento/r2.ts).
+ * Só chaves de `originais/`: o upload temporário continua indo do navegador direto ao R2.
+ */
+export async function gravarOriginal(chave: string, conteudo: Buffer, tipo: string) {
+  if (!/^originais\//.test(chave)) throw new Error("Chave fora dos originais");
+  const config = exigirConfig();
+  await s3(config).send(
+    new PutObjectCommand({
+      Bucket: config.bucketOriginais,
+      Key: chave,
+      Body: conteudo,
+      ContentType: tipo,
+      ContentLength: conteudo.length,
+    }),
+  );
+}
+
+/**
+ * Abre o original como fluxo (com `range`, só os bytes `inicio` até `fim`, inclusive), para uma
+ * rota do site repassar sem juntar tudo na memória. `tamanho` é o de ESTE corpo; o total vai no
+ * `contentRange` da resposta parcial. `null` se o objeto não existe.
+ */
+export async function abrirOriginal(
+  chave: string,
+  range?: { inicio: number; fim?: number },
+): Promise<{
+  corpo: ReadableStream<Uint8Array>;
+  tamanho: number | null;
+  status: 200 | 206;
+  contentRange?: string;
+} | null> {
+  const config = exigirConfig();
+  let resposta;
+  try {
+    resposta = await s3(config).send(
+      new GetObjectCommand({
+        Bucket: config.bucketOriginais,
+        Key: chave,
+        Range: range ? `bytes=${range.inicio}-${range.fim ?? ""}` : undefined,
+      }),
+    );
+  } catch (erro) {
+    if (naoExiste(erro)) return null;
+    throw erro;
+  }
+  if (!resposta.Body) return null;
+  const parcial = !!range && !!resposta.ContentRange;
+  return {
+    corpo: resposta.Body.transformToWebStream() as ReadableStream<Uint8Array>,
+    tamanho: resposta.ContentLength ?? null,
+    status: parcial ? 206 : 200,
+    ...(parcial ? { contentRange: resposta.ContentRange } : {}),
+  };
+}
+
 export async function removerOriginal(chave: string) {
   const config = exigirConfig();
   await s3(config).send(new DeleteObjectCommand({ Bucket: config.bucketOriginais, Key: chave }));
