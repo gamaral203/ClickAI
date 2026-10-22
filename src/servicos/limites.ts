@@ -121,6 +121,17 @@ const REGRAS = {
    */
   original_autor_usuario: { limite: 60, janelaMs: 10 * MINUTO },
   /**
+   * Originais baixados um a um pela gestão (botão "Baixar original" em /admin/eventos), por
+   * gestor (src/servicos/originais-da-gestao.ts). 300 por hora cobrem o suporte do dia a dia;
+   * para muitas fotos, a gestão usa o lote. Segura uma conta de gestor invadida varrendo fotos.
+   */
+  original_gestao_usuario: { limite: 300, janelaMs: 60 * MINUTO },
+  /**
+   * Lotes de URLs assinadas (até 50 cada) pedidos pela gestão, por gestor: o mesmo teto dos
+   * lotes do dono do evento (120 em 10 minutos); acima disso, o navegador espera e continua.
+   */
+  originais_gestao_usuario: { limite: 120, janelaMs: 10 * MINUTO },
+  /**
    * Miniaturas sem marca d'água das fotos do próprio autor (Meus clientes), por usuário. Cada uma
    * lê o original e o reduz; o navegador guarda a pronta por 7 dias. 600 em 10 minutos cobre abrir
    * muitos clientes seguidos, mas segura um script.

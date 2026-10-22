@@ -291,11 +291,28 @@ export async function escolherArquivoZip(nome: string) {
   return alvo.createWritable();
 }
 
+/**
+ * Pasta e nome do arquivo dentro da pasta escolhida, a partir do caminho do item (que pode ter
+ * subpastas, como `evento/pasta/subpasta/foto.jpg` na gestão). Partes vazias, `.` e `..` são
+ * ignoradas: o caminho nunca sai da pasta escolhida.
+ */
+async function destinoNaPasta(pasta: PastaNoDisco, item: ItemBaixar, criar: boolean) {
+  const partes = caminhoDoItem(item)
+    .split("/")
+    .filter((p) => p && p !== "." && p !== "..");
+  const nome = partes.pop() ?? item.nome;
+  let destino = pasta;
+  for (const parte of partes) {
+    destino = await destino.getDirectoryHandle(parte, { create: criar });
+  }
+  return { destino, nome };
+}
+
 /** Arquivo que já está na pasta com o tamanho esperado (para retomar sem baixar de novo). */
 export async function jaEstaNaPasta(pasta: PastaNoDisco, item: ItemBaixar) {
   try {
-    const destino = item.excluida ? await pasta.getDirectoryHandle("excluidas") : pasta;
-    const arquivo = await (await destino.getFileHandle(item.nome)).getFile();
+    const { destino, nome } = await destinoNaPasta(pasta, item, false);
+    const arquivo = await (await destino.getFileHandle(nome)).getFile();
     return arquivo.size > 0 && (item.bytes === null || arquivo.size === item.bytes);
   } catch {
     return false;
@@ -303,12 +320,8 @@ export async function jaEstaNaPasta(pasta: PastaNoDisco, item: ItemBaixar) {
 }
 
 export async function gravarNaPasta(pasta: PastaNoDisco, item: ItemBaixar, arquivo: Blob) {
-  const destino = item.excluida
-    ? await pasta.getDirectoryHandle("excluidas", { create: true })
-    : pasta;
-  const gravavel = await (
-    await destino.getFileHandle(item.nome, { create: true })
-  ).createWritable();
+  const { destino, nome } = await destinoNaPasta(pasta, item, true);
+  const gravavel = await (await destino.getFileHandle(nome, { create: true })).createWritable();
   try {
     await gravavel.write(arquivo);
     await gravavel.close();

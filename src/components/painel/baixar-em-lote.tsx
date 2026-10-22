@@ -24,11 +24,12 @@ import {
   type Progresso,
 } from "@/lib/baixar-originais";
 import { formatarBytes } from "@/lib/formatar";
+import type { FinalidadeDoCodigo } from "@/servicos/codigo-acao";
 
 // Núcleo do download dos originais em lote, no navegador (src/lib/baixar-originais.ts): escolha
 // do destino (pasta, ZIP ou um link por arquivo), código da verificação em duas etapas, progresso,
 // cancelar, continuar e repetir as falhas. Serve ao "Baixar originais" do evento (dono) e à aba
-// Fotos vendidas (todas as vendidas do autor). Quem usa diz como liberar e de onde vêm os lotes;
+// Fotos vendidas (todas as vendidas do autor) e à gestão (/admin/eventos/[id]). Quem usa diz como liberar e de onde vêm os lotes;
 // o servidor confere tudo de novo a cada lote.
 
 type Destino = "pasta" | "zip" | "links";
@@ -70,6 +71,7 @@ export function BaixarEmLote({
   liberar,
   lote,
   rotulo = "Baixar originais",
+  finalidade = "originais",
   aoMudarOcupado,
 }: {
   /** O que está escolhido para baixar (ex.: o modo): o "Continuar" só pula o já baixado dele. */
@@ -84,6 +86,8 @@ export function BaixarEmLote({
   liberar: Liberar;
   lote: PedirLote;
   rotulo?: string;
+  /** Finalidade do código por e-mail (a gestão tem a sua). */
+  finalidade?: FinalidadeDoCodigo;
   aoMudarOcupado?: (ocupado: boolean) => void;
 }) {
   const ids = useId();
@@ -290,7 +294,7 @@ export function BaixarEmLote({
       {pedeCodigo && !liberado && !baixando && (
         <div className="flex flex-col gap-2">
           <CampoCodigoEmail
-            finalidade="originais"
+            finalidade={finalidade}
             id={`${ids}-codigo`}
             valor={codigo}
             aoMudar={setCodigo}
