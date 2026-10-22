@@ -800,6 +800,39 @@ export const downloadsDoDono = pgTable(
   (t) => [index().on(t.eventoId, t.criadoEm), index().on(t.fotografoId)],
 ).enableRLS();
 
+/**
+ * Download de originais pela gestão (segunda exceção da regra do download, docs/CLAUDE.md):
+ * uma foto ("individual", pelo botão "Baixar original" da gestão) ou um lote de URLs assinadas
+ * ("lote", até 50).
+ */
+export const modoDownloadGestao = pgEnum("modo_download_gestao", ["individual", "lote"]);
+
+/**
+ * Auditoria de CADA original entregue a um gestor (src/servicos/originais-da-gestao.ts): quem
+ * (`gestor_id`), evento, foto (na individual), quantos arquivos e IP. Nunca guarda as URLs nem as
+ * chaves. Tabela própria, e não `downloads_do_dono`: lá `fotografo_id` é o autor das fotos, o que
+ * não vale para o gestor (ele baixa a foto de qualquer autor).
+ */
+export const downloadsDaGestao = pgTable(
+  "downloads_da_gestao",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    gestorId: uuid()
+      .notNull()
+      .references(() => usuarios.id),
+    eventoId: uuid()
+      .notNull()
+      .references(() => eventos.id, { onDelete: "cascade" }),
+    /** Só na foto individual; no lote, nulo. */
+    fotoId: uuid().references(() => fotos.id, { onDelete: "set null" }),
+    modo: modoDownloadGestao().notNull(),
+    quantidade: integer().notNull(),
+    ip: text(),
+    criadoEm: momento(),
+  },
+  (t) => [index().on(t.eventoId, t.criadoEm), index().on(t.gestorId, t.criadoEm)],
+).enableRLS();
+
 // ---------------------------------------------------------------- Dinheiro do fotógrafo
 
 export const saques = pgTable(

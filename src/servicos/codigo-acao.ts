@@ -32,6 +32,7 @@ export const FINALIDADES_DE_CODIGO = [
   "documento",
   "senha",
   "originais",
+  "gestao_originais",
   "verificacao",
 ] as const;
 export type FinalidadeDoCodigo = (typeof FINALIDADES_DE_CODIGO)[number];
@@ -43,6 +44,7 @@ const TEXTO_DA_FINALIDADE: Record<FinalidadeDoCodigo, string> = {
   documento: "trocar o CPF/CNPJ (a chave Pix dos saques)",
   senha: "trocar a sua senha",
   originais: "baixar os originais das suas fotos",
+  gestao_originais: "baixar originais de fotos pela gestão do ClicouAí",
   verificacao: "mudar a verificação em duas etapas da sua conta",
 };
 

@@ -330,6 +330,13 @@
       "when": 1792183934738,
       "tag": "0046_ajustes_da_marca_completos",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792631811877,
+      "tag": "0047_downloads_da_gestao",
+      "breakpoints": true
     }
   ]
 }

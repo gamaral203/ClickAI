@@ -1,6 +1,6 @@
 import type { StatusEvento } from "@/dados/tipos";
 
-const ROTULO: Record<StatusEvento, string> = {
+export const ROTULO_STATUS_EVENTO: Record<StatusEvento, string> = {
   rascunho: "Rascunho",
   publicado: "Publicado",
   revisao: "Em revisão",
@@ -17,7 +17,7 @@ const ESTILO: Record<StatusEvento, string> = {
 export function StatusEventoSelo({ status }: { status: StatusEvento }) {
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTILO[status]}`}>
-      {ROTULO[status]}
+      {ROTULO_STATUS_EVENTO[status]}
     </span>
   );
 }

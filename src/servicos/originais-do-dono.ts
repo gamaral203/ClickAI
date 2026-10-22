@@ -44,7 +44,8 @@ import { contaDoPainel } from "./sessao";
 //     pago); a liberação é uma só para a aba (não presa a um evento) e a auditoria grava uma
 //     linha por evento de cada lote.
 // Outro fotógrafo, cliente e gestor não passam. O gestor usa o painel com a própria conta de
-// fotógrafo (não é personificação): baixa só as fotos que essa conta enviou.
+// fotógrafo (não é personificação): baixa só as fotos que essa conta enviou. O download de
+// qualquer original pelo gestor é a outra exceção, só pela gestão (src/servicos/originais-da-gestao.ts).
 //
 // Como: URLs assinadas de GET (~15 min, com Content-Disposition de anexo), direto do R2; os
 // arquivos nunca passam pelo Next.js. Cada lote ou foto conta num limite por usuário e fica
