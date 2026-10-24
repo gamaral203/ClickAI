@@ -6,11 +6,12 @@ import { ArrowLeft, ExternalLink, Filter } from "lucide-react";
 import { z } from "zod";
 
 import { FotosDaGestao } from "@/components/admin/originais-da-gestao";
+import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { Paginacao } from "@/components/galeria/paginacao";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { eventoDaGestao, listarFotosDaGestao } from "@/dados";
+import { buscarEventoPublicado, eventoDaGestao, listarFotosDaGestao } from "@/dados";
 import { formatarDataCurta } from "@/lib/formatar";
 import { limitarPagina } from "@/lib/galeria";
 import { lerPagina } from "@/lib/validacao";
@@ -74,9 +75,12 @@ async function Conteudo({
     excluidas: primeiro(busca.excluidas) === "1",
   });
   const pedida = lerPagina(busca.pagina);
-  const [primeiraLeitura, doEvento] = await Promise.all([
+  const [primeiraLeitura, doEvento, publico] = await Promise.all([
     listarFotosDaGestao(id, filtro, pedida, POR_PAGINA),
     listarFotosDaGestao(id, { excluidas: filtro.excluidas }, 1, 1),
+    // A busca por selfie é a mesma do cliente (/api/busca-facial): só funciona com a galeria
+    // pública aberta, e mostra só o que o cliente veria (prévias com marca d'água).
+    buscarEventoPublicado(evento.slug),
   ]);
   const totalPaginas = Math.max(1, Math.ceil(primeiraLeitura.total / POR_PAGINA));
   const pagina = limitarPagina(pedida, totalPaginas);
@@ -150,6 +154,26 @@ async function Conteudo({
           </Link>
         </div>
       </header>
+
+      {publico?.situacaoGaleria.tipo === "aberta" ? (
+        // Mesmo componente e mesma rota da página pública do evento: a selfie vai só ao
+        // reconhecimento, durante a busca, e nunca é gravada. A gestão não compra
+        // (`podeComprar` falso, como na página pública para o gestor).
+        <BuscaNoEvento
+          slug={publico.slug}
+          tituloEvento={publico.titulo}
+          temNumeros={false}
+          podeComprar={false}
+          precoFotoCentavos={publico.precoFotoCentavos}
+          previaDesfocada={Boolean(publico.previaDesfocada)}
+        />
+      ) : (
+        <p className="rounded-xl border p-4 text-sm text-muted-foreground">
+          A busca por selfie é a mesma dos clientes e aparece aqui quando a galeria pública do
+          evento está aberta (evento publicado, com fotos liberadas
+          {evento.visibilidade === "senha" ? " e a senha do evento digitada neste navegador" : ""}).
+        </p>
+      )}
 
       <form
         method="get"
