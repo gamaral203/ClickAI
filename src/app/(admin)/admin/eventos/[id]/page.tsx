@@ -5,8 +5,7 @@ import { Suspense } from "react";
 import { ArrowLeft, ExternalLink, Filter } from "lucide-react";
 import { z } from "zod";
 
-import { FotosDaGestao } from "@/components/admin/originais-da-gestao";
-import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
+import { BuscaPorSelfieDaGestao, FotosDaGestao } from "@/components/admin/originais-da-gestao";
 import { Paginacao } from "@/components/galeria/paginacao";
 import { StatusEventoSelo } from "@/components/painel/status-evento";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -157,13 +156,11 @@ async function Conteudo({
 
       {publico?.situacaoGaleria.tipo === "aberta" ? (
         // Mesmo componente e mesma rota da página pública do evento: a selfie vai só ao
-        // reconhecimento, durante a busca, e nunca é gravada. A gestão não compra
-        // (`podeComprar` falso, como na página pública para o gestor).
-        <BuscaNoEvento
+        // reconhecimento, durante a busca, e nunca é gravada. A gestão não compra; no lugar,
+        // as encontradas vão para a seleção do quadro "Baixar originais (gestão)", abaixo.
+        <BuscaPorSelfieDaGestao
           slug={publico.slug}
           tituloEvento={publico.titulo}
-          temNumeros={false}
-          podeComprar={false}
           precoFotoCentavos={publico.precoFotoCentavos}
           previaDesfocada={Boolean(publico.previaDesfocada)}
         />

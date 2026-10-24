@@ -15,6 +15,7 @@ import {
   criarUsuario,
   downloadsDaGestaoRegistrados,
   eventoDaGestao,
+  fotosEncontradas,
   ligarVerificacaoPorEmail,
   listarEventosDaGestao,
   listarFotosDaGestao,
@@ -24,6 +25,7 @@ import { categorias, fotografos } from "@/dados/exemplo/dados";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { reiniciarClienteR2 } from "@/lib/r2";
+import { filtroDoAlvo } from "@/lib/selecao-da-gestao";
 import { gerarHashSenha } from "@/lib/senha";
 
 import { limiteAtingido } from "./limites";
@@ -308,6 +310,57 @@ describe("gestão: baixar originais", () => {
       null,
     );
     expect(selecionadas.ok && ids(selecionadas.itens)).toEqual([f.liaLargada]);
+  });
+
+  it("as encontradas pela busca por selfie entram no lote como selecionadas, mesmo fora do filtro da tela", async () => {
+    // Evento publicado: a busca do cliente (fotosEncontradas, a mesma de /api/busca-facial)
+    // devolve as fotos liberadas, de qualquer pasta.
+    const publicado = await novoEvento(lia.id, "Evento com busca");
+    const [pasta] = await (
+      await obterBanco()
+    )
+      .insert(t.pastas)
+      .values({ eventoId: publicado.id, nome: "Largada", ordem: 1 })
+      .returning();
+    const liberada = { liberarEm: new Date(Date.now() - 60_000) };
+    const naPasta = (await novaFoto(publicado.id, lia.id, { ...liberada, pastaId: pasta.id })).id;
+    const solta = (await novaFoto(publicado.id, pedro.id, liberada)).id;
+    const outro = await novoEvento(lia.id, "Outro evento da busca");
+    const deOutroEvento = (await novaFoto(outro.id, lia.id, liberada)).id;
+    const encontradas = (await fotosEncontradas(publicado.id, [naPasta, solta])).map((x) => x.id);
+    expect(new Set(encontradas)).toEqual(new Set([naPasta, solta]));
+
+    // A tela estava filtrada pela pasta; as selecionadas vão sem o filtro de pasta.
+    const daTela = { pastaId: pasta.id, excluidas: false };
+    const liberacao = await liberar(gestor);
+    const lote = await loteDeOriginaisDaGestao(
+      gestor,
+      {
+        eventoId: publicado.id,
+        filtro: filtroDoAlvo("selecionadas", daTela),
+        liberacao,
+        ids: [...encontradas, deOutroEvento],
+      },
+      "198.51.100.20",
+    );
+    if (!lote.ok) throw new Error(lote.erro);
+    // Id de outro evento não volta; as URLs são as assinadas do R2, com auditoria.
+    expect(ids(lote.itens)).toEqual([naPasta, solta].sort());
+    for (const item of lote.itens) expect(item.url).toMatch(/X-Amz-Signature=/);
+    const [registro] = await downloadsDaGestaoRegistrados(publicado.id);
+    expect(registro).toMatchObject({ modo: "lote", quantidade: 2, gestorId: gestor.id });
+
+    // Os mesmos ids não valem para quem não é gestor.
+    const fotografo = (await buscarUsuario(lia.usuarioId))!;
+    for (const usuario of [fotografo, await usuarioNovo("cliente"), null]) {
+      expect(
+        await loteDeOriginaisDaGestao(
+          usuario,
+          { eventoId: publicado.id, filtro: { excluidas: false }, liberacao, ids: encontradas },
+          null,
+        ),
+      ).toMatchObject({ ok: false, motivo: "nao_encontrado" });
+    }
   });
 
   it("fotógrafo (dono ou não), cliente e anônimo são recusados", async () => {
