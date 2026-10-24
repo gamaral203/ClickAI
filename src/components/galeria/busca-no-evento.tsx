@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Check, Hash, History, Loader2, Package, ScanFace, ShoppingCart } from "lucide-react";
 
 import { buscarPorNumero, type ResultadoBusca } from "@/app/(publico)/eventos/[slug]/acoes";
@@ -47,6 +47,7 @@ export function BuscaNoEvento({
   podeComprar = true,
   precoFotoCentavos = null,
   previaDesfocada = false,
+  acaoDoResultado,
 }: {
   slug: string;
   tituloEvento: string;
@@ -58,6 +59,11 @@ export function BuscaNoEvento({
   precoFotoCentavos?: number | null;
   /** Opção do evento: o visualizador mostra a prévia desfocada com o círculo de revelação. */
   previaDesfocada?: boolean;
+  /**
+   * Só a gestão (/admin/eventos/[id]) usa: com `podeComprar` falso, aparece no lugar do aviso de
+   * quem vende, com os ids das fotos encontradas. A página pública não passa nada e fica como é.
+   */
+  acaoDoResultado?: (fotoIds: string[]) => ReactNode;
 }) {
   const [aba, setAba] = useState<"selfie" | "numero">("selfie");
   const [dialogoAberto, setDialogoAberto] = useState(false);
@@ -305,7 +311,12 @@ export function BuscaNoEvento({
               : `${resultado.fotos.length} ${resultado.fotos.length === 1 ? "foto encontrada" : "fotos encontradas"}`}
           </p>
           {!podeComprar ? (
-            resultado.fotos.length > 0 && <AvisoVendoComoFotografo />
+            resultado.fotos.length > 0 &&
+            (acaoDoResultado ? (
+              acaoDoResultado(resultado.fotos.map((f) => f.id))
+            ) : (
+              <AvisoVendoComoFotografo />
+            ))
           ) : resultado.pacote ? (
             <OfertaPacote oferta={resultado.pacote} />
           ) : (

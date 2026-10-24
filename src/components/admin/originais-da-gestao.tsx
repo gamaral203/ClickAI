@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { AlertTriangle, Check, Download, FolderDown, Loader2 } from "lucide-react";
 import { cn } from "cn";
 
@@ -10,10 +10,17 @@ import {
   loteDeOriginaisDaGestaoAcao,
 } from "@/app/(admin)/admin/eventos/acoes";
 import { CampoCodigoEmail } from "@/components/conta/campo-codigo-email";
+import { BuscaNoEvento } from "@/components/galeria/busca-no-evento";
 import { BaixarEmLote } from "@/components/painel/baixar-em-lote";
 import { Button } from "@/components/ui/button";
 import type { FiltroFotosDaGestao, FotoDaGestao } from "@/dados";
 import { formatarBytes } from "@/lib/formatar";
+import {
+  filtroDoAlvo as filtroParaOAlvo,
+  ouvirSelecaoParaBaixar,
+  selecionarParaBaixar,
+  type AlvoDoDownload,
+} from "@/lib/selecao-da-gestao";
 
 // Fotos de um evento na gestão (/admin/eventos/[id]), com o download dos originais pela gestão
 // (src/servicos/originais-da-gestao.ts). A grade mostra só as prévias protegidas (com a marca
@@ -159,7 +166,7 @@ function BotaoOriginal({ fotoId, nomeArquivo }: { fotoId: string; nomeArquivo: s
   );
 }
 
-type Alvo = "selecionadas" | "filtro" | "evento";
+type Alvo = AlvoDoDownload;
 type Resumo = { quantidade: number; bytes: number };
 
 export function FotosDaGestao({
@@ -189,6 +196,25 @@ export function FotosDaGestao({
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [alvo, setAlvo] = useState<Alvo>(filtrando ? "filtro" : "evento");
   const [ocupado, setOcupado] = useState(false);
+  const quadro = useRef<HTMLElement>(null);
+  // Durante um download, a seleção não muda (o quadro fica travado, como as opções).
+  const ocupadoRef = useRef(false);
+  useEffect(() => {
+    ocupadoRef.current = ocupado;
+  }, [ocupado]);
+
+  // "Selecionar as encontradas" da busca por selfie (BuscaPorSelfieDaGestao): a seleção vira as
+  // fotos achadas e a tela desce até este quadro. O download segue o caminho de sempre.
+  useEffect(
+    () =>
+      ouvirSelecaoParaBaixar((fotoIds) => {
+        if (ocupadoRef.current) return;
+        setSelecionadas(new Set(fotoIds));
+        setAlvo(fotoIds.length > 0 ? "selecionadas" : filtrando ? "filtro" : "evento");
+        quadro.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }),
+    [filtrando],
+  );
 
   const daPagina = useMemo(() => fotos.map((f) => f.id), [fotos]);
   const todasDaPagina = daPagina.length > 0 && daPagina.every((id) => selecionadas.has(id));
@@ -216,7 +242,7 @@ export function FotosDaGestao({
   }
 
   const filtroDoAlvo = useMemo<FiltroFotosDaGestao>(
-    () => (alvo === "evento" ? { excluidas: Boolean(filtro.excluidas) } : filtro),
+    () => filtroParaOAlvo(alvo, filtro),
     [alvo, filtro],
   );
   const liberar = useCallback(async (codigo?: string) => {
@@ -239,8 +265,9 @@ export function FotosDaGestao({
   return (
     <div className="flex flex-col gap-6">
       <section
+        ref={quadro}
         aria-labelledby={`${ids}-lote`}
-        className="flex flex-col gap-5 rounded-xl border p-4 sm:p-5"
+        className="flex scroll-mt-4 flex-col gap-5 rounded-xl border p-4 sm:p-5"
       >
         <div className="flex flex-col gap-1">
           <h2 id={`${ids}-lote`} className="flex items-center gap-2 text-lg font-semibold">
@@ -434,5 +461,52 @@ function OpcaoAlvo({
       </span>
       <span className="text-sm text-muted-foreground tabular-nums">{detalhe}</span>
     </label>
+  );
+}
+
+/**
+ * A busca por selfie dos clientes (o mesmo `BuscaNoEvento` e a mesma rota `/api/busca-facial`)
+ * na página do evento da gestão. A única diferença: no lugar do aviso de quem vende, o botão que
+ * leva as fotos encontradas para a seleção do quadro "Baixar originais (gestão)". O original só
+ * sai por aquele quadro, com a liberação, o limite e a auditoria de sempre.
+ */
+export function BuscaPorSelfieDaGestao(props: {
+  slug: string;
+  tituloEvento: string;
+  precoFotoCentavos: number | null;
+  previaDesfocada: boolean;
+}) {
+  return (
+    <BuscaNoEvento
+      {...props}
+      temNumeros={false}
+      podeComprar={false}
+      acaoDoResultado={(fotoIds) => <SelecionarEncontradas fotoIds={fotoIds} />}
+    />
+  );
+}
+
+function SelecionarEncontradas({ fotoIds }: { fotoIds: string[] }) {
+  const quantidade = fotoIds.length;
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border-2 border-primary bg-background p-4 sm:flex-row sm:items-center">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <FolderDown aria-hidden="true" className="size-5" />
+      </span>
+      <div className="flex flex-1 flex-col">
+        <p className="font-semibold">
+          Baixar os originais{" "}
+          {quantidade === 1 ? "da foto encontrada" : `das ${quantidade} encontradas`}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Seleciona {quantidade === 1 ? "a foto" : "as fotos"} no quadro &ldquo;Baixar originais
+          (gestão)&rdquo;, abaixo, onde você escolhe como salvar.
+        </p>
+      </div>
+      <Button size="touch" onClick={() => selecionarParaBaixar(fotoIds)}>
+        <Download aria-hidden="true" data-icon="inline-start" />
+        Selecionar para baixar
+      </Button>
+    </div>
   );
 }
