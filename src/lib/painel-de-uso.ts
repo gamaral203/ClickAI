@@ -14,6 +14,7 @@ export const CATEGORIAS_ASSINATURA = [
   "ia",
   "dominio",
   "pagamentos",
+  "marketing",
   "outros",
 ] as const;
 export type CategoriaAssinatura = (typeof CATEGORIAS_ASSINATURA)[number];
@@ -26,21 +27,34 @@ export const ROTULO_CATEGORIA: Record<CategoriaAssinatura, string> = {
   ia: "IA",
   dominio: "Domínio",
   pagamentos: "Pagamentos",
+  marketing: "Marketing",
   outros: "Outros",
 };
 
 export type Moeda = "BRL" | "USD";
-export type Ciclo = "mensal" | "anual" | "uso";
+export type Ciclo = "mensal" | "anual" | "uso" | "avulsa";
 
 export const ROTULO_CICLO: Record<Ciclo, string> = {
   mensal: "por mês",
   anual: "por ano",
   uso: "por uso (estimado/mês)",
+  avulsa: "avulsa (sem recorrência)",
 };
 
 /** Chaves de `configuracoes_gestao`. */
 export const CONFIG = {
   cotacaoUsd: "cotacao_usd_centavos",
+  /**
+   * Cotação de referência com 4 casas (dez-milésimos de real: 53495 = R$ 5,3495), usada nas
+   * cobranças novas em dólar (src/lib/financeiro-plataforma.ts). Salva junto com a de centavos.
+   */
+  cotacaoUsdPrecisa: "cotacao_usd_dez_milesimos",
+  /** Taxas de referência do Mercado Pago, em pontos-base (99 = 0,99%), para estimar a taxa. */
+  taxaPixPb: "taxa_mp_pix_pb",
+  taxaCartaoPb: "taxa_mp_cartao_pb",
+  /** Saldo da conta do Mercado Pago informado à mão (centavos) e o dia dele (AAAAMMDD). */
+  saldoMpCentavos: "saldo_mp_informado_centavos",
+  saldoMpDia: "saldo_mp_informado_dia",
   limiteEmailDia: "limite_email_dia",
   limiteEmailMes: "limite_email_mes",
 } as const;
@@ -63,13 +77,18 @@ export const CONTADOR = {
 
 type ValorAssinatura = { valorCentavos: number; moeda: Moeda; ciclo: Ciclo };
 
-/** Quanto pesa por mês: anual/12 (arredondado); mensal e "por uso" (estimativa mensal) inteiros. */
+/**
+ * Quanto pesa por mês: anual/12 (arredondado); mensal e "por uso" (estimativa mensal) inteiros.
+ * Avulsa não se repete: zero (o gasto dela fica só nas cobranças).
+ */
 export function valorMensal(a: Pick<ValorAssinatura, "valorCentavos" | "ciclo">) {
+  if (a.ciclo === "avulsa") return 0;
   return a.ciclo === "anual" ? Math.round(a.valorCentavos / 12) : a.valorCentavos;
 }
 
-/** Quanto pesa por ano: mensal e "por uso" ×12; anual inteiro. */
+/** Quanto pesa por ano: mensal e "por uso" ×12; anual inteiro; avulsa zero. */
 export function valorAnual(a: Pick<ValorAssinatura, "valorCentavos" | "ciclo">) {
+  if (a.ciclo === "avulsa") return 0;
   return a.ciclo === "anual" ? a.valorCentavos : a.valorCentavos * 12;
 }
 
@@ -239,7 +258,7 @@ export const formularioAssinatura = z.object({
   plano: textoSemCartao(80),
   valor: z.string().trim().min(1, "Informe o valor."),
   moeda: z.enum(["BRL", "USD"], "Escolha a moeda."),
-  ciclo: z.enum(["mensal", "anual", "uso"], "Escolha o ciclo."),
+  ciclo: z.enum(["mensal", "anual", "uso", "avulsa"], "Escolha o ciclo."),
   assinadaEm: z.string().refine(diaValido, "Informe a data em que foi assinada."),
   renovaEm: z
     .string()
