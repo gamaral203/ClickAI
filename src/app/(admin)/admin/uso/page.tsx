@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { CartaoNumero } from "@/components/admin/tabela";
+import { AbasDoPainelDeUso } from "@/components/admin/painel-de-uso/abas";
 import { AcoesAssinatura } from "@/components/admin/painel-de-uso/acoes-assinatura";
 import {
   FormularioAssinatura,
@@ -34,6 +35,7 @@ import {
   type UsoInterno,
 } from "@/dados";
 import { centavosParaCampo } from "@/lib/dinheiro";
+import { textoCotacao } from "@/lib/financeiro-plataforma";
 import { formatarBytes, formatarDataCurta, formatarPreco } from "@/lib/formatar";
 import {
   BYTES_ORIGINAL_ESTIMADO,
@@ -91,11 +93,14 @@ function endereco(f: Filtros, extra: Record<string, string> = {}) {
 export default function PaginaPainelDeUso({ searchParams }: PageProps<"/admin/uso">) {
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">Painel de uso</h1>
-        <p className="text-muted-foreground">
-          Quanto a plataforma gasta com os serviços que assina e quanto usa de cada um.
-        </p>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-bold tracking-tight">Painel de uso</h1>
+          <p className="text-muted-foreground">
+            Quanto a plataforma gasta com os serviços que assina e quanto usa de cada um.
+          </p>
+        </div>
+        <AbasDoPainelDeUso atual="uso" />
       </div>
       <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-muted" />}>
         <Conteudo searchParams={searchParams} />
@@ -162,9 +167,7 @@ async function Conteudo({
           </summary>
           <div className="border-t p-4">
             <FormularioConfiguracoes
-              cotacao={
-                config.cotacaoUsdCentavos ? centavosParaCampo(config.cotacaoUsdCentavos) : ""
-              }
+              cotacao={config.cotacaoUsdCentavos ? textoCotacao(config.cotacaoDezMilesimos) : ""}
               cotacaoAtualizada={
                 config.cotacaoAtualizadaEm
                   ? `Atualizada em ${formatarDataCurta(config.cotacaoAtualizadaEm)}`
@@ -658,7 +661,13 @@ function TabelaDeAssinaturas({
                   {a.responsavel || <span className="text-muted-foreground">—</span>}
                 </td>
                 <td className={`${fixaDireita} min-w-[14rem] bg-background px-4 py-3`}>
-                  <AcoesAssinatura id={a.id} nome={a.nome} ativa={a.ativa} editar={editar(a.id)} />
+                  <AcoesAssinatura
+                    id={a.id}
+                    nome={a.nome}
+                    ativa={a.ativa}
+                    editar={editar(a.id)}
+                    historico={`/admin/uso/despesas/${a.id}`}
+                  />
                 </td>
               </tr>
             ))}
@@ -702,7 +711,13 @@ function TabelaDeAssinaturas({
               )}
             </dl>
             <div className="border-t pt-3">
-              <AcoesAssinatura id={a.id} nome={a.nome} ativa={a.ativa} editar={editar(a.id)} />
+              <AcoesAssinatura
+                id={a.id}
+                nome={a.nome}
+                ativa={a.ativa}
+                editar={editar(a.id)}
+                historico={`/admin/uso/despesas/${a.id}`}
+              />
             </div>
           </li>
         ))}
@@ -882,11 +897,14 @@ function UsoDoSistema({
       <Quadro
         icone={<ShoppingBag aria-hidden="true" className="size-4" />}
         titulo="Pedidos e vendas"
-        nota="Pagos pela data do pagamento; criados pela data do pedido."
+        nota="Pagos pela data do pagamento; criados pela data do pedido. Volume bruto é o que os compradores pagaram (faturamento, não receita): a receita está no Financeiro da ClicouAí."
       >
         <div className="grid grid-cols-3 gap-4">
           <Numero valor={n(pedidos.pagos)} rotulo="pedidos pagos" />
-          <Numero valor={formatarPreco(pedidos.totalPagoCentavos)} rotulo="total pago" />
+          <Numero
+            valor={formatarPreco(pedidos.totalPagoCentavos)}
+            rotulo="volume bruto de vendas"
+          />
           <Numero valor={n(pedidos.criados)} rotulo="pedidos criados" />
         </div>
       </Quadro>

@@ -8,9 +8,9 @@ import {
   buscarPedido,
   buscarRegrasDeDivisao,
   buscarUsuario,
+  lerTaxasDeReferencia,
   marcarPedidoPago,
   mudarStatusPedido,
-  salvarLancamentos,
   salvarPedido,
   type ItemPedido,
   type Lancamento,
@@ -19,6 +19,11 @@ import {
   type RegraDeDivisao,
 } from "@/dados";
 
+import {
+  TAXA_CARTAO_PB_PADRAO,
+  TAXA_PIX_PB_PADRAO,
+  taxaEstimada,
+} from "@/lib/financeiro-plataforma";
 import { podeComprar } from "@/lib/navegacao";
 import { acrescimoCartao, parteDoVendedorNaTaxa, taxaCartaoPct } from "@/lib/taxas";
 
@@ -213,34 +218,68 @@ export async function buscarPedidoComAcesso(pedidoId: string, credencial: Creden
   return encontrado;
 }
 
+/** Taxa do gateway lida na cobrança paga (src/lib/gateway.ts, `lerTaxaDaCobranca`). */
+export type TaxaLidaNoGateway = { taxaCentavos: number; liquidoCentavos: number };
+
 /**
  * Confirma o pagamento. Quem chama: o webhook do Mercado Pago e a conferência do servidor na
  * API dele (src/servicos/pagamentos.ts), ou a simulação quando não há credenciais.
  * Idempotente: só o primeiro aviso muda `pendente` para `pago` e cria os lançamentos; avisos
  * repetidos ou fora de ordem não fazem nada (docs/riscos.md, prioridade alta).
+ *
+ * `taxaLida`: a taxa que o Mercado Pago cobrou, lida no pagamento. Sem ela, grava a estimativa
+ * pela taxa de referência da gestão (Pix e cartão), marcada como `estimada`.
  */
-export async function confirmarPagamento(pedidoId: string): Promise<boolean> {
+export async function confirmarPagamento(
+  pedidoId: string,
+  taxaLida: TaxaLidaNoGateway | null = null,
+): Promise<boolean> {
   const agora = Date.now();
-  // `pago` e uso do cupom numa transação só (marcarPedidoPago): repetir o aviso não soma o uso
-  // de novo. Se outro pedido esgotou o cupom nesse meio-tempo, o pagamento já foi feito com o
-  // desconto e vale; o caso fica registrado como alerta, sem estorno automático.
-  const pago = await marcarPedidoPago(pedidoId, new Date(agora).toISOString());
-  if (!pago.mudou) return false;
-
   const encontrado = await buscarPedido(pedidoId);
-  if (!encontrado) return false;
+  if (!encontrado || encontrado.pedido.status !== "pendente") return false;
+  const { pedido } = encontrado;
+  // Os lançamentos são calculados antes e gravados na mesma transação do `pago`
+  // (marcarPedidoPago): ou o pedido fica pago com a parte dos fotógrafos no saldo, ou nada muda.
+  const lancamentos = await lancamentosDaVenda(encontrado.itens, agora, pedido.metodo);
+  let taxa;
+  if (taxaLida) {
+    taxa = { ...taxaLida, origem: "mp" as const };
+  } else {
+    const estimada = taxaEstimada(
+      pedido.totalCentavos,
+      pedido.metodo,
+      // Sem conseguir ler a configuração, as taxas iniciais: a estimativa nunca trava o pagamento.
+      await lerTaxasDeReferencia().catch(() => ({
+        pixPb: TAXA_PIX_PB_PADRAO,
+        cartaoPb: TAXA_CARTAO_PB_PADRAO,
+      })),
+    );
+    taxa = {
+      taxaCentavos: estimada,
+      liquidoCentavos: pedido.totalCentavos - estimada,
+      origem: "estimada" as const,
+    };
+  }
+  // `pago`, uso do cupom, lançamentos e taxa numa transação só: repetir o aviso não soma o uso
+  // nem os lançamentos de novo (só o primeiro passa do `pendente`). Se outro pedido esgotou o
+  // cupom nesse meio-tempo, o pagamento já foi feito com o desconto e vale; o caso fica
+  // registrado como alerta, sem estorno automático.
+  const pago = await marcarPedidoPago(pedidoId, new Date(agora).toISOString(), {
+    lancamentos,
+    taxa,
+  });
+  if (!pago.mudou) return false;
   if (pago.cupomEsgotado) {
     console.error("ALERTA cupom usado além do limite: pedido pago mantido, sem estorno", {
       pedido: pedidoId,
-      cupom: encontrado.pedido.cupomId,
+      cupom: pedido.cupomId,
     });
   }
-  await salvarLancamentos(
-    await lancamentosDaVenda(encontrado.itens, agora, encontrado.pedido.metodo),
-  );
+  // A entrega sai com o pedido já pago (status e data do pagamento relidos do banco).
+  const pagoAgora = (await buscarPedido(pedidoId))?.pedido ?? pedido;
   // A entrega por mensagem não pode desfazer o pagamento: se falhar, só fica registrado. O
   // comprador continua com o link da página do pedido e com Minhas compras.
-  await enviarEntrega(encontrado.pedido).catch((erro) =>
+  await enviarEntrega(pagoAgora).catch((erro) =>
     console.error(`Falha ao enviar a entrega do pedido ${pedidoId}`, erro),
   );
   await avisarVenda(pedidoId).catch((erro) =>

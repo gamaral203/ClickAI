@@ -27,6 +27,8 @@ export type Cobranca = {
   pix: { copiaECola: string; qrCodeBase64: string } | null;
   /** Página do gateway onde o comprador paga, se o gateway usar uma; `null` no Mercado Pago. */
   urlPagamento: string | null;
+  /** Ids dos pagamentos da cobrança no gateway, para ler a taxa cobrada (só leitura). */
+  pagamentoIds?: string[];
 };
 
 /**

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Loader2, Pause, Pencil, Play, Trash2 } from "lucide-react";
+import { History, Loader2, Pause, Pencil, Play, Trash2 } from "lucide-react";
 
 import {
   alternarAssinaturaAcao,
@@ -23,12 +23,15 @@ export function AcoesAssinatura({
   nome,
   ativa,
   editar,
+  historico,
 }: {
   id: string;
   nome: string;
   ativa: boolean;
   /** Endereço que abre o formulário de edição. */
   editar: string;
+  /** Endereço do histórico de cobranças. */
+  historico?: string;
 }) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
@@ -93,6 +96,16 @@ export function AcoesAssinatura({
           <Pencil aria-hidden="true" />
           Editar
         </Link>
+        {historico && (
+          <Link
+            href={historico}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            aria-label={`Histórico de cobranças de ${nome}`}
+          >
+            <History aria-hidden="true" />
+            Histórico
+          </Link>
+        )}
         <Button
           variant="outline"
           size="sm"

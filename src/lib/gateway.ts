@@ -7,6 +7,7 @@ import "server-only";
 import { ErroGateway, type Cobranca, type ResultadoPayout } from "./gateway-tipos";
 import {
   buscarOrder,
+  buscarTaxaDaOrder,
   buscarPayout,
   criarOrderPix,
   enviarPayoutPix,
@@ -49,6 +50,20 @@ export function criarCobrancaPix(dados: DadosCobranca): Promise<Cobranca> {
 
 export function buscarCobranca(id: string): Promise<Cobranca> {
   return buscarOrder(id);
+}
+
+/**
+ * Taxa que o gateway cobrou de uma cobrança paga e o líquido recebido, lidos na API (só leitura).
+ * `null` sem gateway, sem pagamento identificado ou se a API não informar: nunca derruba a
+ * confirmação do pagamento.
+ */
+export async function lerTaxaDaCobranca(
+  cobranca: Cobranca,
+): Promise<{ taxaCentavos: number; liquidoCentavos: number } | null> {
+  if (!gatewayConfigurado() || !cobranca.pagamentoIds?.length || cobranca.totalCentavos === null) {
+    return null;
+  }
+  return buscarTaxaDaOrder(cobranca.pagamentoIds, cobranca.totalCentavos).catch(() => null);
 }
 
 /**

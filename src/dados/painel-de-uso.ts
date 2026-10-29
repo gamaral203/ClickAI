@@ -10,6 +10,12 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import {
+  COTACAO_PADRAO_DEZ_MILESIMOS,
+  TAXA_CARTAO_PB_PADRAO,
+  TAXA_PIX_PB_PADRAO,
+  type TaxasDeReferencia,
+} from "@/lib/financeiro-plataforma";
+import {
   CONFIG,
   CONTADOR,
   hojeEmBrasilia,
@@ -198,19 +204,50 @@ export type ConfiguracoesGestao = {
   cotacaoAtualizadaEm: string | null;
   limiteEmailDia: number;
   limiteEmailMes: number;
+  /**
+   * Cotação de referência com 4 casas (dez-milésimos: 53495 = R$ 5,3495) para as cobranças novas
+   * em dólar. Sem a de 4 casas, vem da de centavos; sem nenhuma, a inicial (R$ 5,3495).
+   */
+  cotacaoDezMilesimos: number;
+  taxas: TaxasDeReferencia;
+  /** Saldo da conta do Mercado Pago informado à mão, com o dia ("AAAA-MM-DD"); `null` sem. */
+  saldoMp: { centavos: number; dia: string; atualizadoEm: string } | null;
 };
+
+/** 20261028 → "2026-10-28". */
+function diaDoInteiro(v: number) {
+  const t = String(v);
+  return /^\d{8}$/.test(t) ? `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}` : null;
+}
 
 export async function lerConfiguracoesGestao(): Promise<ConfiguracoesGestao> {
   const banco = await obterBanco();
   const linhas = await banco.select().from(t.configuracoesGestao);
   const mapa = new Map(linhas.map((l) => [l.chave, l]));
   const cotacao = mapa.get(CONFIG.cotacaoUsd);
+  const precisa = mapa.get(CONFIG.cotacaoUsdPrecisa)?.valor;
+  const saldo = mapa.get(CONFIG.saldoMpCentavos);
+  const diaSaldo = diaDoInteiro(mapa.get(CONFIG.saldoMpDia)?.valor ?? 0);
   return {
     cotacaoUsdCentavos: cotacao?.valor ?? null,
     cotacaoAtualizadaEm: cotacao?.atualizadoEm.toISOString() ?? null,
     limiteEmailDia: mapa.get(CONFIG.limiteEmailDia)?.valor ?? LIMITE_EMAIL_DIA_PADRAO,
     limiteEmailMes: mapa.get(CONFIG.limiteEmailMes)?.valor ?? LIMITE_EMAIL_MES_PADRAO,
+    cotacaoDezMilesimos: precisa ?? (cotacao ? cotacao.valor * 100 : COTACAO_PADRAO_DEZ_MILESIMOS),
+    taxas: {
+      pixPb: mapa.get(CONFIG.taxaPixPb)?.valor ?? TAXA_PIX_PB_PADRAO,
+      cartaoPb: mapa.get(CONFIG.taxaCartaoPb)?.valor ?? TAXA_CARTAO_PB_PADRAO,
+    },
+    saldoMp:
+      saldo && diaSaldo
+        ? { centavos: saldo.valor, dia: diaSaldo, atualizadoEm: saldo.atualizadoEm.toISOString() }
+        : null,
   };
+}
+
+/** Taxas de referência do Mercado Pago (Pix e cartão) para estimar a taxa de um pedido. */
+export async function lerTaxasDeReferencia(): Promise<TaxasDeReferencia> {
+  return (await lerConfiguracoesGestao()).taxas;
 }
 
 /** Grava os valores que mudaram (a data de atualização só muda no que mudou). */

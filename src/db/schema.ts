@@ -56,6 +56,8 @@ export const statusPedido = pgEnum("status_pedido", [
   /** Chargeback em disputa: downloads bloqueados e lançamentos estornados até o fim da disputa. */
   "contestado",
 ]);
+/** De onde veio a taxa do gateway gravada no pedido: lida no Mercado Pago ou estimada. */
+export const origemTaxaGateway = pgEnum("origem_taxa_gateway", ["mp", "estimada"]);
 /** Por que o pedido foi estornado: reembolso (pelo gestor ou no Mercado Pago) ou chargeback perdido. */
 export const motivoEstorno = pgEnum("motivo_estorno", ["reembolso", "chargeback"]);
 export const statusSaque = pgEnum("status_saque", ["processando", "pago", "falhou"]);
@@ -718,9 +720,24 @@ export const pedidos = pgTable(
      * demonstração, as vendas dele também saem do Financeiro do fotógrafo (src/dados/painel.ts).
      */
     demonstracao: boolean().notNull().default(false),
+    /**
+     * Taxa que o Mercado Pago cobrou deste pedido e o que caiu na conta da plataforma (migração
+     * 0048), gravados na confirmação do pagamento. `origem`: `mp` quando lidos no pagamento
+     * (GET /v1/payments: fee_details / net_received_amount), `estimada` quando o Mercado Pago não
+     * informou e a taxa saiu da taxa de referência da gestão (Pix e cartão). Nulos nos pedidos
+     * anteriores: a leitura estima (src/lib/financeiro-plataforma.ts), sem gravar.
+     */
+    taxaGatewayCentavos: integer(),
+    liquidoRecebidoCentavos: integer(),
+    taxaGatewayOrigem: origemTaxaGateway(),
     criadoEm: momento(),
   },
-  (t) => [index().on(t.clienteId), index().on(t.status, t.expiraEm), uniqueIndex().on(t.gatewayId)],
+  (t) => [
+    index().on(t.clienteId),
+    index().on(t.status, t.expiraEm),
+    uniqueIndex().on(t.gatewayId),
+    index().on(t.status, t.pagoEm),
+  ],
 ).enableRLS();
 
 export const itensPedido = pgTable(
@@ -1146,10 +1163,14 @@ export const categoriaAssinatura = pgEnum("categoria_assinatura", [
   "dominio",
   "pagamentos",
   "outros",
+  "marketing",
 ]);
 export const moedaAssinatura = pgEnum("moeda_assinatura", ["BRL", "USD"]);
-/** `uso`: pague pelo que usar; o valor é a estimativa por mês. */
-export const cicloAssinatura = pgEnum("ciclo_assinatura", ["mensal", "anual", "uso"]);
+/**
+ * `uso`: pague pelo que usar; o valor é a estimativa por mês (o gasto real fica nas cobranças).
+ * `avulsa`: despesa única, sem recorrência (não entra no gasto mensal/anual estimado).
+ */
+export const cicloAssinatura = pgEnum("ciclo_assinatura", ["mensal", "anual", "uso", "avulsa"]);
 
 /**
  * Serviços que a plataforma assina (Vercel, Supabase, R2, Resend…), cadastrados à mão pela gestão
@@ -1180,8 +1201,65 @@ export const assinaturas = pgTable(
     criadoEm: momento(),
     atualizadoEm: momento(),
     criadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+    /**
+     * Marca da importação das despesas iniciais ("inicial:vercel-pro"): a importação, feita pelo
+     * gestor, não cria a mesma despesa duas vezes. Nula nas cadastradas à mão.
+     */
+    chaveImportacao: text(),
   },
-  (t) => [index().on(t.ativa, t.renovaEm)],
+  (t) => [index().on(t.ativa, t.renovaEm), uniqueIndex().on(t.chaveImportacao)],
+).enableRLS();
+
+/**
+ * Situação de uma cobrança de despesa. Só `paga` é dinheiro que saiu; `pendente` (venceu e não
+ * foi paga), `prevista` (próxima renovação) e `provisionada` (consumo já acumulado, ainda sem
+ * fatura) são reservas e nunca se misturam com o pago (src/lib/financeiro-plataforma.ts).
+ */
+export const statusCobranca = pgEnum("status_cobranca", [
+  "paga",
+  "pendente",
+  "prevista",
+  "provisionada",
+]);
+
+/**
+ * Histórico de cobranças de cada despesa (assinatura, consumo por uso ou despesa avulsa), em
+ * /admin/uso/despesas/[id]. Em dólar, guarda a cotação efetivamente usada (dez-milésimos de real
+ * por US$ 1: 53495 = R$ 5,3495), o valor convertido e o IOF/taxa de câmbio à parte; mudar a
+ * cotação de referência depois não muda nenhuma cobrança gravada. `pago_pelo_saldo_mp`: saiu do
+ * saldo da conta do Mercado Pago da plataforma (entra na conciliação do saldo); as pagas no
+ * cartão não mexem nesse saldo.
+ */
+export const cobrancasDespesa = pgTable(
+  "cobrancas_despesa",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    assinaturaId: uuid()
+      .notNull()
+      .references(() => assinaturas.id, { onDelete: "restrict" }),
+    data: date({ mode: "string" }).notNull(),
+    valorCentavos: integer().notNull(),
+    moeda: moedaAssinatura().notNull().default("BRL"),
+    /** Cotação usada (dez-milésimos de real por US$ 1); nula em reais. */
+    cotacaoDezMilesimos: integer(),
+    /** Valor convertido para reais, sem o IOF; em reais, igual ao valor. */
+    valorBrlCentavos: integer().notNull(),
+    /** IOF e taxas de câmbio cobrados à parte, em centavos de real. */
+    iofCentavos: integer().notNull().default(0),
+    status: statusCobranca().notNull(),
+    pagoPeloSaldoMp: boolean().notNull().default(false),
+    observacao: text().notNull().default(""),
+    /** Marca da importação inicial: a mesma cobrança não entra duas vezes. */
+    chaveImportacao: text(),
+    criadoEm: momento(),
+    atualizadoEm: momento(),
+    criadoPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index().on(t.assinaturaId, t.data),
+    index().on(t.data),
+    uniqueIndex().on(t.chaveImportacao),
+  ],
 ).enableRLS();
 
 /**

@@ -337,6 +337,13 @@
       "when": 1792631811877,
       "tag": "0047_downloads_da_gestao",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793234519523,
+      "tag": "0048_financeiro_da_plataforma",
+      "breakpoints": true
     }
   ]
 }

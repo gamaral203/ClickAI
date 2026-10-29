@@ -133,7 +133,7 @@ export function FormularioAssinatura({
           rotulo="Ciclo de cobrança"
           id={`${prefixo}-ciclo`}
           erro={erros.ciclo}
-          ajuda="Por uso: pague pelo que usar; informe o valor estimado por mês."
+          ajuda="Por uso: informe o valor estimado por mês (o gasto real vai no histórico). Avulsa: despesa única."
         >
           <select
             {...campo("ciclo")}
@@ -143,6 +143,7 @@ export function FormularioAssinatura({
             <option value="mensal">Mensal</option>
             <option value="anual">Anual</option>
             <option value="uso">Por uso (estimado por mês)</option>
+            <option value="avulsa">Avulsa (sem recorrência)</option>
           </select>
         </Campo>
         <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
