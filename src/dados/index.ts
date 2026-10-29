@@ -1707,3 +1707,4 @@ export * from "./historico-financeiro";
 export * from "./molduras";
 export * from "./numeros";
 export * from "./gestao-eventos";
+export * from "./financeiro-plataforma";

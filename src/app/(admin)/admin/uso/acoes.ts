@@ -5,12 +5,13 @@ import { z } from "zod";
 
 import {
   atualizarAssinatura,
+  contarCobrancas,
   criarAssinatura,
   definirAssinaturaAtiva,
   excluirAssinatura,
   salvarConfiguracoesGestao,
 } from "@/dados";
-import { reaisParaCentavos } from "@/lib/dinheiro";
+import { dividirArredondando, lerCotacao } from "@/lib/financeiro-plataforma";
 import { CONFIG, validarAssinatura, type CampoAssinatura } from "@/lib/painel-de-uso";
 import { exigirGestor } from "@/servicos/sessao";
 
@@ -66,11 +67,15 @@ export async function alternarAssinaturaAcao(
   return {};
 }
 
-/** Exclui de vez (a confirmação é feita na tela, antes de chamar). */
+/** Exclui de vez, só sem cobranças (a confirmação é feita na tela, antes de chamar). */
 export async function excluirAssinaturaAcao(assinaturaId: unknown): Promise<ResultadoAcaoUso> {
   await exigirGestor(CAMINHO);
   const dados = id.safeParse(assinaturaId);
   if (!dados.success) return { erro: "Assinatura não encontrada." };
+  // Com cobranças no histórico, não exclui: o histórico financeiro nunca é apagado junto.
+  if ((await contarCobrancas(dados.data)) > 0) {
+    return { erro: "Tem cobranças no histórico: desative em vez de excluir." };
+  }
   if (!(await excluirAssinatura(dados.data))) return { erro: "Assinatura não encontrada." };
   revalidatePath(CAMINHO);
   return {};
@@ -111,12 +116,16 @@ export async function salvarConfiguracoesAcao(
     return { erros };
   }
   let cotacao: number | undefined;
+  let cotacaoPrecisa: number | undefined;
   if (r.data.cotacao) {
-    const centavos = reaisParaCentavos(r.data.cotacao);
-    if (centavos === null || centavos < 100 || centavos > 5000) {
+    // Até 4 casas ("5,3495"): a de 4 casas vale para as cobranças em dólar do Financeiro; a de
+    // centavos, arredondada, para os totais deste painel.
+    const dezMilesimos = lerCotacao(r.data.cotacao);
+    if (dezMilesimos === null) {
       return { erros: { cotacao: "Informe a cotação em reais, entre R$ 1,00 e R$ 50,00." } };
     }
-    cotacao = centavos;
+    cotacaoPrecisa = dezMilesimos;
+    cotacao = dividirArredondando(dezMilesimos, 100);
   }
   const limiteDia = Number(r.data.limiteDia);
   const limiteMes = Number(r.data.limiteMes);
@@ -127,6 +136,7 @@ export async function salvarConfiguracoesAcao(
   await salvarConfiguracoesGestao(
     {
       [CONFIG.cotacaoUsd]: cotacao,
+      [CONFIG.cotacaoUsdPrecisa]: cotacaoPrecisa,
       [CONFIG.limiteEmailDia]: limiteDia,
       [CONFIG.limiteEmailMes]: limiteMes,
     },
