@@ -6,21 +6,12 @@ import { Suspense } from "react";
 import { ArrowLeft, Plus } from "lucide-react";
 import { z } from "zod";
 
-import {
-  AcoesCobranca,
-  FormularioCobranca,
-  type CobrancaNoFormulario,
-} from "@/components/admin/financeiro/cobrancas";
+import { AcoesCobranca, FormularioCobranca } from "@/components/admin/financeiro/cobrancas";
 import { Celula, CartaoNumero, Tabela } from "@/components/admin/tabela";
 import { buttonVariants } from "@/components/ui/button";
+import { buscarAssinatura, lerConfiguracoesGestao, listarCobrancas } from "@/dados";
 import {
-  buscarAssinatura,
-  lerConfiguracoesGestao,
-  listarCobrancas,
-  type CobrancaDespesa,
-} from "@/dados";
-import { centavosParaCampo } from "@/lib/dinheiro";
-import {
+  cobrancaNoFormulario,
   custoDaCobranca,
   resumirDespesas,
   ROTULO_STATUS_COBRANCA,
@@ -64,20 +55,6 @@ export default function PaginaHistoricoDespesa({
       </Suspense>
     </div>
   );
-}
-
-function noFormulario(c: CobrancaDespesa): CobrancaNoFormulario {
-  return {
-    id: c.id,
-    data: c.data,
-    valor: centavosParaCampo(c.valorCentavos),
-    moeda: c.moeda,
-    cotacao: c.cotacaoDezMilesimos ? textoCotacao(c.cotacaoDezMilesimos) : "",
-    iof: c.iofCentavos ? centavosParaCampo(c.iofCentavos) : "",
-    status: c.status,
-    pagoPeloSaldoMp: c.pagoPeloSaldoMp,
-    observacao: c.observacao,
-  };
 }
 
 async function Conteudo({
@@ -152,7 +129,7 @@ async function Conteudo({
           <FormularioCobranca
             key={editando?.id ?? "nova"}
             assinaturaId={despesa.id}
-            cobranca={editando ? noFormulario(editando) : undefined}
+            cobranca={editando ? cobrancaNoFormulario(editando) : undefined}
             voltar={aqui}
             hoje={hojeEmBrasilia()}
             moedaPadrao={despesa.moeda}

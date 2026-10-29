@@ -54,7 +54,11 @@ import { assinar } from "@/lib/assinatura";
 import { DESPESAS_INICIAIS } from "@/lib/despesas-iniciais";
 import { periodoFinanceiro } from "@/lib/financeiro-plataforma";
 
-import { lerDecomposicaoDoPedido, lerPainelFinanceiro } from "./financeiro-plataforma";
+import {
+  lerContasAPagar,
+  lerDecomposicaoDoPedido,
+  lerPainelFinanceiro,
+} from "./financeiro-plataforma";
 import { processarNotificacaoDeOrder } from "./pagamentos";
 import { confirmarPagamento } from "./pedidos";
 
@@ -178,6 +182,7 @@ describe("acesso: só o gestor, conferido no servidor", () => {
       await entrarComo(papel);
       await expect(lerPainelFinanceiro(periodo)).rejects.toThrow(/REDIRECT/);
       await expect(lerDecomposicaoDoPedido(randomUUID())).rejects.toThrow(/REDIRECT/);
+      await expect(lerContasAPagar()).rejects.toThrow(/REDIRECT/);
       await expect(importarDespesasIniciaisAcao()).rejects.toThrow(/REDIRECT/);
       await expect(
         salvarSaldoAcao({}, formulario({ valor: "1,00", dia: "2026-10-28" })),
@@ -337,6 +342,91 @@ describe("cobranças e configurações", () => {
 
     expect(await excluirCobrancaAcao(c.id, assinaturaId)).toEqual({});
     expect(await excluirAssinaturaAcao(assinaturaId)).toEqual({});
+  });
+
+  it("contas a pagar: só as não pagas, por data, e marcar como paga as tira da lista", async () => {
+    const gestor = await entrarComo("admin");
+    const assinaturaId = await criarAssinatura(
+      {
+        nome: "Serviço a pagar",
+        categoria: "outros",
+        plano: "",
+        valorCentavos: 1000,
+        moeda: "USD",
+        ciclo: "mensal",
+        assinadaEm: "2026-09-01",
+        renovaEm: null,
+        formaPagamento: "",
+        responsavel: "",
+        linkPainel: null,
+        observacoes: "",
+      },
+      gestor!.id,
+    );
+    const base = { assinaturaId, moeda: "BRL", cotacao: "", iof: "", observacao: "" };
+    const lancar = (campos: Record<string, string>) =>
+      salvarCobrancaAcao({}, formulario({ ...base, ...campos }));
+    expect(await lancar({ data: "2026-10-05", valor: "30,00", status: "paga" })).toEqual({
+      ok: true,
+    });
+    await lancar({ data: "2026-11-10", valor: "20,00", status: "prevista" });
+    await lancar({ data: "2026-10-01", valor: "10,00", status: "pendente", iof: "1,00" });
+    await lancar({
+      data: "2026-10-20",
+      valor: "5,00",
+      moeda: "USD",
+      cotacao: "5,0000",
+      status: "provisionada",
+    });
+
+    const agora = new Date("2026-10-28T12:00:00-03:00").getTime();
+    const contas = await lerContasAPagar(agora);
+    const daqui = contas.cobrancas.filter((c) => c.assinaturaId === assinaturaId);
+    expect(daqui.map((c) => [c.data, c.status])).toEqual([
+      ["2026-10-01", "pendente"],
+      ["2026-10-20", "provisionada"],
+      ["2026-11-10", "prevista"],
+    ]);
+    expect(daqui[1]).toMatchObject({ valorCentavos: 500, moeda: "USD", valorBrlCentavos: 2500 });
+    expect(contas.cobrancas.every((c) => c.status !== "paga")).toBe(true);
+    // Ordem por data em toda a lista, não só nas desta despesa.
+    const datas = contas.cobrancas.map((c) => c.data);
+    expect(datas).toEqual([...datas].sort());
+    expect(contas.totalCentavos).toBe(
+      contas.cobrancas.reduce((s, c) => s + c.valorBrlCentavos + c.iofCentavos, 0),
+    );
+    // Vencida: pendente ou prevista com data passada (a provisionada não vence).
+    expect(contas.vencidas).toBe(
+      contas.cobrancas.filter((c) => c.status !== "provisionada" && c.data < "2026-10-28").length,
+    );
+    expect(contas.vencidas).toBeGreaterThanOrEqual(1);
+
+    // Marcar como paga: o mesmo envio do botão (campos da cobrança, situação "paga").
+    const pendente = daqui[0];
+    expect(
+      await lancar({
+        cobrancaId: pendente.id,
+        data: "2026-10-28",
+        valor: "10,00",
+        iof: "1,00",
+        status: "paga",
+        pagoPeloSaldoMp: "on",
+      }),
+    ).toEqual({ ok: true });
+    const depois = await lerContasAPagar(agora);
+    expect(depois.cobrancas.some((c) => c.id === pendente.id)).toBe(false);
+    const banco = await obterBanco();
+    const [paga] = await banco
+      .select()
+      .from(t.cobrancasDespesa)
+      .where(eq(t.cobrancasDespesa.id, pendente.id));
+    expect(paga).toMatchObject({
+      status: "paga",
+      pagoPeloSaldoMp: true,
+      data: "2026-10-28",
+      valorBrlCentavos: 1000,
+      iofCentavos: 100,
+    });
   });
 
   it("salva o saldo informado e as referências", async () => {

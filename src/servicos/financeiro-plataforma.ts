@@ -7,16 +7,20 @@ import {
   lerConfiguracoesGestao,
   listarAssinaturas,
   listarCobrancas,
+  listarCobrancasEmAberto,
   listarPedidosFinanceiros,
   midiaDosEventos,
   type Assinatura,
+  type CobrancaDespesa,
   type ConfiguracoesGestao,
   type PedidoFinanceiro,
 } from "@/dados";
 import {
   calcularIndicadores,
   conciliar,
+  cobrancaVencida,
   converterParaReal,
+  custoDaCobranca,
   decomporPedido,
   evolucaoMensal,
   ratear,
@@ -264,6 +268,31 @@ export async function lerPainelFinanceiro(
     indicadores,
     custoFixoMensalCentavos: custoFixo > 0 ? custoFixo : null,
     gbArmazenados,
+  };
+}
+
+export type ContasAPagar = {
+  /** Pendentes, previstas e provisionadas, da data mais antiga à mais nova. */
+  cobrancas: CobrancaDespesa[];
+  /** Custo em reais (valor convertido + IOF) de todas. */
+  totalCentavos: number;
+  /** Pendentes e previstas com data anterior a hoje (Brasília). */
+  vencidas: number;
+  vencidasCentavos: number;
+};
+
+/** Contas a pagar: todas as cobranças não pagas, de todas as despesas. Só gestor. */
+export async function lerContasAPagar(agora: number = Date.now()): Promise<ContasAPagar> {
+  await exigirGestor(CAMINHO_FINANCEIRO);
+  const cobrancas = await listarCobrancasEmAberto();
+  const hoje = hojeEmBrasilia(agora);
+  const vencidas = cobrancas.filter((c) => cobrancaVencida(c, hoje));
+  const soma = (lista: CobrancaDespesa[]) => lista.reduce((s, c) => s + custoDaCobranca(c), 0);
+  return {
+    cobrancas,
+    totalCentavos: soma(cobrancas),
+    vencidas: vencidas.length,
+    vencidasCentavos: soma(vencidas),
   };
 }
 

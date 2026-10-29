@@ -370,6 +370,20 @@ export async function listarCobrancas(
     .orderBy(asc(t.cobrancasDespesa.data), asc(t.cobrancasDespesa.criadoEm));
 }
 
+/**
+ * Contas a pagar: as cobranças ainda não pagas (pendentes, previstas e provisionadas) de todas as
+ * despesas, da data mais antiga à mais nova (as vencidas vêm primeiro).
+ */
+export async function listarCobrancasEmAberto(): Promise<CobrancaDespesa[]> {
+  const banco = await obterBanco();
+  return banco
+    .select(camposCobranca)
+    .from(t.cobrancasDespesa)
+    .innerJoin(t.assinaturas, eq(t.assinaturas.id, t.cobrancasDespesa.assinaturaId))
+    .where(inArray(t.cobrancasDespesa.status, ["pendente", "prevista", "provisionada"]))
+    .orderBy(asc(t.cobrancasDespesa.data), asc(t.cobrancasDespesa.criadoEm));
+}
+
 export async function criarCobranca(dados: DadosCobrancaDespesa, criadoPor: string | null) {
   const banco = await obterBanco();
   const [linha] = await banco

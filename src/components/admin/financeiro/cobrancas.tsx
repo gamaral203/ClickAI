@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Loader2, Pencil, Trash2, X } from "lucide-react";
+import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 
 import {
   excluirCobrancaAcao,
@@ -14,21 +14,10 @@ import {
 import { Campo, classeSelect, propsDeErro } from "@/components/painel/campos";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { CampoCobranca, StatusCobranca } from "@/lib/financeiro-plataforma";
+import type { CampoCobranca, CobrancaNoFormulario } from "@/lib/financeiro-plataforma";
 import { enviarSemLimpar } from "@/lib/formulario";
 
-/** Cobrança com os campos em texto, como o formulário mostra (preparada no servidor). */
-export type CobrancaNoFormulario = {
-  id: string;
-  data: string;
-  valor: string;
-  moeda: "BRL" | "USD";
-  cotacao: string;
-  iof: string;
-  status: StatusCobranca;
-  pagoPeloSaldoMp: boolean;
-  observacao: string;
-};
+export type { CobrancaNoFormulario };
 
 /**
  * Lançar ou editar uma cobrança da despesa. Em dólar, a cotação vazia usa a de referência; a
@@ -274,5 +263,99 @@ export function AcoesCobranca({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * "Marcar como paga" das Contas a pagar: envia a cobrança como ela está, com a situação "paga",
+ * a data do pagamento e se saiu do saldo do Mercado Pago, pela mesma ação (e validação) do
+ * formulário de cobrança. Outro valor ou cotação: editar no histórico da despesa.
+ */
+export function MarcarComoPaga({
+  assinaturaId,
+  cobranca,
+  hoje,
+}: {
+  assinaturaId: string;
+  cobranca: CobrancaNoFormulario;
+  hoje: string;
+}) {
+  const router = useRouter();
+  const [aberto, setAberto] = useState(false);
+  const [estado, acao, salvando] = useActionState(salvarCobrancaAcao, {} as EstadoCobranca);
+  const erro = estado.erros ? Object.values(estado.erros).find(Boolean) : undefined;
+  const prefixo = `pagar-${cobranca.id}`;
+
+  useEffect(() => {
+    if (estado.ok) router.refresh();
+  }, [estado.ok, router]);
+
+  if (!aberto) {
+    return (
+      <Button variant="outline" size="sm" onClick={() => setAberto(true)}>
+        <Check aria-hidden="true" />
+        Marcar como paga
+      </Button>
+    );
+  }
+  return (
+    <form
+      onSubmit={enviarSemLimpar(acao)}
+      noValidate
+      className="flex w-full flex-col gap-3 rounded-lg bg-muted/50 p-3"
+      aria-label="Marcar a cobrança como paga"
+    >
+      <input type="hidden" name="assinaturaId" value={assinaturaId} />
+      <input type="hidden" name="cobrancaId" value={cobranca.id} />
+      <input type="hidden" name="status" value="paga" />
+      <input type="hidden" name="valor" value={cobranca.valor} />
+      <input type="hidden" name="moeda" value={cobranca.moeda} />
+      <input type="hidden" name="cotacao" value={cobranca.cotacao} />
+      <input type="hidden" name="iof" value={cobranca.iof} />
+      <input type="hidden" name="observacao" value={cobranca.observacao} />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`${prefixo}-data`} className="text-xs font-medium">
+            Data do pagamento
+          </label>
+          <Input
+            id={`${prefixo}-data`}
+            name="data"
+            type="date"
+            defaultValue={hoje}
+            className="h-10 w-44"
+          />
+        </div>
+        <label className="flex items-center gap-2 pb-2.5 text-sm">
+          <input
+            type="checkbox"
+            name="pagoPeloSaldoMp"
+            defaultChecked={cobranca.pagoPeloSaldoMp}
+            className="size-4"
+          />
+          Saiu do saldo do Mercado Pago
+        </label>
+      </div>
+      {erro && (
+        <p role="alert" className="text-xs text-destructive">
+          {erro}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" size="sm" disabled={salvando}>
+          {salvando && <Loader2 aria-hidden="true" className="animate-spin" />}
+          Confirmar pagamento
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={salvando}
+          onClick={() => setAberto(false)}
+        >
+          Cancelar
+        </Button>
+      </div>
+    </form>
   );
 }
