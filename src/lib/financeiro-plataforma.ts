@@ -19,7 +19,7 @@ import { z } from "zod";
 
 import { comissaoDe } from "@/servicos/financeiro";
 
-import { reaisParaCentavos } from "./dinheiro";
+import { centavosParaCampo, reaisParaCentavos } from "./dinheiro";
 
 // ---------------------------------------------------------------- Inteiros
 
@@ -390,6 +390,52 @@ export type CobrancaParaResumo = {
 /** Custo em reais de uma cobrança: valor convertido mais IOF/câmbio. */
 export const custoDaCobranca = (c: Pick<CobrancaParaResumo, "valorBrlCentavos" | "iofCentavos">) =>
   c.valorBrlCentavos + c.iofCentavos;
+
+/**
+ * Conta vencida nas Contas a pagar: não paga, com data anterior a hoje (Brasília). A provisionada
+ * (consumo ainda sem fatura) não vence.
+ */
+export function cobrancaVencida(c: Pick<CobrancaParaResumo, "data" | "status">, hoje: string) {
+  return (c.status === "pendente" || c.status === "prevista") && c.data < hoje;
+}
+
+/** Cobrança com os campos em texto, como o formulário de cobrança mostra e envia. */
+export type CobrancaNoFormulario = {
+  id: string;
+  data: string;
+  valor: string;
+  moeda: "BRL" | "USD";
+  cotacao: string;
+  iof: string;
+  status: StatusCobranca;
+  pagoPeloSaldoMp: boolean;
+  observacao: string;
+};
+
+/** Prepara no servidor uma cobrança gravada para o formulário (editar ou marcar como paga). */
+export function cobrancaNoFormulario(c: {
+  id: string;
+  data: string;
+  valorCentavos: number;
+  moeda: "BRL" | "USD";
+  cotacaoDezMilesimos: number | null;
+  iofCentavos: number;
+  status: StatusCobranca;
+  pagoPeloSaldoMp: boolean;
+  observacao: string;
+}): CobrancaNoFormulario {
+  return {
+    id: c.id,
+    data: c.data,
+    valor: centavosParaCampo(c.valorCentavos),
+    moeda: c.moeda,
+    cotacao: c.cotacaoDezMilesimos ? textoCotacao(c.cotacaoDezMilesimos) : "",
+    iof: c.iofCentavos ? centavosParaCampo(c.iofCentavos) : "",
+    status: c.status,
+    pagoPeloSaldoMp: c.pagoPeloSaldoMp,
+    observacao: c.observacao,
+  };
+}
 
 export type ResumoDespesas = {
   /** Só o que saiu de fato. */

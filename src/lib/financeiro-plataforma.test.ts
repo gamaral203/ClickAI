@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   calcularIndicadores,
+  cobrancaNoFormulario,
+  cobrancaVencida,
   conciliar,
   converterParaReal,
   decomporPedido,
@@ -334,6 +336,50 @@ describe("despesas e câmbio", () => {
     expect(r.provisionadasCentavos).toBe(1_145);
     expect(r.pendentesCentavos).toBe(500);
     expect(r.porCategoria).toEqual([{ categoria: "hospedagem", centavos: 10_999 }]);
+  });
+});
+
+describe("cobrança no formulário", () => {
+  it("volta pela validação com os mesmos valores (marcar como paga não muda o custo)", () => {
+    const gravada = {
+      id: "00000000-0000-4000-8000-000000000001",
+      assinaturaId: "00000000-0000-4000-8000-000000000002",
+      data: "2026-10-20",
+      valorCentavos: 2000,
+      moeda: "USD" as const,
+      cotacaoDezMilesimos: 53_495,
+      iofCentavos: 680,
+      status: "pendente" as const,
+      pagoPeloSaldoMp: false,
+      observacao: "fatura",
+    };
+    const f = cobrancaNoFormulario(gravada);
+    expect(f).toMatchObject({ valor: "20,00", cotacao: "5,3495", iof: "6,80" });
+    const r = validarCobranca(
+      { ...f, assinaturaId: gravada.assinaturaId, cobrancaId: f.id, status: "paga" },
+      50_000,
+    );
+    expect(r.ok && r.dados).toMatchObject({
+      status: "paga",
+      valorCentavos: 2000,
+      cotacaoDezMilesimos: 53_495,
+      valorBrlCentavos: 10_699,
+      iofCentavos: 680,
+    });
+    expect(
+      cobrancaNoFormulario({ ...gravada, moeda: "BRL", cotacaoDezMilesimos: null, iofCentavos: 0 }),
+    ).toMatchObject({ cotacao: "", iof: "" });
+  });
+});
+
+describe("conta vencida", () => {
+  it("só pendente ou prevista com data passada; a provisionada não vence", () => {
+    const hoje = "2026-10-28";
+    expect(cobrancaVencida({ data: "2026-10-27", status: "pendente" }, hoje)).toBe(true);
+    expect(cobrancaVencida({ data: "2026-10-27", status: "prevista" }, hoje)).toBe(true);
+    expect(cobrancaVencida({ data: "2026-10-28", status: "prevista" }, hoje)).toBe(false);
+    expect(cobrancaVencida({ data: "2026-10-01", status: "provisionada" }, hoje)).toBe(false);
+    expect(cobrancaVencida({ data: "2026-10-01", status: "paga" }, hoje)).toBe(false);
   });
 });
 
