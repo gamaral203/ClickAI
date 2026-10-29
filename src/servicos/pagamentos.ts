@@ -6,6 +6,7 @@ import {
   cancelarCobranca,
   criarCobrancaPix,
   gatewayConfigurado,
+  lerTaxaDaCobranca,
   type Cobranca,
 } from "@/lib/gateway";
 import { criarOrderCartao, type DadosCartao } from "@/lib/mercadopago";
@@ -46,7 +47,11 @@ async function aplicarOrder(order: Cobranca): Promise<"pago" | "pendente" | "ign
       });
       return "ignorado";
     }
-    await confirmarPagamento(pedido.id);
+    // Só no primeiro aviso (pendente) lê a taxa no pagamento (GET, só leitura); sem ela, a
+    // confirmação grava a estimativa. A leitura nunca impede a confirmação.
+    const taxa =
+      pedido.status === "pendente" ? await lerTaxaDaCobranca(order).catch(() => null) : null;
+    await confirmarPagamento(pedido.id, taxa);
     return "pago";
   }
 

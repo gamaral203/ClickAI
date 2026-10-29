@@ -119,6 +119,8 @@ async function requisitar(
 
 const pagamentoDaOrder = z.object({
   id: z.string().optional(),
+  /** Id do pagamento na API de Payments (numérico), quando a order informa. */
+  reference_id: z.union([z.string(), z.number()]).optional(),
   status: z.string(),
   status_detail: z.string().optional(),
   payment_method: z
@@ -188,11 +190,115 @@ function lerOrder(corpo: unknown): OrderMercadoPago {
     situacao,
     encerrada: ORDER_ENCERRADA.has(o.status),
     urlPagamento: null,
+    pagamentoIds: idsDePagamento(o.transactions?.payments ?? []),
     pix:
       qr?.qr_code && qr.qr_code_base64
         ? { copiaECola: qr.qr_code, qrCodeBase64: qr.qr_code_base64 }
         : null,
   };
+}
+
+/**
+ * Ids que servem no GET /v1/payments/{id} (só numéricos): o `reference_id` e o próprio `id` do
+ * pagamento da order, nessa ordem, sem repetir.
+ */
+export function idsDePagamento(pagamentos: z.infer<typeof pagamentoDaOrder>[]) {
+  const ids = new Set<string>();
+  for (const p of pagamentos) {
+    for (const v of [p.reference_id, p.id]) {
+      const texto = v === undefined ? "" : String(v).trim();
+      if (/^\d{1,20}$/.test(texto)) ids.add(texto);
+    }
+  }
+  return [...ids];
+}
+
+// ---------------------------------------------------------------- Taxa do pagamento
+
+const valorDaApi = z.union([z.number(), z.string()]);
+
+const pagamentoComTaxa = z.object({
+  transaction_amount: valorDaApi.optional(),
+  fee_details: z
+    .array(
+      z.object({
+        type: z.string().optional(),
+        amount: valorDaApi,
+        fee_payer: z.string().optional(),
+      }),
+    )
+    .optional(),
+  transaction_details: z.object({ net_received_amount: valorDaApi.optional() }).optional(),
+});
+
+/**
+ * Valor da API (número como 95.02 ou texto "95.02") em centavos. O número é lido pelo texto com
+ * duas casas, sem conta com ponto flutuante; `null` se não for um valor de dinheiro.
+ */
+export function valorDaApiParaCentavos(v: number | string | undefined): number | null {
+  if (v === undefined) return null;
+  if (typeof v === "number") {
+    if (!Number.isFinite(v) || v < 0) return null;
+    return valorParaCentavos(v.toFixed(2));
+  }
+  return valorParaCentavos(v);
+}
+
+export type TaxaDoPagamento = { taxaCentavos: number; liquidoCentavos: number };
+
+/**
+ * Lê no pagamento a taxa que o Mercado Pago cobrou e o que caiu na conta, a partir do corpo do
+ * GET /v1/payments/{id}: soma de `fee_details` pagos pelo recebedor (`fee_payer` = collector) e
+ * `transaction_details.net_received_amount`. Sem os dois, deduz um do outro pelo
+ * `transaction_amount`. Valor incoerente (negativo, maior que o total): `null`.
+ */
+export function lerTaxaDoPagamento(corpo: unknown, totalCentavos: number): TaxaDoPagamento | null {
+  const r = pagamentoComTaxa.safeParse(corpo);
+  if (!r.success) return null;
+  const p = r.data;
+  const total = valorDaApiParaCentavos(p.transaction_amount) ?? totalCentavos;
+  const liquido = valorDaApiParaCentavos(p.transaction_details?.net_received_amount);
+  let taxa: number | null = null;
+  if (p.fee_details && p.fee_details.length > 0) {
+    let soma = 0;
+    for (const f of p.fee_details) {
+      if (f.fee_payer && f.fee_payer !== "collector") continue;
+      const c = valorDaApiParaCentavos(f.amount);
+      if (c === null) return null;
+      soma += c;
+    }
+    taxa = soma;
+  }
+  if (taxa === null && liquido !== null) taxa = total - liquido;
+  if (taxa === null) return null;
+  const liquidoFinal = liquido ?? total - taxa;
+  if (taxa < 0 || taxa > total || liquidoFinal < 0 || liquidoFinal > total) return null;
+  return { taxaCentavos: taxa, liquidoCentavos: liquidoFinal };
+}
+
+/**
+ * Taxa real de uma order paga: tenta cada pagamento dela no GET /v1/payments/{id} (só leitura;
+ * nunca cria, cobra ou estorna nada). `null` se nenhum informar: quem chama grava a estimativa.
+ */
+export async function buscarTaxaDaOrder(
+  pagamentoIds: string[],
+  totalCentavos: number,
+): Promise<TaxaDoPagamento | null> {
+  for (const id of pagamentoIds) {
+    try {
+      const corpo = await requisitar(`/v1/payments/${encodeURIComponent(id)}`, { method: "GET" });
+      const taxa = lerTaxaDoPagamento(corpo, totalCentavos);
+      if (taxa) return taxa;
+    } catch (erro) {
+      // 404 (id que não é da API de Payments) ou falha de rede: tenta o próximo; sem nenhum,
+      // fica a estimativa. Só o nome do erro no log (o corpo pode citar o pagador).
+      console.warn(
+        "Taxa do pagamento não lida no Mercado Pago",
+        erro instanceof Error ? erro.message : "erro",
+      );
+    }
+  }
+  return null;
 }
 
 type DadosCobranca = {

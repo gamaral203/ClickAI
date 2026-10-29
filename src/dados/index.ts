@@ -1020,15 +1020,49 @@ export type ResultadoPedidoPago =
  * cliente já pagou com o desconto) e a chamada devolve `cupomEsgotado` para registrar o caso;
  * não há estorno automático (docs/arquitetura.md, "Descontos").
  */
-export async function marcarPedidoPago(id: string, pagoEm: string): Promise<ResultadoPedidoPago> {
+export type TaxaGatewayDoPedido = {
+  taxaCentavos: number;
+  liquidoCentavos: number;
+  /** `mp`: lida no pagamento; `estimada`: pela taxa de referência da gestão. */
+  origem: "mp" | "estimada";
+};
+
+/**
+ * Também na MESMA transação: os lançamentos da venda (o razão dos fotógrafos) e a taxa do
+ * gateway. Antes, os lançamentos eram gravados depois, fora da transação: uma queda entre os dois
+ * deixava o pedido pago sem a parte dos fotógrafos no saldo. Agora é tudo ou nada.
+ */
+export async function marcarPedidoPago(
+  id: string,
+  pagoEm: string,
+  venda: { lancamentos?: Lancamento[]; taxa?: TaxaGatewayDoPedido | null } = {},
+): Promise<ResultadoPedidoPago> {
   const banco = await obterBanco();
   return banco.transaction(async (tx) => {
     const [pedido] = await tx
       .update(t.pedidos)
-      .set({ status: "pago", pagoEm: new Date(pagoEm) })
+      .set({
+        status: "pago",
+        pagoEm: new Date(pagoEm),
+        ...(venda.taxa && {
+          taxaGatewayCentavos: venda.taxa.taxaCentavos,
+          liquidoRecebidoCentavos: venda.taxa.liquidoCentavos,
+          taxaGatewayOrigem: venda.taxa.origem,
+        }),
+      })
       .where(and(eq(t.pedidos.id, id), eq(t.pedidos.status, "pendente")))
       .returning({ cupomId: t.pedidos.cupomId });
     if (!pedido) return { mudou: false };
+    const novos = venda.lancamentos ?? [];
+    if (novos.length > 0) {
+      await tx.insert(t.lancamentos).values(
+        novos.map((l) => ({
+          ...l,
+          disponivelEm: deIso(l.disponivelEm),
+          antecipavelEm: deIso(l.antecipavelEm),
+        })),
+      );
+    }
     if (!pedido.cupomId) return { mudou: true, cupomEsgotado: false };
     const usados = await tx
       .update(t.cupons)
