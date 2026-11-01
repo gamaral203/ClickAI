@@ -30,7 +30,7 @@ export default function PaginaRemoverFoto() {
       <ol className="grid gap-3 sm:grid-cols-3">
         {[
           ["Cole o link", "Da foto (ou do evento, se forem várias)."],
-          ["Diga como achamos você", "Roupa, número de peito, posição na foto."],
+          ["Diga como achamos você", "Roupa, posição na foto."],
           ["Acompanhe pelo e-mail", "Você recebe o protocolo e a resposta por lá."],
         ].map(([titulo, texto], i) => (
           <li key={titulo} className="flex gap-3 rounded-xl border p-4">

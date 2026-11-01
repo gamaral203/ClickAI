@@ -97,9 +97,9 @@ export async function enviarMensagemSuporteAcao(
   const valido = mensagem.safeParse(dados);
   if (!valido.success) return { erro: valido.error.issues[0]?.message ?? "Confira a mensagem." };
   const quem = await quemFala(true);
-  if (!quem) return { erro: "Não foi possível abrir o chat. Chame no WhatsApp." };
+  if (!quem) return { erro: "Não foi possível abrir o chat. Recarregue a página e tente de novo." };
   if (await quem.limite()) {
-    return { erro: "Muitas mensagens seguidas. Espere um pouco ou chame no WhatsApp." };
+    return { erro: "Muitas mensagens seguidas. Espere um pouco e tente de novo." };
   }
   const { nome, email, texto } = valido.data;
   const { conversa } = await registrarMensagemDoUsuario(

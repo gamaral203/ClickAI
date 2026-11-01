@@ -67,7 +67,7 @@ export function FormularioRemocao() {
         rotulo="Como reconhecemos você"
         id="descricao"
         erro={erros.descricao}
-        ajuda="Roupa, número de peito, posição na foto ou horário. Não precisa mandar documento nem selfie."
+        ajuda="Roupa, posição na foto ou horário. Não precisa mandar documento nem selfie."
       >
         <textarea
           {...campo("descricao")}

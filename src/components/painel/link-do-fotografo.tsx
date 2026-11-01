@@ -28,7 +28,7 @@ export function LinkDoFotografo({ url, nome }: { url: string; nome: string }) {
           Seu link
         </h2>
         <p className="text-sm text-muted-foreground">
-          Divulgue este link nas redes e no WhatsApp: quem entra vê só os eventos de {nome}.
+          Divulgue este link nas redes: quem entra vê só os eventos de {nome}.
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">

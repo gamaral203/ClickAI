@@ -197,7 +197,7 @@ function EditorDeArtes({
     <div className="flex flex-col gap-5 pt-1">
       <p className="text-sm text-muted-foreground">
         {banner
-          ? "Banner horizontal para o link no WhatsApp, Facebook e site, com o QR Code do evento."
+          ? "Banner horizontal para o link nas redes sociais e no site, com o QR Code do evento."
           : "Crie artes com modelos prontos e divulgue o seu evento nos stories e no feed."}
       </p>
 

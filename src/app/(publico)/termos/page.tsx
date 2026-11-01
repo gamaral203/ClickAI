@@ -62,7 +62,7 @@ export default function PaginaTermos() {
         <p>
           O ClicouAí é uma plataforma que liga fotógrafos de eventos a quem foi fotografado. Os
           fotógrafos publicam as fotos e vídeos, definem os preços e recebem pelas vendas; o
-          ClicouAí hospeda as galerias, oferece a busca por rosto e por número de peito, recebe os
+          ClicouAí hospeda as galerias, oferece a busca por rosto, recebe os
           pagamentos e entrega os arquivos comprados.
         </p>
         <p>
@@ -213,7 +213,7 @@ export default function PaginaTermos() {
             acontecer interrupções para manutenção ou por falhas de serviços de terceiros.
           </li>
           <li>
-            A busca por rosto e por número de peito ajuda a encontrar as fotos, mas pode deixar de
+            A busca por rosto ajuda a encontrar as fotos, mas pode deixar de
             mostrar alguma foto sua ou mostrar fotos de outra pessoa. Confira as prévias antes de
             comprar.
           </li>

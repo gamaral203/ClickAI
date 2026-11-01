@@ -80,7 +80,7 @@ export default function PaginaPrivacidade() {
       <Secao titulo="Quais dados tratamos e para quê">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong>Compra:</strong> nome, e-mail e, se você quiser, WhatsApp, para entregar as
+            <strong>Compra:</strong> nome e e-mail, para entregar as
             fotos e mandar o comprovante. O pagamento é feito no Mercado Pago: os dados do cartão
             vão direto para ele e nunca passam pelo ClicouAí.
           </li>
@@ -105,7 +105,7 @@ export default function PaginaPrivacidade() {
         <p>
           As bases legais são a execução do contrato (compra e venda das fotos), o cumprimento de
           obrigações legais (fiscais), o legítimo interesse (segurança e melhoria do serviço) e o
-          seu consentimento (selfie e WhatsApp), que você pode retirar quando quiser.
+          seu consentimento (selfie), que você pode retirar quando quiser.
         </p>
       </Secao>
 

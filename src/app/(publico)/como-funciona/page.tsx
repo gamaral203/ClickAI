@@ -33,7 +33,7 @@ const passos = [
     icone: ScanFace,
     titulo: "Ache as suas fotos com uma selfie",
     texto:
-      "Tire uma selfie ou use uma foto sua e mostramos só as fotos em que você aparece. Nas corridas, dá para buscar também pelo número de peito.",
+      "Tire uma selfie ou use uma foto sua e mostramos só as fotos em que você aparece.",
   },
   {
     icone: Images,
@@ -64,7 +64,7 @@ const perguntas = [
   {
     pergunta: "Como recebo as fotos?",
     resposta:
-      "Na própria tela, logo depois do pagamento, e também por e-mail (e pelo WhatsApp, se você pedir). O link do e-mail é o seu acesso às fotos compradas.",
+      "Na própria tela, logo depois do pagamento, e também por e-mail. O link do e-mail é o seu acesso às fotos compradas.",
   },
   {
     pergunta: "Perdi o e-mail. E agora?",

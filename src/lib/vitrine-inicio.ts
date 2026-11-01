@@ -61,7 +61,7 @@ export const IMAGENS_INICIO = {
   corridaRua: {
     src: "/inicio/corrida-rua.webp",
     reduzida: "/inicio/reduzidas/corrida-rua.webp",
-    alt: "Corredora de regata branca e verde, com o número de peito 73, numa corrida de rua arborizada",
+    alt: "Corredora de regata branca e verde, numa corrida de rua arborizada",
     foco: "40% 40%",
   },
   festa: {

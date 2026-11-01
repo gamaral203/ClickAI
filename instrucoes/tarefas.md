@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Textos públicos, e-mail de suporte e mensagens do chat sem WhatsApp e sem número de peito (ainda não anunciados); o recurso e o código continuam
 - [x] Chamada "Quero vender minhas fotos" no cabeçalho do site de compra (do lg em diante) e no menu do celular, para visitante e cliente; o menu passa a ir até 1023 px, porque a chamada não cabe ao lado dos links no tablet
 - [x] **Página pública para fotógrafos** (`/vender-fotos`): topo com carrossel de fotos da vitrine (pronto para receber um vídeo em `SLIDES_TOPO`, `src/lib/vender-fotos.ts`), benefícios, recursos conferidos no código, segurança, preço com a comissão de `comissaoPadraoPct()` e exemplo calculado pelas funções do saque, perguntas frequentes e chamada final. Links no rodapé, no menu do celular, em Como funciona e na faixa dos fotógrafos da inicial ([arquitetura.md](arquitetura.md), "Página para fotógrafos")
 - [x] Next.js de 16.4.0 para 16.4.1 (com `eslint-config-next`): corrige duas falhas críticas de execução remota de código e um DoS em Server Actions, sem mudança de versão maior

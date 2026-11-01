@@ -8,7 +8,6 @@ import {
   BarChart3,
   Clapperboard,
   CreditCard,
-  Hash,
   Images,
   KeyRound,
   Layers,
@@ -69,11 +68,6 @@ const gruposDeRecursos = [
         icone: ScanFace,
         titulo: "Busca por selfie",
         texto: "A pessoa envia uma selfie e vê só as fotos do evento em que aparece.",
-      },
-      {
-        icone: Hash,
-        titulo: "Número de peito",
-        texto: "Nas corridas, dá para procurar pelo número que o atleta usou na prova.",
       },
       {
         icone: Clapperboard,
@@ -266,7 +260,7 @@ export default function PaginaVenderFotos() {
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-pretty text-white/90 md:text-lg">
               Publique as fotos e os vídeos, escolha o preço e deixe cada pessoa encontrar as
-              próprias imagens com uma selfie ou pelo número de peito.
+              próprias imagens com uma selfie.
             </p>
             <p className="inline-flex flex-wrap items-center gap-x-2 rounded-2xl bg-highlight px-4 py-2 text-base font-extrabold text-highlight-foreground">
               Só {comissao} de comissão

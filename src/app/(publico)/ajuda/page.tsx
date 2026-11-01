@@ -30,8 +30,7 @@ const paraQuemCompra: Artigo[] = [
           </Link>{" "}
           (pelo nome ou pela data) ou abra o link e o QR Code que o fotógrafo divulgou. Na página do
           evento, use a <strong>busca por selfie</strong>: tire uma foto do rosto ou escolha uma da
-          galeria do celular e mostramos só as fotos em que você aparece. Em corridas, dá para
-          buscar também pelo <strong>número de peito</strong>.
+          galeria do celular e mostramos só as fotos em que você aparece.
         </p>
         <p>
           Não achou? Tente outra selfie, de frente e com boa luz, ou olhe a galeria do evento: a
@@ -88,8 +87,7 @@ const paraQuemCompra: Artigo[] = [
       <>
         <p>
           Assim que o pagamento é confirmado, a página do pedido mostra o botão{" "}
-          <strong>Baixar</strong> em cada foto. Você também recebe o link por e-mail (e pelo
-          WhatsApp, se pediu). As fotos vêm no tamanho original, sem marca d&apos;água, e podem ser
+          <strong>Baixar</strong> em cada foto. Você também recebe o link por e-mail. As fotos vêm no tamanho original, sem marca d&apos;água, e podem ser
           baixadas quantas vezes quiser.
         </p>
         <p>
@@ -247,7 +245,7 @@ const paraQuemVende: Artigo[] = [
     corpo: (
       <p>
         Ao publicar, o painel mostra o link do evento, o QR Code para imprimir, uma mensagem pronta
-        para o WhatsApp e imagens de story e feed com o QR Code. Você também tem um link próprio com
+        para compartilhar e imagens de story e feed com o QR Code. Você também tem um link próprio com
         todos os seus eventos.
       </p>
     ),
