@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Interruptor } from "@/components/ui/interruptor";
 import { MENSAGEM_FIM_ANTES_DO_INICIO, separarCampo } from "@/lib/campo-data";
-import { categoriaComNumero } from "@/lib/numeros-de-peito";
+import { categoriaComNumero, LEITURA_DE_NUMEROS_DISPONIVEL } from "@/lib/numeros-de-peito";
 import type { PontoNoMapa } from "@/lib/mapa";
 
 import { UFS } from "@/lib/ufs";
@@ -40,8 +40,9 @@ export type ValoresEvento = {
   filtroHorario: boolean;
   listarNaoIdentificadas: boolean;
   /**
-   * Ler o número de peito nas fotos. `null` (evento novo): segue a categoria escolhida
-   * (src/lib/numeros-de-peito.ts) até o fotógrafo mexer na opção.
+   * Ler o número de peito nas fotos. `null` (evento novo): segue a categoria escolhida até o
+   * fotógrafo mexer na opção. Só vale com LEITURA_DE_NUMEROS_DISPONIVEL ligado
+   * (src/lib/numeros-de-peito.ts); desligado, a opção não aparece e o servidor decide.
    */
   lerNumeros: boolean | null;
   ordenacao: "envio" | "captura" | "nome_arquivo" | "aleatoria";
@@ -372,25 +373,29 @@ export function FormularioEvento({
               Permitir filtrar as fotos por horário
             </Opcao>
             <Opcao nome="listarNaoIdentificadas" marcado={inicial.listarNaoIdentificadas}>
-              Mostrar a lista de fotos sem rosto ou número identificado
+              {LEITURA_DE_NUMEROS_DISPONIVEL
+                ? "Mostrar a lista de fotos sem rosto ou número identificado"
+                : "Mostrar a lista de fotos sem rosto identificado"}
             </Opcao>
-            <label className="flex items-start gap-3 text-sm">
-              <Interruptor
-                name="lerNumeros"
-                checked={lerNumeros}
-                onChange={(e) => {
-                  setLerNumeros(e.target.checked);
-                  setLerNumerosEscolhido(true);
-                }}
-              />
-              <span className="flex flex-col gap-0.5">
-                Ler número de peito nas fotos
-                <span className="text-muted-foreground">
-                  Guarda o número que aparece em cada foto. Ligado por padrão em corridas,
-                  ciclismo, esportes e esportes aquáticos.
+            {LEITURA_DE_NUMEROS_DISPONIVEL && (
+              <label className="flex items-start gap-3 text-sm">
+                <Interruptor
+                  name="lerNumeros"
+                  checked={lerNumeros}
+                  onChange={(e) => {
+                    setLerNumeros(e.target.checked);
+                    setLerNumerosEscolhido(true);
+                  }}
+                />
+                <span className="flex flex-col gap-0.5">
+                  Ler número de peito nas fotos
+                  <span className="text-muted-foreground">
+                    Guarda o número que aparece em cada foto. Ligado por padrão em corridas,
+                    ciclismo, esportes e esportes aquáticos.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            )}
           </Secao>
         </MaisOpcoes>
       </div>

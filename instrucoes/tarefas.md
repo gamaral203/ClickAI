@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Leitura de número de peito desligada nos eventos novos pelo interruptor `LEITURA_DE_NUMEROS_DISPONIVEL` (`src/lib/numeros-de-peito.ts`): falsa no servidor em toda categoria, inclusive na cópia de evento; opção, aba e números da grade fora do painel; evento antigo mantém o valor ao salvar. Serviço, API, schema e dados continuam. Decidir se desliga também nos eventos antigos ([arquitetura.md](arquitetura.md), "Número de peito")
 - [x] Topo de `/vender-fotos` só com o vídeo de fundo, de ponta a ponta e em loop, com o texto por cima (`src/components/vender-fotos/video-de-fundo.tsx`); saem o carrossel e `SLIDES_TOPO`. Película do azul profundo com contraste AA em qualquer quadro, botão de pausar, pausa fora da tela e pôster sem baixar o MP4 com menos movimento ([arquitetura.md](arquitetura.md), "Página para fotógrafos")
 - [x] Botões "Enviar no WhatsApp" (`wa.me`) de volta em `compartilhar-evento` e `link-do-fotografo` no painel (autorizado pelo dono); o campo de WhatsApp do checkout, o suporte, o chat e a busca por número continuam fora da tela
 - [x] Carrossel do topo de `/vender-fotos` horizontal (16:9 em todas as larguras, o vídeo preenche a caixa sem faixa preta; ao lado do título só do xl em diante); rótulo "Conheça o ClicouAí" inteiro no celular (vai para o canto de cima abaixo de 640 px); `arquitetura.md` registra que os números do vídeo são de demonstração

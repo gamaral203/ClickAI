@@ -51,6 +51,7 @@ import { formatarPreco } from "@/lib/formatar";
 import { estadoDaLiberacao, formatarAgendamento } from "@/lib/liberacao";
 import { pontoDoEvento } from "@/lib/mapa";
 import { FORMATOS_MOLDURA } from "@/lib/moldura";
+import { LEITURA_DE_NUMEROS_DISPONIVEL } from "@/lib/numeros-de-peito";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
@@ -136,8 +137,10 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     situacaoDosNumeros(evento.id),
     numerosDasFotosDoEvento(evento.id),
   ]);
-  // Números de peito na grade (com a correção à mão): com a leitura ligada ou já com números.
-  const mostrarNumeros = Boolean(evento.lerNumeros) || numerosPorFoto.size > 0;
+  // Números de peito na grade (com a correção à mão): com a leitura ligada ou já com números, e
+  // só com o interruptor geral ligado (src/lib/numeros-de-peito.ts).
+  const mostrarNumeros =
+    LEITURA_DE_NUMEROS_DISPONIVEL && (Boolean(evento.lerNumeros) || numerosPorFoto.size > 0);
   const capaAtual = capas.get(evento.id) ?? null;
   const capaFotoId = evento.capaFotoId ?? null;
   // Capa que o dono vê (foto pronta, mesmo não liberada) mas o site ainda não mostra.
@@ -413,21 +416,25 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
               </>
             ),
           },
-          {
-            id: "numeros",
-            icone: "numeros",
-            rotulo: "Número de peito",
-            conteudo: (
-              <NumerosDoEvento
-                eventoId={evento.id}
-                ligada={Boolean(evento.lerNumeros)}
-                prontas={numeros.prontas}
-                comNumero={numeros.comNumero}
-                pendentes={numeros.pendentes}
-                configurado={provedorDeTexto() !== "desligado"}
-              />
-            ),
-          },
+          ...(LEITURA_DE_NUMEROS_DISPONIVEL
+            ? [
+                {
+                  id: "numeros",
+                  icone: "numeros" as const,
+                  rotulo: "Número de peito",
+                  conteudo: (
+                    <NumerosDoEvento
+                      eventoId={evento.id}
+                      ligada={Boolean(evento.lerNumeros)}
+                      prontas={numeros.prontas}
+                      comNumero={numeros.comNumero}
+                      pendentes={numeros.pendentes}
+                      configurado={provedorDeTexto() !== "desligado"}
+                    />
+                  ),
+                },
+              ]
+            : []),
           ...(originais
             ? [
                 {
