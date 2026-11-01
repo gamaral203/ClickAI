@@ -128,7 +128,7 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
         RECUPERAR,
         { href: "/entrar", rotulo: "Entrar" },
         { href: "/cadastro", rotulo: "Criar conta" },
-        { href: "/cadastro?tipo=fotografo", rotulo: "Quero vender minhas fotos" },
+        { href: "/vender-fotos", rotulo: "Quero vender minhas fotos" },
         AJUDA,
       ],
       perfil: null,

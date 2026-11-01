@@ -21,7 +21,8 @@ const grupos = [
   {
     titulo: "Para fotógrafos",
     links: [
-      { href: "/cadastro?tipo=fotografo", rotulo: "Venda suas fotos" },
+      { href: "/vender-fotos", rotulo: "Venda suas fotos" },
+      { href: "/cadastro?tipo=fotografo", rotulo: "Criar conta de fotógrafo" },
       { href: "/entrar", rotulo: "Entrar no painel" },
     ],
   },

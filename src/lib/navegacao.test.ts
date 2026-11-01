@@ -29,7 +29,7 @@ describe("linksDoCabecalho", () => {
       "/recuperar-compras",
       "/entrar",
       "/cadastro",
-      "/cadastro?tipo=fotografo",
+      "/vender-fotos",
       "/ajuda",
     ]);
   });

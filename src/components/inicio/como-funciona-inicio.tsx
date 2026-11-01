@@ -98,7 +98,13 @@ export function BannerFotografos({ comissaoPct }: { comissaoPct: number }) {
               <strong className="font-semibold text-white">
                 {comissaoPct.toLocaleString("pt-BR")}%
               </strong>{" "}
-              sobre as vendas.
+              sobre as vendas.{" "}
+              <Link
+                href="/vender-fotos"
+                className="rounded-sm font-semibold text-white underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
+              >
+                Saiba como funciona
+              </Link>
             </p>
           </div>
           <Link

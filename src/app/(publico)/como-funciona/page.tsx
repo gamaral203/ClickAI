@@ -165,7 +165,7 @@ export default function PaginaComoFunciona() {
           <ArrowRight aria-hidden="true" data-icon="inline-end" />
         </Link>
         <Link
-          href="/cadastro?tipo=fotografo"
+          href="/vender-fotos"
           className={buttonVariants({ variant: "outline", size: "touch" })}
         >
           Sou fotógrafo
