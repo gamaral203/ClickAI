@@ -194,7 +194,10 @@ const paraQuemVende: Artigo[] = [
         Capture One antes. O envio vai várias fotos ao mesmo tempo, com barra de progresso e tempo
         restante; arquivos grandes sobem em partes, e se a conexão cair ou um arquivo falhar, use
         “Tentar de novo”. Fotos repetidas são puladas sozinhas. A marca d&apos;água das prévias é
-        colocada automaticamente: você envia o original.
+        colocada automaticamente: você envia o original. Se as fotos estão no cartão da câmera,
+        copie para o computador antes de enviar: é mais rápido e o envio não para se o cartão
+        desconectar. Se a tela avisar que não conseguiu ler os arquivos, confira o cartão, copie as
+        fotos e tente de novo; as que já subiram são puladas.
       </p>
     ),
   },

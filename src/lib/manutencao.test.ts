@@ -45,6 +45,7 @@ describe("caminhoLiberadoNaManutencao", () => {
     "/entrar/outra-coisa",
     "/administracao",
     "/api/envios/processar",
+    "/api/envios/iniciar",
     "/api/busca-facial",
     "/api/download/abc",
     "/api/metricas",

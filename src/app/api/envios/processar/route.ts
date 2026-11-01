@@ -81,6 +81,9 @@ export async function POST(request: NextRequest) {
   // Tempos de cada etapa (só números), para a telemetria da tela de envio.
   const tempos: TemposDoProcessamento = {};
   const resultado = await confirmarEnvio(conta.id, dados.data.fotoId, { tempos, depois: after });
+  // Amostra de 5% nos logs, só números: mede em produção onde o processamento gasta o tempo (na
+  // tela, os mesmos tempos só aparecem para quem abre "Detalhes técnicos").
+  if (Math.random() < 0.05) console.info("[envios] tempos da foto", JSON.stringify(tempos));
   if ("erro" in resultado) return resposta({ erro: resultado.erro, tempos }, 422);
   return resposta({ ok: true, emAndamento: "emAndamento" in resultado, tempos });
 }
