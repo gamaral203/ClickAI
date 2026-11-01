@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Vídeo oficial do dono como primeiro slide do carrossel de `/vender-fotos` (`public/vitrine/video-fotografos.mp4` e pôster): 720p, sem áudio nem metadados, inteiro no carrossel e com a linha do CPF coberta. O vídeo mostra faturamento e histórico reais do painel e a aba Número de peito: o dono decide se fica assim antes de publicar
 - [x] Foto de divulgação do dono na seção de benefícios de `/vender-fotos` (`public/vitrine/corredora-apontando.webp`, sem metadados, fora do og:image)
 - [x] Termos, Ajuda, banner da inicial e `/vender-fotos` alinhados às taxas do código: comissão de 8%, Pix em 1 dia sem taxa extra, cartão em 30 dias, antecipação opcional de 1,99% só no cartão e Pix do saque feito pela equipe. Os Termos seguem como rascunho, para revisão do advogado
 - [x] Fora da tela, sem mudar serviço, API nem banco: campo de WhatsApp do checkout, "Me enviar no WhatsApp" do pedido, atalhos `wa.me` do painel, links de suporte por WhatsApp e a busca por número de peito da página do evento (`temNumeros={false}`). A leitura dos números no envio continua ligada por categoria e cobrada no Rekognition: decidir se desliga enquanto a busca estiver fora da tela

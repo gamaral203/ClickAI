@@ -124,7 +124,7 @@ export function CarrosselTopo({ slides }: { slides: SlideTopo[] }) {
                 <VideoDoSlide
                   slide={slide}
                   tocar={eAtivo && podeTocar}
-                  controles={menosMovimento}
+                  controles={menosMovimento && total === 1}
                   aoTerminar={() => irPara(i + 1)}
                 />
               )}
@@ -188,7 +188,8 @@ export function CarrosselTopo({ slides }: { slides: SlideTopo[] }) {
 /**
  * Sempre sem som e sem o atributo `autoPlay`: quem manda tocar e parar é o carrossel, que para com
  * o vídeo fora da tela ou em pausa. Com pedido de menos movimento, ele fica no pôster e a pessoa
- * toca pelos controles do próprio vídeo.
+ * toca pelo botão do carrossel; os controles do vídeo, que a barra de baixo cobriria, só aparecem
+ * se ele for o único slide.
  */
 function VideoDoSlide({
   slide,
@@ -224,7 +225,9 @@ function VideoDoSlide({
       controls={controles}
       aria-label={slide.alt}
       onEnded={aoTerminar}
-      className="size-full object-cover"
+      // O vídeo é 16:9 e mostra telas com texto: inteiro, com faixas, em vez de cortado. No celular e
+      // no tablet fica no alto, para a barra de baixo cobrir o mínimo dele.
+      className="size-full bg-black object-contain object-top lg:object-center"
     >
       <source src={slide.src} type="video/mp4" />
     </video>

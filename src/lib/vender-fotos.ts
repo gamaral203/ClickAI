@@ -22,20 +22,15 @@ export type SlideVideo = {
 
 export type SlideTopo = SlideImagem | SlideVideo;
 
-/**
- * Slides do carrossel do topo. Para colocar o vídeo oficial, basta acrescentar este item no começo
- * da lista, com os arquivos em public/vitrine/; o componente já sabe tocar (sem som e parado fora
- * da tela):
- *
- *   {
- *     tipo: "video",
- *     rotulo: "Conheça o ClicouAí",
- *     src: "/vitrine/video-fotografos.mp4",
- *     poster: "/vitrine/video-fotografos-poster.webp",
- *     alt: "O que acontece no vídeo, em uma frase",
- *   },
- */
+/** Slides do carrossel do topo; o vídeo oficial vem primeiro, tocado sem som e parado fora da tela. */
 export const SLIDES_TOPO: SlideTopo[] = [
+  {
+    tipo: "video",
+    rotulo: "Conheça o ClicouAí",
+    src: "/vitrine/video-fotografos.mp4",
+    poster: "/vitrine/video-fotografos-poster.webp",
+    alt: "Uma mão navega pelo ClicouAí no celular, por um evento de montaria e sua galeria de fotos com marca d'água, alternando com as telas do painel do fotógrafo no computador: ajuste da marca d'água, envio de fotos, financeiro e resumo de vendas",
+  },
   { tipo: "imagem", rotulo: "Corridas", imagem: IMAGENS_INICIO.corridaRua },
   { tipo: "imagem", rotulo: "Festas", imagem: IMAGENS_INICIO.chaRevelacao },
   { tipo: "imagem", rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.vaquejada },
