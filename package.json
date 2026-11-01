@@ -20,6 +20,7 @@
     "financeiro:backfill-taxas": "tsx --conditions=react-server scripts/backfill-taxas-mp.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-freetier": "^3.1147.0",
     "@aws-sdk/client-rekognition": "^3.1147.0",
     "@aws-sdk/client-s3": "^3.1147.0",
     "@aws-sdk/s3-request-presigner": "^3.1147.0",
