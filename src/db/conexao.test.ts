@@ -2,6 +2,7 @@ import net from "node:net";
 
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { criarCliente, limparUrl, opcoesTls, urlDoBanco, urlParaMigracoes } from "./conexao";
@@ -117,6 +118,84 @@ async function servidorFalso() {
     fechar: () => new Promise((ok) => servidor.close(ok)),
   };
 }
+
+/** Trava o processo como o congelamento da Vercel: nem relógios nem sockets andam nesse tempo. */
+function congelar(ms: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+describe("conexão aberta durante o congelamento da instância", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("o relógio dispara no descongelamento e derruba a conexão com o Pool comum", async () => {
+    // A causa dos erros de produção: banco saudável, e o erro em ~0,1 s depois do descongelamento.
+    const servidor = await servidorFalso();
+    const pool = new Pool({ connectionString: servidor.url, connectionTimeoutMillis: 50 });
+    try {
+      const conexao = pool.connect();
+      congelar(150);
+      await expect(conexao).rejects.toThrow("Connection terminated due to connection timeout");
+    } finally {
+      await pool.end();
+      await servidor.fechar();
+    }
+  });
+
+  it("criarCliente tenta de novo e a consulta funciona, sem erro para quem pediu", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const servidor = await servidorFalso();
+    const cliente = criarCliente(servidor.url, { tempoDeConexaoMs: 50 });
+    try {
+      const consulta = cliente.query("select 1");
+      congelar(150);
+      await expect(consulta).resolves.toBeDefined();
+      expect(servidor.consultas()).toBe(1);
+      expect(console.warn).toHaveBeenCalledOnce();
+    } finally {
+      await cliente.end();
+      await servidor.fechar();
+    }
+  });
+
+  it("connect() também tenta de novo (é por ele que passam as transações)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const servidor = await servidorFalso();
+    const cliente = criarCliente(servidor.url, { tempoDeConexaoMs: 50 });
+    try {
+      const conexao = cliente.connect();
+      congelar(150);
+      (await conexao).release();
+      expect(console.warn).toHaveBeenCalledOnce();
+    } finally {
+      await cliente.end();
+      await servidor.fechar();
+    }
+  });
+
+  it("com o banco mudo de verdade, desiste na segunda tentativa", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let conexoes = 0;
+    const sockets: net.Socket[] = [];
+    const mudo = net.createServer((socket) => {
+      conexoes++;
+      sockets.push(socket);
+      socket.on("error", () => {});
+    });
+    await new Promise<void>((ok) => mudo.listen(0, "127.0.0.1", ok));
+    const { port } = mudo.address() as net.AddressInfo;
+    const cliente = criarCliente(`postgres://app:senha@127.0.0.1:${port}/app`, {
+      tempoDeConexaoMs: 50,
+    });
+    try {
+      await expect(cliente.connect()).rejects.toThrow("connection timeout");
+      expect(conexoes).toBe(2);
+    } finally {
+      await cliente.end();
+      sockets.forEach((socket) => socket.destroy());
+      await new Promise((ok) => mudo.close(ok));
+    }
+  });
+});
 
 describe("cliente do banco com o pooler em modo transaction", () => {
   it("não manda uma consulta antes da resposta da anterior na mesma conexão", async () => {
