@@ -8,7 +8,7 @@
 // - Migrações: DATABASE_URL_DIRETA ou POSTGRES_URL_NON_POOLING (conexão direta, melhor para
 //   mudar o schema); sem elas, a mesma URL do app.
 
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 /**
  * Parâmetros da URL que o Postgres entende; os outros (ex.: `supa=…` do Supabase) saem. O
@@ -70,12 +70,48 @@ export function opcoesTls(url: string, ca = process.env.DATABASE_CA_CERT) {
   return { rejectUnauthorized: true, ca: texto };
 }
 
-export function criarCliente(url: string, { maximo = 5 }: { maximo?: number } = {}) {
-  const pool = new Pool({
+/** Mensagem do pg-pool quando o relógio de abertura de uma conexão nova estoura. */
+const ERRO_TEMPO_DE_CONEXAO = "Connection terminated due to connection timeout";
+
+type RetornoConnect = (erro: Error | undefined, cliente?: PoolClient, soltar?: () => void) => void;
+
+/**
+ * Pool que tenta de novo, uma vez, a abertura de uma conexão que estourou o tempo.
+ *
+ * A Vercel congela a instância quando nenhuma requisição está em andamento. Se uma conexão estava
+ * sendo aberta nessa hora (ex.: visitante que fechou a página), o relógio de 15 s continua contando
+ * o tempo de parede e, no descongelamento, dispara antes de o socket ser lido: a próxima requisição
+ * recebe o erro em ~0,1 s, sem o banco ter demorado (instrucoes/arquitetura.md, "Conexão com o
+ * banco"). Nenhum SQL foi enviado nessa conexão, então repetir é seguro. Só este erro repete: fila
+ * cheia do pool ("timeout exceeded when trying to connect") não, para não somar carga.
+ */
+class PoolComNovaTentativa extends Pool {
+  connect(): Promise<PoolClient>;
+  connect(retorno: RetornoConnect): void;
+  connect(retorno?: RetornoConnect) {
+    if (!retorno) {
+      return new Promise<PoolClient>((resolver, rejeitar) => {
+        this.connect((erro, cliente) => (erro ? rejeitar(erro) : resolver(cliente!)));
+      });
+    }
+    const primeira = super.connect.bind(this) as unknown as (r: RetornoConnect) => void;
+    primeira((erro, cliente, soltar) => {
+      if (erro?.message !== ERRO_TEMPO_DE_CONEXAO) return retorno(erro, cliente, soltar);
+      console.warn("[db] tempo de conexão estourado; tentando de novo uma vez");
+      primeira(retorno);
+    });
+  }
+}
+
+export function criarCliente(
+  url: string,
+  { maximo = 5, tempoDeConexaoMs = 15_000 }: { maximo?: number; tempoDeConexaoMs?: number } = {},
+) {
+  const pool = new PoolComNovaTentativa({
     connectionString: limparUrl(url),
     max: maximo,
     idleTimeoutMillis: 20_000,
-    connectionTimeoutMillis: 15_000,
+    connectionTimeoutMillis: tempoDeConexaoMs,
     ssl: opcoesTls(url),
   });
   // Conexão parada que o pooler ou o banco fecham: sem este ouvinte, o erro derrubaria o
