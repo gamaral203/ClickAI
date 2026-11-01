@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { calcularSaque } from "@/servicos/financeiro";
 
-import { exemploDeVenda, SLIDES_TOPO } from "./vender-fotos";
+import { exemploDeVenda } from "./vender-fotos";
 
 describe("exemploDeVenda", () => {
   it("Pix: só a comissão, sem acréscimo para o cliente", () => {
@@ -48,16 +48,5 @@ describe("exemploDeVenda", () => {
     expect(exemplo.recebeCentavos).toBe(8776);
     expect(exemplo.recebeCentavos).toBe(saque.liquidoCentavos);
     expect(exemplo.antecipacaoCentavos).toBe(saque.taxaAntecipacaoCentavos);
-  });
-});
-
-describe("SLIDES_TOPO", () => {
-  it("só usa imagens da vitrine autorizada, nunca arquivos de fora do site", () => {
-    expect(SLIDES_TOPO.length).toBeGreaterThan(0);
-    for (const slide of SLIDES_TOPO) {
-      const arquivos = slide.tipo === "imagem" ? [slide.imagem.src] : [slide.src, slide.poster];
-      for (const arquivo of arquivos) expect(arquivo).toMatch(/^\/(vitrine|inicio)\//);
-      expect(slide.rotulo).not.toBe("");
-    }
   });
 });

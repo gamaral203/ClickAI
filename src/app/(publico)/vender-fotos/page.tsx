@@ -24,12 +24,12 @@ import {
 
 import { CONTAINER } from "@/components/inicio/comum";
 import { buttonVariants } from "@/components/ui/button";
-import { CarrosselTopo } from "@/components/vender-fotos/carrossel-topo";
+import { VideoDeFundo } from "@/components/vender-fotos/video-de-fundo";
 import { comissaoPadraoPct } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
 import { taxaCartaoPct } from "@/lib/taxas";
-import { exemploDeVenda, FOTO_BENEFICIOS, SLIDES_TOPO } from "@/lib/vender-fotos";
+import { exemploDeVenda, FOTO_BENEFICIOS } from "@/lib/vender-fotos";
 import { IMAGENS_INICIO } from "@/lib/vitrine-inicio";
 import { SAQUE_MINIMO_CENTAVOS, TAXA_ANTECIPACAO_TEXTO } from "@/servicos/financeiro";
 
@@ -238,49 +238,35 @@ export default function PaginaVenderFotos() {
     <>
       <section
         aria-labelledby="titulo-vender-fotos"
-        className="relative isolate overflow-hidden bg-linear-150 from-primary from-10% to-profundo to-95% text-white"
+        className="relative isolate flex min-h-[80svh] items-center overflow-hidden bg-profundo text-white lg:min-h-[85svh]"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent_85%)] [background-size:22px_22px]"
-        />
-        <div
-          className={`${CONTAINER} grid items-center gap-8 py-10 md:py-14 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] xl:gap-12 xl:py-16`}
-        >
-          <div className="flex min-w-0 flex-col items-start gap-5 md:gap-6">
-            <p className="border-l-[3px] border-highlight pl-3 text-xs font-semibold tracking-[0.16em] text-white/90 uppercase">
-              Para fotógrafos
-            </p>
-            <h1
-              id="titulo-vender-fotos"
-              className="text-[clamp(2.1rem,1.2rem+4.2vw,3.75rem)] leading-[1.06] font-extrabold tracking-tight text-balance"
-            >
-              Você fotografa o evento.{" "}
-              <span className="text-highlight">A gente ajuda a vender.</span>
-            </h1>
-            <p className="max-w-xl text-base leading-relaxed text-pretty text-white/90 md:text-lg">
-              Publique as fotos e os vídeos, escolha o preço e deixe cada pessoa encontrar as
-              próprias imagens com uma selfie.
-            </p>
-            <p className="inline-flex flex-wrap items-center gap-x-2 rounded-2xl bg-highlight px-4 py-2 text-base font-extrabold text-highlight-foreground">
-              Só {comissao} de comissão
-              <span aria-hidden="true">·</span>
-              <span>sem mensalidade</span>
-            </p>
-            <div className="flex w-full flex-wrap items-center gap-3">
-              <ChamadaCadastro />
-              <a
-                href="#preco"
-                className="inline-flex h-13 items-center rounded-full px-4 font-semibold text-white underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
+        <VideoDeFundo>
+          {/* O espaço de cima no celular é o do botão de pausar, que nunca cobre o texto. */}
+          <div className={`${CONTAINER} pt-20 pb-12 md:py-16`}>
+            <div className="flex max-w-2xl min-w-0 flex-col items-start gap-5 md:gap-6">
+              <h1
+                id="titulo-vender-fotos"
+                className="text-[clamp(2.1rem,1.2rem+4.2vw,3.75rem)] leading-[1.06] font-extrabold tracking-tight text-balance"
               >
-                Ver preço e condições
-              </a>
+                Você fotografa o evento.{" "}
+                <span className="text-highlight">A gente ajuda a vender.</span>
+              </h1>
+              <p className="max-w-xl text-base leading-relaxed text-pretty md:text-lg">
+                Publique as fotos e os vídeos, escolha o preço e deixe cada pessoa encontrar as
+                próprias imagens com uma selfie. Só {comissao} de comissão, sem mensalidade.
+              </p>
+              <div className="flex w-full flex-wrap items-center gap-3">
+                <ChamadaCadastro />
+                <a
+                  href="#preco"
+                  className="inline-flex min-h-13 items-center rounded-full px-4 font-semibold text-white underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
+                >
+                  Ver preço e condições
+                </a>
+              </div>
             </div>
           </div>
-          <div className="min-w-0">
-            <CarrosselTopo slides={SLIDES_TOPO} />
-          </div>
-        </div>
+        </VideoDeFundo>
       </section>
 
       <section

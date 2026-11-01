@@ -1,42 +1,16 @@
-// Conteúdo calculado da página para fotógrafos (/vender-fotos): os slides do topo e o exemplo de
+// Conteúdo da página para fotógrafos (/vender-fotos): os arquivos do vídeo do topo e o exemplo de
 // quanto o fotógrafo recebe. Os números saem das mesmas funções do saque, então a página não
 // consegue dizer outra coisa que não o que o sistema cobra.
 
 import { comissaoDe, taxaAntecipacaoDe } from "@/servicos/financeiro";
 
 import { acrescimoCartao, parteDoVendedorNaTaxa } from "./taxas";
-import { IMAGENS_INICIO, type ImagemVitrine } from "./vitrine-inicio";
 
-export type SlideImagem = { tipo: "imagem"; rotulo: string; imagem: ImagemVitrine };
-
-export type SlideVideo = {
-  tipo: "video";
-  rotulo: string;
-  /** Arquivo MP4 em public/vitrine/. */
-  src: string;
-  /** Imagem mostrada antes de o vídeo começar e para quem pede menos movimento. */
-  poster: string;
-  /** Descrição do vídeo, para leitor de tela. */
-  alt: string;
+/** Vídeo oficial do dono, de fundo no topo. O pôster é o que aparece sem o vídeo tocando. */
+export const VIDEO_DO_TOPO = {
+  src: "/vitrine/video-fotografos.mp4",
+  poster: "/vitrine/video-fotografos-poster.webp",
 };
-
-export type SlideTopo = SlideImagem | SlideVideo;
-
-/** Slides do carrossel do topo; o vídeo oficial vem primeiro, tocado sem som e parado fora da tela. */
-export const SLIDES_TOPO: SlideTopo[] = [
-  {
-    tipo: "video",
-    rotulo: "Conheça o ClicouAí",
-    src: "/vitrine/video-fotografos.mp4",
-    poster: "/vitrine/video-fotografos-poster.webp",
-    alt: "Uma mão navega pelo ClicouAí no celular, por um evento de montaria e sua galeria de fotos com marca d'água, alternando com as telas do painel do fotógrafo no computador: ajuste da marca d'água, envio de fotos, financeiro e resumo de vendas",
-  },
-  { tipo: "imagem", rotulo: "Corridas", imagem: IMAGENS_INICIO.corridaRua },
-  { tipo: "imagem", rotulo: "Festas", imagem: IMAGENS_INICIO.chaRevelacao },
-  { tipo: "imagem", rotulo: "Vaquejadas e montarias", imagem: IMAGENS_INICIO.vaquejada },
-  { tipo: "imagem", rotulo: "Esportes", imagem: IMAGENS_INICIO.futebol },
-  { tipo: "imagem", rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento },
-];
 
 /** Foto de divulgação fornecida pelo dono, na seção de benefícios. Fora do og:image. */
 export const FOTO_BENEFICIOS = {
