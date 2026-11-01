@@ -12,7 +12,13 @@ import {
   salvarConfiguracoesGestao,
 } from "@/dados";
 import { dividirArredondando, lerCotacao } from "@/lib/financeiro-plataforma";
-import { CONFIG, validarAssinatura, type CampoAssinatura } from "@/lib/painel-de-uso";
+import { reaisParaCentavos } from "@/lib/dinheiro";
+import {
+  CONFIG,
+  CREDITOS_AWS_TOTAL_MAXIMO_CENTAVOS,
+  validarAssinatura,
+  type CampoAssinatura,
+} from "@/lib/painel-de-uso";
 import { exigirGestor } from "@/servicos/sessao";
 
 // Ações do Painel de uso (/admin/uso). Cada uma confere o papel de gestor no servidor
@@ -81,7 +87,7 @@ export async function excluirAssinaturaAcao(assinaturaId: unknown): Promise<Resu
   return {};
 }
 
-export type CampoConfiguracao = "cotacao" | "limiteDia" | "limiteMes";
+export type CampoConfiguracao = "cotacao" | "limiteDia" | "limiteMes" | "creditosAws";
 export type EstadoConfiguracoes = {
   ok?: boolean;
   erros?: Partial<Record<CampoConfiguracao, string>>;
@@ -97,9 +103,14 @@ const formularioConfiguracoes = z.object({
     .string()
     .trim()
     .regex(/^\d{1,8}$/, "Use um número inteiro (ex.: 3000)."),
+  /** Total de créditos da AWS em dólares ("100,00"); em branco, fica como está. */
+  creditosAws: z.string().trim().max(12),
 });
 
-/** Cotação do dólar (digitada em reais, gravada em centavos) e limites do plano do Resend. */
+/**
+ * Cotação do dólar (digitada em reais, gravada em centavos), limites do plano do Resend e o total
+ * de créditos da AWS (digitado em dólares, gravado em centavos de dólar).
+ */
 export async function salvarConfiguracoesAcao(
   _anterior: EstadoConfiguracoes,
   formulario: FormData,
@@ -109,6 +120,7 @@ export async function salvarConfiguracoesAcao(
     cotacao: formulario.get("cotacao") ?? "",
     limiteDia: formulario.get("limiteDia") ?? "",
     limiteMes: formulario.get("limiteMes") ?? "",
+    creditosAws: formulario.get("creditosAws") ?? "",
   });
   if (!r.success) {
     const erros: EstadoConfiguracoes["erros"] = {};
@@ -133,12 +145,23 @@ export async function salvarConfiguracoesAcao(
   if (limiteMes < limiteDia) {
     return { erros: { limiteMes: "O limite do mês não pode ser menor que o do dia." } };
   }
+  let creditosAws: number | undefined;
+  if (r.data.creditosAws) {
+    const centavos = reaisParaCentavos(r.data.creditosAws.replace(/^US\$/i, ""));
+    if (centavos === null || centavos < 100 || centavos > CREDITOS_AWS_TOTAL_MAXIMO_CENTAVOS) {
+      return {
+        erros: { creditosAws: "Informe o total em dólares, entre US$ 1,00 e US$ 10.000,00." },
+      };
+    }
+    creditosAws = centavos;
+  }
   await salvarConfiguracoesGestao(
     {
       [CONFIG.cotacaoUsd]: cotacao,
       [CONFIG.cotacaoUsdPrecisa]: cotacaoPrecisa,
       [CONFIG.limiteEmailDia]: limiteDia,
       [CONFIG.limiteEmailMes]: limiteMes,
+      [CONFIG.creditosAwsTotal]: creditosAws,
     },
     gestor.id,
   );
