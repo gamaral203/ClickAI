@@ -1,6 +1,6 @@
 # ClicouAí
 
-![ClicouAí](docs/marca/logo.png)
+![ClicouAí](instrucoes/marca/logo.png)
 
 Marketplace onde fotógrafos vendem fotos e vídeos de eventos e clientes encontram os seus por selfie ou número de peito e compram os originais. Pagamento por Pix e cartão, dados hospedados no Brasil.
 
@@ -21,9 +21,9 @@ O que já funciona:
 - Painel de gestão (`/admin`) para gestores: entradas, saídas, receita, vendas, saques e usuários com troca de papel
 - Headers de segurança e validação com Zod de tudo que vem do navegador
 
-O andamento completo, fase por fase, está em [docs/tarefas.md](docs/tarefas.md).
+O andamento completo, fase por fase, está em [instrucoes/tarefas.md](instrucoes/tarefas.md).
 
-**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); todas só fora da produção; lá a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, fora da produção, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` ou `POSTGRES_URL` (Supabase), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio, sem as contas com a senha de exemplo, que só existem no PGlite (na produção, só as categorias; ver [deploy.md](docs/deploy.md)). A dica dessas contas em `/entrar` só aparece no PGlite e nunca na produção.
+**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); todas só fora da produção; lá a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, fora da produção, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` ou `POSTGRES_URL` (Supabase), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio, sem as contas com a senha de exemplo, que só existem no PGlite (na produção, só as categorias; ver [deploy.md](instrucoes/deploy.md)). A dica dessas contas em `/entrar` só aparece no PGlite e nunca na produção.
 
 ## Como rodar
 
@@ -64,7 +64,7 @@ Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 5 categorias
 
 ## Stack
 
-Next.js 16 (App Router, Cache Components) + TypeScript, Tailwind CSS 4 + shadcn/ui (Base UI), Zod, Sharp e Mercado Pago (Orders e Payouts). Na Parte B entram PostgreSQL com Drizzle, Cloudflare R2, FFmpeg (worker de vídeo), reconhecimento facial e numérico, Inngest, Better Auth, Resend e a API oficial do WhatsApp. Detalhes e motivos em [docs/arquitetura.md](docs/arquitetura.md).
+Next.js 16 (App Router, Cache Components) + TypeScript, Tailwind CSS 4 + shadcn/ui (Base UI), Zod, Sharp e Mercado Pago (Orders e Payouts). Na Parte B entram PostgreSQL com Drizzle, Cloudflare R2, FFmpeg (worker de vídeo), reconhecimento facial e numérico, Inngest, Better Auth, Resend e a API oficial do WhatsApp. Detalhes e motivos em [instrucoes/arquitetura.md](instrucoes/arquitetura.md).
 
 ## Estrutura
 
@@ -84,27 +84,27 @@ src/
 scripts/
   gerar-exemplos.ts     # gera as imagens de exemplo
 public/exemplo/         # prévias e miniaturas de exemplo
-docs/                   # arquitetura, riscos, tarefas, marca, skills
+instrucoes/             # arquitetura, riscos, tarefas, marca, skills
 .claude/skills/         # skills do Claude Code usadas no projeto
 ```
 
-A estrutura completa planejada, com cliente, painel do fotógrafo, admin, loja própria e API, está em [docs/arquitetura.md](docs/arquitetura.md#estrutura-de-pastas).
+A estrutura completa planejada, com cliente, painel do fotógrafo, admin, loja própria e API, está em [instrucoes/arquitetura.md](instrucoes/arquitetura.md#estrutura-de-pastas).
 
 ## Documentação
 
-- [Arquitetura](docs/arquitetura.md): stack, armazenamento, modelo de dados, fluxos, segurança e decisões em aberto
-- [Referência de produto: Fotto](docs/referencias/fotto.md): como funciona a plataforma que usamos de referência
-- [Riscos e erros possíveis](docs/riscos.md): 35 riscos mapeados, com prioridade e como evitar
-- [Tarefas](docs/tarefas.md): o que já foi feito e o que falta, por fase
-- [Deploy e contas](docs/deploy.md): contas a criar, variáveis de produção, domínio, lojas e Sentry
-- [Marca](docs/marca/marca.md): logo, cores e regras de contraste
-- [Skills](docs/skills.md): skills do Claude Code usadas no projeto
-- [Instruções para contribuir](docs/CLAUDE.md): regras do projeto e padrão de commits
+- [Arquitetura](instrucoes/arquitetura.md): stack, armazenamento, modelo de dados, fluxos, segurança e decisões em aberto
+- [Referência de produto: Fotto](instrucoes/referencias/fotto.md): como funciona a plataforma que usamos de referência
+- [Riscos e erros possíveis](instrucoes/riscos.md): 35 riscos mapeados, com prioridade e como evitar
+- [Tarefas](instrucoes/tarefas.md): o que já foi feito e o que falta, por fase
+- [Deploy e contas](instrucoes/deploy.md): contas a criar, variáveis de produção, domínio, lojas e Sentry
+- [Marca](instrucoes/marca/marca.md): logo, cores e regras de contraste
+- [Skills](instrucoes/skills.md): skills do Claude Code usadas no projeto
+- [Instruções para contribuir](instrucoes/CLAUDE.md): regras do projeto e padrão de commits
 
 ## Como contribuir
 
-- Leia [docs/CLAUDE.md](docs/CLAUDE.md) antes de começar. Ele lista as regras que o código não pode quebrar (por exemplo: nenhum original acessível sem pedido pago, preço sempre recalculado no servidor, selfie nunca gravada).
+- Leia [instrucoes/CLAUDE.md](instrucoes/CLAUDE.md) antes de começar. Ele lista as regras que o código não pode quebrar (por exemplo: nenhum original acessível sem pedido pago, preço sempre recalculado no servidor, selfie nunca gravada).
 - Commits seguem o [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/), em português: `feat(galeria): cria a página da foto`. Um commit por mudança lógica.
-- Ao concluir uma tarefa, marque `[x]` em [docs/tarefas.md](docs/tarefas.md) no mesmo commit.
+- Ao concluir uma tarefa, marque `[x]` em [instrucoes/tarefas.md](instrucoes/tarefas.md) no mesmo commit.
 - Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build` sem erros.
-- Quem usa o Claude Code recebe essas regras automaticamente: o `CLAUDE.md` da raiz importa o `docs/CLAUDE.md`.
+- Quem usa o Claude Code recebe essas regras automaticamente: o `CLAUDE.md` da raiz importa o `instrucoes/CLAUDE.md`.
