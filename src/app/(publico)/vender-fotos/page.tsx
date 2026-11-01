@@ -29,13 +29,13 @@ import { comissaoPadraoPct } from "@/dados";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
 import { taxaCartaoPct } from "@/lib/taxas";
-import { exemploDeVenda, SLIDES_TOPO } from "@/lib/vender-fotos";
+import { exemploDeVenda, FOTO_BENEFICIOS, SLIDES_TOPO } from "@/lib/vender-fotos";
 import { IMAGENS_INICIO } from "@/lib/vitrine-inicio";
 import { SAQUE_MINIMO_CENTAVOS, TAXA_ANTECIPACAO_TEXTO } from "@/servicos/financeiro";
 
 // Página pública para atrair fotógrafos. Toda taxa sai do sistema: a comissão de
 // `comissaoPadraoPct()`, as demais de src/servicos/financeiro.ts e src/lib/taxas.ts. Nada de
-// comparar com outras plataformas: não temos como provar. Imagens: só as da vitrine autorizada.
+// comparar com outras plataformas: não temos como provar. Imagens: só as da vitrine autorizada e a foto de divulgação do dono.
 
 const CADASTRO = "/cadastro?tipo=fotografo";
 
@@ -283,67 +283,92 @@ export default function PaginaVenderFotos() {
         </div>
       </section>
 
-      <section aria-labelledby="titulo-beneficios" className={`${CONTAINER} py-12 md:py-16`}>
-        <h2
-          id="titulo-beneficios"
-          className="max-w-2xl text-2xl font-extrabold tracking-tight text-balance md:text-4xl"
-        >
-          Mais tempo fotografando, menos tempo vendendo foto por mensagem
-        </h2>
-        <div className="mt-6 grid gap-4 md:mt-8 lg:grid-cols-[1.1fr_1fr]">
-          <div className="relative isolate flex flex-col justify-between gap-6 overflow-hidden rounded-3xl bg-profundo p-6 text-white md:p-8">
-            <span
-              aria-hidden="true"
-              className="absolute -top-20 -right-20 -z-10 size-72 rounded-full bg-primary/40 blur-2xl"
+      <section
+        aria-labelledby="titulo-beneficios"
+        className={`${CONTAINER} grid gap-8 py-12 md:py-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12`}
+      >
+        {/* A faixa limão atrás do canto é só decoração. No celular a foto vem depois do título. */}
+        <div className="relative isolate order-2 mr-2 mb-2 lg:order-1 lg:mr-0">
+          <span
+            aria-hidden="true"
+            className="absolute -right-2 -bottom-2 -z-10 h-2/5 w-3/5 rounded-3xl bg-highlight"
+          />
+          <div className="relative aspect-[4/5] overflow-hidden rounded-3xl sm:aspect-[3/2] lg:aspect-auto lg:h-full">
+            <Image
+              src={FOTO_BENEFICIOS.src}
+              alt={FOTO_BENEFICIOS.alt}
+              fill
+              sizes="(min-width: 1280px) 520px, (min-width: 1024px) 40vw, 100vw"
+              className="object-cover object-[50%_62%] sm:object-[50%_44%] lg:object-[50%_60%]"
             />
-            <BadgePercent aria-hidden="true" strokeWidth={1.75} className="size-8 text-highlight" />
-            <div>
-              <p className="text-[clamp(3.5rem,2rem+8vw,6.5rem)] leading-none font-extrabold tracking-tight text-highlight">
-                Só {comissao}
-              </p>
-              <p className="mt-3 max-w-md text-lg text-pretty text-white/90">
-                de comissão sobre o que você vende. Sem mensalidade e sem custo para publicar.
-              </p>
-            </div>
-            <a
-              href="#preco"
-              className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-md text-sm font-semibold underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
-            >
-              Veja as condições do cartão e da antecipação
-            </a>
           </div>
-          <ul className="flex flex-col gap-4">
-            {[
-              {
-                icone: Tag,
-                titulo: "O preço é você quem define",
-                texto:
-                  "Cada evento tem o seu preço por foto e por vídeo, e você pode mudar o de uma foto específica.",
-              },
-              {
-                icone: ShoppingBag,
-                titulo: "O cliente compra sem depender de você",
-                texto:
-                  "Ele encontra as fotos, paga e baixa o original na hora, mesmo enquanto você está no próximo evento.",
-              },
-              {
-                icone: Banknote,
-                titulo: "O dinheiro vai para a sua chave Pix",
-                texto:
-                  "Você acompanha cada venda no painel e saca por Pix, sempre para o seu próprio CPF ou CNPJ.",
-              },
-            ].map(({ icone: Icone, titulo, texto }) => (
-              <li key={titulo} className="flex flex-1 gap-4 rounded-2xl border bg-card p-5">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-primary">
-                  <Icone aria-hidden="true" className="size-5" />
-                </span>
-                <span className="flex flex-col gap-1">
-                  <span className="text-lg font-bold">{titulo}</span>
-                  <span className="text-muted-foreground">{texto}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+        </div>
+        <div className="contents lg:order-2 lg:flex lg:min-w-0 lg:flex-col lg:gap-8">
+          <h2
+            id="titulo-beneficios"
+            className="order-1 max-w-2xl text-2xl font-extrabold tracking-tight text-balance md:text-4xl"
+          >
+            Mais tempo fotografando, menos tempo vendendo foto por mensagem
+          </h2>
+          <div className="order-3 grid gap-4">
+            <div className="relative isolate flex flex-col justify-between gap-6 overflow-hidden rounded-3xl bg-profundo p-6 text-white md:p-8">
+              <span
+                aria-hidden="true"
+                className="absolute -top-20 -right-20 -z-10 size-72 rounded-full bg-primary/40 blur-2xl"
+              />
+              <BadgePercent
+                aria-hidden="true"
+                strokeWidth={1.75}
+                className="size-8 text-highlight"
+              />
+              <div>
+                <p className="text-[clamp(3.5rem,2rem+8vw,6.5rem)] leading-none font-extrabold tracking-tight text-highlight">
+                  Só {comissao}
+                </p>
+                <p className="mt-3 max-w-md text-lg text-pretty text-white/90">
+                  de comissão sobre o que você vende. Sem mensalidade e sem custo para publicar.
+                </p>
+              </div>
+              <a
+                href="#preco"
+                className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-md text-sm font-semibold underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
+              >
+                Veja as condições do cartão e da antecipação
+              </a>
+            </div>
+            <ul className="flex flex-col gap-4">
+              {[
+                {
+                  icone: Tag,
+                  titulo: "O preço é você quem define",
+                  texto:
+                    "Cada evento tem o seu preço por foto e por vídeo, e você pode mudar o de uma foto específica.",
+                },
+                {
+                  icone: ShoppingBag,
+                  titulo: "O cliente compra sem depender de você",
+                  texto:
+                    "Ele encontra as fotos, paga e baixa o original na hora, mesmo enquanto você está no próximo evento.",
+                },
+                {
+                  icone: Banknote,
+                  titulo: "O dinheiro vai para a sua chave Pix",
+                  texto:
+                    "Você acompanha cada venda no painel e saca por Pix, sempre para o seu próprio CPF ou CNPJ.",
+                },
+              ].map(({ icone: Icone, titulo, texto }) => (
+                <li key={titulo} className="flex flex-1 gap-4 rounded-2xl border bg-card p-5">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-primary">
+                    <Icone aria-hidden="true" className="size-5" />
+                  </span>
+                  <span className="flex flex-col gap-1">
+                    <span className="text-lg font-bold">{titulo}</span>
+                    <span className="text-muted-foreground">{texto}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 

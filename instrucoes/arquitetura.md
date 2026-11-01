@@ -306,6 +306,8 @@ Página pública de divulgação (`src/app/(publico)/vender-fotos/page.tsx`), co
 
 O carrossel do topo (`src/components/vender-fotos/carrossel-topo.tsx`) lê `SLIDES_TOPO`, só com as imagens autorizadas da vitrine (`src/lib/vitrine-inicio.ts`), que não são fotos à venda. Passa sozinho apenas com a página à vista e sem pedido de menos movimento, para com o mouse ou o foco, tem botão de pausar, setas do teclado e arraste. Um item `tipo: "video"` na lista vira um vídeo sem som, com pôster, `playsInline` e sem `autoPlay`: quem toca e para é o carrossel; com menos movimento, fica no pôster com os controles do vídeo.
 
+A seção de benefícios tem uma foto de divulgação fornecida pelo dono (`FOTO_BENEFICIOS`, `public/vitrine/corredora-apontando.webp`). Não é foto à venda e não vai para o `og:image`.
+
 **Local no mapa (OpenStreetMap)**
 
 O fotógrafo pode marcar o local do evento num mapa, além de escrever o local à mão. Tudo gratuito e sem chave: mapa com [Leaflet](https://leafletjs.com) e os tiles do OpenStreetMap, endereços do Nominatim ([deploy.md](deploy.md), item 9, com as políticas de uso). Código em `src/lib/mapa.ts` (validação, cidade, UF e endereço curto, links), `src/lib/mapa-leaflet.ts` (tiles, atribuição e marcador), `src/servicos/nominatim.ts` (fila, cache e chamadas), `src/app/(fotografo)/painel/eventos/mapa-acoes.ts` (Server Actions), `src/components/painel/local-no-mapa.tsx` e `dialogo-mapa.tsx` (painel) e `src/components/galeria/mapa-do-evento.tsx` (página pública).

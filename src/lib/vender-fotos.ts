@@ -43,6 +43,12 @@ export const SLIDES_TOPO: SlideTopo[] = [
   { tipo: "imagem", rotulo: "Casamentos", imagem: IMAGENS_INICIO.casamento },
 ];
 
+/** Foto de divulgação fornecida pelo dono, na seção de benefícios. Fora do og:image. */
+export const FOTO_BENEFICIOS = {
+  src: "/vitrine/corredora-apontando.webp",
+  alt: "Corredora sorridente de camiseta limão e óculos escuros aponta para a câmera durante uma corrida de rua, com um morro ao fundo",
+};
+
 export type ExemploDeVenda = {
   clientePagaCentavos: number;
   /** Metade da taxa do cartão que sai da parte do fotógrafo; zero no Pix. */
