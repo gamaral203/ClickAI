@@ -1,22 +1,20 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ChevronRight,
   CircleHelp,
   Clapperboard,
-  ExternalLink,
   GraduationCap,
   X,
 } from "lucide-react";
 
-import { linkWhatsappSuporte } from "@/lib/suporte";
-
 /**
  * "Aprenda" no cabeçalho do painel: popup com os vídeos de treinamento (por enquanto, "em
- * breve") e o "Obter ajuda", que abre o WhatsApp do suporte. Dentro do popup, a lista de vídeos
+ * breve") e o "Obter ajuda", que abre a central de ajuda. Dentro do popup, a lista de vídeos
  * é uma segunda tela com "Voltar". Usa o <dialog> nativo (Esc fecha, fundo escurecido).
  */
 export function BotaoAprenda() {
@@ -122,10 +120,8 @@ export function BotaoAprenda() {
                       </button>
                     </li>
                     <li>
-                      <a
-                        href={linkWhatsappSuporte()}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Link
+                        href="/ajuda"
                         className="flex w-full items-center gap-3 rounded-xl border p-4 text-left hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                       >
                         <span className="flex flex-1 flex-col gap-0.5">
@@ -134,11 +130,11 @@ export function BotaoAprenda() {
                             Obter ajuda
                           </span>
                           <span className="text-sm text-muted-foreground">
-                            Tire dúvidas ou fale com o nosso suporte no WhatsApp.
+                            Veja as respostas para as dúvidas mais comuns.
                           </span>
                         </span>
-                        <ExternalLink aria-hidden="true" className="size-5 text-muted-foreground" />
-                      </a>
+                        <ChevronRight aria-hidden="true" className="size-5 text-muted-foreground" />
+                      </Link>
                     </li>
                   </motion.ul>
                 ) : (

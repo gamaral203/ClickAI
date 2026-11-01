@@ -12,7 +12,6 @@ import {
 } from "@/app/(fotografo)/painel/suporte-acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { linkWhatsappSuporte } from "@/lib/suporte";
 
 /** De quanto em quanto tempo o chat aberto procura resposta nova. */
 const ATUALIZAR_A_CADA_MS = 15_000;
@@ -152,17 +151,6 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
                     <Balao autor="equipe" rotulo="ClicouAí">
                       Recebemos a sua mensagem! A nossa equipe responde por aqui mesmo, e você
                       recebe uma notificação e um e-mail quando a resposta chegar.
-                      {"\n\n"}
-                      Se for urgente,{" "}
-                      <a
-                        href={linkWhatsappSuporte()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-primary underline underline-offset-2"
-                      >
-                        chame no WhatsApp
-                      </a>
-                      .
                     </Balao>
                   )}
                 </div>

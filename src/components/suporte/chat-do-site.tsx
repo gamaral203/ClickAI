@@ -8,7 +8,7 @@ import { ChatSuporte } from "./chat-suporte";
 
 /**
  * Chat de ajuda do site, para quem compra: o cliente logado ou o visitante sem conta (pelo cookie
- * do chat). Tem o WhatsApp dentro. Lê a sessão e o cookie, então fica no seu próprio <Suspense>
+ * do chat). Lê a sessão e o cookie, então fica no seu próprio <Suspense>
  * para não segurar a página.
  */
 export function ChatDoSite() {

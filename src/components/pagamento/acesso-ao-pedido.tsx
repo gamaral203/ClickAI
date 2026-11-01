@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, FolderDown, Loader2, MailCheck, MessageCircle } from "lucide-react";
+import { Check, Copy, FolderDown, Loader2, MailCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { lembrarPedido } from "@/lib/pedidos-no-aparelho";
@@ -20,8 +20,7 @@ const EXTENSAO: Record<string, string> = {
 
 /**
  * O que segura o cliente na página do pedido pago: o aviso de guardar o link (e para qual e-mail
- * ele foi), "Baixar todas (ZIP)", "Copiar link" e "Me enviar no WhatsApp" (abre o WhatsApp da
- * pessoa com o link pronto). Também lembra o pedido neste navegador, para a faixa "Você tem fotos
+ * ele foi), "Baixar todas (ZIP)" e "Copiar link". Também lembra o pedido neste navegador, para a faixa "Você tem fotos
  * compradas" aparecer quando ela voltar ao site.
  */
 export function AcessoAoPedido({
@@ -54,7 +53,7 @@ export function AcessoAoPedido({
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
     } catch {
-      // Sem permissão: o botão do WhatsApp continua funcionando.
+      // Sem permissão: o mesmo link foi por e-mail.
     }
   }
 
@@ -92,10 +91,6 @@ export function AcessoAoPedido({
     }
   }
 
-  const whatsapp = `https://wa.me/?text=${encodeURIComponent(
-    `Minhas fotos do ClicouAí (link para baixar): ${link}`,
-  )}`;
-
   return (
     <div className="flex flex-col gap-3">
       <p className="flex items-start gap-2 rounded-xl bg-background/70 p-3 text-sm text-foreground">
@@ -125,15 +120,6 @@ export function AcessoAoPedido({
               : `Baixar todas (ZIP, ${arquivos.length})`}
           </Button>
         )}
-        <a
-          href={whatsapp}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#25D366] px-4 text-sm font-semibold text-[#0b3d1f] hover:bg-[#1fbe5b]"
-        >
-          <MessageCircle aria-hidden="true" className="size-4" />
-          Me enviar no WhatsApp
-        </a>
         <Button variant="outline" size="touch" onClick={() => void copiar()}>
           {copiado ? (
             <Check aria-hidden="true" data-icon="inline-start" />

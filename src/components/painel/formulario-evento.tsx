@@ -386,7 +386,7 @@ export function FormularioEvento({
               <span className="flex flex-col gap-0.5">
                 Ler número de peito nas fotos
                 <span className="text-muted-foreground">
-                  Os clientes acham as fotos pelo número de peito. Ligado por padrão em corridas,
+                  Guarda o número que aparece em cada foto. Ligado por padrão em corridas,
                   ciclismo, esportes e esportes aquáticos.
                 </span>
               </span>

@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, ExternalLink, Link2, MessageCircle } from "lucide-react";
+import { Check, Copy, ExternalLink, Link2 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 
 /** O link próprio do fotógrafo (/fotografo/<endereço>), para divulgar só os eventos dele. */
 export function LinkDoFotografo({ url, nome }: { url: string; nome: string }) {
   const [copiado, setCopiado] = useState(false);
-  const mensagem = `📸 Veja as fotos dos meus eventos no ClicouAí e encontre as suas com uma selfie: ${url}`;
 
   async function copiar() {
     try {
@@ -44,15 +43,6 @@ export function LinkDoFotografo({ url, nome }: { url: string; nome: string }) {
             {copiado ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
             {copiado ? "Copiado" : "Copiar"}
           </Button>
-          <a
-            href={`https://wa.me/?text=${encodeURIComponent(mensagem)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Enviar o link no WhatsApp"
-            className={buttonVariants({ variant: "outline", size: "touch" })}
-          >
-            <MessageCircle aria-hidden="true" />
-          </a>
           <a
             href={url}
             target="_blank"

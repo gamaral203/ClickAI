@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Download, MessageCircle, Palette, QrCode } from "lucide-react";
+import { Check, Copy, Download, Palette, QrCode } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Visibilidade } from "@/dados/tipos";
@@ -24,7 +24,7 @@ const AVISO: Record<Visibilidade, string | null> = {
 };
 
 /**
- * Divulgação do evento publicado: link para copiar, WhatsApp e QR Code para imprimir no local
+ * Divulgação do evento publicado: link para copiar, mensagem pronta e QR Code para imprimir no local
  * (cartaz, mesa de inscrição, telão). O QR Code chega pronto do servidor.
  */
 export function CompartilharEvento({
@@ -119,15 +119,6 @@ export function CompartilharEvento({
             className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           <div className="flex flex-wrap gap-2">
-            <a
-              href={`https://wa.me/?text=${encodeURIComponent(mensagem)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonVariants({ variant: "outline", size: "touch" })}
-            >
-              <MessageCircle aria-hidden="true" data-icon="inline-start" />
-              Enviar no WhatsApp
-            </a>
             <Button
               type="button"
               size="touch"
