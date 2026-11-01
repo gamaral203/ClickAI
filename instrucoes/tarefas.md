@@ -46,7 +46,6 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Lista de tarefas (este arquivo)
 - [x] Skill de segurança `vibe-code-security` e página de skills ([skills.md](skills.md))
 - [x] Skills de interface `ui-ux-pro-max` e `motion-framer`
-- [x] Referência de produto: Fotto ([referencias/fotto.md](referencias/fotto.md))
 - [x] Decisão: reconhecimento facial e numérico, vídeo e os 12 recursos da referência entram no MVP
 - [x] Decisão: só JPEG, sem RAW (revista em 09/10/2026: JPEG, PNG, WebP, TIFF, AVIF e HEIC convertido no navegador; RAW continua fora)
 - [x] Iniciar o projeto Next.js com TypeScript, Tailwind, shadcn/ui, ESLint e Prettier (Next.js 16)
@@ -262,7 +261,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Decisões de produto em aberto
 
-Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, o que a Fotto fez.
+Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, a prática comum do mercado.
 
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (só eventos)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (indeterminado)

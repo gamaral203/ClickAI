@@ -6,8 +6,6 @@ Oct 6, 2026 · @gabriel
 
 Um marketplace onde fotógrafos sobem fotos e vídeos de eventos e clientes encontram e compram os seus, pela selfie, pelo número de peito ou navegando na galeria. O cliente paga na conta da plataforma; o fotógrafo saca pelo painel, e a comissão da plataforma sai no saque.
 
-A referência de produto é a Fotto, resumida em [referencias/fotto.md](referencias/fotto.md). Ela orienta as decisões, mas não as fecha sozinha.
-
 **Premissas adotadas:**
 
 - Foco em fotos e vídeos de eventos (corridas, festas, formaturas, esportes), vendidos por item ou em pacote.
@@ -29,7 +27,7 @@ A referência de produto é a Fotto, resumida em [referencias/fotto.md](referenc
 - Denúncia de evento ou foto, com moderação pela equipe
 - Painel do fotógrafo com vendas, saldo e saque por Pix (Pix em 1 dia; cartão em 30 dias ou em 1 dia com a antecipação ligada), manual ou com transferência automática
 
-**Fora do MVP:** app mobile, plugin do Lightroom, upload em tempo real, desfoque contra print, marca d'água personalizada, planos pagos para fotógrafos e os demais itens listados em [referencias/fotto.md](referencias/fotto.md#o-que-adotamos-no-mvp).
+**Fora do MVP:** app mobile, plugin do Lightroom, upload em tempo real, desfoque contra print, marca d'água personalizada, planos pagos para fotógrafos e outros itens de escopo posterior.
 
 ## Stack técnica
 
@@ -146,7 +144,7 @@ Em `/admin/marca-dagua` (menu da gestão, "Marca d'água"; só gestor: `exigirGe
 - Usar o `foto_id` (UUID) como nome evita colisão e não expõe o nome original do arquivo.
 - O bucket público fica atrás de um domínio próprio na Cloudflare (ex.: `img.seusite.com.br`), com cache de CDN e sem listagem. As prévias de eventos com senha ou visíveis só após o reconhecimento também ficam nele: a proteção é o UUID impossível de adivinhar, não o bucket.
 - O original nunca tem URL pública: o download usa uma URL assinada válida por cerca de 15 minutos, gerada só para quem comprou.
-- Regra de retenção a decidir (a Fotto guarda por tempo indeterminado). Originais de itens vendidos seguem a regra de acesso do comprador (ver "Acesso às compras").
+- Regra de retenção a decidir (prática comum do mercado: guardar por tempo indeterminado). Originais de itens vendidos seguem a regra de acesso do comprador (ver "Acesso às compras").
 
 **Vídeos:**
 
@@ -542,7 +540,7 @@ O arquivo nunca é copiado para a conta de ninguém: o original fica uma vez só
 |---|---|---|
 | Pedido ligado a | `cliente_id` | `email_comprador` |
 | Como acessa | Área "Minhas compras" | Link enviado por e-mail ou WhatsApp, com token secreto |
-| Validade do acesso | Enquanto o original existir (ver retenção) | Prazo a decidir (`acesso_expira_em`); na Fotto o link do e-mail não expira |
+| Validade do acesso | Enquanto o original existir (ver retenção) | Prazo a decidir (`acesso_expira_em`); em plataformas semelhantes o link do e-mail não expira |
 | Link de download | URL assinada nova a cada clique, 15 min | URL assinada nova a cada clique, 15 min |
 
 - O token do convidado é gerado aleatoriamente; o banco guarda só o hash (`token_acesso_hash`), como uma senha.
@@ -582,7 +580,7 @@ Por enquanto o saque é manual: o pedido fica em `processando`, a gestão é avi
 
 1. O fotógrafo ativa a loja e escolhe nome, logo e cores. Ela fica num subdomínio da plataforma ou num domínio próprio, verificado pela API de domínios da Vercel. No domínio próprio, o `proxy.ts` reescreve a raiz de qualquer host desconhecido para `/loja/dominio/<host>`, e a página só abre a loja com o domínio já verificado (só com `APP_URL` configurado, para o domínio do site nunca ser confundido com o de uma loja).
 2. O `proxy.ts` (middleware) lê o host da requisição (pelo cabeçalho `Host`/`X-Forwarded-Host`) e reescreve a raiz do subdomínio para `/loja/<subdomínio>`, sem consultar o banco: quem confere se a loja existe e está ativa é a página. As páginas de evento e checkout são as mesmas do site em qualquer host; as cores da loja entram pelas variáveis do tema, com a cor do texto escolhida pelo contraste.
-3. Google Analytics e Tag Manager entram só pelo ID (`G-…` e `GTM-…`), validado por formato. Diferente da Fotto, não aceitamos HTML livre no cabeçalho (ver [riscos.md](riscos.md)).
+3. Google Analytics e Tag Manager entram só pelo ID (`G-…` e `GTM-…`), validado por formato. Ao contrário de outras plataformas, não aceitamos HTML livre no cabeçalho (ver [riscos.md](riscos.md)).
 
 **Denúncia**
 
@@ -678,11 +676,10 @@ Os 35 riscos mapeados, com como evitar e prioridade, estão em documento própri
 
 ## Decisões em aberto e próximos passos
 
-Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de começar o código. Entre parênteses, o que a Fotto fez.
+Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de começar o código. Entre parênteses, a prática comum do mercado.
 
 **Decisões fechadas (06/10/2026)**
 
-- [x] A Fotto é a referência de produto, sem fechar as decisões sozinha
 - [x] Reconhecimento facial e numérico no MVP
 - [x] Vídeo no MVP
 - [x] Só JPEG; RAW fora do escopo. Revista em 09/10/2026: os fotógrafos exportam em formatos e tamanhos diferentes, então passam a valer PNG, WebP, TIFF, AVIF e HEIC (convertido em JPEG no navegador, porque o Sharp pré-compilado não decodifica HEVC, por patentes; a conversão usa a heic-to, libheif compilada para JavaScript sem eval nem WebAssembly, LGPL-3.0, carregada só quando aparece um HEIC). RAW continua fora
@@ -694,14 +691,14 @@ Estas decisões mudam detalhes da arquitetura e precisam ser fechadas antes de c
 
 **Decisões em aberto**
 
-- [ ] Tipo de foto: só eventos, ou também banco de imagens? (Fotto: só eventos reais, banco de imagens proibido)
-- [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (Fotto: tempo indeterminado)
-- [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (Fotto: para sempre, inclusive pelo link do e-mail)
+- [ ] Tipo de foto: só eventos, ou também banco de imagens? (mercado: só eventos reais, banco de imagens proibido)
+- [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (mercado: tempo indeterminado)
+- [ ] Acesso do convidado e do cliente logado: com prazo ou para sempre? (mercado: para sempre, inclusive pelo link do e-mail)
 - [x] Banco gerenciado: Supabase (troca do Neon em 07/10/2026), na região São Paulo (`sa-east-1`). Usado só como Postgres: sem o login, o storage nem a API REST dele (usamos os nossos e o R2). Como o Supabase expõe o schema `public` pela API REST com a chave pública, toda tabela tem RLS ligado (`.enableRLS()` no schema, sem políticas) e os papéis `anon` e `authenticated` não têm acesso (migração 0002); o app conecta como dono das tabelas, que não passa pelo RLS. O app usa a URL do pooler em modo transaction (`DATABASE_URL` na produção, ou `POSTGRES_URL` da integração; porta 6543, driver node-postgres, sem prepared statements com nome e com uma consulta por vez em cada conexão: o pooler trava quando recebe a próxima consulta antes da resposta da anterior, o que o postgres.js fazia com consultas em paralelo); as migrações usam a conexão direta (`DATABASE_URL_DIRETA`, ou `POSTGRES_URL_NON_POOLING` da integração). No desenvolvimento local e nos testes, sem `DATABASE_URL`, o app usa o PGlite (Postgres em memória) com as mesmas migrações.
 - [x] Conexão com o banco: pool do node-postgres por instância (`src/db/conexao.ts`, singleton em `src/db/index.ts`; até 5 conexões, 15 s para abrir, sem `allowExitOnIdle`), pela URL do pooler em modo transaction (porta 6543). A Vercel congela a instância sem requisição em andamento; uma conexão em abertura nessa hora tem o relógio de 15 s disparado no descongelamento, antes de o socket ser lido, e a próxima requisição recebia "Connection terminated due to connection timeout" em ~0,1 s, com o banco saudável. Por isso o pool repete uma vez a abertura nesse erro (nenhum SQL foi enviado) e registra `[db] tempo de conexão estourado` como aviso; "timeout exceeded when trying to connect" (fila cheia, carga de verdade) não repete.
 - [x] Região do Amazon Rekognition: `sa-east-1` (São Paulo), que tem `IndexFaces` e `SearchFacesByImage`; as coleções com os rostos indexados, dado biométrico, ficam no Brasil (LGPD). Isso não basta para dizer que nada sai do Brasil: sem a política de opt-out de serviços de IA do AWS Organizations, a AWS pode guardar e usar as selfies e as fotos enviadas, inclusive em outras regiões ([seguranca.md](seguranca.md), item 20, passo obrigatório). Cota padrão nessa região: 5 chamadas por segundo para cada uma dessas operações (08/10/2026)
 - [x] Reconhecimento numérico: Amazon Rekognition `DetectText`, na mesma conta e região dos rostos (15/10/2026; ver "Número de peito").
-- [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (Fotto: sem custo para o fotógrafo)?
+- [ ] WhatsApp: Cloud API direto da Meta ou um parceiro? Quem paga as mensagens (mercado: sem custo para o fotógrafo)?
 - [ ] Onde roda o worker de vídeo: Fly.io ou Railway?
 
 **Próximos passos**
