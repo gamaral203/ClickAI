@@ -81,8 +81,7 @@ export function VideoDeFundo({ children }: { children: ReactNode }) {
           tabIndex={-1}
           disablePictureInPicture
           disableRemotePlayback
-          // O desfoque deixa o fundo calmo atrás do texto; a escala esconde a borda borrada.
-          className="pointer-events-none size-full scale-105 object-cover blur-[2px]"
+          className="pointer-events-none size-full object-cover"
         />
         {/*
           Película do azul profundo. No computador o texto fica à esquerda, então ela alivia só
