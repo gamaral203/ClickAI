@@ -22,6 +22,7 @@ describe("linksDoCabecalho", () => {
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil).toBeNull();
     expect(nav.rodape).toBe("completo");
+    expect(nav.chamada).toEqual({ href: "/vender-fotos", rotulo: "Quero vender minhas fotos" });
     expect(hrefs(nav.desktop)).toEqual(["/", "/eventos", "/recuperar-compras"]);
     expect(hrefs(nav.celular)).toEqual([
       "/",
@@ -40,10 +41,12 @@ describe("linksDoCabecalho", () => {
     expect(nav.carrinho).toBe(true);
     expect(nav.perfil?.href).toBe("/minhas-compras");
     expect(nav.rodape).toBe("completo");
+    expect(nav.chamada?.href).toBe("/vender-fotos");
     expect(hrefs(nav.celular)).toEqual([
       "/",
       "/eventos",
       "/minhas-compras",
+      "/vender-fotos",
       "/conta/seguranca",
       "/ajuda",
     ]);
@@ -55,6 +58,7 @@ describe("linksDoCabecalho", () => {
     expect(nav.variante).toBe("painel");
     expect(nav.carrinho).toBe(false);
     expect(nav.rodape).toBe("curto");
+    expect(nav.chamada).toBeNull();
     expect(nav.perfil?.href).toBe("/painel/perfil");
     expect(nav.desktop[0]).toEqual({ href: "/painel", rotulo: "Início", exato: true });
     expect(hrefs(nav.desktop)).toEqual([

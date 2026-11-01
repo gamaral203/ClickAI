@@ -20,6 +20,8 @@ export type Navegacao = {
   variante: "publico" | "painel";
   /** Links do cabeçalho no computador. */
   desktop: ItemNavegacao[];
+  /** Chamada de destaque para quem quer vender, ao lado dos links (só do lg em diante). */
+  chamada: ItemNavegacao | null;
   /** Links do menu do celular (o "Sair" fica fora: é um formulário). */
   celular: ItemNavegacao[];
   /** Link com o nome da pessoa (Minhas compras ou Perfil), ou `null` para o visitante. */
@@ -102,6 +104,9 @@ const ATALHOS_PAINEL: ItemNavegacao[] = [
   { href: "/painel/loja", rotulo: "Minha loja" },
 ];
 
+/** Chamada para quem quer vender: no cabeçalho do site de compra e no menu do celular. */
+const VENDER: ItemNavegacao = { href: "/vender-fotos", rotulo: "Quero vender minhas fotos" };
+
 const GESTAO: ItemNavegacao = { href: "/admin", rotulo: "Gestão" };
 const METAS: ItemNavegacao = { href: "/painel/metas", rotulo: "Metas" };
 /** O resto do menu lateral do painel, que no celular fica só no menu do cabeçalho. */
@@ -123,12 +128,13 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
     return {
       variante: "publico",
       desktop: [...PUBLICO, RECUPERAR],
+      chamada: VENDER,
       celular: [
         ...PUBLICO,
         RECUPERAR,
         { href: "/entrar", rotulo: "Entrar" },
         { href: "/cadastro", rotulo: "Criar conta" },
-        { href: "/vender-fotos", rotulo: "Quero vender minhas fotos" },
+        VENDER,
         AJUDA,
       ],
       perfil: null,
@@ -142,6 +148,7 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
     return {
       variante: "painel",
       desktop: atalhos,
+      chamada: null,
       celular: [...atalhos, METAS, ...MAIS_DO_PAINEL, PERFIL_PAINEL, SEGURANCA, AJUDA],
       perfil: PERFIL_PAINEL,
       carrinho: false,
@@ -153,7 +160,8 @@ export function linksDoCabecalho(usuario: UsuarioNavegacao): Navegacao {
   return {
     variante: "publico",
     desktop: PUBLICO,
-    celular: [...PUBLICO, compras, SEGURANCA, AJUDA],
+    chamada: VENDER,
+    celular: [...PUBLICO, compras, VENDER, SEGURANCA, AJUDA],
     perfil: compras,
     carrinho: true,
     rodape: "completo",

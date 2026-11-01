@@ -13,8 +13,8 @@ const estiloIcone =
   "inline-flex size-11 items-center justify-center rounded-lg text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
- * A conta no cabeçalho do site de compra (visitante e cliente). No celular, só o ícone da conta
- * (Entrar ou Minhas compras); o resto fica no menu, à esquerda. Do tablet em diante, "Entrar" com
+ * A conta no cabeçalho do site de compra (visitante e cliente). Até o lg, só o ícone da conta
+ * (Entrar ou Minhas compras); o resto fica no menu, à esquerda. Do lg em diante, "Entrar" com
  * o ícone, ou o nome e o Sair. Os links vêm de `linksDoCabecalho`.
  */
 export function AreaUsuario({
@@ -27,12 +27,12 @@ export function AreaUsuario({
   if (!usuario || !navegacao.perfil) {
     return (
       <>
-        <span className="md:hidden">
+        <span className="lg:hidden">
           <LinkConta href="/entrar" className={estiloIcone} rotulo="Entrar">
             <UserRound aria-hidden="true" className="size-5" />
           </LinkConta>
         </span>
-        <span className="hidden md:block">
+        <span className="hidden lg:block">
           <LinkConta href="/entrar" className={estiloLink}>
             <UserRound aria-hidden="true" className="size-5" />
             Entrar
@@ -48,11 +48,11 @@ export function AreaUsuario({
       <Link
         href={navegacao.perfil.href}
         aria-label={navegacao.perfil.rotulo}
-        className={`${estiloIcone} md:hidden`}
+        className={`${estiloIcone} lg:hidden`}
       >
         <UserRound aria-hidden="true" className="size-5" />
       </Link>
-      <div className="hidden items-center gap-1 md:flex">
+      <div className="hidden items-center gap-1 lg:flex">
         <Link href={navegacao.perfil.href} className={estiloLink}>
           <UserRound aria-hidden="true" className="size-5" />
           <span className="max-w-32 truncate">{primeiroNome}</span>
