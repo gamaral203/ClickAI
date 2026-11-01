@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Botões "Enviar no WhatsApp" (`wa.me`) de volta em `compartilhar-evento` e `link-do-fotografo` no painel (autorizado pelo dono); o campo de WhatsApp do checkout, o suporte, o chat e a busca por número continuam fora da tela
 - [x] Carrossel do topo de `/vender-fotos` horizontal (16:9 em todas as larguras, o vídeo preenche a caixa sem faixa preta; ao lado do título só do xl em diante); rótulo "Conheça o ClicouAí" inteiro no celular (vai para o canto de cima abaixo de 640 px); `arquitetura.md` registra que os números do vídeo são de demonstração
 - [x] Vídeo oficial do dono como primeiro slide do carrossel de `/vender-fotos` (`public/vitrine/video-fotografos.mp4` e pôster): 720p, sem áudio nem metadados, inteiro no carrossel e com a linha do CPF coberta. O vídeo mostra faturamento e histórico reais do painel e a aba Número de peito: o dono decide se fica assim antes de publicar
 - [x] Foto de divulgação do dono na seção de benefícios de `/vender-fotos` (`public/vitrine/corredora-apontando.webp`, sem metadados, fora do og:image)
