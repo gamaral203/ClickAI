@@ -10,7 +10,7 @@ import {
 import { EMPRESA_LINHA } from "@/lib/empresa";
 
 // Termos de uso. Rascunho que descreve as regras que o código já aplica (preços do servidor,
-// Pix de 1 hora, comissão de 8% no saque, antecipação com 2% a mais, saque só para o próprio
+// Pix de 1 hora, comissão de 8% no saque, antecipação opcional de 1,99% no cartão, saque só para o próprio
 // CPF/CNPJ). Precisa da revisão de um advogado antes do lançamento (docs/tarefas.md, Fase 14).
 // Se uma regra do código mudar, este texto muda junto.
 
@@ -62,8 +62,8 @@ export default function PaginaTermos() {
         <p>
           O ClicouAí é uma plataforma que liga fotógrafos de eventos a quem foi fotografado. Os
           fotógrafos publicam as fotos e vídeos, definem os preços e recebem pelas vendas; o
-          ClicouAí hospeda as galerias, oferece a busca por rosto, recebe os
-          pagamentos e entrega os arquivos comprados.
+          ClicouAí hospeda as galerias, oferece a busca por rosto, recebe os pagamentos e entrega os
+          arquivos comprados.
         </p>
         <p>
           <strong>Quem vende cada foto é o fotógrafo que a publicou.</strong> O ClicouAí atua como
@@ -161,12 +161,13 @@ export default function PaginaTermos() {
           </li>
           <li>
             <strong>Taxas.</strong> A comissão do ClicouAí é de <strong>8%</strong>, descontada no
-            saque. No saque normal, entram as vendas com 30 dias ou mais. No saque antecipado, você
-            pode sacar vendas a partir de 1 dia; sobre o valor que ainda não completou 30 dias, a
-            taxa é de <strong>10%</strong> (8% de comissão + 2% de antecipação). Depois do pedido, o
-            Pix é feito em até 1 dia. Nas vendas no cartão, a taxa do cartão é dividida: metade é
-            somada ao valor pago pelo cliente e metade sai da parte do fotógrafo. O saque mínimo é
-            de R$ 1,00 líquido. Não há mensalidade.
+            saque. As vendas no Pix ficam disponíveis 1 dia depois do pagamento, sem taxa extra. As
+            vendas no cartão ficam disponíveis em 30 dias, sem taxa extra; se você ligar a
+            antecipação do cartão, que é opcional, elas ficam disponíveis a partir de 1 dia, com
+            taxa de <strong>1,99%</strong> sobre o valor que ainda não completou 30 dias, além da
+            comissão. Depois do pedido, a equipe do ClicouAí faz o Pix em até 1 dia. Nas vendas no
+            cartão, a taxa do cartão é dividida: metade é somada ao valor pago pelo cliente e metade
+            sai da parte do fotógrafo. O saque mínimo é de R$ 1,00 líquido. Não há mensalidade.
           </li>
           <li>
             <strong>Estornos.</strong> Se uma venda for estornada ou contestada no cartão
@@ -213,9 +214,8 @@ export default function PaginaTermos() {
             acontecer interrupções para manutenção ou por falhas de serviços de terceiros.
           </li>
           <li>
-            A busca por rosto ajuda a encontrar as fotos, mas pode deixar de
-            mostrar alguma foto sua ou mostrar fotos de outra pessoa. Confira as prévias antes de
-            comprar.
+            A busca por rosto ajuda a encontrar as fotos, mas pode deixar de mostrar alguma foto sua
+            ou mostrar fotos de outra pessoa. Confira as prévias antes de comprar.
           </li>
           <li>
             O ClicouAí não responde pelo conteúdo publicado pelos fotógrafos, mas age para retirar o

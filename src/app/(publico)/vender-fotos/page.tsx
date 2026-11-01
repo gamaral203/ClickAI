@@ -186,7 +186,7 @@ export default function PaginaVenderFotos() {
     },
     {
       pergunta: "Quando o dinheiro fica disponível?",
-      resposta: `Vendas no Pix ficam disponíveis 1 dia depois do pagamento, sem taxa extra. Vendas no cartão ficam em 30 dias, sem taxa extra, ou em 1 dia se você ligar a antecipação do cartão. Depois do pedido de saque, o Pix é feito em até 1 dia. O saque mínimo é de ${formatarPreco(SAQUE_MINIMO_CENTAVOS)} líquido.`,
+      resposta: `Vendas no Pix ficam disponíveis 1 dia depois do pagamento, sem taxa extra. Vendas no cartão ficam em 30 dias, sem taxa extra, ou em 1 dia se você ligar a antecipação do cartão. Depois do pedido de saque, a equipe do ClicouAí faz o Pix em até 1 dia. O saque mínimo é de ${formatarPreco(SAQUE_MINIMO_CENTAVOS)} líquido.`,
     },
     {
       pergunta: "A antecipação é obrigatória?",
@@ -474,8 +474,8 @@ export default function PaginaVenderFotos() {
                 </li>
                 <li>
                   <strong className="text-white">Saque:</strong> mínimo de{" "}
-                  {formatarPreco(SAQUE_MINIMO_CENTAVOS)} líquido, com o Pix feito em até 1 dia
-                  depois do pedido.
+                  {formatarPreco(SAQUE_MINIMO_CENTAVOS)} líquido. Depois do pedido, a equipe do
+                  ClicouAí faz o Pix em até 1 dia.
                 </li>
                 <li>
                   <strong className="text-white">Colaboradores:</strong> quando há divisão, cada um

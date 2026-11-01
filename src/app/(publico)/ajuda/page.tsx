@@ -87,8 +87,8 @@ const paraQuemCompra: Artigo[] = [
       <>
         <p>
           Assim que o pagamento é confirmado, a página do pedido mostra o botão{" "}
-          <strong>Baixar</strong> em cada foto. Você também recebe o link por e-mail. As fotos vêm no tamanho original, sem marca d&apos;água, e podem ser
-          baixadas quantas vezes quiser.
+          <strong>Baixar</strong> em cada foto. Você também recebe o link por e-mail. As fotos vêm
+          no tamanho original, sem marca d&apos;água, e podem ser baixadas quantas vezes quiser.
         </p>
         <p>
           <strong>Fechou a página ou perdeu o e-mail?</strong> Em{" "}
@@ -245,8 +245,8 @@ const paraQuemVende: Artigo[] = [
     corpo: (
       <p>
         Ao publicar, o painel mostra o link do evento, o QR Code para imprimir, uma mensagem pronta
-        para compartilhar e imagens de story e feed com o QR Code. Você também tem um link próprio com
-        todos os seus eventos.
+        para compartilhar e imagens de story e feed com o QR Code. Você também tem um link próprio
+        com todos os seus eventos.
       </p>
     ),
   },
@@ -270,9 +270,11 @@ const paraQuemVende: Artigo[] = [
       <>
         <p>
           Não há mensalidade nem custo para publicar. A comissão do ClicouAí é descontada só na hora
-          do saque, e o Financeiro já mostra quanto você recebe. Se você antecipar, as vendas com
-          menos de 30 dias pagam <strong>1,99% de antecipação</strong>. Nas vendas no cartão, a taxa
-          do cartão é dividida: metade o cliente paga e metade sai da sua parte.
+          do saque, e o Financeiro já mostra quanto você recebe. As vendas no Pix ficam disponíveis
+          em 1 dia, sem taxa extra. As vendas no cartão ficam disponíveis em 30 dias, sem taxa
+          extra; se você ligar a antecipação do cartão, que é opcional, ficam disponíveis em 1 dia e
+          as que têm menos de 30 dias pagam <strong>1,99% de antecipação</strong>. Nas vendas no
+          cartão, a taxa do cartão é dividida: metade o cliente paga e metade sai da sua parte.
         </p>
         <p>
           Em <strong>Financeiro</strong>, cada venda mostra quanto o cliente pagou, a sua parte, a
@@ -288,11 +290,16 @@ const paraQuemVende: Artigo[] = [
       <>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Saque normal:</strong> as vendas com 30 dias ou mais.
+            <strong>Vendas no Pix:</strong> entram no saque 1 dia depois do pagamento, sem taxa
+            extra.
           </li>
           <li>
-            <strong>Saque antecipado:</strong> as vendas a partir de 1 dia; o que ainda não tem 30
-            dias paga 1,99% de antecipação.
+            <strong>Vendas no cartão:</strong> entram no saque em 30 dias, sem taxa extra.
+          </li>
+          <li>
+            <strong>Antecipação do cartão (opcional):</strong> com ela ligada, as vendas no cartão
+            entram a partir de 1 dia; o que ainda não tem 30 dias paga 1,99%. O Pix nunca paga essa
+            taxa.
           </li>
           <li>
             Depois do pedido, a equipe do ClicouAí faz o Pix em até <strong>1 dia</strong> e você
