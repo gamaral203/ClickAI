@@ -11,12 +11,13 @@ import { enviarSemLimpar } from "@/lib/formulario";
 
 const inicial: EstadoConfiguracoes = {};
 
-/** Cotação do dólar (à mão) e limites do plano do Resend. */
+/** Cotação do dólar (à mão), limites do plano do Resend e o total de créditos da AWS. */
 export function FormularioConfiguracoes({
   cotacao,
   cotacaoAtualizada,
   limiteDia,
   limiteMes,
+  creditosAws,
 }: {
   /** Cotação já em texto ("5,45"), ou vazio. */
   cotacao: string;
@@ -24,12 +25,14 @@ export function FormularioConfiguracoes({
   cotacaoAtualizada: string | null;
   limiteDia: number;
   limiteMes: number;
+  /** Total de créditos da AWS já em texto ("100,00"). */
+  creditosAws: string;
 }) {
   const [estado, acao, salvando] = useActionState(salvarConfiguracoesAcao, inicial);
   const erros = estado.erros ?? {};
   return (
     <form onSubmit={enviarSemLimpar(acao)} noValidate className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Campo
           rotulo="Cotação US$ 1 = R$"
           id="config-cotacao"
@@ -72,6 +75,22 @@ export function FormularioConfiguracoes({
             name="limiteMes"
             defaultValue={String(limiteMes)}
             inputMode="numeric"
+            autoComplete="off"
+            className="h-11 tabular-nums"
+          />
+        </Campo>
+        <Campo
+          rotulo="Créditos da AWS (total, US$)"
+          id="config-creditos-aws"
+          erro={erros.creditosAws}
+          ajuda="Plano gratuito: US$ 100. A AWS informa só o restante; o usado é a diferença."
+        >
+          <Input
+            {...propsDeErro("config-creditos-aws", erros.creditosAws)}
+            name="creditosAws"
+            defaultValue={creditosAws}
+            inputMode="decimal"
+            placeholder="100,00"
             autoComplete="off"
             className="h-11 tabular-nums"
           />

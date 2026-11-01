@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CalendarClock,
   CalendarRange,
+  Coins,
   CreditCard,
   ExternalLink,
   HardDrive,
@@ -34,14 +35,23 @@ import {
   type ConfiguracoesGestao,
   type UsoInterno,
 } from "@/dados";
+import { lerCreditosAws } from "@/lib/creditos-aws";
+import { formatarDolares } from "@/lib/custo-reconhecimento";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { textoCotacao } from "@/lib/financeiro-plataforma";
-import { formatarBytes, formatarDataCurta, formatarPreco } from "@/lib/formatar";
+import {
+  formatarBytes,
+  formatarData,
+  formatarDataCurta,
+  formatarHora,
+  formatarPreco,
+} from "@/lib/formatar";
 import {
   BYTES_ORIGINAL_ESTIMADO,
   BYTES_PREVIA_ESTIMADA,
   CATEGORIAS_ASSINATURA,
   custoR2CentavosUsd,
+  diasParaExpirar,
   diasParaVencer,
   dolarParaReal,
   FRACAO_ALERTA,
@@ -51,9 +61,12 @@ import {
   hojeEmBrasilia,
   periodoDoMes,
   R2_GB_GRATIS,
+  resumirCreditosAws,
   resumirGastos,
   ROTULO_CATEGORIA,
   ROTULO_CICLO,
+  textoAtualizadoHa,
+  textoDaExpiracao,
   textoDoVencimento,
   type CategoriaAssinatura,
 } from "@/lib/painel-de-uso";
@@ -158,7 +171,7 @@ async function Conteudo({
         />
         <details className="group rounded-xl border bg-card">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-semibold [&::-webkit-details-marker]:hidden">
-            Cotação do dólar e limites de e-mail
+            Cotação do dólar, limites de e-mail e créditos da AWS
             <span className="text-sm font-normal text-muted-foreground group-open:hidden">
               {config.cotacaoUsdCentavos
                 ? `US$ 1 = ${formatarPreco(config.cotacaoUsdCentavos)}`
@@ -175,6 +188,7 @@ async function Conteudo({
               }
               limiteDia={config.limiteEmailDia}
               limiteMes={config.limiteEmailMes}
+              creditosAws={centavosParaCampo(config.creditosAwsTotalCentavos)}
             />
           </div>
         </details>
@@ -207,7 +221,7 @@ async function Conteudo({
             ))}
           </nav>
         </div>
-        <UsoDoSistema uso={uso} config={config} periodo={periodo} />
+        <UsoDoSistema uso={uso} config={config} periodo={periodo} agora={agora} />
       </section>
     </>
   );
@@ -292,7 +306,18 @@ function Vencimento({ renovaEm, agora }: { renovaEm: string | null; agora: numbe
 }
 
 /** Barra de progresso em CSS. Acima de 80% fica âmbar; no limite ou acima, vermelha. */
-function Barra({ usado, limite, rotulo }: { usado: number; limite: number; rotulo: string }) {
+function Barra({
+  usado,
+  limite,
+  rotulo,
+  formatar = n,
+}: {
+  usado: number;
+  limite: number;
+  rotulo: string;
+  /** Como escrever os valores (padrão: número inteiro, "1.234"). */
+  formatar?: (valor: number) => string;
+}) {
   const fracao = fracaoDoLimite(usado, limite);
   const cor =
     fracao >= 1 ? "bg-destructive" : fracao >= FRACAO_ALERTA ? "bg-amber-500" : "bg-primary";
@@ -301,9 +326,9 @@ function Barra({ usado, limite, rotulo }: { usado: number; limite: number; rotul
       <div className="flex items-baseline justify-between gap-3 text-sm">
         <span className="text-muted-foreground">{rotulo}</span>
         <span className="font-semibold tabular-nums">
-          {usado.toLocaleString("pt-BR")}{" "}
+          {formatar(usado)}{" "}
           <span className="font-normal text-muted-foreground">
-            de {limite.toLocaleString("pt-BR")} ({Math.round(fracao * 100)}%)
+            de {formatar(limite)} ({Math.round(fracao * 100)}%)
           </span>
         </span>
       </div>
@@ -743,10 +768,12 @@ function UsoDoSistema({
   uso,
   config,
   periodo,
+  agora,
 }: {
   uso: UsoInterno;
   config: ConfiguracoesGestao;
   periodo: "atual" | "anterior";
+  agora: number;
 }) {
   const { emails, midia, busca, armazenamento, pedidos } = uso;
   const alerta =
@@ -894,6 +921,10 @@ function UsoDoSistema({
         </p>
       </Quadro>
 
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-xl border bg-muted" />}>
+        <QuadroCreditosAws config={config} agora={agora} />
+      </Suspense>
+
       <Quadro
         icone={<ShoppingBag aria-hidden="true" className="size-4" />}
         titulo="Pedidos e vendas"
@@ -909,5 +940,170 @@ function UsoDoSistema({
         </div>
       </Quadro>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- Créditos da AWS
+
+const usd = (centavos: number) => formatarDolares(centavos / 100);
+
+const ROTULO_PLANO_AWS = { FREE: "gratuito", PAID: "pago" } as const;
+const ROTULO_SITUACAO_AWS = {
+  ACTIVE: "ativo",
+  EXPIRED: "expirado",
+  NOT_STARTED: "não iniciado",
+} as const;
+
+function AvisoDoQuadro({
+  tom,
+  children,
+}: {
+  tom: "ambar" | "vermelho";
+  children: React.ReactNode;
+}) {
+  const cor =
+    tom === "vermelho"
+      ? "bg-red-50 text-red-800 ring-red-600/20 dark:bg-red-950 dark:text-red-200"
+      : "bg-amber-50 text-amber-900 ring-amber-600/25 dark:bg-amber-950 dark:text-amber-100";
+  return (
+    <p
+      role="alert"
+      className={`flex items-start gap-2 rounded-lg p-3 text-sm ring-1 ring-inset ${cor}`}
+    >
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * Créditos da conta da AWS (plano gratuito): lidos na API Free Tier com cache de 1 hora. Qualquer
+ * falha da AWS fica só neste quadro; o resto do painel não depende dele.
+ */
+async function QuadroCreditosAws({
+  config,
+  agora,
+}: {
+  config: ConfiguracoesGestao;
+  agora: number;
+}) {
+  const leitura = await lerCreditosAws();
+  const icone = <Coins aria-hidden="true" className="size-4" />;
+  const titulo = "Créditos AWS";
+
+  if (leitura.estado === "nao-configurado") {
+    return (
+      <Quadro icone={icone} titulo={titulo}>
+        <p className="text-sm text-muted-foreground">
+          Não configurado: sem as chaves <code>REKOGNITION_*</code> (desenvolvimento ou dados de
+          exemplo), o painel não consulta a AWS.
+        </p>
+      </Quadro>
+    );
+  }
+
+  const lida = `Lido às ${formatarHora(Date.parse(leitura.lidoEm))} (${textoAtualizadoHa(leitura.lidoEm, agora)}); a leitura vale por 1 hora.`;
+
+  if (leitura.estado === "sem-permissao") {
+    return (
+      <Quadro icone={icone} titulo={titulo} nota={lida}>
+        <AvisoDoQuadro tom="ambar">
+          Sem permissão <code>freetier:GetAccountPlanState</code> no usuário IAM do Rekognition;
+          veja instrucoes/deploy.md.
+        </AvisoDoQuadro>
+      </Quadro>
+    );
+  }
+  if (leitura.estado === "falha") {
+    return (
+      <Quadro icone={icone} titulo={titulo} nota={lida}>
+        <AvisoDoQuadro tom="ambar">
+          Não deu para ler os créditos na AWS agora (<code>{leitura.erro}</code>). O painel tenta de
+          novo em alguns minutos.
+        </AvisoDoQuadro>
+      </Quadro>
+    );
+  }
+
+  const plano = leitura.plano
+    ? `Plano ${ROTULO_PLANO_AWS[leitura.plano]}${leitura.situacao ? ` (${ROTULO_SITUACAO_AWS[leitura.situacao]})` : ""}`
+    : null;
+  const dias = leitura.expiraEm ? diasParaExpirar(leitura.expiraEm, agora) : null;
+  const validade =
+    leitura.expiraEm && dias !== null ? (
+      <p className="text-sm">
+        <span className="text-muted-foreground">Valem até </span>
+        <span className="font-semibold">{formatarData(leitura.expiraEm)}</span>
+        <span className="text-muted-foreground"> · {textoDaExpiracao(dias)}</span>
+      </p>
+    ) : null;
+
+  if (leitura.restanteCentavos === null) {
+    return (
+      <Quadro icone={icone} titulo={titulo} nota={lida}>
+        <p className="text-sm text-muted-foreground">
+          A AWS não informou créditos para esta conta{plano ? ` (${plano.toLowerCase()})` : ""}.
+        </p>
+        {validade}
+      </Quadro>
+    );
+  }
+
+  const r = resumirCreditosAws(leitura.restanteCentavos, config.creditosAwsTotalCentavos);
+  const emReais = (centavos: number) =>
+    config.cotacaoUsdCentavos
+      ? ` (≈ ${formatarPreco(dolarParaReal(centavos, config.cotacaoUsdCentavos))})`
+      : "";
+  const gratuito = leitura.plano === "FREE";
+  const expirado = leitura.situacao === "EXPIRED" || (dias !== null && dias < 0);
+  const fechamento =
+    " No plano gratuito, a conta da AWS é fechada quando os créditos acabam ou vencem";
+  const alerta = expirado
+    ? null
+    : r.fracaoUsada >= FRACAO_ALERTA
+      ? "Passou de 80% dos créditos."
+      : dias !== null && dias <= 30
+        ? "Os créditos vencem em até 30 dias."
+        : null;
+
+  return (
+    <Quadro
+      icone={icone}
+      titulo={titulo}
+      nota={
+        <>
+          {lida} A AWS informa só o restante; o total ({usd(r.totalCentavos)}) vem das configurações
+          acima
+          {r.totalAjustado && " e foi trocado pelo restante, que passou dele: confira o total"}.
+          Situação atual, não do período.
+        </>
+      }
+    >
+      {expirado && (
+        <AvisoDoQuadro tom="vermelho">
+          O plano da AWS expirou.
+          {gratuito && `${fechamento}: passe para o plano pago para não perder o Rekognition.`}
+        </AvisoDoQuadro>
+      )}
+      {alerta && (
+        <AvisoDoQuadro tom="ambar">
+          {alerta}
+          {gratuito && `${fechamento}: considere passar para o plano pago antes.`}
+        </AvisoDoQuadro>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        <Numero
+          valor={usd(r.usadoCentavos)}
+          rotulo={`usados de ${usd(r.totalCentavos)}${emReais(r.usadoCentavos)}`}
+        />
+        <Numero
+          valor={usd(r.restanteCentavos)}
+          rotulo={`restantes${emReais(r.restanteCentavos)}`}
+        />
+      </div>
+      <Barra usado={r.usadoCentavos} limite={r.totalCentavos} rotulo="Usados" formatar={usd} />
+      {validade}
+      {plano && <p className="text-xs text-muted-foreground">{plano}</p>}
+    </Quadro>
   );
 }

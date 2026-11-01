@@ -18,6 +18,7 @@ import {
 import {
   CONFIG,
   CONTADOR,
+  CREDITOS_AWS_TOTAL_PADRAO_CENTAVOS,
   hojeEmBrasilia,
   LIMITE_EMAIL_DIA_PADRAO,
   LIMITE_EMAIL_MES_PADRAO,
@@ -204,6 +205,8 @@ export type ConfiguracoesGestao = {
   cotacaoAtualizadaEm: string | null;
   limiteEmailDia: number;
   limiteEmailMes: number;
+  /** Total de créditos da conta da AWS, em centavos de dólar (padrão US$ 100). */
+  creditosAwsTotalCentavos: number;
   /**
    * Cotação de referência com 4 casas (dez-milésimos: 53495 = R$ 5,3495) para as cobranças novas
    * em dólar. Sem a de 4 casas, vem da de centavos; sem nenhuma, a inicial (R$ 5,3495).
@@ -233,6 +236,8 @@ export async function lerConfiguracoesGestao(): Promise<ConfiguracoesGestao> {
     cotacaoAtualizadaEm: cotacao?.atualizadoEm.toISOString() ?? null,
     limiteEmailDia: mapa.get(CONFIG.limiteEmailDia)?.valor ?? LIMITE_EMAIL_DIA_PADRAO,
     limiteEmailMes: mapa.get(CONFIG.limiteEmailMes)?.valor ?? LIMITE_EMAIL_MES_PADRAO,
+    creditosAwsTotalCentavos:
+      mapa.get(CONFIG.creditosAwsTotal)?.valor ?? CREDITOS_AWS_TOTAL_PADRAO_CENTAVOS,
     cotacaoDezMilesimos: precisa ?? (cotacao ? cotacao.valor * 100 : COTACAO_PADRAO_DEZ_MILESIMOS),
     taxas: {
       pixPb: mapa.get(CONFIG.taxaPixPb)?.valor ?? TAXA_PIX_PB_PADRAO,

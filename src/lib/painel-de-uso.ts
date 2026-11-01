@@ -57,6 +57,8 @@ export const CONFIG = {
   saldoMpDia: "saldo_mp_informado_dia",
   limiteEmailDia: "limite_email_dia",
   limiteEmailMes: "limite_email_mes",
+  /** Total de créditos da conta da AWS em centavos de dólar (a AWS informa só o restante). */
+  creditosAwsTotal: "creditos_aws_total_centavos",
 } as const;
 
 /** Plano gratuito do Resend (padrão até a gestão mudar). */
@@ -365,4 +367,72 @@ export function custoR2CentavosUsd(bytes: number) {
 /** Fração usada de um limite (0 a 1+); limite zero ou ausente → 0. */
 export function fracaoDoLimite(usado: number, limite: number) {
   return limite > 0 ? usado / limite : 0;
+}
+
+// ---------------------------------------------------------------- Créditos da AWS
+
+/**
+ * Total de créditos da conta da AWS até a gestão mudar: US$ 100, o que o plano gratuito novo dá
+ * na criação da conta (as atividades do plano podem somar mais US$ 100). Centavos de dólar.
+ */
+export const CREDITOS_AWS_TOTAL_PADRAO_CENTAVOS = 10_000;
+/** Teto do campo do total: US$ 10.000,00. */
+export const CREDITOS_AWS_TOTAL_MAXIMO_CENTAVOS = 1_000_000;
+
+/** Valor em dólares vindo da AWS (número com casas, ex.: 43.76) → centavos; inválido → `null`. */
+export function dolaresParaCentavos(valor: unknown): number | null {
+  if (typeof valor !== "number" || !Number.isFinite(valor) || valor < 0) return null;
+  return Math.round(valor * 100);
+}
+
+export type ResumoCreditosAws = {
+  totalCentavos: number;
+  usadoCentavos: number;
+  restanteCentavos: number;
+  /** De 0 a 1. */
+  fracaoUsada: number;
+  /** O restante informado pela AWS passou do total configurado (que então vira o restante). */
+  totalAjustado: boolean;
+};
+
+/** Usado = total − restante. Tudo em centavos de dólar. */
+export function resumirCreditosAws(
+  restanteCentavos: number,
+  totalConfiguradoCentavos: number,
+): ResumoCreditosAws {
+  const restante = Math.max(0, Math.round(restanteCentavos));
+  const totalAjustado = restante > totalConfiguradoCentavos;
+  const total = Math.max(totalConfiguradoCentavos, restante);
+  const usado = total - restante;
+  return {
+    totalCentavos: total,
+    usadoCentavos: usado,
+    restanteCentavos: restante,
+    fracaoUsada: fracaoDoLimite(usado, total),
+    totalAjustado,
+  };
+}
+
+/** Dias de calendário (Brasília) até a expiração (0 = expira hoje, negativo = expirou). */
+export function diasParaExpirar(expiraEm: string, agora: number = Date.now()) {
+  return diasEntre(hojeEmBrasilia(agora), hojeEmBrasilia(Date.parse(expiraEm)));
+}
+
+/** "expira hoje", "expira amanhã", "expira em 73 dias", "expirou ontem", "expirou há 3 dias". */
+export function textoDaExpiracao(dias: number) {
+  if (dias === 0) return "expira hoje";
+  if (dias === 1) return "expira amanhã";
+  if (dias > 1) return `expira em ${dias} dias`;
+  return dias === -1 ? "expirou ontem" : `expirou há ${-dias} dias`;
+}
+
+/** Há quanto tempo foi a leitura: "agora há pouco", "há 5 min", "há 2 h", "há 1 dia". */
+export function textoAtualizadoHa(lidoEm: string, agora: number = Date.now()) {
+  const minutos = Math.floor((agora - Date.parse(lidoEm)) / 60_000);
+  if (!Number.isFinite(minutos) || minutos < 1) return "agora há pouco";
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `há ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return dias === 1 ? "há 1 dia" : `há ${dias} dias`;
 }
