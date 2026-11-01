@@ -43,8 +43,7 @@ import { gerarHashSenha } from "@/lib/senha";
 import { gerarSlug } from "@/lib/slug";
 import { ehNomeDeRaw, FORMATOS_ACEITOS, MENSAGEM_RAW } from "@/lib/tipos-imagem";
 import { UFS } from "@/lib/ufs";
-import { iniciarEnvio, pastaDeDestino, type ItemDoEnvio } from "@/servicos/envios";
-import { limiteAtingido } from "@/servicos/limites";
+import { pastaDeDestino } from "@/servicos/envios";
 import { MENSAGEM_PENDENCIA_RECEBIMENTO, pendenciaDeRecebimento } from "@/servicos/saques";
 import { recusarSeEmManutencao } from "@/servicos/manutencao";
 import { exigirFotografo } from "@/servicos/sessao";
@@ -319,7 +318,7 @@ const arquivos = z
 /**
  * Envio simulado (só fora da produção e sem o R2 configurado): recebe só nome e tamanho dos
  * arquivos já conferidos no navegador e cria os itens com imagens de exemplo. Com o R2, o
- * painel usa iniciarEnvioAcao e a rota /api/envios/processar (docs/arquitetura.md, "Upload").
+ * painel usa as rotas /api/envios/iniciar e /api/envios/processar (docs/arquitetura.md, "Upload").
  */
 export async function enviarFotosAcao(
   eventoId: string,
@@ -368,28 +367,6 @@ export async function enviarFotosAcao(
   revalidatePath(`/painel/eventos/${eventoId}`);
   revalidatePath("/painel/colaboracoes");
   return { enviados: criados.length, repetidas };
-}
-
-/**
- * Envio real, passo 1: registra um lote de fotos (até FOTOS_POR_LOTE; o navegador divide a
- * seleção, sem limite de quantidade) em `processando` e devolve as URLs assinadas para o
- * navegador mandar cada foto direto ao R2 (o arquivo não passa por aqui). O passo 2, conferir e
- * processar cada foto, é a rota /api/envios/processar, chamada várias vezes ao mesmo tempo.
- */
-export async function iniciarEnvioAcao(
-  eventoId: string,
-  lista: unknown,
-  liberacao: unknown = null,
-  pastaId: unknown = null,
-): Promise<{ erro: string } | { itens: ItemDoEnvio[] }> {
-  const { conta } = await exigirFotografo("/painel/eventos");
-  // Modo de manutenção (docs/arquitetura.md, "Modo de manutenção").
-  const manutencao = await recusarSeEmManutencao();
-  if (manutencao) return { erro: manutencao };
-  if (await limiteAtingido("url_envio_usuario", conta.id)) {
-    return { erro: "Muitos envios seguidos. Espere alguns minutos e continue." };
-  }
-  return iniciarEnvio(conta.id, eventoId, lista, liberacao, pastaId);
 }
 
 /** Fotos por consulta da situação do envio (a tela divide as que acompanha). */

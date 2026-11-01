@@ -4,11 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { TriangleAlert, Camera, ImageUp, Loader2, Plus, RotateCw, XCircle } from "lucide-react";
 
-import {
-  enviarFotosAcao,
-  iniciarEnvioAcao,
-  situacaoDoEnvioAcao,
-} from "@/app/(fotografo)/painel/eventos/acoes";
+import { enviarFotosAcao, situacaoDoEnvioAcao } from "@/app/(fotografo)/painel/eventos/acoes";
 import { DiafragmaProgresso } from "@/components/painel/diafragma-progresso";
 import { Button } from "@/components/ui/button";
 import { emParalelo, esperaDaTentativa } from "@/lib/concorrencia";
@@ -19,6 +15,19 @@ import {
   type FaixaDeConcorrencia,
 } from "@/lib/concorrencia-adaptativa";
 import { impressaoDoBlob } from "@/lib/impressao-arquivo";
+import {
+  avisoDeParada,
+  CircuitoDeLeitura,
+  comNovasTentativas,
+  comTempoLimite,
+  leituraEstaLenta,
+  lerComProtecao,
+  LIMITE_CONFERENCIA_MS,
+  LIMITE_IMPRESSAO_MS,
+  MENSAGEM_ARQUIVO_ILEGIVEL,
+  MENSAGEM_LEITURA,
+  OperacaoCancelada,
+} from "@/lib/leitura-arquivo";
 import { instanteDoCampo, type EscolhaLiberacao, type ModoLiberacao } from "@/lib/liberacao";
 import { progressoDoEnvio, type EstadoDoArquivo } from "@/lib/progresso-envio";
 import {
@@ -48,8 +57,11 @@ import {
 } from "@/lib/tipos-video";
 
 // Envio de fotos do evento (docs/arquitetura.md, "Upload"). Sem limite de quantidade: o
-// fotógrafo escolhe quantas quiser (3.000 de uma vez) e o envio vai em três etapas que correm
-// juntas, como uma linha de montagem:
+// fotógrafo escolhe quantas quiser (3.000 de uma vez). A conferência dos arquivos (tipo e tamanho,
+// pelos primeiros bytes) corre em segundo plano, com progresso, tempo-limite por arquivo e Cancelar
+// (src/lib/leitura-arquivo.ts): nenhum arquivo preso segura a tela e o envio pode começar antes de
+// ela terminar, conferindo cada lote na hora. O envio vai em três etapas que correm juntas, como
+// uma linha de montagem:
 //   1. lotes de FOTOS_POR_LOTE (o primeiro menor, para começar logo): converte HEIC para JPEG,
 //      calcula a impressão de cada arquivo (src/lib/impressao-arquivo.ts, ~3 MB lidos por foto)
 //      e pede as URLs assinadas ao servidor, à frente do envio;
@@ -95,6 +107,19 @@ const PROBLEMAS_NA_TELA = 200;
 const JANELA_VELOCIDADE_MS = 8000;
 /** Janela do ajuste de concorrência. */
 const JANELA_AJUSTE_MS = 5000;
+/** Conferências de arquivo ao mesmo tempo (cada uma lê só os primeiros 64 KB). */
+const CONFERENCIAS_SIMULTANEAS = 16;
+/** Tempo-limite do pedido de URLs de um lote, e quantas vezes tenta. */
+const LIMITE_URLS_MS = 45_000;
+const TENTATIVAS_URLS = 4;
+/** Tempo-limite de uma chamada de processamento (a rota vai até 300 s; uma foto leva segundos). */
+const LIMITE_PROCESSAR_MS = 180_000;
+/** Tempo-limite das outras chamadas curtas (partes, entrega, consulta). */
+const LIMITE_CHAMADA_MS = 45_000;
+/** PUT sem nenhum avanço por este tempo é abandonado (e tentado de novo). */
+const LIMITE_PUT_PARADO_MS = 120_000;
+/** Tempo-limite da conversão de um HEIC (pesada, mas não leva minutos). */
+const LIMITE_HEIC_MS = 180_000;
 /** Qualidade do JPEG gerado a partir do HEIC (vira o original vendido). */
 const QUALIDADE_HEIC = 0.95;
 /** Intervalo da consulta das fotos entregues ao servidor, até ficarem prontas. */
@@ -130,6 +155,12 @@ type Item = {
   estado: Estado;
   /** Motivo da recusa ou do erro. */
   problema: string | null;
+  /** A conferência terminou (bem ou mal). */
+  conferida: boolean;
+  /** Conferência em andamento ou feita: a mesma para a fila de fundo e para o lote do envio. */
+  conferencia: Promise<void> | null;
+  /** A leitura do arquivo falhou (não é recusa de formato): pode ser tentada de novo. */
+  ilegivel: boolean;
   /** Bytes já enviados ao R2. */
   enviados: number;
   /** Destino do envio (id da foto no servidor e URL assinada ou partes) e quando foi pedido. */
@@ -221,8 +252,44 @@ function ehIos() {
 }
 
 /** Conferência rápida (sem ler o arquivo todo): tamanho e tipo real pelos primeiros bytes. */
-async function conferir(arquivo: File, aceitaVideo: boolean): Promise<Item> {
-  const item: Item = {
+async function conferir(arquivo: File, aceitaVideo: boolean): Promise<Partial<Item>> {
+  const inicio = new Uint8Array(await arquivo.slice(0, BYTES_PARA_DETECTAR).arrayBuffer());
+  const video = detectarVideo(inicio);
+  if (video || arquivo.type.startsWith("video/")) {
+    if (!aceitaVideo) {
+      return { estado: "recusada", problema: "O envio de vídeos ainda não está disponível." };
+    }
+    if (!video) return { estado: "recusada", problema: MENSAGEM_FORMATO_VIDEO };
+    if (arquivo.size > LIMITE_VIDEO_BYTES) {
+      return { estado: "recusada", problema: `Maior que ${LIMITE_VIDEO_TEXTO}.` };
+    }
+    const duracao = await duracaoDoVideo(arquivo);
+    if (duracao === null) {
+      return {
+        estado: "recusada",
+        problema: "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie.",
+      };
+    }
+    if (duracao > DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S) {
+      return { estado: "recusada", problema: MENSAGEM_VIDEO_LONGO };
+    }
+    return { formato: video, duracaoS: duracao };
+  }
+  const formato = detectarFormato(inicio, arquivo.name);
+  if (formato === "raw") return { estado: "recusada", problema: MENSAGEM_RAW };
+  if (!formato) return { estado: "recusada", problema: MENSAGEM_FORMATO };
+  // O HEIC é conferido depois de convertido (o JPEG costuma ficar maior).
+  if (formato !== "heic" && arquivo.size > LIMITE_FOTO_BYTES) {
+    return {
+      estado: "recusada",
+      problema: `Maior que ${LIMITE_FOTO_TEXTO}. Exporte em JPEG ou com compressão e envie.`,
+    };
+  }
+  return { formato };
+}
+
+function itemNovo(arquivo: File): Item {
+  return {
     arquivo,
     formato: null,
     convertida: false,
@@ -231,46 +298,10 @@ async function conferir(arquivo: File, aceitaVideo: boolean): Promise<Item> {
     destino: null,
     estado: "aguardando",
     problema: null,
+    conferida: false,
+    conferencia: null,
+    ilegivel: false,
   };
-  const inicio = new Uint8Array(await arquivo.slice(0, BYTES_PARA_DETECTAR).arrayBuffer());
-  const video = detectarVideo(inicio);
-  if (video || arquivo.type.startsWith("video/")) {
-    if (!aceitaVideo) {
-      return {
-        ...item,
-        estado: "recusada",
-        problema: "O envio de vídeos ainda não está disponível.",
-      };
-    }
-    if (!video) return { ...item, estado: "recusada", problema: MENSAGEM_FORMATO_VIDEO };
-    if (arquivo.size > LIMITE_VIDEO_BYTES) {
-      return { ...item, estado: "recusada", problema: `Maior que ${LIMITE_VIDEO_TEXTO}.` };
-    }
-    const duracao = await duracaoDoVideo(arquivo);
-    if (duracao === null) {
-      return {
-        ...item,
-        estado: "recusada",
-        problema: "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie.",
-      };
-    }
-    if (duracao > DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S) {
-      return { ...item, estado: "recusada", problema: MENSAGEM_VIDEO_LONGO };
-    }
-    return { ...item, formato: video, duracaoS: duracao };
-  }
-  const formato = detectarFormato(inicio, arquivo.name);
-  if (formato === "raw") return { ...item, estado: "recusada", problema: MENSAGEM_RAW };
-  if (!formato) return { ...item, estado: "recusada", problema: MENSAGEM_FORMATO };
-  // O HEIC é conferido depois de convertido (o JPEG costuma ficar maior).
-  if (formato !== "heic" && arquivo.size > LIMITE_FOTO_BYTES) {
-    return {
-      ...item,
-      estado: "recusada",
-      problema: `Maior que ${LIMITE_FOTO_TEXTO}. Exporte em JPEG ou com compressão e envie.`,
-    };
-  }
-  return { ...item, formato };
 }
 
 /**
@@ -314,34 +345,81 @@ function putNoR2(
   corpo: Blob,
   tipo: string | null,
   progresso: (bytes: number) => void,
+  sinal?: AbortSignal,
 ) {
   return new Promise<{ status: number; etag: string | null }>((resolve) => {
+    if (sinal?.aborted) {
+      resolve({ status: 0, etag: null });
+      return;
+    }
     const xhr = new XMLHttpRequest();
+    // Sem avanço por muito tempo (cartão preso ou conexão morta): abandona, e a fila segue.
+    let vigia: ReturnType<typeof setTimeout>;
+    const vigiar = () => {
+      clearTimeout(vigia);
+      vigia = setTimeout(() => xhr.abort(), LIMITE_PUT_PARADO_MS);
+    };
+    const cancelar = () => xhr.abort();
+    sinal?.addEventListener("abort", cancelar, { once: true });
+    const fim = (status: number, etag: string | null) => {
+      clearTimeout(vigia);
+      sinal?.removeEventListener("abort", cancelar);
+      resolve({ status, etag });
+    };
     xhr.open("PUT", url);
     // Tem de ser igual ao assinado no servidor; o tamanho o navegador manda sozinho. A parte de
     // um envio em partes vai sem tipo (é um Blob sem tipo).
     if (tipo) xhr.setRequestHeader("Content-Type", tipo);
-    xhr.upload.onprogress = (e) => progresso(e.loaded);
-    xhr.onload = () => resolve({ status: xhr.status, etag: xhr.getResponseHeader("ETag") });
-    xhr.onerror = () => resolve({ status: 0, etag: null });
-    xhr.ontimeout = () => resolve({ status: 0, etag: null });
+    xhr.upload.onprogress = (e) => {
+      vigiar();
+      progresso(e.loaded);
+    };
+    xhr.onload = () => fim(xhr.status, xhr.getResponseHeader("ETag"));
+    xhr.onerror = () => fim(0, null);
+    xhr.onabort = () => fim(0, null);
+    vigiar();
     xhr.send(corpo);
   });
 }
 
-async function postJson<T>(url: string, corpo: object): Promise<{ status: number; dados: T }> {
+/** POST com tempo-limite de verdade (a chamada é abortada). Status 0: rede, tempo ou cancelado. */
+async function postJson<T>(
+  url: string,
+  corpo: object,
+  limiteMs = LIMITE_CHAMADA_MS,
+  sinal?: AbortSignal,
+): Promise<{ status: number; dados: T }> {
+  const controle = new AbortController();
+  const relogio = setTimeout(() => controle.abort(), limiteMs);
+  const cancelar = () => controle.abort();
+  if (sinal?.aborted) controle.abort();
+  sinal?.addEventListener("abort", cancelar, { once: true });
   try {
     const resposta = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(corpo),
+      signal: controle.signal,
     });
     const dados = (await resposta.json().catch(() => ({}))) as T;
     return { status: resposta.status, dados };
   } catch {
     return { status: 0, dados: {} as T };
+  } finally {
+    clearTimeout(relogio);
+    sinal?.removeEventListener("abort", cancelar);
   }
 }
+
+/** Resposta da rota /api/envios/iniciar (a mesma forma de iniciarEnvio, no servidor). */
+type RespostaDasUrls = {
+  erro?: string;
+  itens?: (
+    | { fotoId: string; url: string }
+    | { fotoId: string; partes: { uploadId: string; urls: string[] } }
+    | { repetida: true }
+  )[];
+};
 
 type RespostaDoProcessamento = {
   erro?: string;
@@ -454,7 +532,15 @@ export function EnvioFotos({
   /** Amostras de bytes enviados no tempo, para a velocidade. */
   const amostras = useRef<{ em: number; bytes: number }[]>([]);
   const [velocidade, setVelocidade] = useState(0);
-  const [conferindo, setConferindo] = useState(false);
+  /** Cancela a conferência de fundo (nova seleção ou o botão Cancelar). */
+  const conferenciaAtual = useRef<AbortController | null>(null);
+  /** Cancela o envio em andamento. */
+  const envioAtual = useRef<AbortController | null>(null);
+  const [cancelandoEnvio, setCancelandoEnvio] = useState(false);
+  const circuito = useRef(new CircuitoDeLeitura());
+  /** Último avanço real (arquivo lido, bytes enviados, foto pronta), para o aviso de tela parada. */
+  const ultimoAvanco = useRef(0);
+  const [paradoHaS, setParadoHaS] = useState(0);
   const [arrastando, setArrastando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -513,6 +599,7 @@ export function EnvioFotos({
 
   function atualizar(indice: number, mudanca: Partial<Item>) {
     Object.assign(itens.current[indice], mudanca);
+    ultimoAvanco.current = Date.now();
     redesenhar();
   }
 
@@ -531,32 +618,117 @@ export function EnvioFotos({
     return () => window.removeEventListener("beforeunload", avisar);
   }, [enviando]);
 
-  async function selecionar(arquivos: FileList | null) {
+  // Aviso de tela parada: conta o tempo sem nenhum avanço real na conferência ou no envio.
+  const trabalhando = enviando || lista.some((item) => !item.conferida);
+  useEffect(() => {
+    if (!trabalhando) return;
+    ultimoAvanco.current = Date.now();
+    const relogio = setInterval(() => {
+      // De 5 em 5 segundos: o número na tela não precisa redesenhar a cada segundo.
+      setParadoHaS(Math.floor((Date.now() - ultimoAvanco.current) / 5000) * 5);
+    }, 1000);
+    return () => {
+      clearInterval(relogio);
+      setParadoHaS(0);
+    };
+  }, [trabalhando]);
+
+  /**
+   * Confere um arquivo uma vez só, com tempo-limite. A leitura que falha ou não responde deixa o
+   * arquivo como ilegível e a fila segue; o cancelamento deixa como estava.
+   */
+  function garantirConferencia(item: Item, sinal?: AbortSignal) {
+    return (item.conferencia ??= (async () => {
+      try {
+        const resultado = await lerComProtecao(
+          () => conferir(item.arquivo, aceitaVideo && modo === "r2"),
+          { limiteMs: LIMITE_CONFERENCIA_MS, circuito: circuito.current, sinal },
+        );
+        Object.assign(item, resultado, { conferida: true });
+      } catch (erro) {
+        if (erro instanceof OperacaoCancelada) return;
+        Object.assign(item, {
+          estado: "recusada",
+          ilegivel: true,
+          problema: MENSAGEM_ARQUIVO_ILEGIVEL,
+          conferida: true,
+        });
+      }
+      ultimoAvanco.current = Date.now();
+      redesenhar();
+    })());
+  }
+
+  /** Confere em segundo plano os arquivos ainda não conferidos, na ordem da seleção. */
+  function conferirEmSegundoPlano() {
+    conferenciaAtual.current?.abort();
+    const controle = new AbortController();
+    conferenciaAtual.current = controle;
+    circuito.current.reiniciar();
+    void emParalelo(itens.current, CONFERENCIAS_SIMULTANEAS, (item) =>
+      garantirConferencia(item, controle.signal),
+    );
+  }
+
+  function selecionar(arquivos: FileList | null) {
     if (!arquivos?.length || enviando) return;
     setMensagem(null);
-    setConferindo(true);
-    const lista = [...arquivos];
-    const conferidos = await emParalelo(lista, 16, (arquivo) =>
-      conferir(arquivo, aceitaVideo && modo === "r2"),
-    );
-    itens.current = conferidos.map((r, i) =>
-      r.ok
-        ? r.valor
-        : {
-            arquivo: lista[i],
-            formato: null,
-            convertida: false,
-            hash: null,
-            enviados: 0,
-            destino: null,
-            estado: "recusada" as const,
-            problema: "Não foi possível ler o arquivo.",
-          },
-    );
+    itens.current = [...arquivos].map(itemNovo);
     amostras.current = [];
     telemetria.current = telemetriaVazia();
-    setConferindo(false);
-    redesenhar();
+    // Na hora: a tela já mostra as fotos escolhidas e o progresso da conferência.
+    setLista([...itens.current]);
+    conferirEmSegundoPlano();
+  }
+
+  /** Solta a seleção (Cancelar): as leituras presas são abandonadas. */
+  function cancelarConferencia() {
+    conferenciaAtual.current?.abort();
+    conferenciaAtual.current = null;
+    enviarMais(null);
+  }
+
+  /** Devolve à fila os arquivos que não foi possível ler, para tentar de novo. */
+  function reabrirIlegiveis() {
+    for (const item of itens.current) {
+      if (item.ilegivel && item.estado === "recusada") {
+        Object.assign(item, {
+          estado: "aguardando",
+          ilegivel: false,
+          problema: null,
+          conferida: false,
+          conferencia: null,
+        });
+      }
+    }
+  }
+
+  function tentarLerDeNovo() {
+    reabrirIlegiveis();
+    setLista([...itens.current]);
+    conferirEmSegundoPlano();
+  }
+
+  /** "Tentar de novo" depois do envio: inclui os arquivos que não foi possível ler. */
+  function tentarDeNovo() {
+    reabrirIlegiveis();
+    void enviar(itens.current.flatMap((item, i) => (ENVIAVEL.includes(item.estado) ? [i] : [])));
+  }
+
+  /** Espera a conferência de um lote (a de fundo pode não ter chegado nele). */
+  async function conferirLote(lote: number[]) {
+    await Promise.all(
+      lote.map((i) => garantirConferencia(itens.current[i], conferenciaAtual.current?.signal)),
+    );
+  }
+
+  /** Marca para o próximo lote só o que continua enviável (a conferência pode ter recusado). */
+  function prepararLote(lote: number[]) {
+    for (const i of lote) {
+      if (ENVIAVEL.includes(itens.current[i].estado)) {
+        atualizar(i, { estado: "aguardando", destino: null, problema: null, ilegivel: false });
+      }
+    }
   }
 
   /** Converte os HEIC do lote para JPEG (um por vez: a conversão é pesada). */
@@ -566,7 +738,7 @@ export function EnvioFotos({
       if (item.formato !== "heic") continue;
       const inicio = performance.now();
       try {
-        const jpeg = await heicParaJpeg(item.arquivo);
+        const jpeg = await comTempoLimite(() => heicParaJpeg(item.arquivo), LIMITE_HEIC_MS);
         telemetria.current.conversao.n++;
         telemetria.current.conversao.ms += performance.now() - inicio;
         if (jpeg.size > LIMITE_FOTO_BYTES) {
@@ -590,11 +762,15 @@ export function EnvioFotos({
       if (item.hash || item.estado !== "aguardando") return;
       const inicio = performance.now();
       try {
-        item.hash = await impressaoDoBlob(item.arquivo);
+        item.hash = await lerComProtecao(() => impressaoDoBlob(item.arquivo), {
+          limiteMs: LIMITE_IMPRESSAO_MS,
+          circuito: circuito.current,
+        });
         telemetria.current.impressao.n++;
         telemetria.current.impressao.ms += performance.now() - inicio;
+        ultimoAvanco.current = Date.now();
       } catch {
-        atualizar(i, { estado: "erro", problema: "Não foi possível ler o arquivo." });
+        atualizar(i, { estado: "erro", ilegivel: true, problema: MENSAGEM_ARQUIVO_ILEGIVEL });
       }
     });
     // A mesma foto escolhida duas vezes vai uma vez só (a primeira ocorrência na seleção).
@@ -616,24 +792,40 @@ export function EnvioFotos({
   /** Pede as URLs assinadas de um lote. Devolve a mensagem de erro geral, se houver. */
   async function pedirUrls(lote: number[]): Promise<string | null> {
     const inicio = performance.now();
-    const resultado = await iniciarEnvioAcao(
+    const corpo = {
       eventoId,
-      lote.map((i) => ({
+      lista: lote.map((i) => ({
         nome: itens.current[i].arquivo.name,
         tamanhoBytes: itens.current[i].arquivo.size,
         hash: itens.current[i].hash,
         formato: itens.current[i].formato,
         duracaoS: itens.current[i].duracaoS,
       })),
-      escolhaDoEnvio.current,
-      pastaDoEnvio.current,
-    ).catch(() => ({ erro: "A conexão caiu. Tente de novo." }));
+      liberacao: escolhaDoEnvio.current,
+      pastaId: pastaDoEnvio.current,
+    };
+    const sinal = envioAtual.current?.signal;
+    // Repetir é seguro: o servidor reaproveita a foto de mesma impressão ainda em `processando`.
+    const { status, dados } = await comNovasTentativas(
+      () => postJson<RespostaDasUrls>("/api/envios/iniciar", corpo, LIMITE_URLS_MS, sinal),
+      {
+        tentativas: TENTATIVAS_URLS,
+        repetir: (r) => r.status === 0 || r.status === 408 || r.status >= 500,
+        esperaMs: (n) => esperaDaTentativa(n),
+        sinal,
+      },
+    );
     telemetria.current.urls.lotes++;
     telemetria.current.urls.fotos += lote.length;
     telemetria.current.urls.ms += performance.now() - inicio;
-    if ("erro" in resultado) return resultado.erro;
+    if (status !== 200 || !dados.itens) {
+      return (
+        dados.erro ?? "A conexão está instável e não conseguimos preparar o envio. Tente de novo."
+      );
+    }
+    ultimoAvanco.current = Date.now();
     const agora = Date.now();
-    resultado.itens.forEach((r, j) => {
+    dados.itens.forEach((r, j) => {
       if ("repetida" in r) {
         atualizar(lote[j], { estado: "repetida", problema: "Já estava no evento." });
       } else if ("partes" in r) {
@@ -674,8 +866,10 @@ export function EnvioFotos({
         mimeDoFormato(item.formato as FormatoAceito | FormatoDeVideo),
         (bytes) => {
           item.enviados = bytes;
+          ultimoAvanco.current = Date.now();
           redesenhar();
         },
+        envioAtual.current?.signal,
       );
       return status;
     });
@@ -721,6 +915,7 @@ export function EnvioFotos({
     const pendentes = partes.etags.flatMap((e, n) => (e ? [] : [n + 1]));
     await emParalelo(pendentes, PARTES_SIMULTANEAS, async (numero) => {
       for (let tentativa = 1; tentativa <= TENTATIVAS_PARTE; tentativa++) {
+        if (envioAtual.current?.signal.aborted) resultado = "falhou";
         if (resultado !== "ok") return;
         const inicio = (numero - 1) * TAMANHO_PARTE;
         const pedaco = item.arquivo.slice(
@@ -731,10 +926,17 @@ export function EnvioFotos({
           if (Date.now() - destino.em > URL_VALE_MS && !(await renovar())) {
             return { status: -1, etag: null };
           }
-          return putNoR2(partes.urls[numero - 1], pedaco, null, (bytes) => {
-            progresso[numero - 1] = bytes;
-            somar();
-          });
+          return putNoR2(
+            partes.urls[numero - 1],
+            pedaco,
+            null,
+            (bytes) => {
+              progresso[numero - 1] = bytes;
+              ultimoAvanco.current = Date.now();
+              somar();
+            },
+            envioAtual.current?.signal,
+          );
         });
         if (status >= 200 && status < 300 && etag) {
           partes.etags[numero - 1] = etag;
@@ -786,6 +988,10 @@ export function EnvioFotos({
     const item = itens.current[i];
     const comeco = performance.now();
     for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+      if (envioAtual.current?.signal.aborted) {
+        atualizar(i, { estado: "aguardando", enviados: 0 });
+        return false;
+      }
       // Sem destino ou URL velha (fila longa numa conexão lenta): pede outra para a foto. No
       // envio em partes, a URL velha é renovada parte a parte, sem perder o que já subiu.
       const velha =
@@ -841,9 +1047,11 @@ export function EnvioFotos({
     if (!fotoId) return;
     for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
       const inicio = performance.now();
-      const { status, dados } = await postJson<RespostaDoProcessamento>("/api/envios/processar", {
-        fotoId,
-      });
+      const { status, dados } = await postJson<RespostaDoProcessamento>(
+        "/api/envios/processar",
+        { fotoId },
+        LIMITE_PROCESSAR_MS,
+      );
       if (status === 200 && dados.emAndamento) {
         atualizar(i, { estado: "pronta", problema: null });
         return;
@@ -916,6 +1124,7 @@ export function EnvioFotos({
     const paraProcessar = new Fila();
     let erroGeral: string | null = null;
     let primeiroLote = true;
+    const sinal = envioAtual.current?.signal;
 
     // Quantos envios ao mesmo tempo: começa pela faixa do tamanho médio e se ajusta à vazão.
     const tamanhoMedio =
@@ -941,9 +1150,11 @@ export function EnvioFotos({
 
     const preparar = (async () => {
       for (const lote of lotesDoEnvio(indices)) {
-        if (erroGeral) break;
+        if (erroGeral || sinal?.aborted) break;
         await paraSubir.abaixoDaFolga();
-        for (const i of lote) atualizar(i, { estado: "aguardando", destino: null, problema: null });
+        if (sinal?.aborted) break;
+        prepararLote(lote);
+        await conferirLote(lote);
         await converterHeics(lote);
         const validos = await calcularHashes(lote);
         if (validos.length === 0) continue;
@@ -993,9 +1204,10 @@ export function EnvioFotos({
     await Promise.all(processamentos);
     await emParalelo(naoEntregues, PROCESSAMENTOS_SIMULTANEOS, processarUma);
     // O que não teve URL (lote interrompido) volta para a fila do "tentar de novo".
+    const motivo = erroGeral ?? (sinal?.aborted ? "Envio cancelado." : null);
     for (const i of indices) {
-      if (itens.current[i].estado === "aguardando" && erroGeral) {
-        atualizar(i, { estado: "erro", problema: erroGeral });
+      if (itens.current[i].estado === "aguardando" && motivo) {
+        atualizar(i, { estado: "erro", problema: motivo });
       }
     }
     return erroGeral;
@@ -1004,7 +1216,8 @@ export function EnvioFotos({
   /** Envio simulado (fora da produção, sem R2): cria itens com imagens de exemplo. */
   async function enviarSimulado(indices: number[]) {
     for (const lote of lotesDoEnvio(indices)) {
-      for (const i of lote) atualizar(i, { estado: "aguardando", problema: null });
+      prepararLote(lote);
+      await conferirLote(lote);
       await converterHeics(lote);
       const validos = await calcularHashes(lote);
       if (validos.length === 0) continue;
@@ -1053,6 +1266,8 @@ export function EnvioFotos({
     setEnviando(true);
     setMensagem(null);
     amostras.current = [];
+    envioAtual.current = new AbortController();
+    circuito.current.reiniciar();
     const erro = modo === "r2" ? await enviarR2(indices) : await enviarSimulado(indices);
     // O que não chegou a subir (o envio parou no meio) vai para o "tentar de novo".
     if (erro) {
@@ -1063,6 +1278,7 @@ export function EnvioFotos({
       }
     }
     setEnviando(false);
+    setCancelandoEnvio(false);
     redesenhar();
     if (erro) setMensagem({ tipo: "erro", texto: erro });
     router.refresh();
@@ -1090,7 +1306,11 @@ export function EnvioFotos({
               .slice(k, k + FOTOS_POR_CONSULTA)
               .map((i) => [itens.current[i].destino!.fotoId, i] as const),
           );
-          const resposta = await situacaoDoEnvioAcao([...porId.keys()]).catch(() => null);
+          // Server Action não se cancela: o tempo-limite só evita que a tela espere para sempre.
+          const resposta = await comTempoLimite(
+            () => situacaoDoEnvioAcao([...porId.keys()]),
+            LIMITE_CHAMADA_MS,
+          ).catch(() => null);
           if (!resposta || "erro" in resposta) continue;
           const vistas = new Set<string>();
           for (const foto of resposta.fotos) {
@@ -1145,9 +1365,18 @@ export function EnvioFotos({
   let heics = 0;
   let totalBytes = 0;
   let bytesEnviados = 0;
+  let conferidas = 0;
+  /** Arquivos com a leitura falha: todos, e os que já saíram da fila (recusados). */
+  let ilegiveis = 0;
+  let ilegiveisForaDaFila = 0;
   // Clicou em enviar: o círculo aparece já em 0%, antes de a primeira foto mudar de estado.
   let comecou = enviando || acompanhando;
   lista.forEach((item, i) => {
+    if (item.conferida) conferidas++;
+    if (item.ilegivel) {
+      ilegiveis++;
+      if (item.estado === "recusada") ilegiveisForaDaFila++;
+    }
     if (ENVIAVEL.includes(item.estado)) paraEnviar.push(i);
     if (item.estado === "recusada") {
       recusadas++;
@@ -1181,6 +1410,9 @@ export function EnvioFotos({
   // Tempo que falta para subir o resto, pela velocidade média dos últimos segundos.
   const restante = velocidade > 0 ? (totalBytes - bytesEnviados) / velocidade : null;
 
+  const conferindo = conferidas < lista.length;
+  const avisoParado = avisoDeParada(conferindo && !enviando ? "conferencia" : "envio", paradoHaS);
+  const leituraLenta = enviando && leituraEstaLenta(numeros.impressao.n, numeros.impressao.ms);
   const emAndamento = enviando || acompanhando;
   const terminou = comecou && !emAndamento;
   /** Tudo pronto, sem erro nem recusa: a tela volta sozinha para a área de escolher fotos. */
@@ -1261,7 +1493,7 @@ export function EnvioFotos({
               onDrop={(e) => {
                 e.preventDefault();
                 setArrastando(false);
-                void selecionar(e.dataTransfer.files);
+                selecionar(e.dataTransfer.files);
               }}
               className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors hover:border-primary data-[arrastando=true]:border-primary data-[arrastando=true]:bg-accent"
               data-arrastando={arrastando}
@@ -1279,7 +1511,11 @@ export function EnvioFotos({
                 multiple
                 className="sr-only"
                 disabled={enviando}
-                onChange={(e) => void selecionar(e.target.files)}
+                onChange={(e) => {
+                  selecionar(e.target.files);
+                  // Sem isto, escolher os mesmos arquivos de novo (depois de Cancelar) não dispara.
+                  e.target.value = "";
+                }}
               />
             </label>
 
@@ -1293,7 +1529,11 @@ export function EnvioFotos({
                 capture="environment"
                 className="sr-only"
                 disabled={enviando}
-                onChange={(e) => void selecionar(e.target.files)}
+                onChange={(e) => {
+                  selecionar(e.target.files);
+                  // Sem isto, escolher os mesmos arquivos de novo (depois de Cancelar) não dispara.
+                  e.target.value = "";
+                }}
               />
             </label>
 
@@ -1308,19 +1548,50 @@ export function EnvioFotos({
         )
       )}
 
-      {conferindo && (
-        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-          Conferindo as fotos…
-        </p>
+      {conferindo && !comecou && (
+        <div role="status" className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            <span className="tabular-nums">
+              Conferindo as fotos… {conferidas.toLocaleString("pt-BR")} de{" "}
+              {lista.length.toLocaleString("pt-BR")}
+            </span>
+            <Button size="sm" variant="outline" onClick={cancelarConferencia}>
+              Cancelar
+            </Button>
+          </div>
+          {avisoParado && <p className="text-foreground">{avisoParado}</p>}
+        </div>
+      )}
+
+      {ilegiveis > 0 && (
+        <div
+          role="alert"
+          className="flex flex-col items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-left text-sm"
+        >
+          <span className="flex items-start gap-2">
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <span>
+              {MENSAGEM_LEITURA} ({ilegiveis.toLocaleString("pt-BR")}{" "}
+              {ilegiveis === 1 ? "arquivo" : "arquivos"})
+            </span>
+          </span>
+          {!comecou && !conferindo && (
+            <Button size="sm" variant="outline" onClick={tentarLerDeNovo}>
+              <RotateCw aria-hidden="true" data-icon="inline-start" />
+              Tentar ler de novo
+            </Button>
+          )}
+        </div>
       )}
 
       {/* Fotos escolhidas, antes de enviar. */}
-      {lista.length > 0 && !conferindo && !comecou && (
+      {lista.length > 0 && !comecou && (
         <div className="flex flex-col gap-3 rounded-lg border p-3 text-sm">
           <p className="tabular-nums">
             <strong>
-              {validas} {validas === 1 ? "foto escolhida" : "fotos escolhidas"}
+              {validas.toLocaleString("pt-BR")}{" "}
+              {validas === 1 ? "foto escolhida" : "fotos escolhidas"}
             </strong>{" "}
             ({tamanho(totalBytes)})
             {recusadas > 0 &&
@@ -1389,6 +1660,11 @@ export function EnvioFotos({
                 ? "Nenhuma foto válida"
                 : `Enviar ${paraEnviar.length} ${paraEnviar.length === 1 ? "foto" : "fotos"}`}
             </Button>
+            {conferindo && paraEnviar.length > 0 && (
+              <span className="text-muted-foreground">
+                Pode enviar já: a conferência continua durante o envio.
+              </span>
+            )}
           </div>
 
           {listaDeProblemas}
@@ -1419,6 +1695,13 @@ export function EnvioFotos({
                   {restante !== null && ` · ${duracao(restante)} para terminar`}
                 </p>
               )}
+              {enviando && avisoParado && <p className="text-foreground">{avisoParado}</p>}
+              {leituraLenta && (
+                <p className="text-foreground">
+                  A leitura dos arquivos está lenta. Se as fotos estão no cartão, copiar para o
+                  computador antes de enviar costuma ser mais rápido.
+                </p>
+              )}
               {!enviando && (
                 <p className="text-muted-foreground">
                   Se quiser, já pode sair desta página: elas aparecem no evento sozinhas.
@@ -1436,12 +1719,26 @@ export function EnvioFotos({
             </p>
           )}
 
+          {enviando && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={cancelandoEnvio}
+              onClick={() => {
+                setCancelandoEnvio(true);
+                envioAtual.current?.abort();
+              }}
+            >
+              {cancelandoEnvio ? "Cancelando…" : "Cancelar envio"}
+            </Button>
+          )}
+
           {terminou && (
             <div className="flex flex-wrap justify-center gap-2">
-              {paraEnviar.length > 0 && (
-                <Button size="touch" variant="outline" onClick={() => void enviar(paraEnviar)}>
+              {paraEnviar.length + ilegiveisForaDaFila > 0 && (
+                <Button size="touch" variant="outline" onClick={tentarDeNovo}>
                   <RotateCw aria-hidden="true" data-icon="inline-start" />
-                  Tentar de novo ({paraEnviar.length})
+                  Tentar de novo ({paraEnviar.length + ilegiveisForaDaFila})
                 </Button>
               )}
               <Button

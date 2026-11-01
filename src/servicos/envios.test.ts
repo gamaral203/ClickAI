@@ -43,6 +43,7 @@ vi.mock("@/servicos/sessao", () => ({
 }));
 
 import { enviarFotosAcao, situacaoDoEnvioAcao } from "@/app/(fotografo)/painel/eventos/acoes";
+import { POST as iniciarRota } from "@/app/api/envios/iniciar/route";
 import { POST as partesRota } from "@/app/api/envios/partes/route";
 import { POST as processarRota } from "@/app/api/envios/processar/route";
 import {
@@ -1137,6 +1138,61 @@ describe("envio em partes (multipart) dos arquivos grandes", () => {
     expect(original.corpo.equals(tiff)).toBe(true);
     expect(original.tipo).toBe("image/tiff");
   }, 60_000);
+});
+
+describe("rota do pedido de URLs (/api/envios/iniciar)", () => {
+  function pedido(corpo: unknown, cabecalhos: Record<string, string> = {}) {
+    return new Request("https://clicouai.test/api/envios/iniciar", {
+      method: "POST",
+      headers: {
+        host: "clicouai.test",
+        origin: "https://clicouai.test",
+        "content-type": "application/json",
+        ...cabecalhos,
+      },
+      body: typeof corpo === "string" ? corpo : JSON.stringify(corpo),
+    }) as never;
+  }
+  const arquivo = (hash: string) => ({
+    nome: "rota.jpg",
+    tamanhoBytes: 1000,
+    hash: hash.repeat(64),
+    formato: "jpeg",
+  });
+
+  it("devolve a URL assinada; repetir o pedido (tempo-limite) não duplica a foto", async () => {
+    sessao.fotografoId = lia.id;
+    const corpo = { eventoId: evento.id, lista: [arquivo("a")] };
+    const primeira = await iniciarRota(pedido(corpo));
+    expect(primeira.status).toBe(200);
+    expect(primeira.headers.get("cache-control")).toBe("no-store");
+    const { itens } = (await primeira.json()) as { itens: { fotoId: string; url: string }[] };
+    expect(itens[0].url).toBeTruthy();
+
+    const segunda = await iniciarRota(pedido(corpo));
+    const repetida = (await segunda.json()) as { itens: { fotoId: string }[] };
+    expect(repetida.itens[0].fotoId).toBe(itens[0].fotoId);
+  });
+
+  it("recusa outra origem, sem sessão, corpo inválido e evento de outro fotógrafo", async () => {
+    sessao.fotografoId = lia.id;
+    const corpo = { eventoId: evento.id, lista: [arquivo("b")] };
+    const fora = await iniciarRota(pedido(corpo, { origin: "https://golpe.test" }));
+    expect(fora.status).toBe(403);
+
+    expect((await iniciarRota(pedido("{ não é json"))).status).toBe(400);
+    expect((await iniciarRota(pedido({ eventoId: "x", lista: [] }))).status).toBe(400);
+    expect((await iniciarRota(pedido({ ...corpo, precoCentavos: 1 }))).status).toBe(400);
+    const enorme = { eventoId: evento.id, lista: [], folga: "x".repeat(200 * 1024) };
+    expect((await iniciarRota(pedido(enorme))).status).toBe(400);
+
+    sessao.fotografoId = pedro.id;
+    expect((await iniciarRota(pedido(corpo))).status).toBe(422);
+
+    sessao.fotografoId = "";
+    expect((await iniciarRota(pedido(corpo))).status).toBe(401);
+    sessao.fotografoId = lia.id;
+  });
 });
 
 describe("rota do envio em partes (/api/envios/partes)", () => {
