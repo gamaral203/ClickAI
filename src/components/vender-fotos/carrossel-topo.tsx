@@ -82,7 +82,7 @@ export function CarrosselTopo({ slides }: { slides: SlideTopo[] }) {
         if (e.key === "ArrowLeft") irPara(ativo - 1);
         if (e.key === "ArrowRight") irPara(ativo + 1);
       }}
-      className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border-[3px] border-white bg-profundo shadow-[0_18px_40px_-14px_rgb(3_10_35/0.65)] lg:aspect-[5/6]"
+      className="relative aspect-video w-full overflow-hidden rounded-3xl border-[3px] border-white bg-profundo shadow-[0_18px_40px_-14px_rgb(3_10_35/0.65)]"
     >
       <motion.div
         className="absolute inset-0 touch-pan-y"
@@ -114,7 +114,7 @@ export function CarrosselTopo({ slides }: { slides: SlideTopo[] }) {
                   src={slide.imagem.src}
                   alt={slide.imagem.alt}
                   fill
-                  sizes="(min-width: 1024px) 45vw, 100vw"
+                  sizes="(min-width: 1280px) 700px, (min-width: 1024px) 960px, 100vw"
                   priority={i === 0}
                   draggable={false}
                   className="object-cover"
@@ -138,10 +138,18 @@ export function CarrosselTopo({ slides }: { slides: SlideTopo[] }) {
         {`Slide ${ativo + 1} de ${total}: ${slideAtivo.rotulo}`}
       </p>
 
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-linear-to-t from-profundo/90 to-transparent px-2 pt-10 pb-2 text-white">
+      {/* Abaixo de 640 px o rótulo não cabe ao lado dos botões: vai para o canto de cima, inteiro. */}
+      <span
+        aria-hidden="true"
+        className="absolute top-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-profundo/70 px-3 py-1 text-sm font-semibold text-white sm:hidden"
+      >
+        {slideAtivo.rotulo}
+      </span>
+
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 max-sm:justify-end bg-linear-to-t from-profundo/90 to-transparent px-2 pt-10 pb-2 text-white">
         <span
           aria-hidden="true"
-          className="min-w-0 truncate pl-2 text-sm font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]"
+          className="hidden min-w-0 truncate pl-2 text-sm font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.6)] sm:block"
         >
           {slideAtivo.rotulo}
         </span>
@@ -225,9 +233,9 @@ function VideoDoSlide({
       controls={controles}
       aria-label={slide.alt}
       onEnded={aoTerminar}
-      // O vídeo é 16:9 e mostra telas com texto: inteiro, com faixas, em vez de cortado. No celular e
-      // no tablet fica no alto, para a barra de baixo cobrir o mínimo dele.
-      className="size-full bg-black object-contain object-top lg:object-center"
+      // O vídeo e a caixa são 16:9: ele preenche tudo, sem faixa. `object-contain` só garante que nada
+      // seja cortado se a proporção do arquivo mudar um dia.
+      className="size-full bg-black object-contain"
     >
       <source src={slide.src} type="video/mp4" />
     </video>

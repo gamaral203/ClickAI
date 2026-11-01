@@ -245,7 +245,7 @@ export default function PaginaVenderFotos() {
           className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent_85%)] [background-size:22px_22px]"
         />
         <div
-          className={`${CONTAINER} grid items-center gap-8 py-10 md:py-14 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:py-16`}
+          className={`${CONTAINER} grid items-center gap-8 py-10 md:py-14 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] xl:gap-12 xl:py-16`}
         >
           <div className="flex min-w-0 flex-col items-start gap-5 md:gap-6">
             <p className="border-l-[3px] border-highlight pl-3 text-xs font-semibold tracking-[0.16em] text-white/90 uppercase">
