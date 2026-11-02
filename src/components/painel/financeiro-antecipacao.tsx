@@ -6,7 +6,8 @@ import { CreditCard, QrCode } from "lucide-react";
 import { salvarAntecipacaoAcao } from "@/app/(fotografo)/painel/vendas/acoes";
 import { InterruptorFinanceiro } from "@/components/painel/financeiro-interruptor";
 import { formatarPreco } from "@/lib/formatar";
-import { comissaoDe, taxaAntecipacaoDe, TAXA_ANTECIPACAO_TEXTO } from "@/servicos/financeiro";
+import { exemploDeVenda } from "@/lib/vender-fotos";
+import { TAXA_ANTECIPACAO_TEXTO } from "@/servicos/financeiro";
 
 /** Venda de exemplo do texto: R$ 100,00 no cartão. */
 const EXEMPLO_CENTAVOS = 10_000;
@@ -19,11 +20,13 @@ const EXEMPLO_CENTAVOS = 10_000;
 export function AntecipacaoFinanceiro({
   ligado,
   comissaoPct,
+  taxaCartaoPct,
   antecipavelCentavos,
   antecipavelLiquidoCentavos,
 }: {
   ligado: boolean;
   comissaoPct: number;
+  taxaCartaoPct: number;
   /** Cartão entre 1 e 30 dias que entraria no saldo se a antecipação fosse ligada agora. */
   antecipavelCentavos: number;
   antecipavelLiquidoCentavos: number;
@@ -47,8 +50,13 @@ export function AntecipacaoFinanceiro({
     });
   }
 
-  const comissao = comissaoDe(EXEMPLO_CENTAVOS, comissaoPct);
-  const antecipacao = taxaAntecipacaoDe(EXEMPLO_CENTAVOS);
+  const antecipada = exemploDeVenda(
+    EXEMPLO_CENTAVOS,
+    "cartao_antecipado",
+    comissaoPct,
+    taxaCartaoPct,
+  );
+  const semAntecipar = exemploDeVenda(EXEMPLO_CENTAVOS, "cartao", comissaoPct, taxaCartaoPct);
 
   return (
     <section
@@ -120,22 +128,32 @@ export function AntecipacaoFinanceiro({
         </span>
         <dl className="flex flex-col gap-1">
           <div className="flex justify-between gap-4 text-muted-foreground">
+            <dt>Metade da taxa do cartão</dt>
+            <dd className="whitespace-nowrap tabular-nums">
+              − {formatarPreco(antecipada.taxaCartaoCentavos)}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-4 text-muted-foreground">
             <dt>Comissão ClicouAí ({comissaoPct}%)</dt>
-            <dd className="tabular-nums">− {formatarPreco(comissao)}</dd>
+            <dd className="whitespace-nowrap tabular-nums">
+              − {formatarPreco(antecipada.comissaoCentavos)}
+            </dd>
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
             <dt>Antecipação ({TAXA_ANTECIPACAO_TEXTO})</dt>
-            <dd className="tabular-nums">− {formatarPreco(antecipacao)}</dd>
+            <dd className="whitespace-nowrap tabular-nums">
+              − {formatarPreco(antecipada.antecipacaoCentavos)}
+            </dd>
           </div>
           <div className="flex justify-between gap-4 font-semibold">
             <dt>Você recebe em 1 dia</dt>
-            <dd className="tabular-nums">
-              {formatarPreco(EXEMPLO_CENTAVOS - comissao - antecipacao)}
+            <dd className="whitespace-nowrap tabular-nums">
+              {formatarPreco(antecipada.recebeCentavos)}
             </dd>
           </div>
         </dl>
         <span className="text-muted-foreground">
-          Sem antecipar, a mesma venda rende {formatarPreco(EXEMPLO_CENTAVOS - comissao)} em 30
+          Sem antecipar, a mesma venda rende {formatarPreco(semAntecipar.recebeCentavos)} em 30
           dias.
         </span>
       </div>
