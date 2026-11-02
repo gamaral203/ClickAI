@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Lote grande sem foto presa: cron por minuto `/api/jobs/fotos-presas`, retomada pela fila no banco com teto de tentativas (migração 0049), fila dos rostos com limite de 4 por segundo na conta inteira (migração 0050), limite de 12 fotos por instância, grade do painel paginada no servidor com contagens por situação e previsão, duas origens no PUT atrás de `NEXT_PUBLIC_R2_DUAS_ORIGENS` (desligada), limpeza do temporário depois da foto pronta e tempos na amostra de log. O `effort` do WebP ficou em 2: 0 ganhava só 8% de tempo e aumentava a prévia em 19%.
 - [x] Leitura de número de peito desligada nos eventos novos pelo interruptor `LEITURA_DE_NUMEROS_DISPONIVEL` (`src/lib/numeros-de-peito.ts`): falsa no servidor em toda categoria, inclusive na cópia de evento; opção, aba e números da grade fora do painel; evento antigo mantém o valor ao salvar. Serviço, API, schema e dados continuam. Decidir se desliga também nos eventos antigos ([arquitetura.md](arquitetura.md), "Número de peito")
 - [x] Revisão em emulação de celular (320, 360, 390, 430 e 844x390): área de toque de 44 px em tela de toque, perguntas frequentes com toque na linha inteira, botão de compra sem corte na barra da foto, menu sem texto vazado, formulário e cartões do painel sem rolagem horizontal e hidratação do chat com menos movimento. Falta conferir em aparelho real
 - [x] Parte do fotógrafo na taxa do cartão em centavos inteiros e arredondada para baixo (R$ 2,49 em R$ 100; recebe R$ 89,71 no cartão e R$ 87,77 antecipado). O total do comprador não muda, a plataforma absorve a diferença e os valores gravados não são recalculados
@@ -247,6 +248,9 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Em andamento
 
+- [ ] Dono aprovar a aparência da grade com "N processando" (prints no relatório do item 4).
+- [ ] Dono conferir o CORS e decidir se liga `NEXT_PUBLIC_R2_DUAS_ORIGENS` (`deploy.md`, item 7).
+- [ ] Conferir em produção, pelos logs `[jobs] fila de fotos` e `[envios] tempos da foto`, o ritmo real e o limite de 12 por instância.
 - [ ] **Visualizador: conferir o desfoque em aparelho** (Android e iPhone): intensidade do desfoque e do mosaico, tamanho do círculo e a separação entre revelar (segurar e arrastar na foto) e navegar (deslize rápido ou arrastar fora da foto), e ajustar com a referência em vídeo do usuário ([arquitetura.md](arquitetura.md), "Galeria e busca", item 9)
 - [ ] **Barra do carrinho na galeria com o incentivo do desconto progressivo** (próximo passo do visualizador, como na referência): com itens no carrinho, "Mais N fotos e você leva X pelo preço de Y, economiza R$ Z", "N foto(s) no carrinho", "Limpar" e "Comprar R$ X", com os números calculados no servidor pelas faixas do evento (`src/servicos/descontos.ts`, `pctProgressivo`), por uma server action que recebe só os ids do carrinho. Precisa conviver com a barra do obturador (mesmo pé da tela)
 - [ ] **Limite contra download automatizado das prévias:** hoje as prévias e miniaturas são servidas direto do `r2.dev` (bucket público), então o limite por IP da galeria e da página da foto não cobre quem baixa os arquivos em lote pelo endereço. Opções a decidir: domínio próprio no R2 com regra de rate limit do Cloudflare (WAF) para `/previas/*`; URLs com assinatura curta do Cloudflare (token no Worker); ou servir por uma rota com limite (custo de banda na Vercel). O desfoque do visualizador não muda isso: a prévia continua sendo baixada pelo navegador
