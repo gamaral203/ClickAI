@@ -245,7 +245,10 @@ describe("duas origens no envio", () => {
     reiniciarClienteR2();
     const [a, b] = [await assinar(), await assinar()];
     expect(new Set([a.host, b.host])).toEqual(
-      new Set(["fotos-originais.conta-teste.r2.cloudflarestorage.com", "conta-teste.r2.cloudflarestorage.com"]),
+      new Set([
+        "fotos-originais.conta-teste.r2.cloudflarestorage.com",
+        "conta-teste.r2.cloudflarestorage.com",
+      ]),
     );
     expect(a.searchParams.get("X-Amz-Signature")).toBeTruthy();
     expect(b.searchParams.get("X-Amz-Signature")).toBeTruthy();
@@ -379,7 +382,10 @@ describe("fila dos rostos", () => {
       .update(t.eventos)
       .set({ rostosArquivadosEm: null })
       .where(eq(t.eventos.id, evento.id));
-    await banco.update(t.fotos).set({ rostosIndexadosEm: new Date() }).where(eq(t.fotos.id, arquivada));
+    await banco
+      .update(t.fotos)
+      .set({ rostosIndexadosEm: new Date() })
+      .where(eq(t.fotos.id, arquivada));
   });
 });
 
@@ -398,9 +404,7 @@ describe(`carga: lote de ${QUANTAS} fotos`, () => {
     let n = 0;
     falharLeitura = () => ++n % 20 === 0;
     const antes = performance.now();
-    const cortados = await Promise.all(
-      pacotes.map((p) => processarEmSegundoPlano(lia.id, p, 150)),
-    );
+    const cortados = await Promise.all(pacotes.map((p) => processarEmSegundoPlano(lia.id, p, 150)));
     const puladas = cortados.reduce((s, c) => s + c.puladas, 0);
     const prontasNoPacote = cortados.reduce((s, c) => s + c.prontas, 0);
     expect(puladas).toBeGreaterThan(0);

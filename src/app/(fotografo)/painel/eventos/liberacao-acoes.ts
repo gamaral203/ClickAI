@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { mudarLiberacao, type MudancaLiberacao } from "@/dados";
+import { filtroDoPainelSchema } from "@/lib/filtro-painel";
 import { instanteDoCampo } from "@/lib/liberacao";
 import { exigirFotografo } from "@/servicos/sessao";
 
@@ -15,6 +16,8 @@ const entrada = z.object({
   eventoId: z.uuid(),
   /** Fotos escolhidas na grade; sem a lista, vale para todas as ainda não liberadas. */
   fotoIds: z.array(z.uuid()).min(1).max(5000).optional(),
+  /** "Todas deste filtro": o servidor reavalia o filtro na hora. */
+  filtro: filtroDoPainelSchema.optional(),
   mudanca: z.discriminatedUnion("acao", [
     z.object({ acao: z.literal("liberar") }),
     z.object({ acao: z.literal("cancelar") }),
@@ -42,7 +45,7 @@ export async function mudarLiberacaoAcao(dados: unknown): Promise<ResultadoLiber
   const { conta } = await exigirFotografo("/painel/eventos");
   const validacao = entrada.safeParse(dados);
   if (!validacao.success) return { erro: "Não foi possível entender o pedido. Atualize a página." };
-  const { eventoId, fotoIds, mudanca } = validacao.data;
+  const { eventoId, fotoIds, filtro, mudanca } = validacao.data;
   const agora = Date.now();
 
   let paraGravar: MudancaLiberacao;
@@ -60,7 +63,14 @@ export async function mudarLiberacaoAcao(dados: unknown): Promise<ResultadoLiber
     paraGravar = mudanca;
   }
 
-  const alteradas = await mudarLiberacao(eventoId, conta.id, paraGravar, fotoIds ?? null, agora);
+  const alteradas = await mudarLiberacao(
+    eventoId,
+    conta.id,
+    paraGravar,
+    fotoIds ?? null,
+    agora,
+    filtro ?? null,
+  );
   if (alteradas === null) return { erro: "Evento não encontrado." };
   revalidatePath(`/painel/eventos/${eventoId}`);
   revalidatePath("/painel/colaboracoes");

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { CalendarClock, CheckCircle2, Loader2, Undo2, Unlock, X } from "lucide-react";
 
 import {
@@ -13,9 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   DIA_TODOS,
-  diasComFotos,
-  filtrarItensDoPainel,
-  filtroDaUrl,
   filtroParaUrl,
   PASTA_TODAS,
   rotuloDoDia,
@@ -25,12 +22,27 @@ import {
 } from "@/lib/filtro-painel";
 import type { EstadoLiberacao } from "@/lib/liberacao";
 import type { FormatoMoldura } from "@/lib/moldura";
+import { ritmoObservado, textoDaPrevisao } from "@/lib/previsao-fotos";
+
+import type { ContagensDoPainel } from "@/dados/fotos-do-painel";
 
 import { useEscolhaDeCapa } from "./capa-do-evento";
 import { GradeFotosPainel, POR_VEZ, type ItemDoPainel } from "./grade-fotos-painel";
 import { MoverParaPasta, type PastaDoSeletor } from "./mover-para-pasta";
 
 type FiltroLiberacao = "todas" | EstadoLiberacao;
+type FiltroSituacao = FiltroDoPainel["situacao"];
+
+const SITUACOES: { valor: FiltroSituacao; rotulo: string }[] = [
+  { valor: "todas", rotulo: "Todas" },
+  { valor: "pronta", rotulo: "Prontas" },
+  { valor: "processando", rotulo: "Processando" },
+  { valor: "erro", rotulo: "Com erro" },
+];
+/** Intervalo da consulta leve enquanto há fotos em processamento. */
+const CONSULTA_A_CADA_MS = 15_000;
+/** Fotos pedidas de uma vez ao atualizar o que já está na tela (o teto da rota). */
+const ATUALIZA_NO_MAXIMO = 200;
 
 const FILTROS: { valor: FiltroLiberacao; rotulo: string }[] = [
   { valor: "todas", rotulo: "Todas" },
@@ -48,14 +60,17 @@ const fotos = (n: number) => `${numero.format(n)} ${n === 1 ? "foto" : "fotos"}`
 type Mudanca = { acao: "liberar" } | { acao: "cancelar" } | { acao: "agendar"; em: string };
 
 /**
- * Fotos do evento no painel. Filtros combináveis e na URL: liberação, pasta (com "Sem pasta") e
- * dia (da captura ou do envio, em Brasília). O dono seleciona fotos uma a uma, a página inteira
- * ou "todas as N deste filtro" (aí a seleção é o filtro, que o servidor reavalia na hora) e
- * move para uma pasta, libera, agenda ou cancela o agendamento.
+ * Fotos do evento no painel, paginadas no servidor. Filtros combináveis e na URL: situação,
+ * liberação, pasta (com "Sem pasta") e dia (da captura ou do envio, em Brasília). O dono seleciona
+ * fotos uma a uma, as já carregadas ou "todas as N deste filtro" (aí a seleção é o filtro, que o
+ * servidor reavalia na hora) e move para uma pasta, libera, agenda ou cancela o agendamento.
  */
 export function FotosDoEvento({
   eventoId,
-  itens,
+  itensIniciais,
+  contagensIniciais,
+  filtroInicial,
+  temCaptura: temCapturaInicial,
   pastas,
   podeLiberar,
   capaFotoId,
@@ -63,7 +78,12 @@ export function FotosDoEvento({
   agora,
 }: {
   eventoId: string;
-  itens: ItemDoPainel[];
+  /** A primeira página, já com o filtro da URL. */
+  itensIniciais: ItemDoPainel[];
+  contagensIniciais: ContagensDoPainel;
+  filtroInicial: FiltroDoPainel;
+  /** Alguma foto do evento tem data de captura (define a data padrão do filtro por dia). */
+  temCaptura: boolean;
   /** Pastas em árvore, com o caminho no nome ("Largada › Bateria 1"). */
   pastas: PastaDoSeletor[];
   podeLiberar: boolean;
@@ -76,116 +96,198 @@ export function FotosDoEvento({
 }) {
   const capa = useEscolhaDeCapa(eventoId, capaFotoId ?? null);
   const router = useRouter();
-  const parametros = useSearchParams();
+  const [temCaptura, setTemCaptura] = useState(temCapturaInicial);
   // Dia pela captura (EXIF) quando alguma foto tem; senão, pelo envio.
-  const temCaptura = itens.some((i) => i.capturadaEm);
   const basePadrao: FiltroDoPainel["base"] = temCaptura ? "captura" : "envio";
-  const [filtro, setFiltroEstado] = useState<FiltroDoPainel>(() =>
-    filtroDaUrl(parametros, basePadrao),
-  );
+  const [filtro, setFiltroEstado] = useState<FiltroDoPainel>(filtroInicial);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   /** "Todas as N deste filtro": a seleção é o filtro, não os ids. */
   const [todasDoFiltro, setTodasDoFiltro] = useState(false);
-  const [mostrando, setMostrando] = useState(POR_VEZ);
+  const [itens, setItens] = useState(itensIniciais);
+  const [contagens, setContagens] = useState(contagensIniciais);
+  const [carregando, setCarregando] = useState(false);
+  const [falhaAoCarregar, setFalhaAoCarregar] = useState(false);
+  /**
+   * A liberação de cada foto já vista, em qualquer filtro: a seleção por id continua contando
+   * certo quando a foto marcada não está mais carregada.
+   */
+  const [conhecidasDeFora, setConhecidasDeFora] = useState<Map<string, EstadoLiberacao>>(
+    () => new Map(),
+  );
+  const estadoDa = (id: string) =>
+    itens.find((i) => i.id === id)?.estadoLiberacao ?? conhecidasDeFora.get(id);
+  const [ritmo, setRitmo] = useState<number | undefined>(undefined);
   const [quando, setQuando] = useState("");
   const [resultado, setResultado] = useState<ResultadoLiberacao | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
 
   // Pasta do filtro que deixou de existir (excluída): volta para "Todas".
-  const filtroValido = useMemo(
-    () =>
-      filtro.pasta === PASTA_TODAS ||
-      filtro.pasta === SEM_PASTA ||
-      pastas.some((p) => p.id === filtro.pasta)
-        ? filtro
-        : { ...filtro, pasta: PASTA_TODAS },
-    [filtro, pastas],
+  const filtroValido =
+    filtro.pasta === PASTA_TODAS ||
+    filtro.pasta === SEM_PASTA ||
+    pastas.some((p) => p.id === filtro.pasta)
+      ? filtro
+      : { ...filtro, pasta: PASTA_TODAS };
+  const chaveDoFiltro = JSON.stringify(filtroValido);
+  /** A última consulta pedida: resposta de um filtro antigo que chega depois é descartada. */
+  const consultaAtual = useRef(0);
+
+  /** Pede ao servidor as fotos e as contagens do filtro. `lista` substitui o que está na tela. */
+  const consultar = useCallback(
+    async (alvoDoFiltro: FiltroDoPainel, desde: number, limite: number) => {
+      const pedido = ++consultaAtual.current;
+      const parametros = paramsDoFiltro(alvoDoFiltro);
+      parametros.set("desde", String(desde));
+      parametros.set("limite", String(limite));
+      const resposta = await fetch(`/api/painel/eventos/${eventoId}/fotos?${parametros}`);
+      if (!resposta.ok) throw new Error("Consulta recusada");
+      const dados = (await resposta.json()) as {
+        itens: ItemDoPainel[];
+        contagens: ContagensDoPainel;
+        temCaptura: boolean;
+      };
+      return pedido === consultaAtual.current ? dados : null;
+    },
+    [eventoId],
   );
-  const comDatas = useMemo(() => itensComDatas(itens), [itens]);
+
+  /** Atualiza o que já está na tela, sem perder as fotos carregadas além do teto. */
+  const quantasNaTela = itens.length;
+  const atualizarLista = useCallback(async () => {
+    try {
+      const alvoDoFiltro = JSON.parse(chaveDoFiltro) as FiltroDoPainel;
+      const quantas = Math.min(ATUALIZA_NO_MAXIMO, Math.max(POR_VEZ, quantasNaTela));
+      const dados = await consultar(alvoDoFiltro, 0, quantas);
+      if (!dados) return;
+      setItens((atuais) => {
+        const novos = new Set(dados.itens.map((i) => i.id));
+        const resto = atuais.slice(quantas).filter((i) => !novos.has(i.id));
+        return [...dados.itens, ...resto];
+      });
+      setContagens(dados.contagens);
+      setTemCaptura(dados.temCaptura);
+      setFalhaAoCarregar(false);
+    } catch {
+      setFalhaAoCarregar(true);
+    }
+  }, [chaveDoFiltro, consultar, quantasNaTela]);
 
   function setFiltro(novo: FiltroDoPainel) {
     setFiltroEstado(novo);
     setSelecionados(new Set());
     setTodasDoFiltro(false);
-    setMostrando(POR_VEZ);
     setResultado(null);
-    // Só a URL muda (sem ida ao servidor): recarregar e "voltar" mantêm o filtro.
+    // Só a URL muda (sem recarregar a página): recarregar e "voltar" mantêm o filtro.
     const url = new URL(window.location.href);
     url.search = filtroParaUrl(novo, url.searchParams, basePadrao).toString();
     window.history.replaceState(null, "", url);
+    setCarregando(true);
+    consultar(novo, 0, POR_VEZ)
+      .then((dados) => {
+        if (!dados) return;
+        setItens(dados.itens);
+        setContagens(dados.contagens);
+        setFalhaAoCarregar(false);
+        setCarregando(false);
+      })
+      .catch(() => {
+        setFalhaAoCarregar(true);
+        setCarregando(false);
+      });
   }
 
-  const visiveis = useMemo(
-    () => filtrarItensDoPainel(comDatas, filtroValido, pastas, agora),
-    [comDatas, filtroValido, pastas, agora],
-  );
-  // Contagens de cada opção com os outros filtros aplicados.
-  const contagemLiberacao = useMemo(() => {
-    const base = filtrarItensDoPainel(
-      comDatas,
-      { ...filtroValido, liberacao: "todas" },
-      pastas,
-      agora,
-    );
-    const c: Record<FiltroLiberacao, number> = {
-      todas: base.length,
-      liberada: 0,
-      agendada: 0,
-      manual: 0,
-    };
-    for (const item of base) c[item.estadoLiberacao]++;
-    return c;
-  }, [comDatas, filtroValido, pastas, agora]);
-  const contagemPastas = useMemo(() => {
-    const base = filtrarItensDoPainel(
-      comDatas,
-      { ...filtroValido, pasta: PASTA_TODAS },
-      pastas,
-      agora,
-    );
-    const diretas = new Map<string | null, number>();
-    for (const i of base) diretas.set(i.pastaId, (diretas.get(i.pastaId) ?? 0) + 1);
-    const total = (p: PastaDoSeletor) =>
-      (diretas.get(p.id) ?? 0) +
-      (p.nivel === 1
-        ? pastas
-            .filter((f) => f.pastaPaiId === p.id)
-            .reduce((s, f) => s + (diretas.get(f.id) ?? 0), 0)
-        : 0);
-    return {
-      todas: base.length,
-      sem: diretas.get(null) ?? 0,
-      porPasta: new Map(pastas.map((p) => [p.id, total(p)])),
-    };
-  }, [comDatas, filtroValido, pastas, agora]);
-  const dias = useMemo(
-    () =>
-      diasComFotos(
-        filtrarItensDoPainel(comDatas, { ...filtroValido, dia: DIA_TODOS }, pastas, agora),
-        filtroValido.base,
-      ),
-    [comDatas, filtroValido, pastas, agora],
-  );
-  const anoAtual = new Date(agora).getFullYear();
+  async function mostrarMais() {
+    setCarregando(true);
+    try {
+      const dados = await consultar(filtroValido, itens.length, POR_VEZ);
+      if (!dados) return;
+      setItens((atuais) => {
+        const ja = new Set(atuais.map((i) => i.id));
+        return [...atuais, ...dados.itens.filter((i) => !ja.has(i.id))];
+      });
+      setContagens(dados.contagens);
+      setFalhaAoCarregar(false);
+    } catch {
+      setFalhaAoCarregar(true);
+    } finally {
+      setCarregando(false);
+    }
+  }
 
-  // Seleção: os ids marcados que ainda existem, ou todas do filtro.
-  const marcadas = todasDoFiltro ? visiveis : itens.filter((i) => selecionados.has(i.id));
-  const naPagina = visiveis.slice(0, mostrando);
+  // Quem chama router.refresh() (excluir, mudar preço, novo envio) muda a hora da requisição: a
+  // lista, que mora aqui, acompanha sem precisar de outro aviso.
+  const primeiraVez = useRef(true);
+  useEffect(() => {
+    if (primeiraVez.current) {
+      primeiraVez.current = false;
+      return;
+    }
+    void atualizarLista();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando a página recarrega.
+  }, [agora]);
+
+  // Fotos em processamento (o servidor as termina sozinho): uma consulta leve, só das contagens e
+  // só com a aba visível. A lista só é pedida de novo quando alguma coisa mudou.
+  const processandoNoEvento = contagens.evento.processando;
+  const situacaoVista = useRef<(ContagensDoPainel["evento"] & { em: number }) | null>(null);
+  const atualizarListaAgora = useRef(atualizarLista);
+  useEffect(() => {
+    atualizarListaAgora.current = atualizarLista;
+  }, [atualizarLista]);
+  useEffect(() => {
+    if (processandoNoEvento === 0) return;
+    const intervalo = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void fetch(`/api/painel/eventos/${eventoId}/situacao`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((agoraNoServidor: ContagensDoPainel["evento"] | null) => {
+          if (!agoraNoServidor) return;
+          const antes = situacaoVista.current;
+          // A primeira consulta é só a referência do ritmo.
+          if (!antes) {
+            situacaoVista.current = { ...agoraNoServidor, em: Date.now() };
+            return;
+          }
+          if (agoraNoServidor.processando === antes.processando) return;
+          const passou = Date.now() - antes.em;
+          const observado = ritmoObservado(antes.processando - agoraNoServidor.processando, passou);
+          if (observado) setRitmo(observado);
+          situacaoVista.current = { ...agoraNoServidor, em: Date.now() };
+          void atualizarListaAgora.current();
+          // Acabou: o cabeçalho da página (fotos prontas, liberadas) também precisa do novo total.
+          if (agoraNoServidor.processando === 0) router.refresh();
+        })
+        .catch(() => {});
+    }, CONSULTA_A_CADA_MS);
+    return () => clearInterval(intervalo);
+  }, [processandoNoEvento, eventoId, router]);
+
+  const anoAtual = new Date(agora).getFullYear();
+  const contagemLiberacao = contagens.liberacao;
+  const contagemPastas = contagens.pastas;
+  const dias = contagens.dias;
+  const totalNoFiltro = contagens.total;
+
+  // Seleção: os ids marcados, ou todas do filtro.
+  const naPagina = itens;
   const paginaToda = naPagina.length > 0 && naPagina.every((i) => selecionados.has(i.id));
-  const totalSelecionado = marcadas.length;
+  const totalSelecionado = todasDoFiltro ? totalNoFiltro : selecionados.size;
   const temSelecao = todasDoFiltro || selecionados.size > 0;
 
   // Liberação: as não liberadas da seleção; sem seleção, todas as não liberadas do evento.
-  const escolhidas = marcadas.filter((i) => i.estadoLiberacao !== "liberada");
-  const naoLiberadasDoEvento = itens.filter((i) => i.estadoLiberacao !== "liberada");
-  const alvo = temSelecao ? escolhidas : naoLiberadasDoEvento;
-  const temAgendada = alvo.some((i) => i.estadoLiberacao === "agendada");
+  const idsEscolhidos = [...selecionados].filter((id) => estadoDa(id) !== "liberada");
+  const quantasEscolhidas = todasDoFiltro
+    ? contagemLiberacao.agendada + contagemLiberacao.manual
+    : idsEscolhidos.length;
+  const naoLiberadasDoEvento = contagens.naoLiberadas;
+  const temAgendada = !temSelecao
+    ? contagens.agendadas > 0
+    : todasDoFiltro
+      ? contagemLiberacao.agendada > 0
+      : idsEscolhidos.some((id) => estadoDa(id) === "agendada");
   // Próxima liberação agendada: a grade se atualiza sozinha nesse minuto.
-  const proxima = itens
-    .filter((i) => i.estadoLiberacao === "agendada" && i.liberarEm)
-    .map((i) => i.liberarEm!)
-    .sort()[0];
+  const proxima = contagens.proximaLiberacao;
 
   useEffect(() => {
     if (!aviso) return;
@@ -193,11 +295,24 @@ export function FotosDoEvento({
     return () => clearTimeout(t);
   }, [aviso]);
 
-  function alternar(id: string) {
+  async function alternar(id: string) {
     if (todasDoFiltro) {
-      // Desmarcar uma foto sai do "todas do filtro" e volta para a lista de ids.
-      setTodasDoFiltro(false);
-      setSelecionados(new Set(visiveis.map((i) => i.id).filter((i) => i !== id)));
+      // Desmarcar uma foto sai do "todas do filtro" e volta para a lista de ids: as outras fotos
+      // do filtro continuam marcadas, mesmo as que ainda não foram carregadas.
+      const parametros = paramsDoFiltro(filtroValido);
+      parametros.set("ids", "1");
+      try {
+        const resposta = await fetch(`/api/painel/eventos/${eventoId}/fotos?${parametros}`);
+        if (!resposta.ok) throw new Error("Consulta recusada");
+        const dados = (await resposta.json()) as {
+          itens: { id: string; estadoLiberacao: EstadoLiberacao }[];
+        };
+        setConhecidasDeFora(new Map(dados.itens.map((i) => [i.id, i.estadoLiberacao])));
+        setTodasDoFiltro(false);
+        setSelecionados(new Set(dados.itens.map((i) => i.id).filter((i) => i !== id)));
+      } catch {
+        setAviso("Não foi possível desmarcar. Tente de novo.");
+      }
       return;
     }
     setSelecionados((atual) => {
@@ -227,12 +342,13 @@ export function FotosDoEvento({
 
   function aplicar(mudanca: Mudanca) {
     setResultado(null);
-    if (temSelecao && escolhidas.length === 0) {
+    if (temSelecao && quantasEscolhidas === 0) {
       setResultado({ erro: "As fotos selecionadas já estão liberadas." });
       return;
     }
     startTransition(async () => {
-      const ids = temSelecao ? escolhidas.map((i) => i.id) : null;
+      // "Todas deste filtro" vai como filtro, que o servidor reavalia num UPDATE só.
+      const ids = temSelecao && !todasDoFiltro ? idsEscolhidos : null;
       let alteradas = 0;
       const lotes = ids
         ? Array.from({ length: Math.ceil(ids.length / LIBERAR_POR_VEZ) }, (_, n) =>
@@ -244,6 +360,7 @@ export function FotosDoEvento({
           eventoId,
           mudanca,
           ...(lote && { fotoIds: lote }),
+          ...(todasDoFiltro && { filtro: filtroValido }),
         }).catch(() => ({ erro: "Não foi possível concluir. Tente de novo." }));
         if (resposta.erro) return setResultado(resposta);
         alteradas += resposta.alteradas ?? 0;
@@ -255,18 +372,55 @@ export function FotosDoEvento({
   }
 
   const textoAlvo = temSelecao
-    ? `${escolhidas.length} ${escolhidas.length === 1 ? "foto escolhida" : "fotos escolhidas"} ainda não ${escolhidas.length === 1 ? "liberada" : "liberadas"}`
-    : `todas as ${naoLiberadasDoEvento.length} ainda não liberadas`;
+    ? `${quantasEscolhidas} ${quantasEscolhidas === 1 ? "foto escolhida" : "fotos escolhidas"} ainda não ${quantasEscolhidas === 1 ? "liberada" : "liberadas"}`
+    : `todas as ${naoLiberadasDoEvento} ainda não liberadas`;
 
   const selecaoParaMover = todasDoFiltro
     ? ({ tipo: "filtro", filtro: filtroValido } as const)
-    : ({ tipo: "ids", ids: marcadas.map((i) => i.id) } as const);
+    : { tipo: "ids" as const, ids: [...selecionados] };
+
+  const noEvento = contagens.evento;
+  const totalDoEvento = noEvento.pronta + noEvento.processando + noEvento.erro;
 
   return (
     <div className={`flex flex-col gap-4 ${podeLiberar && temSelecao ? "pb-32 sm:pb-0" : ""}`}>
       {proxima && <AtualizarNaHora alvo={proxima} />}
-      {itens.length > 0 && (
+      {noEvento.processando > 0 && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground"
+        >
+          <Loader2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 motion-safe:animate-spin" />
+          <span>
+            <strong className="tabular-nums">
+              {numero.format(noEvento.processando)} processando
+            </strong>
+            {" · "}previsão de {textoDaPrevisao(noEvento.processando, ritmo)}. Pode fechar esta
+            página: o servidor termina sozinho.
+          </span>
+        </p>
+      )}
+      {totalDoEvento > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border p-4">
+          <div role="group" aria-label="Filtrar pela situação" className="flex flex-wrap gap-2">
+            {SITUACOES.filter(
+              (s) =>
+                s.valor === "todas" ||
+                s.valor === "pronta" ||
+                contagens.situacao[s.valor] > 0 ||
+                filtroValido.situacao === s.valor,
+            ).map((s) => (
+              <Button
+                key={s.valor}
+                size="touch"
+                variant={filtroValido.situacao === s.valor ? "default" : "outline"}
+                aria-pressed={filtroValido.situacao === s.valor}
+                onClick={() => setFiltro({ ...filtroValido, situacao: s.valor })}
+              >
+                {s.rotulo} ({numero.format(contagens.situacao[s.valor])})
+              </Button>
+            ))}
+          </div>
           <div role="group" aria-label="Filtrar pela liberação" className="flex flex-wrap gap-2">
             {FILTROS.map((f) => (
               <Button
@@ -297,7 +451,7 @@ export function FotosDoEvento({
                 <option value={SEM_PASTA}>Sem pasta ({numero.format(contagemPastas.sem)})</option>
                 {pastas.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nome} ({numero.format(contagemPastas.porPasta.get(p.id) ?? 0)})
+                    {p.nome} ({numero.format(contagemPastas.porPasta[p.id] ?? 0)})
                   </option>
                 ))}
               </select>
@@ -368,8 +522,12 @@ export function FotosDoEvento({
             )}
           </div>
           <p className="text-sm text-muted-foreground" aria-live="polite">
-            {fotos(visiveis.length)} neste filtro
-            {(filtroValido.liberacao !== "todas" ||
+            {fotos(totalNoFiltro)} neste filtro
+            {carregando && (
+              <Loader2 aria-hidden="true" className="ml-1.5 inline size-3.5 animate-spin" />
+            )}
+            {(filtroValido.situacao !== "todas" ||
+              filtroValido.liberacao !== "todas" ||
               filtroValido.pasta !== PASTA_TODAS ||
               filtroValido.dia !== DIA_TODOS) && (
               <>
@@ -381,6 +539,7 @@ export function FotosDoEvento({
                   onClick={() =>
                     setFiltro({
                       ...filtroValido,
+                      situacao: "todas",
                       liberacao: "todas",
                       pasta: PASTA_TODAS,
                       dia: DIA_TODOS,
@@ -392,10 +551,15 @@ export function FotosDoEvento({
               </>
             )}
           </p>
+          {falhaAoCarregar && (
+            <p role="alert" className="text-sm text-destructive">
+              Não foi possível atualizar as fotos. Confira a conexão e tente de novo.
+            </p>
+          )}
         </div>
       )}
 
-      {podeLiberar && naoLiberadasDoEvento.length > 0 && (
+      {podeLiberar && naoLiberadasDoEvento > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border p-4">
           <p className="text-sm">
             Liberação: vale para <strong>{textoAlvo}</strong>.{" "}
@@ -474,7 +638,7 @@ export function FotosDoEvento({
         </div>
       )}
 
-      {podeLiberar && visiveis.length > 0 && (
+      {podeLiberar && totalNoFiltro > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
             <input
@@ -485,7 +649,7 @@ export function FotosDoEvento({
             />
             Selecionar todas desta página ({numero.format(naPagina.length)})
           </label>
-          {visiveis.length > naPagina.length && (
+          {totalNoFiltro > naPagina.length && (
             <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"
@@ -497,7 +661,7 @@ export function FotosDoEvento({
                 }}
                 className="size-5 accent-primary"
               />
-              Selecionar todas as {fotos(visiveis.length)} deste filtro
+              Selecionar todas as {fotos(totalNoFiltro)} deste filtro
             </label>
           )}
         </div>
@@ -510,21 +674,23 @@ export function FotosDoEvento({
       )}
       <GradeFotosPainel
         eventoId={eventoId}
-        itens={visiveis}
+        itens={itens}
         pastas={pastas}
         selecao={
           podeLiberar
             ? {
-                selecionados: todasDoFiltro ? new Set(visiveis.map((i) => i.id)) : selecionados,
-                alternar,
+                selecionados: todasDoFiltro ? new Set(itens.map((i) => i.id)) : selecionados,
+                alternar: (id) => void alternar(id),
               }
             : undefined
         }
         capa={capaFotoId === undefined ? undefined : capa.escolha}
-        vazio={itens.length === 0 ? undefined : "Nenhuma foto neste filtro."}
+        vazio={totalDoEvento === 0 ? undefined : "Nenhuma foto neste filtro."}
         formatosMoldura={formatosMoldura}
-        mostrando={mostrando}
-        aoMostrarMais={() => setMostrando((n) => n + POR_VEZ)}
+        mostrando={itens.length}
+        total={totalNoFiltro}
+        carregandoMais={carregando}
+        aoMostrarMais={() => void mostrarMais()}
       />
 
       {podeLiberar && temSelecao && (
@@ -538,8 +704,7 @@ export function FotosDoEvento({
             <p className="text-sm" aria-live="polite">
               {todasDoFiltro ? (
                 <>
-                  <strong>Todas as {fotos(visiveis.length)}</strong> deste filtro estão
-                  selecionadas.
+                  <strong>Todas as {fotos(totalNoFiltro)}</strong> deste filtro estão selecionadas.
                 </>
               ) : (
                 <>
@@ -547,7 +712,7 @@ export function FotosDoEvento({
                     {numero.format(totalSelecionado)}{" "}
                     {totalSelecionado === 1 ? "selecionada" : "selecionadas"}.
                   </strong>{" "}
-                  {visiveis.length > totalSelecionado && (
+                  {totalNoFiltro > totalSelecionado && (
                     <Button
                       variant="link"
                       size="sm"
@@ -557,7 +722,7 @@ export function FotosDoEvento({
                         setSelecionados(new Set());
                       }}
                     >
-                      Selecionar todas as {fotos(visiveis.length)} deste filtro
+                      Selecionar todas as {fotos(totalNoFiltro)} deste filtro
                     </Button>
                   )}
                 </>
@@ -607,14 +772,12 @@ export function FotosDoEvento({
   );
 }
 
+/** O filtro nos parâmetros da consulta, sempre com a data escolhida (sem depender do padrão). */
+function paramsDoFiltro(filtro: FiltroDoPainel) {
+  const parametros = filtroParaUrl(filtro, new URLSearchParams(), filtro.base);
+  parametros.set("data", filtro.base);
+  return parametros;
+}
+
 const CLASSE_SELECT =
   "h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-
-/** Os itens com as datas que o filtro usa (o envio sempre existe; a captura, se houver EXIF). */
-function itensComDatas(itens: ItemDoPainel[]) {
-  return itens.map((i) => ({
-    ...i,
-    criadoEm: i.criadoEm ?? "1970-01-01T00:00:00.000Z",
-    capturadaEm: i.capturadaEm ?? null,
-  }));
-}

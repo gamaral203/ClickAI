@@ -15,9 +15,11 @@ import { connection } from "next/server";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
+import type { FiltroDoPainel } from "@/lib/filtro-painel";
 import { liberacaoDoLote, type EscolhaLiberacao, type LiberacaoDaFoto } from "@/lib/liberacao";
 
 import { iso } from "./mapas";
+import { condicoesDoFiltro } from "./pastas";
 
 /**
  * Hora desta requisição, para o painel comparar com `liberar_em`. Espera a requisição antes
@@ -122,18 +124,23 @@ export async function mudarLiberacao(
   mudanca: MudancaLiberacao,
   fotoIds: string[] | null,
   agora: number,
+  /** "Todas deste filtro": o filtro é reavaliado aqui, como ao mover (src/dados/pastas.ts). */
+  filtro: FiltroDoPainel | null = null,
 ): Promise<number | null> {
   const evento = await donoDoEvento(eventoId);
   if (!evento || evento.dono !== donoId) return null;
   if (fotoIds && fotoIds.length === 0) return 0;
   const momento = new Date(agora);
   const banco = await obterBanco();
+  const doFiltro = filtro ? await condicoesDoFiltro(banco, eventoId, filtro, agora) : null;
+  if (filtro && !doFiltro) return 0;
   const naoLiberada = or(isNull(t.fotos.liberarEm), gt(t.fotos.liberarEm, momento));
   const alvo = and(
     eq(t.fotos.eventoId, eventoId),
     isNull(t.fotos.excluidaEm),
     mudanca.acao === "cancelar" ? gt(t.fotos.liberarEm, momento) : naoLiberada,
     fotoIds ? inArray(t.fotos.id, fotoIds) : undefined,
+    ...(doFiltro ?? []),
   );
   const valores =
     mudanca.acao === "liberar"
