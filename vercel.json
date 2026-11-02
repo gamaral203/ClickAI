@@ -3,6 +3,7 @@
   "regions": ["gru1"],
   "crons": [
     { "path": "/api/jobs/pedidos", "schedule": "0 9 * * *" },
-    { "path": "/api/jobs/colecoes", "schedule": "0 7 * * *" }
+    { "path": "/api/jobs/colecoes", "schedule": "0 7 * * *" },
+    { "path": "/api/jobs/fotos-presas", "schedule": "* * * * *" }
   ]
 }
