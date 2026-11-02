@@ -100,7 +100,7 @@ export function MenuCelular({
                   aria-current={linkAtivo(caminho, item.href, item.exato) ? "page" : undefined}
                   // O link para a própria página não troca o caminho: fecha o menu no toque.
                   onClick={() => setAbertoEm(null)}
-                  className="flex h-11 items-center gap-2 rounded-lg px-3 font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary aria-[current=page]:before:size-2 aria-[current=page]:before:shrink-0 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-highlight"
+                  className="flex min-h-11 items-center gap-2 rounded-lg px-3 py-1.5 leading-snug font-medium hover:bg-accent hover:text-accent-foreground aria-[current=page]:text-primary aria-[current=page]:before:size-2 aria-[current=page]:before:shrink-0 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-highlight"
                 >
                   {item.rotulo}
                   {item.selo && (
