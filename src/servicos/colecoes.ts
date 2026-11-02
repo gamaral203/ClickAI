@@ -151,7 +151,7 @@ export async function reindexarEventoArquivado(
       for (const r of feitos) {
         if (r.ok && r.valor === "indexada") resultado.indexadas++;
         else if (r.ok && r.valor === "falha_credencial") resultado.situacao = "falha_credencial";
-        else if (!r.ok || r.valor === "falha") resultado.falhas++;
+        else if (!r.ok || r.valor === "falha" || r.valor === "adiada") resultado.falhas++;
       }
       if (resultado.situacao === "falha_credencial") return resultado;
       if (itens.length < LOTE_DA_REINDEXACAO) {

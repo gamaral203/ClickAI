@@ -548,6 +548,9 @@ export async function buscarFotoEmEnvio(fotoId: string, fotografoId: string) {
   return linha ?? null;
 }
 
+/** Quanto a fila dos rostos deixa a foto recém-pronta para o cadastro feito na hora. */
+const ESPERA_DA_FILA_DE_ROSTOS_MS = 3 * 60 * 1000;
+
 /** Marca a foto como `pronta`, com o original no lugar definitivo. Só a partir de `processando`. */
 export async function concluirFoto(
   fotoId: string,
@@ -567,7 +570,12 @@ export async function concluirFoto(
   const banco = await obterBanco();
   const atualizadas = await banco
     .update(t.fotos)
-    .set({ ...dados, status: "pronta" })
+    // A fila dos rostos espera o cadastro que sai logo depois da foto ficar pronta terminar.
+    .set({
+      ...dados,
+      status: "pronta",
+      rostosTentarEm: new Date(Date.now() + ESPERA_DA_FILA_DE_ROSTOS_MS),
+    })
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")))
     .returning({ id: t.fotos.id });
   return atualizadas.length > 0;

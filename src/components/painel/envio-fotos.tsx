@@ -82,9 +82,11 @@ import {
 /**
  * Fotos sendo processadas no servidor ao mesmo tempo (cada uma é uma função separada). O
  * processamento de cada foto é quase todo espera (R2, banco), não processador: com 6, o envio
- * terminava muito antes do processamento (~100 fotos por minuto contra ~300 enviadas).
+ * terminava muito antes do processamento (~100 fotos por minuto contra ~300 enviadas). Só subiu de
+ * 10 para 16 depois de os rostos irem para uma fila própria, dentro da cota da conta, e de cada
+ * instância ter o seu limite (PROCESSAMENTOS_POR_INSTANCIA, em src/servicos/envios.ts).
  */
-const PROCESSAMENTOS_SIMULTANEOS = 10;
+const PROCESSAMENTOS_SIMULTANEOS = 16;
 /** Fotos por entrega ao servidor (o mesmo limite da rota /api/envios/processar). */
 const FOTOS_POR_ENTREGA = 100;
 /** Impressões calculadas ao mesmo tempo (cada uma lê só ~3 MB do arquivo). */

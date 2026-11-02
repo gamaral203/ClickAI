@@ -26,17 +26,20 @@ import { respostaDaManutencao } from "@/servicos/manutencao";
 // As duas são idempotentes: a foto é reservada antes de processar (src/dados/processamento.ts).
 
 /**
- * Tempo máximo da função (o padrão e o teto do plano Hobby com Fluid Compute). Uma foto leva
- * segundos (medido localmente, com 1 thread: TIFF de 16 bits de 60 MP em ~1,4 s; a leitura do
- * R2 soma alguns); o teto serve às entregas em segundo plano. A memória fica no padrão do plano
- * Hobby (2 GB, sem como aumentar).
+ * Tempo máximo da função. Uma foto leva segundos (medido localmente, com 1 thread: TIFF de 16 bits
+ * de 60 MP em ~1,4 s; a leitura do R2 soma alguns); o teto folgado é para vídeos. A memória fica no
+ * padrão do plano Pro (2 GB).
  */
 export const maxDuration = 300;
 
 /** Fotos por entrega em segundo plano (a tela divide a fila em entregas deste tamanho). */
 const FOTOS_POR_ENTREGA = 100;
-/** Até quando a entrega começa fotos novas, com folga para a última terminar antes do teto. */
-const PRAZO_DA_ENTREGA_MS = 240 * 1000;
+/**
+ * Até quando a entrega começa fotos novas. Curto de propósito: um pacote longo só disputa o
+ * processador com os outros (18 pacotes de 100 chegam juntos). O que não coube continua no banco,
+ * em `processando`, e a fila por minuto (/api/jobs/fotos-presas) termina.
+ */
+const PRAZO_DA_ENTREGA_MS = 55 * 1000;
 
 const corpo = z.union([
   z.object({ fotoId: z.uuid() }).strict(),

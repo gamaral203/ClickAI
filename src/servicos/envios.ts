@@ -24,6 +24,7 @@ import {
   devolverParaFila,
   devolverReserva,
   hashesDoEvento,
+  reservarVagaDoLimite,
   listarFotosParadas,
   marcarFotoComErro,
   marcaDoDonoDoEvento,
@@ -35,7 +36,7 @@ import {
   type ChavesDaFoto,
   type CursorDaFila,
 } from "@/dados";
-import { emParalelo, Orcamento } from "@/lib/concorrencia";
+import { emParalelo, esperaDaTentativa, Orcamento } from "@/lib/concorrencia";
 import { dataDeCaptura } from "@/lib/exif";
 import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
 import {
@@ -67,6 +68,7 @@ import {
   urlDeEnvio,
 } from "@/lib/r2";
 import {
+  ehErroDeCota,
   ehErroDeCredencial,
   indexarRostos,
   nomeDoErro,
@@ -414,6 +416,25 @@ class ArquivoRecusado extends Error {}
 export const ORCAMENTO_DE_MEMORIA_BYTES = 600 * 1024 * 1024;
 const memoria = new Orcamento(ORCAMENTO_DE_MEMORIA_BYTES);
 
+/**
+ * Fotos processadas ao mesmo tempo nesta instância, somando todas as chamadas: as do navegador, as
+ * entregas em segundo plano e a fila. Com 108 ao mesmo tempo, cada foto levava ~30 s disputando o
+ * processador, e o prazo cortava os pacotes pela metade (medido em produção). Quem não cabe espera
+ * sem reservar a foto, então ela segue visível para a fila.
+ */
+export const PROCESSAMENTOS_POR_INSTANCIA = 14;
+const vagasDeProcessamento = new Orcamento(PROCESSAMENTOS_POR_INSTANCIA);
+
+/** Espera a vez nesta instância e a memória da foto; devolve a função que libera as duas. */
+async function vagaDoProcessamento(bytes: number) {
+  const soltarVaga = await vagasDeProcessamento.reservar(1);
+  const soltarMemoria = await memoria.reservar(bytes);
+  return () => {
+    soltarMemoria();
+    soltarVaga();
+  };
+}
+
 /** Reserva memória do mesmo orçamento do envio (a regeração das prévias também abre originais). */
 export function reservarMemoriaDoProcessamento(bytes: number) {
   return memoria.reservar(bytes);
@@ -535,7 +556,7 @@ export async function confirmarEnvio(
     marco = agora;
   };
 
-  const liberar = await memoria.reservar(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
+  const liberar = await vagaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   medir("esperaMs");
   if (opcoes.comecarAte !== undefined && Date.now() > opcoes.comecarAte) {
     liberar();
@@ -660,7 +681,7 @@ export async function confirmarEnvio(
     const copia = umaVez(paraRostos);
     const reconhecer = () =>
       Promise.all([
-        indexarRostosDaFoto(foto.eventoId, foto.id, copia),
+        indexarRostosDaFoto(foto.eventoId, foto.id, copia, undefined, ESPERA_NA_HORA_MS),
         lerNumerosDaFoto(foto.eventoId, foto.id, copia),
       ]);
     if (opcoes.depois) {
@@ -717,7 +738,7 @@ async function confirmarVideo(
 ): Promise<ResultadoDoProcessamento> {
   const { foto, chaves, formato } = valida;
   // Arquivo, prévia e quadros na memória ao mesmo tempo: reserva com folga.
-  const liberar = await memoria.reservar(
+  const liberar = await vagaDoProcessamento(
     Math.min(ORCAMENTO_DE_MEMORIA_BYTES, (foto.tamanhoBytes || LIMITE_VIDEO_BYTES) * 2),
   );
   const agora = Date.now();
@@ -848,11 +869,17 @@ async function confirmarVideo(
  * e ao Rekognition de uma vez.
  */
 export const PROCESSAMENTOS_NO_SERVIDOR = 6;
+/**
+ * Fotos de uma entrega em segundo plano ou de uma execução da fila ao mesmo tempo. O limite real é
+ * o da instância (PROCESSAMENTOS_POR_INSTANCIA), que várias entregas dividem.
+ */
+const PROCESSAMENTOS_POR_EXECUCAO = PROCESSAMENTOS_POR_INSTANCIA;
 
 /**
  * Processa no servidor, em segundo plano, as fotos que o navegador já enviou e entregou de uma
  * vez (a tela de envio terminou os uploads, ou a página está fechando). Roda depois da resposta
- * (`after`), até `prazoMs`; o que não couber fica em `processando` e o job termina.
+ * (`after`), até `prazoMs`; o que não couber fica em `processando`, sem mudança nenhuma, e a fila
+ * por minuto (src/servicos/fila-de-fotos.ts) termina.
  */
 export async function processarEmSegundoPlano(
   fotografoId: string,
@@ -862,7 +889,7 @@ export async function processarEmSegundoPlano(
   const resultado = { prontas: 0, comErro: 0, puladas: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const limite = Date.now() + prazoMs;
-  await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_NO_SERVIDOR, async (fotoId) => {
+  await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_POR_EXECUCAO, async (fotoId) => {
     if (Date.now() > limite) {
       resultado.puladas++;
       return;
@@ -953,7 +980,7 @@ export async function revisarFotosPresas(
       cursor,
     );
     if (pagina.length === 0) break;
-    await emParalelo(pagina, PROCESSAMENTOS_NO_SERVIDOR, revisar);
+    await emParalelo(pagina, PROCESSAMENTOS_POR_EXECUCAO, revisar);
     restantes -= pagina.length;
     cursor = pagina[pagina.length - 1].cursor;
   }
@@ -963,9 +990,53 @@ export async function revisarFotosPresas(
 /**
  * Como terminou o cadastro dos rostos de uma foto: `indexada` (mesmo sem nenhum rosto),
  * `desligado` (sem o Rekognition configurado), `falha_credencial` (chave, região ou permissão
- * erradas: as outras fotos vão falhar igual) ou `falha` (problema só desta foto, ou passageiro).
+ * erradas: as outras fotos vão falhar igual), `adiada` (a cota da conta está cheia; a culpa não é
+ * da foto e a fila dos rostos pega depois) ou `falha` (problema só desta foto, ou passageiro).
  */
-export type IndexacaoDeRostos = "indexada" | "desligado" | "falha_credencial" | "falha";
+export type IndexacaoDeRostos = "indexada" | "desligado" | "falha_credencial" | "adiada" | "falha";
+
+/**
+ * A cota do IndexFaces em sa-east-1 é de 5 por segundo, na conta inteira. Uma vaga a cada 250 ms
+ * dá 4 por segundo, com folga para a variação da rede.
+ */
+const VAGA_DO_CADASTRO_MS = 250;
+const LIMITE_DO_CADASTRO = "rekognition_index_faces";
+/** Quanto espera a vaga o cadastro de quem não tem pressa (fila, reindexação, botão do painel). */
+const ESPERA_PADRAO_MS = 20_000;
+/**
+ * Logo depois da foto ficar pronta: espera pouco. Com a fila cheia, deixa para a fila dos rostos
+ * em vez de segurar a função e a cópia reduzida na memória.
+ */
+const ESPERA_NA_HORA_MS = 3_000;
+const TENTATIVAS_COM_COTA_CHEIA = 4;
+
+class SemVagaNoCadastro extends Error {}
+
+/** IndexFaces dentro do limite da conta, com repetição e espera se a cota estourar mesmo assim. */
+async function indexarDentroDoLimite(
+  eventoId: string,
+  fotoId: string,
+  imagem: Uint8Array,
+  esperaMaximaMs: number,
+) {
+  const pegarVaga = async () => {
+    const espera = await reservarVagaDoLimite(
+      LIMITE_DO_CADASTRO,
+      VAGA_DO_CADASTRO_MS,
+      esperaMaximaMs,
+    );
+    if (espera === null) throw new SemVagaNoCadastro();
+    if (espera > 0) await new Promise((ok) => setTimeout(ok, espera));
+  };
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      return await indexarRostos(eventoId, fotoId, imagem, pegarVaga);
+    } catch (erro) {
+      if (!ehErroDeCota(erro) || tentativa >= TENTATIVAS_COM_COTA_CHEIA) throw erro;
+      await new Promise((ok) => setTimeout(ok, esperaDaTentativa(tentativa)));
+    }
+  }
+}
 
 /**
  * Cadastra os rostos da foto no reconhecimento facial (com as credenciais REKOGNITION_*), para a
@@ -979,6 +1050,7 @@ export async function indexarRostosDaFoto(
   fotoId: string,
   original: Buffer | (() => Promise<Buffer>),
   depoisDeSalvar?: (rostos: RostoIndexado[]) => Promise<void>,
+  esperaMaximaMs = ESPERA_PADRAO_MS,
 ): Promise<IndexacaoDeRostos> {
   if (provedorFacial() !== "rekognition") return "desligado";
   let rostos: RostoIndexado[];
@@ -986,9 +1058,10 @@ export async function indexarRostosDaFoto(
     // No envio, a cópia reduzida já vem da decodificação das prévias (gerarVersoes).
     const imagem =
       typeof original === "function" ? await original() : await copiaParaRostos(original);
-    rostos = await indexarRostos(eventoId, fotoId, imagem);
+    rostos = await indexarDentroDoLimite(eventoId, fotoId, imagem, esperaMaximaMs);
     await salvarRostos(fotoId, rostos);
   } catch (erro) {
+    if (erro instanceof SemVagaNoCadastro || ehErroDeCota(erro)) return "adiada";
     // Só o id da foto e o nome do erro (ex.: UnrecognizedClientException): nada da imagem.
     console.error(
       `[envios] falha ao indexar os rostos da foto ${fotoId}: ${nomeDoErro(erro)}` +
@@ -1022,11 +1095,12 @@ export async function indexarRostosDoVideo(
     const lista = typeof quadros === "function" ? await quadros() : quadros;
     const rostos: RostoIndexado[] = [];
     for (const quadro of lista) {
-      const encontrados = await indexarRostos(eventoId, fotoId, quadro);
+      const encontrados = await indexarDentroDoLimite(eventoId, fotoId, quadro, ESPERA_PADRAO_MS);
       rostos.push(...encontrados.map((r) => ({ rostoId: r.rostoId, caixa: null })));
     }
     await salvarRostos(fotoId, rostos);
   } catch (erro) {
+    if (erro instanceof SemVagaNoCadastro || ehErroDeCota(erro)) return "adiada";
     console.error(
       `[envios] falha ao indexar os rostos do vídeo ${fotoId}: ${nomeDoErro(erro)}` +
         (erro instanceof Error ? ` (${erro.message})` : ""),

@@ -76,6 +76,35 @@ export function provedorFacial(): "rekognition" | "exemplo" {
   return configRekognition() ? "rekognition" : "exemplo";
 }
 
+/** Erros de cota da AWS: não dizem nada da foto, e a mesma chamada passa daqui a pouco. */
+export function ehErroDeCota(erro: unknown) {
+  return (
+    erro instanceof Error &&
+    ["ProvisionedThroughputExceededException", "ThrottlingException"].includes(erro.name)
+  );
+}
+
+/**
+ * Cliente só do IndexFaces, sem as repetições automáticas do SDK: cada repetição é uma chamada a
+ * mais, e toda chamada precisa passar pelo limite da conta (a cota em sa-east-1 é de 5 por
+ * segundo). Quem repete é src/servicos/envios.ts, pegando outra vaga.
+ */
+let clienteDoCadastro: { chave: string; rk: RekognitionClient } | null = null;
+function rekognitionDoCadastro(config: ConfigRekognition) {
+  const chave = `${config.regiao}:${config.credenciais.accessKeyId}`;
+  if (clienteDoCadastro?.chave !== chave) {
+    clienteDoCadastro = {
+      chave,
+      rk: new RekognitionClient({
+        region: config.regiao,
+        credentials: config.credenciais,
+        maxAttempts: 1,
+      }),
+    };
+  }
+  return clienteDoCadastro.rk;
+}
+
 let cliente: { chave: string; rk: RekognitionClient } | null = null;
 function rekognition(config: ConfigRekognition) {
   // Credenciais passadas aqui, nunca pela cadeia padrão do SDK (que leria as AWS_* da Vercel).
@@ -141,18 +170,21 @@ async function criarColecao(rk: RekognitionClient, CollectionId: string) {
  * Indexa os rostos de uma foto do evento. Chamado quando a foto fica pronta, no fim do
  * processamento do envio (src/servicos/envios.ts); o `ExternalImageId` é o id da foto, que
  * volta na busca. Devolve o id e a posição de cada rosto, para gravar na tabela `rostos`.
+ * `antesDeChamar` roda antes de cada IndexFaces (é onde entra o limite da conta inteira).
  */
 export async function indexarRostos(
   eventoId: string,
   fotoId: string,
   imagem: Uint8Array,
+  antesDeChamar: () => Promise<void> = async () => {},
 ): Promise<RostoIndexado[]> {
   const config = configRekognition();
   if (!config) return [];
-  const rk = rekognition(config);
+  const rk = rekognitionDoCadastro(config);
   const CollectionId = colecao(config, eventoId);
-  const indexar = () =>
-    rk.send(
+  const indexar = async () => {
+    await antesDeChamar();
+    return rk.send(
       new IndexFacesCommand({
         CollectionId,
         Image: { Bytes: imagem },
@@ -164,6 +196,7 @@ export async function indexarRostos(
         QualityFilter: "LOW",
       }),
     );
+  };
   let resposta;
   if (colecoesCriadas.has(CollectionId)) {
     try {

@@ -54,6 +54,14 @@ export function tamanhoDaParte(tamanho: number, numero: number) {
  */
 export const ESPERA_FOTO_PRESA_MS = 2 * 60 * 1000;
 
+/**
+ * Foto com falha nos rostos volta à fila até este número de vezes; depois fica como pendente no
+ * painel, com o botão "Cadastrar rostos que faltam".
+ */
+export const MAXIMO_DE_TENTATIVAS_DE_ROSTOS = 5;
+/** A fila dos rostos só pega envios recentes (src/dados/fila-de-rostos.ts). */
+export const JANELA_DA_FILA_DE_ROSTOS_MS = 14 * 24 * 60 * 60 * 1000;
+
 /** Texto do limite para as mensagens. */
 export const LIMITE_FOTO_TEXTO = "200 MB";
 
