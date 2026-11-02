@@ -40,7 +40,7 @@ export function BotaoAprenda() {
       <button
         type="button"
         onClick={abrir}
-        className="inline-flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-primary hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:px-3"
+        className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg px-2 text-sm font-medium text-primary hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:px-3"
       >
         <GraduationCap aria-hidden="true" className="size-5" />
         {/* Só o ícone até a tela ser larga o bastante para os atalhos não quebrarem linha. */}

@@ -50,7 +50,7 @@ export default function PaginaTermos() {
         <ol className="grid gap-1 text-sm sm:grid-cols-2">
           {indice.map(([id, rotulo], i) => (
             <li key={id}>
-              <a href={`#${id}`} className={`inline-flex min-h-8 items-center ${classeLink}`}>
+              <a href={`#${id}`} className={`inline-flex min-h-11 items-center ${classeLink} md:min-h-8 pointer-coarse:min-h-11`}>
                 {i + 1}. {rotulo}
               </a>
             </li>

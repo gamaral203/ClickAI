@@ -141,7 +141,7 @@ export function GraficoVendas({
       {/* Os mesmos números em tabela: para leitor de tela e para quem quer o valor exato. */}
       {total > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+          <summary className="cursor-pointer py-3 text-muted-foreground hover:text-foreground">
             Ver em tabela
           </summary>
           <table className="mt-2 w-full">

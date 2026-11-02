@@ -236,6 +236,22 @@ html.protegido .imagem-protegida {
 }
 
 /*
+ * Área de toque de 44 px em tela de toque, inclusive no celular deitado (que passa do breakpoint
+ * e pegaria os tamanhos compactos do computador). Com mouse, nada muda.
+ */
+@media (pointer: coarse) {
+  [data-slot="button"],
+  main button:not([role="switch"]),
+  main select,
+  main input:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"], [type="range"]) {
+    min-height: 2.75rem;
+  }
+  [data-slot="button"] {
+    min-width: 2.75rem;
+  }
+}
+
+/*
  * Barra fixa de compra da página da foto no celular ([data-barra-compra]): o botão e a janela do
  * chat sobem para não cobrir o "Adicionar ao carrinho". Do computador em diante, não há barra.
  */

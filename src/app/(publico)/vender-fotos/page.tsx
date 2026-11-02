@@ -508,8 +508,8 @@ export default function PaginaVenderFotos() {
           </h2>
           <div className="flex flex-col divide-y rounded-xl border bg-card">
             {perguntas.map(({ pergunta, resposta }) => (
-              <details key={pergunta} className="group p-4">
-                <summary className="cursor-pointer list-none rounded-sm font-medium focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+              <details key={pergunta} className="group">
+                <summary className="cursor-pointer list-none rounded-xl p-4 font-medium focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center justify-between gap-3">
                     {pergunta}
                     <span aria-hidden="true" className="text-muted-foreground group-open:rotate-45">
@@ -517,7 +517,7 @@ export default function PaginaVenderFotos() {
                     </span>
                   </span>
                 </summary>
-                <p className="mt-2 text-muted-foreground">{resposta}</p>
+                <p className="px-4 pb-4 text-muted-foreground">{resposta}</p>
               </details>
             ))}
           </div>
@@ -558,7 +558,7 @@ export default function PaginaVenderFotos() {
             Já tem conta?{" "}
             <Link
               href="/entrar"
-              className="font-semibold underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
+              className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
             >
               Entrar no painel
             </Link>

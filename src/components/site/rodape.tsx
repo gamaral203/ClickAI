@@ -105,7 +105,7 @@ function RodapeCompleto() {
                   <li key={l.href}>
                     <Link
                       href={l.href}
-                      className="inline-flex min-h-11 items-center rounded-sm py-1 text-sm text-white/75 hover:text-white focus-visible:ring-3 focus-visible:ring-white/60 md:min-h-9"
+                      className="inline-flex min-h-11 min-w-11 items-center rounded-sm py-1 text-sm text-white/75 hover:text-white focus-visible:ring-3 focus-visible:ring-white/60 md:min-h-9 pointer-coarse:min-h-11"
                     >
                       {l.rotulo}
                     </Link>
@@ -147,7 +147,7 @@ function RodapeCurto() {
                 {i > 0 && <span aria-hidden="true">·</span>}
                 <Link
                   href={l.href}
-                  className="inline-flex h-10 items-center px-1 hover:text-foreground sm:h-8"
+                  className="inline-flex h-11 min-w-11 items-center justify-center px-1 hover:text-foreground sm:h-8 sm:min-w-0 pointer-coarse:h-11 pointer-coarse:min-w-11"
                 >
                   {l.rotulo}
                 </Link>

@@ -8,7 +8,7 @@ import type { FiltroEventos, OpcoesFiltroEventos } from "@/dados";
 
 /** Mesmo visual do <Input>, para os filtros funcionarem como formulário comum, sem JavaScript. */
 const classeSelect =
-  "h-10 w-full min-w-0 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 lg:h-11 lg:px-2.5 dark:bg-input/30";
+  "h-11 w-full min-w-0 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 lg:px-2.5 dark:bg-input/30";
 
 /** Tem algum filtro aplicado (busca, data, categoria ou cidade)? */
 export function filtrandoEventos(filtro: FiltroEventos) {
@@ -61,14 +61,14 @@ export function FiltrosEventos({
             maxLength={100}
             defaultValue={filtro.busca}
             placeholder={placeholder}
-            className="h-10 lg:h-11"
+            className="h-11"
           />
         </div>
         <button
           type="submit"
           className={buttonVariants({
             size: "touch",
-            className: "h-10 px-3 lg:order-last lg:h-11 lg:px-5",
+            className: "h-11 min-w-11 px-3 lg:order-last lg:px-5",
           })}
         >
           <Search aria-hidden="true" data-icon="inline-start" />
@@ -122,14 +122,14 @@ export function FiltrosEventos({
             name="data"
             type="date"
             defaultValue={filtro.data}
-            className="h-10 w-full min-w-0 appearance-none px-2 text-sm lg:h-11 lg:px-3 [&::-webkit-date-and-time-value]:text-left"
+            className="h-11 w-full min-w-0 appearance-none px-2 text-sm lg:px-3 [&::-webkit-date-and-time-value]:text-left"
           />
         </div>
       </div>
       {filtrandoEventos(filtro) && (
         <Link
           href={limpar}
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline lg:col-span-5"
+          className="inline-flex min-h-11 w-fit items-center text-sm font-medium text-primary underline-offset-4 hover:underline lg:col-span-5"
         >
           Limpar filtros
         </Link>
