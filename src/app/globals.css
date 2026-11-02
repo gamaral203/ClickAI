@@ -278,3 +278,9 @@ html.protegido .imagem-protegida {
     max-height: calc(100dvh - 14.75rem);
   }
 }
+
+/* Carrinho, checkout e pedido à espera do pagamento: sem chat flutuante, nada cobre a compra. */
+body:has([data-sem-chat]) .chat-flutuante-botao,
+body:has([data-sem-chat]) .chat-flutuante-janela {
+  display: none;
+}

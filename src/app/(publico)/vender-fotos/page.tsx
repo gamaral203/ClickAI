@@ -540,7 +540,7 @@ export default function PaginaVenderFotos() {
       </section>
 
       <section aria-labelledby="titulo-chamada-final" className={`${CONTAINER} pb-12 md:pb-16`}>
-        <div className="relative isolate flex flex-col items-start gap-5 overflow-hidden rounded-3xl bg-linear-150 from-primary from-10% to-profundo to-95% p-6 text-white md:p-12">
+        <div className="relative isolate flex flex-col items-start gap-5 overflow-hidden rounded-3xl bg-linear-150 from-profundo from-20% to-primary to-100% p-6 text-white md:p-12">
           <Image src="/logo-clara.png" alt="" width={544} height={160} className="h-9 w-auto" />
           <h2
             id="titulo-chamada-final"
@@ -553,7 +553,7 @@ export default function PaginaVenderFotos() {
             mensalidade.
           </p>
           <ChamadaCadastro />
-          <p className="flex items-center gap-2 text-sm text-white/85">
+          <p className="flex items-center gap-2 text-sm text-white/95">
             <KeyRound aria-hidden="true" className="size-4 shrink-0" />
             Já tem conta?{" "}
             <Link

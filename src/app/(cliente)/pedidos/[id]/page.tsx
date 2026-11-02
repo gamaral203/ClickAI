@@ -69,6 +69,8 @@ async function ConteudoPedido({ params, searchParams }: PageProps<"/pedidos/[id]
 
   return (
     <>
+      {/* Pagando: o chat flutuante sai da tela (src/app/globals.css). */}
+      {pedido.status === "pendente" && <span hidden data-sem-chat />}
       {pedido.status === "pendente" && (
         <section className="flex flex-col gap-6 overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
