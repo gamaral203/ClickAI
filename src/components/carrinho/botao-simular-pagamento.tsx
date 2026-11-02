@@ -24,6 +24,7 @@ export function BotaoSimularPagamento({
         variant="outline"
         size="touch"
         disabled={enviando}
+        className="h-auto min-h-11 py-1.5 leading-tight whitespace-normal"
         onClick={() =>
           startTransition(async () => {
             setFalhou(false);

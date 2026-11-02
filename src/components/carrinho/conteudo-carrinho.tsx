@@ -121,7 +121,7 @@ export function ConteudoCarrinho() {
                 <h2 className="font-semibold">
                   <Link
                     href={`/eventos/${grupo.eventoSlug}`}
-                    className="-my-2 inline-block py-2 hover:underline"
+                    className="-my-2.5 inline-block py-2.5 hover:underline"
                   >
                     {grupo.eventoTitulo}
                   </Link>
@@ -144,7 +144,10 @@ export function ConteudoCarrinho() {
               </div>
               <ul className="flex flex-col divide-y">
                 {grupo.itens.map((item) => (
-                  <li key={item.fotoId} className="flex items-center gap-2.5 py-3 sm:gap-4">
+                  <li
+                    key={item.fotoId}
+                    className="flex items-center gap-2.5 py-3 max-[359px]:flex-wrap sm:gap-4"
+                  >
                     <Link
                       href={`/fotos/${item.fotoId}`}
                       className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted sm:size-16"
@@ -157,11 +160,11 @@ export function ConteudoCarrinho() {
                         className="object-cover"
                       />
                     </Link>
-                    <span className="flex min-w-0 flex-1 flex-col text-sm text-muted-foreground">
+                    <span className="flex min-w-0 flex-1 flex-col text-sm text-muted-foreground max-[359px]:basis-[calc(100%-4.125rem)]">
                       {item.tipo === "video" ? "Vídeo" : "Foto"} em alta resolução
                       {item.autor && <span className="text-xs">Foto por {item.autor}</span>}
                     </span>
-                    <span className="flex flex-col items-end tabular-nums">
+                    <span className="flex flex-col items-end tabular-nums max-[359px]:ml-auto">
                       {item.descontoCentavos > 0 && (
                         <s className="text-xs text-muted-foreground">
                           {formatarPreco(item.precoCentavos)}
@@ -174,6 +177,7 @@ export function ConteudoCarrinho() {
                     <Button
                       variant="ghost"
                       size="icon-lg"
+                      className="size-11"
                       aria-label="Remover do carrinho"
                       onClick={() => removerDoCarrinho(item.fotoId)}
                     >

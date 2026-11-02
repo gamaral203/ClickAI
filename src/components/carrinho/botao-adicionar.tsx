@@ -29,9 +29,11 @@ export function BotaoAdicionar({ fotoId }: { fotoId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Na barra de compra de 320 px o texto não cabe numa linha: quebra em vez de ser cortado. */}
       <Button
         size="touch"
         disabled={cheio}
+        className="h-auto min-h-11 py-1.5 leading-tight whitespace-normal max-sm:px-3"
         onClick={() => {
           adicionarAoCarrinho(fotoId);
           enviarMetrica({ tipo: "carrinho", fotoId });
