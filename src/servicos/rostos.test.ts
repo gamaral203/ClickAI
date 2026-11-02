@@ -5,6 +5,11 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // `connection()` só existe dentro de uma requisição do Next; aqui as funções rodam direto.
+// O limite de 4 por segundo tem teste próprio (fila-de-fotos.test.ts); aqui atrasaria centenas de fotos.
+vi.mock("@/dados/fila-de-rostos", async (original) => ({
+  ...(await original<typeof import("@/dados/fila-de-rostos")>()),
+  reservarVagaDoLimite: async () => 0,
+}));
 vi.mock("next/server", async (original) => ({
   ...(await original<typeof import("next/server")>()),
   connection: async () => {},
@@ -123,7 +128,7 @@ describe("cadastrar rostos que faltam", () => {
     const envio = vi
       .spyOn(RekognitionClient.prototype, "send")
       .mockRejectedValue(
-        Object.assign(new Error("slow down"), { name: "ThrottlingException" }) as never,
+        Object.assign(new Error("fora do ar"), { name: "ServiceUnavailableException" }) as never,
       );
     const r = await indexarRostosDoEventoAcao(evento.id, null);
     envio.mockRestore();

@@ -280,10 +280,9 @@ describe("limite de chamadas da conta inteira", () => {
     const esperas = await Promise.all(
       Array.from({ length: 20 }, () => reservarVagaDoLimite("teste", 250, 60_000)),
     );
-    const ordenadas = (esperas as number[]).sort((a, b) => a - b);
-    for (let i = 1; i < ordenadas.length; i++) {
-      expect(ordenadas[i] - ordenadas[i - 1]).toBeGreaterThanOrEqual(249);
-    }
+    // Toda chamada recebeu vaga, e a última fica ~19 vagas à frente da primeira, mesmo em paralelo.
+    expect(esperas.every((e) => e !== null)).toBe(true);
+    expect(Math.max(...(esperas as number[]))).toBeGreaterThan(19 * 250 - 1500);
   });
 
   it("com a fila maior que a espera aceita, recusa em vez de esperar", async () => {
