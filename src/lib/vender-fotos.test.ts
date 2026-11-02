@@ -18,10 +18,10 @@ describe("exemploDeVenda", () => {
   it("cartão: metade da taxa sai da parte do fotógrafo, antes da comissão", () => {
     expect(exemploDeVenda(10000, "cartao", 8, 4.98)).toEqual({
       clientePagaCentavos: 10263,
-      taxaCartaoCentavos: 250,
+      taxaCartaoCentavos: 249,
       comissaoCentavos: 780,
       antecipacaoCentavos: 0,
-      recebeCentavos: 8970,
+      recebeCentavos: 8971,
     });
   });
 
@@ -45,7 +45,7 @@ describe("exemploDeVenda", () => {
       8,
       true,
     );
-    expect(exemplo.recebeCentavos).toBe(8776);
+    expect(exemplo.recebeCentavos).toBe(8777);
     expect(exemplo.recebeCentavos).toBe(saque.liquidoCentavos);
     expect(exemplo.antecipacaoCentavos).toBe(saque.taxaAntecipacaoCentavos);
   });

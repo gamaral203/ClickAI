@@ -557,8 +557,10 @@ Todo pagamento cai na conta Mercado Pago da plataforma, que libera Pix e cartão
 | Venda | Disponível | Taxa | Exemplo: venda de R$ 100 |
 |---|---|---|---|
 | Pix | 1 dia depois do pagamento | Comissão: 8% | Recebe R$ 92,00 |
-| Cartão, antecipação desligada (padrão) | 30 dias depois do pagamento | Comissão: 8% | Recebe R$ 92,00 |
-| Cartão, antecipação ligada | 1 dia depois do pagamento | 8% + 1,99% sobre o bruto | Recebe R$ 90,01 |
+| Cartão, antecipação desligada (padrão) | 30 dias depois do pagamento | Metade da taxa do cartão (R$ 2,49) e comissão de 8% sobre o resto | Recebe R$ 89,71 |
+| Cartão, antecipação ligada | 1 dia depois do pagamento | Metade da taxa do cartão, 8% + 1,99% sobre o resto | Recebe R$ 87,77 |
+
+No cartão, o comprador paga o acréscimo arredondado para cima, e a parte do fotógrafo na taxa é arredondada para baixo, em centavos inteiros (`parteDoVendedorNaTaxa`, `src/lib/taxas.ts`): o centavo fica com o fotógrafo, e o total do comprador não muda. A diferença para o que o Mercado Pago desconta, quando há, é de menos de 1 centavo por lançamento e sai da receita da plataforma ("taxa absorvida" no financeiro da gestão). A regra vale para os lançamentos criados a partir dela: lançamentos e saques gravados não são recalculados, e a restauração de contestação desfaz os negativos sem recalcular (só cria lançamentos, com a regra atual, no pedido que nunca os teve).
 
 - **Comissão** (`fotografos.comissao_pct`, 8%): mostrada em cada venda, mas descontada uma vez só, sobre o bruto do saque. O razão (`lancamentos`) continua bruto (no cartão, já sem a metade da taxa do cartão que cabe ao vendedor), então nenhum saldo mudou de valor com estas regras.
 - **Pix**: disponível com `antecipavel_em` (pagamento + 1 dia), sem taxa, inclusive nos lançamentos antigos gravados com 30 dias (o valor não muda, só o prazo). Nunca paga 1,99%.

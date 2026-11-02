@@ -274,7 +274,8 @@ const paraQuemVende: Artigo[] = [
           em 1 dia, sem taxa extra. As vendas no cartão ficam disponíveis em 30 dias, sem taxa
           extra; se você ligar a antecipação do cartão, que é opcional, ficam disponíveis em 1 dia e
           as que têm menos de 30 dias pagam <strong>1,99% de antecipação</strong>. Nas vendas no
-          cartão, a taxa do cartão é dividida: metade o cliente paga e metade sai da sua parte.
+          cartão, a taxa do cartão é dividida: metade o cliente paga e metade sai da sua parte,
+          com o centavo do arredondamento a seu favor.
         </p>
         <p>
           Em <strong>Financeiro</strong>, cada venda mostra quanto o cliente pagou, a sua parte, a
