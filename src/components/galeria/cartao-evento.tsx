@@ -25,7 +25,7 @@ export function CartaoEvento({ evento }: { evento: EventoResumo }) {
           />
         ) : (
           // Sem capa: galeria ainda fechada (liberação ou senha) e sem imagem enviada.
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="flex h-full flex-col items-center justify-center gap-2 pt-7 text-muted-foreground sm:pt-0">
             <Camera aria-hidden="true" className="size-6 sm:size-8" />
             <span className="px-2 text-center text-xs font-medium sm:text-sm">
               {textoSemCapa(evento)}

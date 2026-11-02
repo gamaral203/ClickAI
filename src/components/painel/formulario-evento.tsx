@@ -458,7 +458,7 @@ function MaisOpcoes({ assistente, children }: { assistente: boolean; children: R
 
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <fieldset className="flex flex-col gap-4">
+    <fieldset className="flex min-w-0 flex-col gap-4">
       <legend className="mb-2 text-lg font-semibold">{titulo}</legend>
       {children}
     </fieldset>

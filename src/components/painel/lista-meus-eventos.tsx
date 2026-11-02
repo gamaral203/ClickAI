@@ -345,7 +345,7 @@ function Cartao({ evento: e }: { evento: CartaoMeuEvento }) {
           <Numero icone={ChartColumn} valor={formatarPreco(e.vendidoCentavos)} rotulo="em vendas" />
         </dl>
 
-        <div className="mt-auto grid grid-cols-[auto_1fr_1fr] gap-2">
+        <div className="mt-auto grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2">
           <a
             href={e.urlPublica}
             target="_blank"
@@ -353,7 +353,7 @@ function Cartao({ evento: e }: { evento: CartaoMeuEvento }) {
             className={buttonVariants({
               variant: "secondary",
               size: "touch",
-              className: "gap-1 px-1.5 text-[13px] sm:text-sm",
+              className: "gap-1 px-1.5 text-[13px] max-[359px]:text-xs sm:text-sm",
             })}
           >
             <Eye aria-hidden="true" data-icon="inline-start" />
@@ -366,7 +366,7 @@ function Cartao({ evento: e }: { evento: CartaoMeuEvento }) {
             className={buttonVariants({
               variant: "outline",
               size: "touch",
-              className: "gap-1 px-1.5 text-[13px] sm:text-sm",
+              className: "gap-1 px-1.5 text-[13px] max-[359px]:text-xs sm:text-sm",
             })}
           >
             <ChartColumn aria-hidden="true" data-icon="inline-start" className="max-sm:hidden" />
@@ -376,7 +376,7 @@ function Cartao({ evento: e }: { evento: CartaoMeuEvento }) {
             href={abrir}
             className={buttonVariants({
               size: "touch",
-              className: "gap-1 px-1.5 text-[13px] sm:text-sm",
+              className: "gap-1 px-1.5 text-[13px] max-[359px]:text-xs sm:text-sm",
             })}
           >
             {colaboracao ? (
@@ -402,9 +402,12 @@ function Numero({
   rotulo: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center justify-center gap-2 px-2">
-      <Icone aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-      <div className="flex min-w-0 flex-col">
+    <div className="flex min-w-0 items-center justify-center gap-2 px-1 sm:px-2">
+      <Icone
+        aria-hidden="true"
+        className="size-5 shrink-0 text-muted-foreground max-[399px]:hidden"
+      />
+      <div className="flex min-w-0 flex-col max-[399px]:items-center">
         <dd className="truncate text-sm font-bold tabular-nums sm:text-base">{valor}</dd>
         <dt className="truncate text-xs text-muted-foreground">{rotulo}</dt>
       </div>
@@ -430,7 +433,7 @@ function MenuDoCartao({ evento: e }: { evento: CartaoMeuEvento }) {
     <details className="absolute top-3 right-3">
       <summary
         aria-label={`Mais opções de ${e.titulo}`}
-        className="flex size-9 cursor-pointer list-none items-center justify-center rounded-lg bg-white/95 text-slate-900 shadow-sm hover:bg-white [&::-webkit-details-marker]:hidden"
+        className="flex size-9 cursor-pointer list-none items-center justify-center rounded-lg bg-white/95 text-slate-900 shadow-sm hover:bg-white pointer-coarse:size-11 [&::-webkit-details-marker]:hidden"
       >
         <MoreHorizontal aria-hidden="true" className="size-5" />
       </summary>

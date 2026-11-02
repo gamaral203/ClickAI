@@ -143,7 +143,14 @@ export function CompartilharEvento({
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Material para redes sociais e impressão</p>
           <div className="flex flex-wrap gap-2">
-            <a href="#design" className={buttonVariants({ variant: "outline", size: "touch" })}>
+            <a
+              href="#design"
+              className={buttonVariants({
+                variant: "outline",
+                size: "touch",
+                className: "h-auto min-h-11 py-1.5 leading-tight whitespace-normal",
+              })}
+            >
               <Palette aria-hidden="true" data-icon="inline-start" />
               Criar artes (story, feed e banner)
             </a>
