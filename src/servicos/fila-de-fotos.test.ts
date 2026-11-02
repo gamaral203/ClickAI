@@ -227,6 +227,51 @@ describe("rota /api/jobs/fotos-presas", () => {
   });
 });
 
+describe("duas origens no envio", () => {
+  const assinar = async () => {
+    const { urlDeEnvio } = await import("@/lib/r2");
+    return new URL(await urlDeEnvio("envios/a.jpg", 10, "image/jpeg"));
+  };
+
+  it("desligada por padrão: uma origem só, sempre assinada", async () => {
+    reiniciarClienteR2();
+    const hosts = new Set([(await assinar()).host, (await assinar()).host]);
+    expect(hosts.size).toBe(1);
+    expect((await assinar()).searchParams.get("X-Amz-Signature")).toBeTruthy();
+  });
+
+  it("ligada, alterna entre as duas origens do mesmo bucket, assinadas", async () => {
+    vi.stubEnv("NEXT_PUBLIC_R2_DUAS_ORIGENS", "1");
+    reiniciarClienteR2();
+    const [a, b] = [await assinar(), await assinar()];
+    expect(new Set([a.host, b.host])).toEqual(
+      new Set(["fotos-originais.conta-teste.r2.cloudflarestorage.com", "conta-teste.r2.cloudflarestorage.com"]),
+    );
+    expect(a.searchParams.get("X-Amz-Signature")).toBeTruthy();
+    expect(b.searchParams.get("X-Amz-Signature")).toBeTruthy();
+    vi.stubEnv("NEXT_PUBLIC_R2_DUAS_ORIGENS", "");
+    reiniciarClienteR2();
+  });
+});
+
+describe("temporário só sai depois da foto pronta", () => {
+  it("falha ao apagar o temporário não muda nada: a foto fica pronta, com o original guardado", async () => {
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+    const [id] = await fotosEnviadas(1);
+    const chaves = chavesDaFoto(lia.id, evento.id, id, "jpeg");
+    const original = vi.mocked(S3Client.prototype.send).getMockImplementation()!;
+    vi.mocked(S3Client.prototype.send).mockImplementation((async (...a: unknown[]) => {
+      if (a[0] instanceof DeleteObjectCommand) throw new Error("fora do ar");
+      return (original as (...x: unknown[]) => unknown)(...a);
+    }) as never);
+    await revisarFotosPresas();
+    vi.mocked(S3Client.prototype.send).mockImplementation(original);
+    expect(await contagemPorStatus([id])).toEqual({ pronta: 1 });
+    expect(objetos.has(chaves.original)).toBe(true);
+    expect(objetos.has(chaves.temporaria)).toBe(true);
+  });
+});
+
 describe("limite de chamadas da conta inteira", () => {
   it("cada chamada recebe uma vaga própria, mesmo todas ao mesmo tempo", async () => {
     const esperas = await Promise.all(
@@ -381,7 +426,7 @@ describe(`carga: lote de ${QUANTAS} fotos`, () => {
         `pico de leituras ${picoDeLeituras}, final ${JSON.stringify(final)}`,
     );
     expect(final).toEqual({ pronta: QUANTAS });
-    expect(picoDeLeituras).toBeLessThanOrEqual(14);
+    expect(picoDeLeituras).toBeLessThanOrEqual(12);
     vi.mocked(console.error).mockRestore();
     vi.stubEnv("REKOGNITION_REGIAO", REKOGNITION.REKOGNITION_REGIAO);
   }, 600_000);

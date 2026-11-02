@@ -39,5 +39,7 @@ export async function GET(request: NextRequest) {
   }
   const { rodarFilaDeFotos } = await import("@/servicos/fila-de-fotos");
   const resultado = await rodarFilaDeFotos();
+  // Só contagens: acompanha em produção quantas fotos cada execução faz.
+  console.info("[jobs] fila de fotos", JSON.stringify(resultado));
   return Response.json(resultado, { headers: { "Cache-Control": "no-store" } });
 }

@@ -54,6 +54,7 @@ import { sufixoDaVersao } from "@/lib/marca-dagua";
 import { aplicarAjustesDaMarca } from "@/lib/protecao-previas";
 import {
   abrirEnvioEmPartes,
+  copiarOriginal,
   ERRO_SEM_ARMAZENAMENTO,
   fecharEnvioEmPartes,
   gravarPublico,
@@ -420,9 +421,11 @@ const memoria = new Orcamento(ORCAMENTO_DE_MEMORIA_BYTES);
  * Fotos processadas ao mesmo tempo nesta instância, somando todas as chamadas: as do navegador, as
  * entregas em segundo plano e a fila. Com 108 ao mesmo tempo, cada foto levava ~30 s disputando o
  * processador, e o prazo cortava os pacotes pela metade (medido em produção). Quem não cabe espera
- * sem reservar a foto, então ela segue visível para a fila.
+ * sem reservar a foto, então ela segue visível para a fila. Medido com 1 CPU e os tempos de R2 de
+ * produção (fotos de 0,9 MB): 6 ao mesmo tempo, 76 fotos/min e 4,8 s por foto; 12, 91 e 7,6 s; 14,
+ * 82 e 10,2 s; 16, 81 e 11,6 s. Passou de 12, só aumenta a espera e a memória.
  */
-export const PROCESSAMENTOS_POR_INSTANCIA = 14;
+export const PROCESSAMENTOS_POR_INSTANCIA = 12;
 const vagasDeProcessamento = new Orcamento(PROCESSAMENTOS_POR_INSTANCIA);
 
 /** Espera a vez nesta instância e a memória da foto; devolve a função que libera as duas. */
@@ -652,14 +655,16 @@ export async function confirmarEnvio(
     // As chaves levam a revisão da configuração usada.
     const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     medir("versoesMs");
-    // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
+    // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias. A cópia fica
+    // antes da conclusão de propósito: `chave_original` só aponta para o lugar definitivo com o
+    // arquivo já lá. O temporário só sai depois de a foto estar `pronta` (abaixo).
     await Promise.all([
       gravarPublico(publicas.previa, previa.buffer, "image/webp"),
       gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
       ...(jaNoLugar
         ? []
-        : [moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime)]),
+        : [copiarOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime)]),
     ]);
 
     const concluiu = await concluirFoto(foto.id, {
@@ -676,6 +681,16 @@ export async function confirmarEnvio(
     if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
+    // O temporário só sai agora, sem segurar a foto. Se falhar, nada se perde: o original já está
+    // no lugar e a regra de ciclo de vida de envios/ (1 dia, docs/deploy.md) limpa o que sobrou.
+    const limpar = () =>
+      removerOriginal(chaves.temporaria).catch((erro) =>
+        console.error(`[envios] temporário da foto ${foto.id} não saiu: ${nomeDoErro(erro)}`),
+      );
+    if (!jaNoLugar) {
+      if (opcoes.depois) opcoes.depois(limpar);
+      else await limpar();
+    }
     // A foto já está pronta (à venda); os rostos servem à busca por selfie e o número de peito
     // à busca por número (só no evento com a leitura ligada). A cópia reduzida é a mesma.
     const copia = umaVez(paraRostos);
@@ -874,6 +889,24 @@ export const PROCESSAMENTOS_NO_SERVIDOR = 6;
  * o da instância (PROCESSAMENTOS_POR_INSTANCIA), que várias entregas dividem.
  */
 const PROCESSAMENTOS_POR_EXECUCAO = PROCESSAMENTOS_POR_INSTANCIA;
+/** Parte das fotos com os tempos no log, só números, para medir em produção sem encher o log. */
+const AMOSTRA_DOS_TEMPOS = 0.05;
+
+/** Roda em segundo plano o que cada foto deixou para depois, sem segurar a vaga de quem a pegou. */
+function trabalhoParaDepois() {
+  const pendentes: Promise<unknown>[] = [];
+  return {
+    depois: (tarefa: () => Promise<unknown>) => void pendentes.push(tarefa().catch(() => {})),
+    terminar: () => Promise.allSettled(pendentes),
+  };
+}
+
+/** Registra os tempos de uma foto na amostra. Nada de URL, chave, id ou nome: só números. */
+function registrarTempos(modo: string, tempos: TemposDoProcessamento) {
+  if (Math.random() < AMOSTRA_DOS_TEMPOS) {
+    console.info("[envios] tempos da foto", JSON.stringify({ modo, ...tempos }));
+  }
+}
 
 /**
  * Processa no servidor, em segundo plano, as fotos que o navegador já enviou e entregou de uma
@@ -889,13 +922,16 @@ export async function processarEmSegundoPlano(
   const resultado = { prontas: 0, comErro: 0, puladas: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const limite = Date.now() + prazoMs;
+  const { depois, terminar } = trabalhoParaDepois();
   await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_POR_EXECUCAO, async (fotoId) => {
     if (Date.now() > limite) {
       resultado.puladas++;
       return;
     }
     try {
-      const r = await confirmarEnvio(fotografoId, fotoId, { comecarAte: limite });
+      const tempos: TemposDoProcessamento = {};
+      const r = await confirmarEnvio(fotografoId, fotoId, { comecarAte: limite, depois, tempos });
+      registrarTempos("entrega", tempos);
       if ("erro" in r) resultado.comErro++;
       else if ("eventoId" in r) resultado.prontas++;
       else resultado.puladas++;
@@ -904,6 +940,7 @@ export async function processarEmSegundoPlano(
       resultado.comErro++;
     }
   });
+  await terminar();
   return resultado;
 }
 
@@ -942,6 +979,7 @@ export async function revisarFotosPresas(
   const antesDe = new Date(agora - ESPERA_FOTO_PRESA_MS);
   let restantes = limite;
   let cursor: CursorDaFila | null = null;
+  const { depois, terminar } = trabalhoParaDepois();
   const revisar = async (foto: Awaited<ReturnType<typeof listarFotosParadas>>[number]) => {
     if (Date.now() > fim) return;
     resultado.revisadas++;
@@ -954,10 +992,14 @@ export async function revisarFotosPresas(
         resultado.comErro++;
         return;
       }
+      const tempos: TemposDoProcessamento = {};
       const r = await confirmarEnvio(foto.enviadaPor, foto.id, {
         inicioDoEnvio: foto.inicio,
         comecarAte: fim,
+        depois,
+        tempos,
       });
+      registrarTempos("fila", tempos);
       if ("erro" in r) {
         // Registro sem arquivo temporário válido volta como "não encontrada" sem mudar de
         // status; marcar aqui evita que ele prenda a fila do job para sempre. Só muda se a foto
@@ -984,6 +1026,7 @@ export async function revisarFotosPresas(
     restantes -= pagina.length;
     cursor = pagina[pagina.length - 1].cursor;
   }
+  await terminar();
   return resultado;
 }
 

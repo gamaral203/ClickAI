@@ -91,6 +91,35 @@ function s3(config: ConfigR2) {
 /** Só para os testes: descarta o cliente, para a próxima chamada ler as variáveis de novo. */
 export function reiniciarClienteR2() {
   cliente = null;
+  clienteNoCaminho = null;
+}
+
+// ---------------------------------------------------------------- Duas origens no envio
+// O endpoint S3 do R2 só negocia HTTP/1.1, e o navegador abre no máximo 6 conexões por origem. O
+// mesmo bucket responde em duas origens: <bucket>.<conta>.r2... (o padrão do SDK) e <conta>.r2...
+// (o bucket no caminho). Alternar os PUTs entre as duas dá até 12 conexões. As URLs continuam
+// assinadas e nada passa pelo Next.js. Desligado por padrão: depende de conferir o CORS no
+// Cloudflare (docs/deploy.md, item 7), e só o dono faz isso.
+
+let clienteNoCaminho: S3Client | null = null;
+function s3NoCaminho(config: ConfigR2) {
+  clienteNoCaminho ??= new S3Client({
+    region: "auto",
+    endpoint: `https://${config.contaId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: config.chaveId, secretAccessKey: config.segredo },
+    forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
+  return clienteNoCaminho;
+}
+
+let proximaOrigem = 0;
+/** O cliente que assina o próximo PUT do navegador: alterna as origens, se estiver ligado. */
+function clienteDoEnvio(config: ConfigR2) {
+  if (process.env.NEXT_PUBLIC_R2_DUAS_ORIGENS !== "1") return s3(config);
+  proximaOrigem = (proximaOrigem + 1) % 2;
+  return proximaOrigem === 0 ? s3(config) : s3NoCaminho(config);
 }
 
 /**
@@ -101,7 +130,7 @@ export function reiniciarClienteR2() {
 export async function urlDeEnvio(chave: string, tamanhoBytes: number, tipo: string) {
   const config = exigirConfig();
   return getSignedUrl(
-    s3(config),
+    clienteDoEnvio(config),
     new PutObjectCommand({
       Bucket: config.bucketOriginais,
       Key: chave,
@@ -145,7 +174,7 @@ export async function urlDaParte(
 ) {
   const config = exigirConfig();
   return getSignedUrl(
-    s3(config),
+    clienteDoEnvio(config),
     new UploadPartCommand({
       Bucket: config.bucketOriginais,
       Key: chave,
@@ -302,8 +331,11 @@ export async function gravarPublico(chave: string, conteudo: Buffer, tipo: strin
   );
 }
 
-/** Move um objeto dentro do bucket de originais (cópia + remoção da origem). */
-export async function moverOriginal(de: string, para: string, tipo: string) {
+/**
+ * Copia um objeto dentro do bucket de originais. A origem fica: quem chama só a remove depois de
+ * registrar a cópia no banco, para nenhuma falha no meio deixar a foto sem arquivo.
+ */
+export async function copiarOriginal(de: string, para: string, tipo: string) {
   const config = exigirConfig();
   await s3(config).send(
     new CopyObjectCommand({
@@ -314,6 +346,11 @@ export async function moverOriginal(de: string, para: string, tipo: string) {
       MetadataDirective: "REPLACE",
     }),
   );
+}
+
+/** Move um objeto dentro do bucket de originais (cópia + remoção da origem). */
+export async function moverOriginal(de: string, para: string, tipo: string) {
+  await copiarOriginal(de, para, tipo);
   await removerOriginal(de);
 }
 
