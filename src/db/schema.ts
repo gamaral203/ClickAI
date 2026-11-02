@@ -513,6 +513,12 @@ export const fotos = pgTable(
      * fotos anteriores à migração 0007: vale o `criado_em`.
      */
     envioIniciadoEm: data(),
+    /**
+     * Quantas vezes alguém reservou a foto para processar sem ela sair de `processando`. A função
+     * pode morrer no meio sem gravar nada; este contador é o que impede a mesma foto de derrubar
+     * uma execução por minuto para sempre (src/servicos/envios.ts, MAXIMO_DE_TENTATIVAS).
+     */
+    tentativasProcessamento: integer().notNull().default(0),
     /** Por que a foto ficou em `erro`, para o fotógrafo ver no painel. */
     erroMensagem: text(),
     /**
@@ -534,6 +540,9 @@ export const fotos = pgTable(
     index().on(t.eventoId, t.capturadaEm),
     index().on(t.eventoId, t.hashConteudo),
     index().on(t.eventoId, t.liberarEm),
+    // A fila por minuto (src/dados/processamento.ts): só as linhas em `processando`, sem varrer
+    // a tabela inteira a cada minuto.
+    index("fotos_fila_processando_idx").on(t.envioIniciadoEm).where(sql`status = 'processando'`),
   ],
 ).enableRLS();
 

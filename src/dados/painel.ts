@@ -534,6 +534,7 @@ export async function buscarFotoEmEnvio(fotoId: string, fotografoId: string) {
       chaveTemporaria: t.fotos.chaveOriginal,
       hash: t.fotos.hashConteudo,
       tamanhoBytes: t.fotos.tamanhoBytes,
+      tentativas: t.fotos.tentativasProcessamento,
     })
     .from(t.fotos)
     .where(
@@ -581,7 +582,9 @@ export async function marcarFotoComErro(fotoId: string, mensagem: string) {
   await banco
     .update(t.fotos)
     .set({ status: "erro", erroMensagem: mensagem.slice(0, 300) })
-    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
+    .where(
+      and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando"), isNull(t.fotos.excluidaEm)),
+    );
 }
 
 /**

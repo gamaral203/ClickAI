@@ -21,6 +21,7 @@ import {
   buscarFotoEmEnvio,
   concluirFoto,
   configuracaoDaMarca,
+  devolverParaFila,
   devolverReserva,
   hashesDoEvento,
   listarFotosParadas,
@@ -32,11 +33,13 @@ import {
   salvarRostos,
   situacaoDaFoto,
   type ChavesDaFoto,
+  type CursorDaFila,
 } from "@/dados";
 import { emParalelo, Orcamento } from "@/lib/concorrencia";
 import { dataDeCaptura } from "@/lib/exif";
 import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
 import {
+  ESPERA_FOTO_PRESA_MS,
   FOTOS_POR_LOTE,
   LIMITE_FOTO_BYTES,
   LIMITE_FOTO_TEXTO,
@@ -101,7 +104,7 @@ import { copiaParaRostos, gerarVersoes } from "./imagens";
 import { lerNumerosDaFoto } from "./numeros";
 import { prepararVideo, VideoIlegivel } from "./video";
 
-export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
+export { ESPERA_FOTO_PRESA_MS, FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
 const impressao = z.string().regex(/^[0-9a-f]{64}$/);
 
@@ -403,7 +406,7 @@ class ArquivoRecusado extends Error {}
 
 /**
  * Bytes de arquivo sendo processados ao mesmo tempo nesta instância da função. Com o Fluid
- * Compute, uma instância (2 GB no plano Hobby, sem como aumentar) atende várias chamadas da rota
+ * Compute, uma instância (2 GB no padrão do plano Pro) atende várias chamadas da rota
  * de processamento de uma vez; cada foto ocupa o arquivo inteiro na memória mais ~150 MB da
  * decodificação. Com 600 MB de arquivos (três de 200 MB, ou dezenas de 20 MB), o pico fica
  * perto de 1,1 GB. Quem não cabe espera a vez (segundos), em vez de derrubar a instância.
@@ -451,6 +454,14 @@ export const RESERVA_DO_PROCESSAMENTO_MS = 3 * 60 * 1000;
  * erro numa foto sem arquivo: devolve a foto para a fila e confere de novo depois.
  */
 export const ENVIO_PODE_ESTAR_SUBINDO_MS = 30 * 60 * 1000;
+/**
+ * Quantas reservas uma foto pode gastar sem sair de `processando`. Conta também a função que
+ * morreu no meio, que não grava nada: sem este teto, uma foto que estoura a memória derrubaria uma
+ * execução por minuto, para sempre. Passou disso, vira `erro`, e o arquivo continua guardado.
+ */
+export const MAXIMO_DE_TENTATIVAS = 5;
+const ERRO_DEPOIS_DAS_TENTATIVAS =
+  "Não foi possível processar depois de várias tentativas. Envie esta foto de novo.";
 
 export type OpcoesDoProcessamento = {
   /** Recebe a duração de cada etapa (telemetria da tela de envio). */
@@ -465,6 +476,11 @@ export type OpcoesDoProcessamento = {
    * envio ainda recente não vira erro: o upload pode estar terminando.
    */
   inicioDoEnvio?: Date;
+  /**
+   * Até quando pode começar (ms): a espera por memória pode passar do prazo de quem chamou. Depois
+   * disso, a foto continua na fila, sem gastar tentativa.
+   */
+  comecarAte?: number;
 };
 
 export type ResultadoDoProcessamento =
@@ -472,7 +488,10 @@ export type ResultadoDoProcessamento =
   | { eventoId: string }
   /** Outra chamada está processando a foto agora, ou ela já ficou pronta. */
   | { emAndamento: true }
-  /** Só no job: o arquivo ainda não chegou e o envio é recente; a foto volta para a fila. */
+  /**
+   * A foto continua na fila do servidor: o arquivo ainda não chegou e o envio é recente, o prazo
+   * de quem chamou acabou, ou houve uma falha passageira.
+   */
   | { aguardando: true };
 
 /**
@@ -518,6 +537,10 @@ export async function confirmarEnvio(
 
   const liberar = await memoria.reservar(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   medir("esperaMs");
+  if (opcoes.comecarAte !== undefined && Date.now() > opcoes.comecarAte) {
+    liberar();
+    return { aguardando: true };
+  }
   // A reserva vem depois da espera pela memória: uma foto na fila desta instância não fica
   // reservada (e escondida do job) sem ninguém trabalhando nela.
   const agora = Date.now();
@@ -538,7 +561,17 @@ export async function confirmarEnvio(
     return { emAndamento: true };
   }
   try {
-    const lido = await lerEnviado(chaves.temporaria, LIMITE_FOTO_BYTES);
+    let lido = await lerEnviado(chaves.temporaria, LIMITE_FOTO_BYTES);
+    // Sem o temporário, o original pode já estar no lugar: outra execução copiou e morreu antes de
+    // concluir. Sem esta leitura, a foto virava erro com o arquivo guardado em `originais/`.
+    let jaNoLugar = false;
+    if (lido.situacao === "ausente") {
+      const noLugar = await lerEnviado(chaves.original, LIMITE_FOTO_BYTES);
+      if (noLugar.situacao !== "ausente") {
+        lido = noLugar;
+        jaNoLugar = true;
+      }
+    }
     medir("leituraMs");
     if (lido.situacao === "ausente") {
       const inicio = opcoes.inicioDoEnvio;
@@ -603,7 +636,9 @@ export async function confirmarEnvio(
       gravarPublico(publicas.previa, previa.buffer, "image/webp"),
       gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
-      moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
+      ...(jaNoLugar
+        ? []
+        : [moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime)]),
     ]);
 
     const concluiu = await concluirFoto(foto.id, {
@@ -642,10 +677,15 @@ export async function confirmarEnvio(
       await removerOriginal(chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
-    await marcarFotoComErro(foto.id, ERRO_PROCESSAMENTO);
     // Só o id: nada do conteúdo do arquivo vai para o log.
     console.error(`[envios] falha ao processar a foto ${foto.id}`, erro);
-    return { erro: "Não foi possível processar a foto. Tente de novo." };
+    // Falha passageira não condena a foto: volta para a fila, até gastar as tentativas.
+    if (foto.tentativas + 1 < MAXIMO_DE_TENTATIVAS) {
+      await devolverParaFila(foto.id, new Date());
+      return { aguardando: true };
+    }
+    await marcarFotoComErro(foto.id, ERRO_DEPOIS_DAS_TENTATIVAS);
+    return { erro: ERRO_DEPOIS_DAS_TENTATIVAS };
   } finally {
     liberar();
   }
@@ -699,7 +739,17 @@ async function confirmarVideo(
   }
   let movido = false;
   try {
-    const tamanho = await tamanhoDoEnviado(chaves.temporaria);
+    let tamanho = await tamanhoDoEnviado(chaves.temporaria);
+    // Como nas fotos: o vídeo já pode ter sido movido por uma execução que morreu no meio.
+    let chaveDoArquivo = chaves.temporaria;
+    if (tamanho === null) {
+      const noLugar = await tamanhoDoEnviado(chaves.original);
+      if (noLugar !== null) {
+        tamanho = noLugar;
+        chaveDoArquivo = chaves.original;
+        movido = true;
+      }
+    }
     if (tamanho === null) {
       const inicio = opcoes.inicioDoEnvio;
       if (inicio && agora - inicio.getTime() < ENVIO_PODE_ESTAR_SUBINDO_MS) {
@@ -711,15 +761,15 @@ async function confirmarVideo(
     if (tamanho > LIMITE_VIDEO_BYTES) throw new ArquivoRecusado(`Maior que ${LIMITE_VIDEO_TEXTO}.`);
     if (foto.tamanhoBytes && tamanho !== foto.tamanhoBytes)
       throw new ArquivoRecusado(ERRO_DIFERENTE);
-    const inicio = await lerTrecho(chaves.temporaria, 0, Math.min(tamanho, BYTES_PARA_DETECTAR));
+    const inicio = await lerTrecho(chaveDoArquivo, 0, Math.min(tamanho, BYTES_PARA_DETECTAR));
     if (detectarVideo(inicio) !== formato) throw new ArquivoRecusado(MENSAGEM_FORMATO_VIDEO);
-    const conferida = await impressaoDoArquivo(tamanho, (a, b) =>
-      lerTrecho(chaves.temporaria, a, b),
-    );
+    const conferida = await impressaoDoArquivo(tamanho, (a, b) => lerTrecho(chaveDoArquivo, a, b));
     if (conferida !== foto.hash) throw new ArquivoRecusado(ERRO_DIFERENTE);
 
-    await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
-    movido = true;
+    if (!movido) {
+      await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
+      movido = true;
+    }
     const [{ modelo, ajustes }, configGlobal] = await Promise.all([
       marcaDoDonoDoEvento(foto.eventoId),
       configuracaoDaMarca(),
@@ -780,8 +830,12 @@ async function confirmarVideo(
       await removerOriginal(movido ? chaves.original : chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
-    await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
     console.error(`[envios] falha ao processar o vídeo ${foto.id}`, erro);
+    if (foto.tentativas + 1 < MAXIMO_DE_TENTATIVAS) {
+      await devolverParaFila(foto.id, new Date());
+      return { aguardando: true };
+    }
+    await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
     return { erro: "Não foi possível processar o vídeo. Tente de novo." };
   } finally {
     liberar();
@@ -814,7 +868,7 @@ export async function processarEmSegundoPlano(
       return;
     }
     try {
-      const r = await confirmarEnvio(fotografoId, fotoId);
+      const r = await confirmarEnvio(fotografoId, fotoId, { comecarAte: limite });
       if ("erro" in r) resultado.comErro++;
       else if ("eventoId" in r) resultado.prontas++;
       else resultado.puladas++;
@@ -826,13 +880,7 @@ export async function processarEmSegundoPlano(
   return resultado;
 }
 
-/**
- * Foto parada em `processando` há mais disto (ou com a reserva vencida há mais disto) é revisada
- * pelo job. Curto: a reserva (src/dados/processamento.ts) já impede de pegar uma foto que outra
- * chamada está processando, e um arquivo que ainda não chegou só vira erro depois de
- * ENVIO_PODE_ESTAR_SUBINDO_MS.
- */
-export const ESPERA_FOTO_PRESA_MS = 5 * 60 * 1000;
+
 /** Fotos listadas por execução do job (no máximo; o prazo costuma parar antes). */
 export const FOTOS_PRESAS_POR_VEZ = 400;
 /**
@@ -840,6 +888,8 @@ export const FOTOS_PRESAS_POR_VEZ = 400;
  * tempo que o GitHub Actions espera a resposta (150 s), com folga para a última foto terminar.
  */
 export const PRAZO_DO_JOB_MS = 80 * 1000;
+/** Fotos lidas do banco por vez; a próxima página continua de onde esta parou. */
+const PAGINA_DA_FILA = 48;
 
 export type ResultadoFotosPresas = {
   revisadas: number;
@@ -862,12 +912,25 @@ export async function revisarFotosPresas(
   const resultado: ResultadoFotosPresas = { revisadas: 0, prontas: 0, comErro: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const fim = Date.now() + prazoMs;
-  const presas = await listarFotosParadas(new Date(agora - ESPERA_FOTO_PRESA_MS), limite);
-  await emParalelo(presas, PROCESSAMENTOS_NO_SERVIDOR, async (foto) => {
+  const antesDe = new Date(agora - ESPERA_FOTO_PRESA_MS);
+  let restantes = limite;
+  let cursor: CursorDaFila | null = null;
+  const revisar = async (foto: Awaited<ReturnType<typeof listarFotosParadas>>[number]) => {
     if (Date.now() > fim) return;
     resultado.revisadas++;
     try {
-      const r = await confirmarEnvio(foto.enviadaPor, foto.id, { inicioDoEnvio: foto.inicio });
+      // Gastou as tentativas (a função morreu com ela, várias vezes): termina em `erro`, em vez
+      // de voltar à fila para sempre. Nenhum arquivo é apagado.
+      if (foto.tentativas >= MAXIMO_DE_TENTATIVAS) {
+        console.error(`[envios] foto ${foto.id} desistida depois de ${foto.tentativas} tentativas`);
+        await marcarFotoComErro(foto.id, ERRO_DEPOIS_DAS_TENTATIVAS);
+        resultado.comErro++;
+        return;
+      }
+      const r = await confirmarEnvio(foto.enviadaPor, foto.id, {
+        inicioDoEnvio: foto.inicio,
+        comecarAte: fim,
+      });
       if ("erro" in r) {
         // Registro sem arquivo temporário válido volta como "não encontrada" sem mudar de
         // status; marcar aqui evita que ele prenda a fila do job para sempre. Só muda se a foto
@@ -882,7 +945,18 @@ export async function revisarFotosPresas(
       console.error(`[envios] falha ao revisar a foto presa ${foto.id}`, erro);
       resultado.comErro++;
     }
-  });
+  };
+  while (restantes > 0 && Date.now() <= fim) {
+    const pagina: Awaited<ReturnType<typeof listarFotosParadas>> = await listarFotosParadas(
+      antesDe,
+      Math.min(PAGINA_DA_FILA, restantes),
+      cursor,
+    );
+    if (pagina.length === 0) break;
+    await emParalelo(pagina, PROCESSAMENTOS_NO_SERVIDOR, revisar);
+    restantes -= pagina.length;
+    cursor = pagina[pagina.length - 1].cursor;
+  }
   return resultado;
 }
 

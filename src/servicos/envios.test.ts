@@ -70,6 +70,8 @@ import {
   ESPERA_FOTO_PRESA_MS,
   FOTOS_POR_LOTE,
   iniciarEnvio,
+  MAXIMO_DE_TENTATIVAS,
+  processarEmSegundoPlano,
   revisarFotosPresas,
 } from "@/servicos/envios";
 import { LARGURA_PREVIA, LARGURA_PREVIA_CELULAR } from "@/servicos/imagens";
@@ -839,6 +841,142 @@ describe("job que revisa fotos presas em processando", () => {
     const segunda = await revisarFotosPresas(Date.now(), { limite: 3 });
     expect(segunda.revisadas).toBe(2);
     for (const id of ids) expect((await linhaDaFoto(id)).status).toBe("erro");
+  });
+
+  describe("retomada garantida: nenhuma foto é pulada em silêncio", () => {
+    async function enviadas(quantas: number) {
+      const ids: string[] = [];
+      for (let i = 0; i < quantas; i++) {
+        const corpo = await jpeg(64 + i, 64);
+        const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+        simularPut(lia.id, evento.id, fotoId, corpo);
+        await envelhecer(fotoId, 10);
+        ids.push(fotoId);
+      }
+      return ids;
+    }
+
+    it("o pacote cortado no prazo devolve o resto à fila, e a fila termina sem o navegador", async () => {
+      const ids = await enviadas(4);
+      const cortado = await processarEmSegundoPlano(lia.id, ids, -1);
+      expect(cortado).toMatchObject({ prontas: 0, comErro: 0, puladas: 4 });
+      for (const id of ids) expect((await linhaDaFoto(id)).status).toBe("processando");
+
+      await revisarFotosPresas();
+      for (const id of ids) expect((await linhaDaFoto(id)).status).toBe("pronta");
+    });
+
+    it("cortado no meio, processa só o que coube e o resto fica na fila", async () => {
+      const ids = await enviadas(3);
+      await confirmarEnvio(lia.id, ids[0]);
+      const r = await revisarFotosPresas(Date.now(), { limite: 1 });
+      expect(r.revisadas).toBe(1);
+      expect((await linhaDaFoto(ids[1])).status).toBe("pronta");
+      expect((await linhaDaFoto(ids[2])).status).toBe("processando");
+      await revisarFotosPresas();
+      expect((await linhaDaFoto(ids[2])).status).toBe("pronta");
+    });
+
+    it("função morta depois de copiar o original: retoma sem perder o arquivo", async () => {
+      const [fotoId] = await enviadas(1);
+      // Morreu entre a cópia e a conclusão: o temporário já saiu, o original está no lugar.
+      const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+      const temporaria = nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria);
+      const definitiva = nome(R2.R2_BUCKET_ORIGINAIS, chaves.original);
+      objetos.set(definitiva, objetos.get(temporaria)!);
+      objetos.delete(temporaria);
+
+      await revisarFotosPresas();
+      const linha = await linhaDaFoto(fotoId);
+      expect(linha.status).toBe("pronta");
+      expect(linha.chaveOriginal).toBe(chaves.original);
+      expect(objetos.has(definitiva)).toBe(true);
+    });
+
+    it("função morta com a reserva vencida: a foto é retomada e a tentativa fica contada", async () => {
+      const [fotoId] = await enviadas(1);
+      const agora = Date.now();
+      await reservarFotoParaProcessar(fotoId, lia.id, new Date(agora), new Date(agora + 60_000));
+      // Reservada: a fila não a vê.
+      await revisarFotosPresas();
+      expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+      expect((await linhaDaFoto(fotoId)).tentativasProcessamento).toBe(1);
+      await envelhecer(fotoId, 10);
+      await revisarFotosPresas();
+      expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
+    });
+
+    it("duas execuções ao mesmo tempo não processam a mesma foto duas vezes", async () => {
+      const ids = await enviadas(6);
+      const [a, b] = await Promise.all([revisarFotosPresas(), revisarFotosPresas()]);
+      expect(a.prontas + b.prontas).toBeGreaterThanOrEqual(6);
+      expect(a.prontas + b.prontas).toBeLessThanOrEqual(6 + 2);
+      for (const id of ids) {
+        const linha = await linhaDaFoto(id);
+        expect(linha.status).toBe("pronta");
+        expect(linha.tentativasProcessamento).toBe(1);
+      }
+    });
+
+    it("foto excluída enquanto esperava na fila não é processada nem marcada", async () => {
+      const [fotoId] = await enviadas(1);
+      const banco = await obterBanco();
+      await banco.update(t.fotos).set({ excluidaEm: new Date() }).where(eq(t.fotos.id, fotoId));
+      const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+      await revisarFotosPresas();
+      const linha = await linhaDaFoto(fotoId);
+      expect(linha.status).toBe("processando");
+      expect(linha.tentativasProcessamento).toBe(0);
+      // O arquivo fica como está (quem apaga o temporário é a regra de ciclo de vida do R2).
+      expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria))).toBe(true);
+    });
+
+    it("foto que gastou as tentativas termina em erro, sem loop e sem apagar o arquivo", async () => {
+      const [fotoId] = await enviadas(1);
+      const banco = await obterBanco();
+      await banco
+        .update(t.fotos)
+        .set({ tentativasProcessamento: MAXIMO_DE_TENTATIVAS })
+        .where(eq(t.fotos.id, fotoId));
+      const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+      vi.spyOn(console, "error").mockImplementationOnce(() => {});
+      await revisarFotosPresas();
+      const linha = await linhaDaFoto(fotoId);
+      expect(linha.status).toBe("erro");
+      expect(linha.erroMensagem).toMatch(/várias tentativas/);
+      expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria))).toBe(true);
+      // Não volta para a fila.
+      expect((await revisarFotosPresas()).revisadas).toBe(0);
+    });
+
+    it("falha passageira do R2 volta para a fila e, depois, a foto fica pronta", async () => {
+      const [fotoId] = await enviadas(1);
+      vi.spyOn(console, "error").mockImplementationOnce(() => {});
+      vi.spyOn(S3Client.prototype, "send").mockImplementationOnce((async () => {
+        throw Object.assign(new Error("fora do ar"), { $metadata: { httpStatusCode: 503 } });
+      }) as never);
+      expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ aguardando: true });
+      expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+      await envelhecer(fotoId, 10);
+      await revisarFotosPresas();
+      expect((await linhaDaFoto(fotoId)).status).toBe("pronta");
+    });
+
+    it("fotos esperando o arquivo não prendem as outras da fila", async () => {
+      // Mais antigas que uma página, sem arquivo e ainda dentro do prazo de subir.
+      const semArquivo: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const { fotoId } = await iniciarUm(lia.id, evento.id, await jpeg(40 + i, 40));
+        await envelhecer(fotoId, 20);
+        semArquivo.push(fotoId);
+      }
+      const [comArquivo] = await enviadas(1);
+      await revisarFotosPresas();
+      expect((await linhaDaFoto(comArquivo)).status).toBe("pronta");
+      for (const id of semArquivo) expect((await linhaDaFoto(id)).status).toBe("processando");
+      for (const id of semArquivo) await envelhecer(id, 40);
+      await revisarFotosPresas();
+    });
   });
 
   it("para de começar fotos novas quando o prazo do job acaba", async () => {

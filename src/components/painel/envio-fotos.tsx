@@ -425,6 +425,8 @@ type RespostaDoProcessamento = {
   erro?: string;
   /** Outra chamada (entrega em segundo plano ou job) já estava processando, ou já está pronta. */
   emAndamento?: boolean;
+  /** Falha passageira: a foto voltou para a fila do servidor, que tenta de novo. */
+  naFila?: boolean;
   tempos?: Partial<Record<EtapaDoServidor, number>>;
 };
 
@@ -1052,6 +1054,11 @@ export function EnvioFotos({
         { fotoId },
         LIMITE_PROCESSAR_MS,
       );
+      // Falha passageira no servidor: a foto voltou para a fila dele; a tela só acompanha.
+      if (status === 200 && dados.naFila) {
+        atualizar(i, { estado: "no-servidor", problema: null });
+        return;
+      }
       if (status === 200 && dados.emAndamento) {
         atualizar(i, { estado: "pronta", problema: null });
         return;

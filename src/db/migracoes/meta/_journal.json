@@ -344,6 +344,13 @@
       "when": 1793234519523,
       "tag": "0048_financeiro_da_plataforma",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793584355448,
+      "tag": "0049_fila_de_fotos",
+      "breakpoints": true
     }
   ]
 }

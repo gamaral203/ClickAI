@@ -85,5 +85,11 @@ export async function POST(request: NextRequest) {
   // tela, os mesmos tempos só aparecem para quem abre "Detalhes técnicos").
   if (Math.random() < 0.05) console.info("[envios] tempos da foto", JSON.stringify(tempos));
   if ("erro" in resultado) return resposta({ erro: resultado.erro, tempos }, 422);
-  return resposta({ ok: true, emAndamento: "emAndamento" in resultado, tempos });
+  // `naFila`: falha passageira; a foto voltou para a fila do servidor e a tela acompanha.
+  return resposta({
+    ok: true,
+    emAndamento: "emAndamento" in resultado,
+    naFila: "aguardando" in resultado,
+    tempos,
+  });
 }
