@@ -105,6 +105,14 @@ function rekognitionDoCadastro(config: ConfigRekognition) {
   return clienteDoCadastro.rk;
 }
 
+/**
+ * Chaves do mesmo usuário IAM do Rekognition, para as leituras de conta na AWS (créditos do plano
+ * gratuito, src/lib/creditos-aws.ts). `null` quando o provedor é o de exemplo (sem REKOGNITION_*).
+ */
+export function credenciaisAws() {
+  return configRekognition()?.credenciais ?? null;
+}
+
 let cliente: { chave: string; rk: RekognitionClient } | null = null;
 function rekognition(config: ConfigRekognition) {
   // Credenciais passadas aqui, nunca pela cadeia padrão do SDK (que leria as AWS_* da Vercel).

@@ -236,6 +236,26 @@ describe("acesso: só o gestor, conferido no servidor", () => {
     );
     expect(menor.erros?.limiteMes).toBeDefined();
   });
+
+  it("total de créditos da AWS: US$ 100 por padrão, digitado em dólares e gravado em centavos", async () => {
+    await entrarComo("admin");
+    const base = { cotacao: "", limiteDia: "100", limiteMes: "3000" };
+    // Em branco, fica como está (padrão US$ 100).
+    expect(await salvarConfiguracoesAcao({}, formulario(base))).toEqual({ ok: true });
+    expect((await lerConfiguracoesGestao()).creditosAwsTotalCentavos).toBe(10000);
+    expect(
+      await salvarConfiguracoesAcao({}, formulario({ ...base, creditosAws: "200,00" })),
+    ).toEqual({ ok: true });
+    expect((await lerConfiguracoesGestao()).creditosAwsTotalCentavos).toBe(20000);
+    for (const ruim of ["abc", "0", "0,50", "10001"]) {
+      const r = await salvarConfiguracoesAcao({}, formulario({ ...base, creditosAws: ruim }));
+      expect(r.erros?.creditosAws).toBeDefined();
+    }
+    expect((await lerConfiguracoesGestao()).creditosAwsTotalCentavos).toBe(20000);
+    // Sem o campo (formulário antigo), também não muda.
+    expect(await salvarConfiguracoesAcao({}, formulario(base))).toEqual({ ok: true });
+    expect((await lerConfiguracoesGestao()).creditosAwsTotalCentavos).toBe(20000);
+  });
 });
 
 // ---------------------------------------------------------------- Validação

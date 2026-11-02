@@ -48,7 +48,7 @@ Todo commit segue o padrão [Conventional Commits](https://www.conventionalcommi
 |---|---|
 | `feat` | Nova funcionalidade para o usuário |
 | `fix` | Correção de bug |
-| `docs` | Só documentação (`docs/`, README, CLAUDE.md) |
+| `docs` | Só documentação (`instrucoes/`, README, CLAUDE.md) |
 | `refactor` | Mudança de código que não altera comportamento |
 | `perf` | Melhoria de desempenho |
 | `test` | Adiciona ou corrige testes |
