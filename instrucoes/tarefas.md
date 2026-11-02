@@ -6,6 +6,21 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Lote grande sem foto presa: cron por minuto `/api/jobs/fotos-presas`, retomada pela fila no banco com teto de tentativas (migração 0049), fila dos rostos com limite de 4 por segundo na conta inteira (migração 0050), limite de 12 fotos por instância, grade do painel paginada no servidor com contagens por situação e previsão, duas origens no PUT atrás de `NEXT_PUBLIC_R2_DUAS_ORIGENS` (desligada), limpeza do temporário depois da foto pronta e tempos na amostra de log. O `effort` do WebP ficou em 2: 0 ganhava só 8% de tempo e aumentava a prévia em 19%.
+- [x] Leitura de número de peito desligada nos eventos novos pelo interruptor `LEITURA_DE_NUMEROS_DISPONIVEL` (`src/lib/numeros-de-peito.ts`): falsa no servidor em toda categoria, inclusive na cópia de evento; opção, aba e números da grade fora do painel; evento antigo mantém o valor ao salvar. Serviço, API, schema e dados continuam. Decidir se desliga também nos eventos antigos ([arquitetura.md](arquitetura.md), "Número de peito")
+- [x] Revisão em emulação de celular (320, 360, 390, 430 e 844x390): área de toque de 44 px em tela de toque, perguntas frequentes com toque na linha inteira, botão de compra sem corte na barra da foto, menu sem texto vazado, formulário e cartões do painel sem rolagem horizontal e hidratação do chat com menos movimento. Falta conferir em aparelho real
+- [x] Parte do fotógrafo na taxa do cartão em centavos inteiros e arredondada para baixo (R$ 2,49 em R$ 100; recebe R$ 89,71 no cartão e R$ 87,77 antecipado). O total do comprador não muda, a plataforma absorve a diferença e os valores gravados não são recalculados
+- [x] Índice do vídeo de `/vender-fotos` movido para o início do arquivo (`-c copy -movflags +faststart`): sem recompressão, com os mesmos quadros (hash conferido), para tocar sem buscar o fim do MP4
+- [x] Topo de `/vender-fotos` só com o vídeo de fundo, de ponta a ponta e em loop, com o texto por cima (`src/components/vender-fotos/video-de-fundo.tsx`); saem o carrossel e `SLIDES_TOPO`. Película do azul profundo com contraste AA em qualquer quadro, botão de pausar, pausa fora da tela e pôster sem baixar o MP4 com menos movimento ([arquitetura.md](arquitetura.md), "Página para fotógrafos")
+- [x] Botões "Enviar no WhatsApp" (`wa.me`) de volta em `compartilhar-evento` e `link-do-fotografo` no painel (autorizado pelo dono); o campo de WhatsApp do checkout, o suporte, o chat e a busca por número continuam fora da tela
+- [x] Carrossel do topo de `/vender-fotos` horizontal (16:9 em todas as larguras, o vídeo preenche a caixa sem faixa preta; ao lado do título só do xl em diante); rótulo "Conheça o ClicouAí" inteiro no celular (vai para o canto de cima abaixo de 640 px); `arquitetura.md` registra que os números do vídeo são de demonstração
+- [x] Vídeo oficial do dono como primeiro slide do carrossel de `/vender-fotos` (`public/vitrine/video-fotografos.mp4` e pôster): vídeo original do dono, de 1080p e ~53 MB, sem recompressão, cobertura nem desfoque (decisão do dono, ciente de que mostra um CPF por cerca de 3 s), de fundo no topo. O vídeo mostra faturamento e histórico reais do painel e a aba Número de peito: o dono decide se fica assim antes de publicar
+- [x] Foto de divulgação do dono na seção de benefícios de `/vender-fotos` (`public/vitrine/corredora-apontando.webp`, sem metadados, fora do og:image)
+- [x] Termos, Ajuda, banner da inicial e `/vender-fotos` alinhados às taxas do código: comissão de 8%, Pix em 1 dia sem taxa extra, cartão em 30 dias, antecipação opcional de 1,99% só no cartão e Pix do saque feito pela equipe. Os Termos seguem como rascunho, para revisão do advogado
+- [x] Fora da tela, sem mudar serviço, API nem banco: campo de WhatsApp do checkout, "Me enviar no WhatsApp" do pedido, atalhos `wa.me` do painel, links de suporte por WhatsApp e a busca por número de peito da página do evento (`temNumeros={false}`). A leitura dos números no envio continua ligada por categoria e cobrada no Rekognition: decidir se desliga enquanto a busca estiver fora da tela
+- [x] Textos públicos, e-mail de suporte e mensagens do chat sem WhatsApp e sem número de peito (ainda não anunciados); o recurso e o código continuam
+- [x] Chamada "Quero vender minhas fotos" no cabeçalho do site de compra (do lg em diante) e no menu do celular, para visitante e cliente; o menu passa a ir até 1023 px, porque a chamada não cabe ao lado dos links no tablet
+- [x] **Página pública para fotógrafos** (`/vender-fotos`): topo com carrossel de fotos da vitrine (pronto para receber um vídeo em `SLIDES_TOPO`, `src/lib/vender-fotos.ts`), benefícios, recursos conferidos no código, segurança, preço com a comissão de `comissaoPadraoPct()` e exemplo calculado pelas funções do saque, perguntas frequentes e chamada final. Links no rodapé, no menu do celular, em Como funciona e na faixa dos fotógrafos da inicial ([arquitetura.md](arquitetura.md), "Página para fotógrafos")
 - [x] **Créditos da AWS no Painel de uso** (`/admin/uso`, quadro "Créditos AWS"): usado, restante (em US$ e em R$ pela cotação da gestão) e validade dos créditos do plano gratuito, lidos na API Free Tier (`GetAccountPlanState`, `@aws-sdk/client-freetier`, `us-east-1`) com as chaves do Rekognition e cache de 1 hora (`use cache`); total editável em `configuracoes_gestao` (padrão US$ 100), já que a API informa só o restante. Sem as chaves, "não configurado"; sem a permissão `freetier:GetAccountPlanState` ou com falha da AWS, aviso só no quadro. Testes em `src/lib/creditos-aws.test.ts`. **Falta:** dar a permissão ao usuário IAM ([deploy.md](deploy.md), item 6, "Créditos da AWS no Painel de uso")
 - [x] Next.js de 16.4.0 para 16.4.1 (com `eslint-config-next`): corrige duas falhas críticas de execução remota de código e um DoS em Server Actions, sem mudança de versão maior
 - [x] Erros de conexão com o banco em produção ("Connection terminated due to connection timeout"): congelamento da instância da Vercel durante a abertura da conexão, não o banco. O pool repete uma vez a abertura (`src/db/conexao.ts`). Depois do deploy, comparar `[db] tempo de conexão estourado` nos logs com a queda do erro `[manutencao]`
@@ -46,7 +61,6 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 - [x] Lista de tarefas (este arquivo)
 - [x] Skill de segurança `vibe-code-security` e página de skills ([skills.md](skills.md))
 - [x] Skills de interface `ui-ux-pro-max` e `motion-framer`
-- [x] Referência de produto: Fotto ([referencias/fotto.md](referencias/fotto.md))
 - [x] Decisão: reconhecimento facial e numérico, vídeo e os 12 recursos da referência entram no MVP
 - [x] Decisão: só JPEG, sem RAW (revista em 09/10/2026: JPEG, PNG, WebP, TIFF, AVIF e HEIC convertido no navegador; RAW continua fora)
 - [x] Iniciar o projeto Next.js com TypeScript, Tailwind, shadcn/ui, ESLint e Prettier (Next.js 16)
@@ -235,6 +249,9 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Em andamento
 
+- [ ] Dono aprovar a aparência da grade com "N processando" (prints no relatório do item 4).
+- [ ] Dono conferir o CORS e decidir se liga `NEXT_PUBLIC_R2_DUAS_ORIGENS` (`deploy.md`, item 7).
+- [ ] Conferir em produção, pelos logs `[jobs] fila de fotos` e `[envios] tempos da foto`, o ritmo real e o limite de 12 por instância.
 - [ ] **Visualizador: conferir o desfoque em aparelho** (Android e iPhone): intensidade do desfoque e do mosaico, tamanho do círculo e a separação entre revelar (segurar e arrastar na foto) e navegar (deslize rápido ou arrastar fora da foto), e ajustar com a referência em vídeo do usuário ([arquitetura.md](arquitetura.md), "Galeria e busca", item 9)
 - [ ] **Barra do carrinho na galeria com o incentivo do desconto progressivo** (próximo passo do visualizador, como na referência): com itens no carrinho, "Mais N fotos e você leva X pelo preço de Y, economiza R$ Z", "N foto(s) no carrinho", "Limpar" e "Comprar R$ X", com os números calculados no servidor pelas faixas do evento (`src/servicos/descontos.ts`, `pctProgressivo`), por uma server action que recebe só os ids do carrinho. Precisa conviver com a barra do obturador (mesmo pé da tela)
 - [ ] **Limite contra download automatizado das prévias:** hoje as prévias e miniaturas são servidas direto do `r2.dev` (bucket público), então o limite por IP da galeria e da página da foto não cobre quem baixa os arquivos em lote pelo endereço. Opções a decidir: domínio próprio no R2 com regra de rate limit do Cloudflare (WAF) para `/previas/*`; URLs com assinatura curta do Cloudflare (token no Worker); ou servir por uma rota com limite (custo de banda na Vercel). O desfoque do visualizador não muda isso: a prévia continua sendo baixada pelo navegador
@@ -262,7 +279,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Decisões de produto em aberto
 
-Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, o que a Fotto fez.
+Podem ser fechadas a qualquer momento; as de banco, reconhecimento, WhatsApp e worker de vídeo só são necessárias na Parte B. Entre parênteses, a prática comum do mercado.
 
 - [ ] Tipo de foto: só eventos, ou também banco de imagens? (só eventos)
 - [ ] Retenção: por quanto tempo os originais ficam disponíveis após o evento? (indeterminado)

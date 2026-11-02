@@ -415,7 +415,7 @@ export type ResultadoMoverFotos = { movidas: number } | { erro: string };
  * (src/lib/filtro-painel.ts): sempre o evento e só as fotos não excluídas (o painel não mostra
  * as excluídas). `null` quando a pasta do filtro não é deste evento.
  */
-async function condicoesDoFiltro(
+export async function condicoesDoFiltro(
   db: Banco | Transacao,
   eventoId: string,
   filtro: FiltroDoPainel,
@@ -423,6 +423,7 @@ async function condicoesDoFiltro(
 ): Promise<SQL[] | null> {
   const condicoes: SQL[] = [eq(t.fotos.eventoId, eventoId), isNull(t.fotos.excluidaEm)];
   const momento = new Date(agora);
+  if (filtro.situacao !== "todas") condicoes.push(eq(t.fotos.status, filtro.situacao));
   if (filtro.liberacao === "liberada") condicoes.push(lte(t.fotos.liberarEm, momento));
   if (filtro.liberacao === "agendada") condicoes.push(gt(t.fotos.liberarEm, momento));
   if (filtro.liberacao === "manual") condicoes.push(isNull(t.fotos.liberarEm));

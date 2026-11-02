@@ -507,12 +507,25 @@ export const fotos = pgTable(
      * anterior à migração 0038); o "Ler números que faltam" e o job de revisão pegam essas.
      */
     numerosLidosEm: data(),
+    /** Tentativas da fila dos rostos (src/servicos/fila-de-fotos.ts); no teto, a foto sai dela. */
+    rostosTentativas: integer().notNull().default(0),
+    /**
+     * Quando a fila dos rostos pode pegar a foto: é a reserva e a espera entre as tentativas. Nulo:
+     * a qualquer momento (fotos anteriores à migração 0050).
+     */
+    rostosTentarEm: data(),
     /**
      * Início do envio atual (a URL assinada vale 15 minutos). O job que revisa fotos presas em
      * `processando` só mexe nas que passaram bem desse prazo (src/servicos/envios.ts). Nulo nas
      * fotos anteriores à migração 0007: vale o `criado_em`.
      */
     envioIniciadoEm: data(),
+    /**
+     * Quantas vezes alguém reservou a foto para processar sem ela sair de `processando`. A função
+     * pode morrer no meio sem gravar nada; este contador é o que impede a mesma foto de derrubar
+     * uma execução por minuto para sempre (src/servicos/envios.ts, MAXIMO_DE_TENTATIVAS).
+     */
+    tentativasProcessamento: integer().notNull().default(0),
     /** Por que a foto ficou em `erro`, para o fotógrafo ver no painel. */
     erroMensagem: text(),
     /**
@@ -534,8 +547,23 @@ export const fotos = pgTable(
     index().on(t.eventoId, t.capturadaEm),
     index().on(t.eventoId, t.hashConteudo),
     index().on(t.eventoId, t.liberarEm),
+    // A fila por minuto (src/dados/processamento.ts): só as linhas em `processando`, sem varrer
+    // a tabela inteira a cada minuto.
+    index("fotos_fila_processando_idx").on(t.envioIniciadoEm).where(sql`status = 'processando'`),
+    index("fotos_fila_rostos_idx")
+      .on(t.criadoEm)
+      .where(sql`status = 'pronta' and rostos_indexados_em is null`),
   ],
 ).enableRLS();
+
+/**
+ * Limites de chamadas por segundo a um provedor, valendo para a conta inteira (todas as instâncias
+ * da função): a próxima vaga livre (src/dados/fila-de-rostos.ts). Só guarda um horário por chave.
+ */
+export const limitesDeTaxa = pgTable("limites_de_taxa", {
+  chave: text().primaryKey(),
+  proximoEm: data().notNull(),
+}).enableRLS();
 
 export const colaboradores = pgTable(
   "colaboradores",

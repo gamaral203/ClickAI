@@ -29,13 +29,14 @@ import {
   buscarEventoDoFotografo,
   buscarPacoteDoEvento,
   capasDosEventos,
+  contagensDoPainel,
+  eventoTemDataDeCaptura,
+  fotosParaEscolherCapa,
   listarCategorias,
   listarColaboradores,
   listarFaixas,
-  listarItensDoPainel,
   horaDaRequisicao,
   listarPastasDoPainel,
-  numerosDasFotosDoEvento,
   resumoDaLiberacao,
   situacaoDaColecao,
   situacaoDosNumeros,
@@ -43,14 +44,17 @@ import {
   topCliquesDoEvento,
   totaisDoEvento,
 } from "@/dados";
-import { motivoDaCapaForaDoSite, podeSerCapa } from "@/lib/capa";
+import { motivoDaCapaForaDoSite } from "@/lib/capa";
 import { isoParaCampo } from "@/lib/datas";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { urlDoSite } from "@/lib/endereco";
 import { formatarPreco } from "@/lib/formatar";
-import { estadoDaLiberacao, formatarAgendamento } from "@/lib/liberacao";
+import { filtroDaUrl } from "@/lib/filtro-painel";
+import { formatarAgendamento } from "@/lib/liberacao";
 import { pontoDoEvento } from "@/lib/mapa";
 import { FORMATOS_MOLDURA } from "@/lib/moldura";
+import { LEITURA_DE_NUMEROS_DISPONIVEL } from "@/lib/numeros-de-peito";
+import { itensDaGrade } from "@/servicos/grade-do-painel";
 import { gerarQrCode } from "@/lib/qrcode";
 import { ehIdValido } from "@/lib/validacao";
 import { modoEnvio } from "@/lib/r2";
@@ -66,6 +70,9 @@ import { MAXIMO_DE_QUADROS } from "@/servicos/video";
 // As Server Actions do envio de fotos rodam nesta página: a confirmação baixa o original do R2,
 // gera prévia e miniatura e grava de volta, uma foto por chamada (docs/arquitetura.md, "Upload").
 export const maxDuration = 60;
+
+/** Fotos no seletor de capa; as outras podem virar capa pelo "Usar como capa", na grade. */
+const FOTOS_NO_SELETOR_DE_CAPA = 200;
 
 export const metadata: Metadata = {
   title: "Gerenciar evento",
@@ -95,12 +102,25 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
   // Evento de outro fotógrafo dá "não encontrado", igual a um id que não existe.
   const evento = ehIdValido(id) ? await buscarEventoDoFotografo(id, conta.id) : null;
   if (!evento) notFound();
-  const { criado, publicado, copiado } = await searchParams;
+  const parametros = await searchParams;
+  const { criado, publicado, copiado } = parametros;
   const categorias = await listarCategorias();
   // Estado da liberação de cada foto: comparado com a hora desta requisição.
   const agora = await horaDaRequisicao();
+  // A grade é paginada no servidor: a página leva só a primeira leva, com o filtro da URL.
+  const temCaptura = await eventoTemDataDeCaptura(evento.id);
+  const filtroInicial = filtroDaUrl(
+    {
+      get: (nome) => {
+        const valor = parametros[nome];
+        return typeof valor === "string" ? valor : null;
+      },
+    },
+    temCaptura ? "captura" : "envio",
+  );
   const [
-    itensDoPainel,
+    contagens,
+    fotosDaCapa,
     faixasDoEvento,
     faixasPadrao,
     pacote,
@@ -115,9 +135,9 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     originais,
     molduras,
     numeros,
-    numerosPorFoto,
   ] = await Promise.all([
-    listarItensDoPainel(evento.id, conta.id),
+    contagensDoPainel(evento.id, filtroInicial, agora),
+    fotosParaEscolherCapa(evento.id, FOTOS_NO_SELETOR_DE_CAPA),
     listarFaixas(conta.id, evento.id),
     listarFaixas(conta.id, null),
     buscarPacoteDoEvento(evento.id, conta.id),
@@ -134,10 +154,12 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
     resumoParaODono(usuario, evento.id),
     enderecosDasMolduras(evento.id),
     situacaoDosNumeros(evento.id),
-    numerosDasFotosDoEvento(evento.id),
   ]);
-  // Números de peito na grade (com a correção à mão): com a leitura ligada ou já com números.
-  const mostrarNumeros = Boolean(evento.lerNumeros) || numerosPorFoto.size > 0;
+  // Números de peito na grade (com a correção à mão): com a leitura ligada ou já com números, e
+  // só com o interruptor geral ligado (src/lib/numeros-de-peito.ts).
+  const itensIniciais = await itensDaGrade(evento, conta.id, filtroInicial, agora, {
+    comNumero: numeros.comNumero > 0,
+  });
   const capaAtual = capas.get(evento.id) ?? null;
   const capaFotoId = evento.capaFotoId ?? null;
   // Capa que o dono vê (foto pronta, mesmo não liberada) mas o site ainda não mostra.
@@ -148,7 +170,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
       capaEnviada: evento.capa !== null,
       liberadas: liberacao.liberadas,
     });
-  const itens = itensDoPainel ?? [];
+  const noEvento = contagens.evento;
   // Seletor de pasta (envio e fotos): a árvore, com o caminho ("Largada › Bateria 1").
   const opcoesDePasta = (pastas ?? []).map((p) => ({
     id: p.id,
@@ -245,6 +267,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           )}
           <Link
             href={`/painel/eventos/${evento.id}/desempenho`}
+            prefetch={false}
             className={buttonVariants({ variant: "outline", size: "touch" })}
           >
             <ChartColumn aria-hidden="true" data-icon="inline-start" />
@@ -263,7 +286,11 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
           {
             id: "fotos",
             icone: "fotos",
-            rotulo: `Fotos (${itens.length})`,
+            // Só separa as contagens quando há o que separar.
+            rotulo:
+              noEvento.processando === 0 && noEvento.erro === 0
+                ? `Fotos (${noEvento.pronta})`
+                : `Fotos (${noEvento.pronta} prontas${noEvento.processando ? `, ${noEvento.processando} processando` : ""}${noEvento.erro ? `, ${noEvento.erro} com erro` : ""})`,
             conteudo: (
               <>
                 <EnvioFotos
@@ -288,28 +315,10 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                   capaFotoId={capaFotoId}
                   // "Story"/"Feed" com a moldura do evento, nas fotos do próprio autor (divulgação).
                   formatosMoldura={FORMATOS_MOLDURA.filter((f) => molduras[f])}
-                  itens={itens.map((i) => ({
-                    id: i.id,
-                    urlMiniatura: i.urlMiniatura,
-                    urlPrevia: i.urlPrevia,
-                    nomeArquivo: i.nomeArquivo,
-                    tipo: i.tipo,
-                    status: i.status,
-                    erroMensagem: i.erroMensagem,
-                    vendido: i.vendido,
-                    precoCentavos: i.precoCentavos,
-                    precoEventoCentavos:
-                      i.tipo === "video" ? evento.precoVideoCentavos : evento.precoFotoCentavos,
-                    pastaId: i.pastaId,
-                    estadoLiberacao: estadoDaLiberacao(i.liberarEm, agora),
-                    liberarEm: i.liberarEm,
-                    // Filtro por dia (Brasília): envio e captura (EXIF), src/lib/filtro-painel.ts.
-                    criadoEm: i.criadoEm,
-                    capturadaEm: i.capturadaEm,
-                    // "Baixar original" só nas fotos que o dono enviou (não nas dos colaboradores).
-                    doAutor: i.enviadaPor === conta.id,
-                    numeros: mostrarNumeros ? (numerosPorFoto.get(i.id) ?? []) : undefined,
-                  }))}
+                  itensIniciais={itensIniciais}
+                  contagensIniciais={contagens}
+                  filtroInicial={filtroInicial}
+                  temCaptura={temCaptura}
                   pastas={opcoesDePasta}
                 />
               </>
@@ -361,7 +370,7 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
                             : "automatica",
                       }
                     }
-                    fotos={itens.filter(podeSerCapa).map((i) => ({
+                    fotos={fotosDaCapa.map((i) => ({
                       id: i.id,
                       urlMiniatura: i.urlMiniatura,
                       nomeArquivo: i.nomeArquivo,
@@ -413,21 +422,25 @@ async function Conteudo({ params, searchParams }: PageProps<"/painel/eventos/[id
               </>
             ),
           },
-          {
-            id: "numeros",
-            icone: "numeros",
-            rotulo: "Número de peito",
-            conteudo: (
-              <NumerosDoEvento
-                eventoId={evento.id}
-                ligada={Boolean(evento.lerNumeros)}
-                prontas={numeros.prontas}
-                comNumero={numeros.comNumero}
-                pendentes={numeros.pendentes}
-                configurado={provedorDeTexto() !== "desligado"}
-              />
-            ),
-          },
+          ...(LEITURA_DE_NUMEROS_DISPONIVEL
+            ? [
+                {
+                  id: "numeros",
+                  icone: "numeros" as const,
+                  rotulo: "Número de peito",
+                  conteudo: (
+                    <NumerosDoEvento
+                      eventoId={evento.id}
+                      ligada={Boolean(evento.lerNumeros)}
+                      prontas={numeros.prontas}
+                      comNumero={numeros.comNumero}
+                      pendentes={numeros.pendentes}
+                      configurado={provedorDeTexto() !== "desligado"}
+                    />
+                  ),
+                },
+              ]
+            : []),
           ...(originais
             ? [
                 {

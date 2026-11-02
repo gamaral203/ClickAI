@@ -29,6 +29,7 @@ import {
 import { campoParaIso } from "@/lib/datas";
 import { escolhaLiberacaoSchema } from "@/lib/liberacao";
 import { reaisParaCentavos } from "@/lib/dinheiro";
+import { lerNumerosAoSalvar } from "@/lib/numeros-de-peito";
 import { camposDoPeriodo, MENSAGEM_FIM_ANTES_DO_INICIO, periodoValido } from "@/lib/periodo-evento";
 import {
   CAMPOS_DO_MAPA,
@@ -182,9 +183,8 @@ export async function salvarEventoAcao(
     liberadoEm,
     filtroHorario: d.filtroHorario,
     listarNaoIdentificadas: d.listarNaoIdentificadas,
-    // Ligada num evento com fotos, as que já estão prontas são lidas pelo botão "Ler números que
-    // faltam" do painel ou pelo job de revisão (src/servicos/numeros.ts).
-    lerNumeros: d.lerNumeros,
+    // Decidido aqui, não pelo formulário: falsa em evento novo e intacta em evento que já existe.
+    lerNumeros: lerNumerosAoSalvar(Boolean(existente), d.lerNumeros),
     ordenacao: d.ordenacao,
   };
 
@@ -417,6 +417,8 @@ export async function duplicarEventoAcao(eventoId: string): Promise<{ erro?: str
   const config = configDoEvento(origem);
   const evento = await criarEvento(conta.id, {
     ...config,
+    // A cópia é um evento novo: não herda a leitura ligada do evento de origem.
+    lerNumeros: lerNumerosAoSalvar(false, config.lerNumeros ?? false),
     titulo,
     inicioEm: origem.inicioEm,
     fimEm: origem.fimEm,

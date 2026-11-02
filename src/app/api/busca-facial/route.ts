@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       );
       return resposta(
         {
-          erro: "A busca por selfie está indisponível agora. Use o número de peito ou veja a galeria.",
+          erro: "A busca por selfie está indisponível agora. Veja as fotos na galeria do evento.",
         },
         503,
       );

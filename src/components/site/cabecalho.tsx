@@ -52,7 +52,7 @@ function Logo() {
 function CabecalhoReservado() {
   return (
     <header className="border-b bg-background print:hidden">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-center px-4 md:h-18 md:justify-start md:px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-center px-4 md:h-18 md:px-6 lg:justify-start">
         <Logo />
       </div>
     </header>
@@ -60,9 +60,10 @@ function CabecalhoReservado() {
 }
 
 /**
- * Cabeçalho do site de compra. No celular (até 767 px): o menu à esquerda, o logo no centro e, à
- * direita, o carrinho e a conta. Do tablet em diante: o logo à esquerda e, à direita, os links,
- * o carrinho e o Entrar (ou o nome e o Sair).
+ * Cabeçalho do site de compra. Até 1023 px (celular e tablet): o menu à esquerda, o logo no centro
+ * e, à direita, o carrinho e a conta. Do lg em diante: o logo à esquerda e, à direita, os links, a
+ * chamada para vender (limão com texto escuro), o carrinho e o Entrar (ou o nome e o Sair). A
+ * chamada não cabe ao lado dos links no tablet: por isso o menu vai até o lg.
  */
 function CabecalhoPublico({
   usuario,
@@ -73,11 +74,11 @@ function CabecalhoPublico({
 }) {
   return (
     <header className="border-b bg-background print:hidden">
-      <div className="mx-auto grid h-16 max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 md:flex md:h-18 md:justify-between md:gap-6 md:px-6">
-        <div className="md:hidden">
+      <div className="mx-auto grid h-16 max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 md:h-18 md:px-6 lg:flex lg:justify-between lg:gap-6">
+        <div className="lg:hidden">
           <MenuCelular
             lado="esquerda"
-            esconderEm="md:hidden"
+            esconderEm="lg:hidden"
             logado={Boolean(usuario)}
             nome={usuario?.nome.split(" ")[0]}
             itens={navegacao.celular}
@@ -90,12 +91,22 @@ function CabecalhoPublico({
           <Logo />
         </Link>
         <nav aria-label="Principal" className="justify-self-end">
-          <ul className="flex items-center gap-0.5 md:gap-1">
+          <ul className="flex items-center gap-0.5 lg:gap-1">
             {navegacao.desktop.map((link) => (
-              <li key={link.href} className="hidden md:block">
+              <li key={link.href} className="hidden lg:block">
                 <LinkDoCabecalho {...link} />
               </li>
             ))}
+            {navegacao.chamada && (
+              <li className="ml-2 hidden lg:block">
+                <Link
+                  href={navegacao.chamada.href}
+                  className="inline-flex h-11 items-center rounded-full bg-highlight px-4 text-sm font-semibold whitespace-nowrap text-highlight-foreground transition hover:brightness-95 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  {navegacao.chamada.rotulo}
+                </Link>
+              </li>
+            )}
             {navegacao.carrinho && (
               <li>
                 <LinkCarrinho />

@@ -79,9 +79,8 @@ export function NumerosDoEvento({
       </p>
       {!ligada ? (
         <p className="text-sm text-muted-foreground">
-          A leitura do número de peito está desligada neste evento
-          {comNumero > 0 ? ", mas os números já lidos continuam na busca" : ""}. Para os clientes
-          acharem as fotos pelo número, ligue “Ler número de peito nas fotos” em{" "}
+          A leitura do número de peito está desligada neste evento. Para ler os números das fotos,
+          ligue “Ler número de peito nas fotos” em{" "}
           <Link href="?secao=configuracoes" className="font-medium text-primary hover:underline">
             Configurações
           </Link>

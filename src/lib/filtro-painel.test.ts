@@ -30,7 +30,13 @@ describe("filtro da grade do painel", () => {
     const id = "6f1c1d2e-3b4a-4c5d-8e9f-0a1b2c3d4e5f";
     const url = new URLSearchParams(`secao=fotos&pasta=${id}&dia=2026-10-16&data=envio`);
     const filtro = filtroDaUrl(url, "captura");
-    expect(filtro).toEqual({ liberacao: "todas", pasta: id, base: "envio", dia: "2026-10-16" });
+    expect(filtro).toEqual({
+      situacao: "todas",
+      liberacao: "todas",
+      pasta: id,
+      base: "envio",
+      dia: "2026-10-16",
+    });
     expect(filtroParaUrl(filtro, url, "captura").toString()).toBe(
       `secao=fotos&pasta=${id}&dia=2026-10-16&data=envio`,
     );

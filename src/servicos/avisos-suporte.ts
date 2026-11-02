@@ -71,7 +71,7 @@ export async function avisarRespostaDeSuporte(conversa: ConversaSuporte, texto: 
         doPainel
           ? "Para continuar a conversa, abra o chat no seu painel."
           : conversa.tipo === "visitante"
-            ? "Para continuar a conversa, abra o chat no site, no mesmo celular ou computador em que você escreveu, ou responda pelo WhatsApp."
+            ? "Para continuar a conversa, abra o chat no site, no mesmo celular ou computador em que você escreveu."
             : "Para continuar a conversa, abra o chat no site.",
       ],
       botao: { texto: "Abrir o chat", url: urlDoSite(caminho) },

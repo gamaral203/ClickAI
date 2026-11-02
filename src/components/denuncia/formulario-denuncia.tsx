@@ -87,7 +87,7 @@ export function FormularioDenuncia({
         erro={erros.descricao}
         ajuda={
           motivo === "privacidade"
-            ? "Diga como a gente reconhece você na foto (roupa, número de peito, posição)."
+            ? "Diga como a gente reconhece você na foto (roupa, posição)."
             : "Quanto mais detalhes, mais rápida a análise."
         }
       >

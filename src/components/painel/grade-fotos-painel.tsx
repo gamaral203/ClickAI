@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { ImageIcon, Loader2, Pencil, Star, Trash2 } from "lucide-react";
 
 import { excluirItemAcao } from "@/app/(fotografo)/painel/eventos/acoes";
@@ -83,6 +83,8 @@ export function GradeFotosPainel({
   formatosMoldura = [],
   mostrando: mostrandoDeFora,
   aoMostrarMais,
+  total,
+  carregandoMais = false,
 }: {
   /** Com o evento, a grade oferece "Baixar original" nas fotos do próprio usuário. */
   eventoId?: string;
@@ -99,6 +101,12 @@ export function GradeFotosPainel({
    */
   mostrando?: number;
   aoMostrarMais?: () => void;
+  /**
+   * Total no filtro, quando a lista vem paginada do servidor: `itens` são só as já carregadas e o
+   * "Mostrar mais" conta as que faltam no servidor.
+   */
+  total?: number;
+  carregandoMais?: boolean;
 }) {
   // Evento com centenas de fotos: mostra aos poucos, para a página não ficar gigante (no
   // celular, eram dezenas de milhares de pixels) nem pesada de carregar.
@@ -119,17 +127,6 @@ export function GradeFotosPainel({
       })),
     [prontas],
   );
-  const router = useRouter();
-  const processando = itens.some((item) => item.status === "processando");
-  // Fotos que ainda não ficaram prontas (o servidor as termina em segundo plano): atualiza a
-  // grade sozinha até todas ficarem prontas, só com a aba visível.
-  useEffect(() => {
-    if (!processando) return;
-    const intervalo = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, ATUALIZAR_A_CADA_MS);
-    return () => clearInterval(intervalo);
-  }, [processando, router]);
   if (itens.length === 0) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
@@ -137,7 +134,7 @@ export function GradeFotosPainel({
       </p>
     );
   }
-  const restantes = itens.length - mostrando;
+  const restantes = (total ?? itens.length) - Math.min(mostrando, itens.length);
   const indiceAberto = aberta ? prontas.findIndex((item) => item.id === aberta) : -1;
   return (
     <div className="flex flex-col items-center gap-4">
@@ -159,8 +156,10 @@ export function GradeFotosPainel({
         <Button
           variant="outline"
           size="touch"
+          disabled={carregandoMais}
           onClick={() => (aoMostrarMais ? aoMostrarMais() : setMostrando((n) => n + POR_VEZ))}
         >
+          {carregandoMais && <Loader2 aria-hidden="true" className="animate-spin" />}
           Mostrar mais {Math.min(POR_VEZ, restantes)} de {restantes}
         </Button>
       )}
@@ -176,8 +175,6 @@ export function GradeFotosPainel({
 }
 
 export const POR_VEZ = 24;
-/** Intervalo da atualização automática enquanto há fotos em processamento. */
-const ATUALIZAR_A_CADA_MS = 15_000;
 
 function Cartao({
   eventoId,

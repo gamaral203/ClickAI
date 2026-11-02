@@ -21,8 +21,10 @@ import {
   buscarFotoEmEnvio,
   concluirFoto,
   configuracaoDaMarca,
+  devolverParaFila,
   devolverReserva,
   hashesDoEvento,
+  reservarVagaDoLimite,
   listarFotosParadas,
   marcarFotoComErro,
   marcaDoDonoDoEvento,
@@ -32,11 +34,13 @@ import {
   salvarRostos,
   situacaoDaFoto,
   type ChavesDaFoto,
+  type CursorDaFila,
 } from "@/dados";
-import { emParalelo, Orcamento } from "@/lib/concorrencia";
+import { emParalelo, esperaDaTentativa, Orcamento } from "@/lib/concorrencia";
 import { dataDeCaptura } from "@/lib/exif";
 import { impressaoDoArquivo } from "@/lib/impressao-arquivo";
 import {
+  ESPERA_FOTO_PRESA_MS,
   FOTOS_POR_LOTE,
   LIMITE_FOTO_BYTES,
   LIMITE_FOTO_TEXTO,
@@ -50,6 +54,7 @@ import { sufixoDaVersao } from "@/lib/marca-dagua";
 import { aplicarAjustesDaMarca } from "@/lib/protecao-previas";
 import {
   abrirEnvioEmPartes,
+  copiarOriginal,
   ERRO_SEM_ARMAZENAMENTO,
   fecharEnvioEmPartes,
   gravarPublico,
@@ -64,6 +69,7 @@ import {
   urlDeEnvio,
 } from "@/lib/r2";
 import {
+  ehErroDeCota,
   ehErroDeCredencial,
   indexarRostos,
   nomeDoErro,
@@ -101,7 +107,7 @@ import { copiaParaRostos, gerarVersoes } from "./imagens";
 import { lerNumerosDaFoto } from "./numeros";
 import { prepararVideo, VideoIlegivel } from "./video";
 
-export { FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
+export { ESPERA_FOTO_PRESA_MS, FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
 const impressao = z.string().regex(/^[0-9a-f]{64}$/);
 
@@ -403,13 +409,34 @@ class ArquivoRecusado extends Error {}
 
 /**
  * Bytes de arquivo sendo processados ao mesmo tempo nesta instância da função. Com o Fluid
- * Compute, uma instância (2 GB no plano Hobby, sem como aumentar) atende várias chamadas da rota
+ * Compute, uma instância (2 GB no padrão do plano Pro) atende várias chamadas da rota
  * de processamento de uma vez; cada foto ocupa o arquivo inteiro na memória mais ~150 MB da
  * decodificação. Com 600 MB de arquivos (três de 200 MB, ou dezenas de 20 MB), o pico fica
  * perto de 1,1 GB. Quem não cabe espera a vez (segundos), em vez de derrubar a instância.
  */
 export const ORCAMENTO_DE_MEMORIA_BYTES = 600 * 1024 * 1024;
 const memoria = new Orcamento(ORCAMENTO_DE_MEMORIA_BYTES);
+
+/**
+ * Fotos processadas ao mesmo tempo nesta instância, somando todas as chamadas: as do navegador, as
+ * entregas em segundo plano e a fila. Com 108 ao mesmo tempo, cada foto levava ~30 s disputando o
+ * processador, e o prazo cortava os pacotes pela metade (medido em produção). Quem não cabe espera
+ * sem reservar a foto, então ela segue visível para a fila. Medido com 1 CPU e os tempos de R2 de
+ * produção (fotos de 0,9 MB): 6 ao mesmo tempo, 76 fotos/min e 4,8 s por foto; 12, 91 e 7,6 s; 14,
+ * 82 e 10,2 s; 16, 81 e 11,6 s. Passou de 12, só aumenta a espera e a memória.
+ */
+export const PROCESSAMENTOS_POR_INSTANCIA = 12;
+const vagasDeProcessamento = new Orcamento(PROCESSAMENTOS_POR_INSTANCIA);
+
+/** Espera a vez nesta instância e a memória da foto; devolve a função que libera as duas. */
+async function vagaDoProcessamento(bytes: number) {
+  const soltarVaga = await vagasDeProcessamento.reservar(1);
+  const soltarMemoria = await memoria.reservar(bytes);
+  return () => {
+    soltarMemoria();
+    soltarVaga();
+  };
+}
 
 /** Reserva memória do mesmo orçamento do envio (a regeração das prévias também abre originais). */
 export function reservarMemoriaDoProcessamento(bytes: number) {
@@ -451,6 +478,14 @@ export const RESERVA_DO_PROCESSAMENTO_MS = 3 * 60 * 1000;
  * erro numa foto sem arquivo: devolve a foto para a fila e confere de novo depois.
  */
 export const ENVIO_PODE_ESTAR_SUBINDO_MS = 30 * 60 * 1000;
+/**
+ * Quantas reservas uma foto pode gastar sem sair de `processando`. Conta também a função que
+ * morreu no meio, que não grava nada: sem este teto, uma foto que estoura a memória derrubaria uma
+ * execução por minuto, para sempre. Passou disso, vira `erro`, e o arquivo continua guardado.
+ */
+export const MAXIMO_DE_TENTATIVAS = 5;
+const ERRO_DEPOIS_DAS_TENTATIVAS =
+  "Não foi possível processar depois de várias tentativas. Envie esta foto de novo.";
 
 export type OpcoesDoProcessamento = {
   /** Recebe a duração de cada etapa (telemetria da tela de envio). */
@@ -465,6 +500,11 @@ export type OpcoesDoProcessamento = {
    * envio ainda recente não vira erro: o upload pode estar terminando.
    */
   inicioDoEnvio?: Date;
+  /**
+   * Até quando pode começar (ms): a espera por memória pode passar do prazo de quem chamou. Depois
+   * disso, a foto continua na fila, sem gastar tentativa.
+   */
+  comecarAte?: number;
 };
 
 export type ResultadoDoProcessamento =
@@ -472,7 +512,10 @@ export type ResultadoDoProcessamento =
   | { eventoId: string }
   /** Outra chamada está processando a foto agora, ou ela já ficou pronta. */
   | { emAndamento: true }
-  /** Só no job: o arquivo ainda não chegou e o envio é recente; a foto volta para a fila. */
+  /**
+   * A foto continua na fila do servidor: o arquivo ainda não chegou e o envio é recente, o prazo
+   * de quem chamou acabou, ou houve uma falha passageira.
+   */
   | { aguardando: true };
 
 /**
@@ -516,8 +559,12 @@ export async function confirmarEnvio(
     marco = agora;
   };
 
-  const liberar = await memoria.reservar(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
+  const liberar = await vagaDoProcessamento(foto.tamanhoBytes || LIMITE_FOTO_BYTES);
   medir("esperaMs");
+  if (opcoes.comecarAte !== undefined && Date.now() > opcoes.comecarAte) {
+    liberar();
+    return { aguardando: true };
+  }
   // A reserva vem depois da espera pela memória: uma foto na fila desta instância não fica
   // reservada (e escondida do job) sem ninguém trabalhando nela.
   const agora = Date.now();
@@ -538,7 +585,17 @@ export async function confirmarEnvio(
     return { emAndamento: true };
   }
   try {
-    const lido = await lerEnviado(chaves.temporaria, LIMITE_FOTO_BYTES);
+    let lido = await lerEnviado(chaves.temporaria, LIMITE_FOTO_BYTES);
+    // Sem o temporário, o original pode já estar no lugar: outra execução copiou e morreu antes de
+    // concluir. Sem esta leitura, a foto virava erro com o arquivo guardado em `originais/`.
+    let jaNoLugar = false;
+    if (lido.situacao === "ausente") {
+      const noLugar = await lerEnviado(chaves.original, LIMITE_FOTO_BYTES);
+      if (noLugar.situacao !== "ausente") {
+        lido = noLugar;
+        jaNoLugar = true;
+      }
+    }
     medir("leituraMs");
     if (lido.situacao === "ausente") {
       const inicio = opcoes.inicioDoEnvio;
@@ -598,12 +655,16 @@ export async function confirmarEnvio(
     // As chaves levam a revisão da configuração usada.
     const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     medir("versoesMs");
-    // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias.
+    // As gravações no R2 ao mesmo tempo: a cópia do original não depende das prévias. A cópia fica
+    // antes da conclusão de propósito: `chave_original` só aponta para o lugar definitivo com o
+    // arquivo já lá. O temporário só sai depois de a foto estar `pronta` (abaixo).
     await Promise.all([
       gravarPublico(publicas.previa, previa.buffer, "image/webp"),
       gravarPublico(publicas.previaCelular, previaCelular.buffer, "image/webp"),
       gravarPublico(publicas.miniatura, miniatura.buffer, "image/webp"),
-      moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime),
+      ...(jaNoLugar
+        ? []
+        : [copiarOriginal(chaves.temporaria, chaves.original, DADOS_DO_FORMATO[formato].mime)]),
     ]);
 
     const concluiu = await concluirFoto(foto.id, {
@@ -620,12 +681,22 @@ export async function confirmarEnvio(
     if (!concluiu) return { emAndamento: true };
     // O original já não é necessário: a cópia para os rostos sai da base reduzida.
     liberar();
+    // O temporário só sai agora, sem segurar a foto. Se falhar, nada se perde: o original já está
+    // no lugar e a regra de ciclo de vida de envios/ (1 dia, docs/deploy.md) limpa o que sobrou.
+    const limpar = () =>
+      removerOriginal(chaves.temporaria).catch((erro) =>
+        console.error(`[envios] temporário da foto ${foto.id} não saiu: ${nomeDoErro(erro)}`),
+      );
+    if (!jaNoLugar) {
+      if (opcoes.depois) opcoes.depois(limpar);
+      else await limpar();
+    }
     // A foto já está pronta (à venda); os rostos servem à busca por selfie e o número de peito
     // à busca por número (só no evento com a leitura ligada). A cópia reduzida é a mesma.
     const copia = umaVez(paraRostos);
     const reconhecer = () =>
       Promise.all([
-        indexarRostosDaFoto(foto.eventoId, foto.id, copia),
+        indexarRostosDaFoto(foto.eventoId, foto.id, copia, undefined, ESPERA_NA_HORA_MS),
         lerNumerosDaFoto(foto.eventoId, foto.id, copia),
       ]);
     if (opcoes.depois) {
@@ -642,10 +713,15 @@ export async function confirmarEnvio(
       await removerOriginal(chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
-    await marcarFotoComErro(foto.id, ERRO_PROCESSAMENTO);
     // Só o id: nada do conteúdo do arquivo vai para o log.
     console.error(`[envios] falha ao processar a foto ${foto.id}`, erro);
-    return { erro: "Não foi possível processar a foto. Tente de novo." };
+    // Falha passageira não condena a foto: volta para a fila, até gastar as tentativas.
+    if (foto.tentativas + 1 < MAXIMO_DE_TENTATIVAS) {
+      await devolverParaFila(foto.id, new Date());
+      return { aguardando: true };
+    }
+    await marcarFotoComErro(foto.id, ERRO_DEPOIS_DAS_TENTATIVAS);
+    return { erro: ERRO_DEPOIS_DAS_TENTATIVAS };
   } finally {
     liberar();
   }
@@ -677,7 +753,7 @@ async function confirmarVideo(
 ): Promise<ResultadoDoProcessamento> {
   const { foto, chaves, formato } = valida;
   // Arquivo, prévia e quadros na memória ao mesmo tempo: reserva com folga.
-  const liberar = await memoria.reservar(
+  const liberar = await vagaDoProcessamento(
     Math.min(ORCAMENTO_DE_MEMORIA_BYTES, (foto.tamanhoBytes || LIMITE_VIDEO_BYTES) * 2),
   );
   const agora = Date.now();
@@ -699,7 +775,17 @@ async function confirmarVideo(
   }
   let movido = false;
   try {
-    const tamanho = await tamanhoDoEnviado(chaves.temporaria);
+    let tamanho = await tamanhoDoEnviado(chaves.temporaria);
+    // Como nas fotos: o vídeo já pode ter sido movido por uma execução que morreu no meio.
+    let chaveDoArquivo = chaves.temporaria;
+    if (tamanho === null) {
+      const noLugar = await tamanhoDoEnviado(chaves.original);
+      if (noLugar !== null) {
+        tamanho = noLugar;
+        chaveDoArquivo = chaves.original;
+        movido = true;
+      }
+    }
     if (tamanho === null) {
       const inicio = opcoes.inicioDoEnvio;
       if (inicio && agora - inicio.getTime() < ENVIO_PODE_ESTAR_SUBINDO_MS) {
@@ -711,15 +797,15 @@ async function confirmarVideo(
     if (tamanho > LIMITE_VIDEO_BYTES) throw new ArquivoRecusado(`Maior que ${LIMITE_VIDEO_TEXTO}.`);
     if (foto.tamanhoBytes && tamanho !== foto.tamanhoBytes)
       throw new ArquivoRecusado(ERRO_DIFERENTE);
-    const inicio = await lerTrecho(chaves.temporaria, 0, Math.min(tamanho, BYTES_PARA_DETECTAR));
+    const inicio = await lerTrecho(chaveDoArquivo, 0, Math.min(tamanho, BYTES_PARA_DETECTAR));
     if (detectarVideo(inicio) !== formato) throw new ArquivoRecusado(MENSAGEM_FORMATO_VIDEO);
-    const conferida = await impressaoDoArquivo(tamanho, (a, b) =>
-      lerTrecho(chaves.temporaria, a, b),
-    );
+    const conferida = await impressaoDoArquivo(tamanho, (a, b) => lerTrecho(chaveDoArquivo, a, b));
     if (conferida !== foto.hash) throw new ArquivoRecusado(ERRO_DIFERENTE);
 
-    await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
-    movido = true;
+    if (!movido) {
+      await moverOriginal(chaves.temporaria, chaves.original, DADOS_DO_VIDEO[formato].mime);
+      movido = true;
+    }
     const [{ modelo, ajustes }, configGlobal] = await Promise.all([
       marcaDoDonoDoEvento(foto.eventoId),
       configuracaoDaMarca(),
@@ -780,8 +866,12 @@ async function confirmarVideo(
       await removerOriginal(movido ? chaves.original : chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
-    await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
     console.error(`[envios] falha ao processar o vídeo ${foto.id}`, erro);
+    if (foto.tentativas + 1 < MAXIMO_DE_TENTATIVAS) {
+      await devolverParaFila(foto.id, new Date());
+      return { aguardando: true };
+    }
+    await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
     return { erro: "Não foi possível processar o vídeo. Tente de novo." };
   } finally {
     liberar();
@@ -794,11 +884,35 @@ async function confirmarVideo(
  * e ao Rekognition de uma vez.
  */
 export const PROCESSAMENTOS_NO_SERVIDOR = 6;
+/**
+ * Fotos de uma entrega em segundo plano ou de uma execução da fila ao mesmo tempo. O limite real é
+ * o da instância (PROCESSAMENTOS_POR_INSTANCIA), que várias entregas dividem.
+ */
+const PROCESSAMENTOS_POR_EXECUCAO = PROCESSAMENTOS_POR_INSTANCIA;
+/** Parte das fotos com os tempos no log, só números, para medir em produção sem encher o log. */
+const AMOSTRA_DOS_TEMPOS = 0.05;
+
+/** Roda em segundo plano o que cada foto deixou para depois, sem segurar a vaga de quem a pegou. */
+function trabalhoParaDepois() {
+  const pendentes: Promise<unknown>[] = [];
+  return {
+    depois: (tarefa: () => Promise<unknown>) => void pendentes.push(tarefa().catch(() => {})),
+    terminar: () => Promise.allSettled(pendentes),
+  };
+}
+
+/** Registra os tempos de uma foto na amostra. Nada de URL, chave, id ou nome: só números. */
+function registrarTempos(modo: string, tempos: TemposDoProcessamento) {
+  if (Math.random() < AMOSTRA_DOS_TEMPOS) {
+    console.info("[envios] tempos da foto", JSON.stringify({ modo, ...tempos }));
+  }
+}
 
 /**
  * Processa no servidor, em segundo plano, as fotos que o navegador já enviou e entregou de uma
  * vez (a tela de envio terminou os uploads, ou a página está fechando). Roda depois da resposta
- * (`after`), até `prazoMs`; o que não couber fica em `processando` e o job termina.
+ * (`after`), até `prazoMs`; o que não couber fica em `processando`, sem mudança nenhuma, e a fila
+ * por minuto (src/servicos/fila-de-fotos.ts) termina.
  */
 export async function processarEmSegundoPlano(
   fotografoId: string,
@@ -808,13 +922,16 @@ export async function processarEmSegundoPlano(
   const resultado = { prontas: 0, comErro: 0, puladas: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const limite = Date.now() + prazoMs;
-  await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_NO_SERVIDOR, async (fotoId) => {
+  const { depois, terminar } = trabalhoParaDepois();
+  await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_POR_EXECUCAO, async (fotoId) => {
     if (Date.now() > limite) {
       resultado.puladas++;
       return;
     }
     try {
-      const r = await confirmarEnvio(fotografoId, fotoId);
+      const tempos: TemposDoProcessamento = {};
+      const r = await confirmarEnvio(fotografoId, fotoId, { comecarAte: limite, depois, tempos });
+      registrarTempos("entrega", tempos);
       if ("erro" in r) resultado.comErro++;
       else if ("eventoId" in r) resultado.prontas++;
       else resultado.puladas++;
@@ -823,16 +940,11 @@ export async function processarEmSegundoPlano(
       resultado.comErro++;
     }
   });
+  await terminar();
   return resultado;
 }
 
-/**
- * Foto parada em `processando` há mais disto (ou com a reserva vencida há mais disto) é revisada
- * pelo job. Curto: a reserva (src/dados/processamento.ts) já impede de pegar uma foto que outra
- * chamada está processando, e um arquivo que ainda não chegou só vira erro depois de
- * ENVIO_PODE_ESTAR_SUBINDO_MS.
- */
-export const ESPERA_FOTO_PRESA_MS = 5 * 60 * 1000;
+
 /** Fotos listadas por execução do job (no máximo; o prazo costuma parar antes). */
 export const FOTOS_PRESAS_POR_VEZ = 400;
 /**
@@ -840,6 +952,8 @@ export const FOTOS_PRESAS_POR_VEZ = 400;
  * tempo que o GitHub Actions espera a resposta (150 s), com folga para a última foto terminar.
  */
 export const PRAZO_DO_JOB_MS = 80 * 1000;
+/** Fotos lidas do banco por vez; a próxima página continua de onde esta parou. */
+const PAGINA_DA_FILA = 48;
 
 export type ResultadoFotosPresas = {
   revisadas: number;
@@ -862,12 +976,30 @@ export async function revisarFotosPresas(
   const resultado: ResultadoFotosPresas = { revisadas: 0, prontas: 0, comErro: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const fim = Date.now() + prazoMs;
-  const presas = await listarFotosParadas(new Date(agora - ESPERA_FOTO_PRESA_MS), limite);
-  await emParalelo(presas, PROCESSAMENTOS_NO_SERVIDOR, async (foto) => {
+  const antesDe = new Date(agora - ESPERA_FOTO_PRESA_MS);
+  let restantes = limite;
+  let cursor: CursorDaFila | null = null;
+  const { depois, terminar } = trabalhoParaDepois();
+  const revisar = async (foto: Awaited<ReturnType<typeof listarFotosParadas>>[number]) => {
     if (Date.now() > fim) return;
     resultado.revisadas++;
     try {
-      const r = await confirmarEnvio(foto.enviadaPor, foto.id, { inicioDoEnvio: foto.inicio });
+      // Gastou as tentativas (a função morreu com ela, várias vezes): termina em `erro`, em vez
+      // de voltar à fila para sempre. Nenhum arquivo é apagado.
+      if (foto.tentativas >= MAXIMO_DE_TENTATIVAS) {
+        console.error(`[envios] foto ${foto.id} desistida depois de ${foto.tentativas} tentativas`);
+        await marcarFotoComErro(foto.id, ERRO_DEPOIS_DAS_TENTATIVAS);
+        resultado.comErro++;
+        return;
+      }
+      const tempos: TemposDoProcessamento = {};
+      const r = await confirmarEnvio(foto.enviadaPor, foto.id, {
+        inicioDoEnvio: foto.inicio,
+        comecarAte: fim,
+        depois,
+        tempos,
+      });
+      registrarTempos("fila", tempos);
       if ("erro" in r) {
         // Registro sem arquivo temporário válido volta como "não encontrada" sem mudar de
         // status; marcar aqui evita que ele prenda a fila do job para sempre. Só muda se a foto
@@ -882,16 +1014,72 @@ export async function revisarFotosPresas(
       console.error(`[envios] falha ao revisar a foto presa ${foto.id}`, erro);
       resultado.comErro++;
     }
-  });
+  };
+  while (restantes > 0 && Date.now() <= fim) {
+    const pagina: Awaited<ReturnType<typeof listarFotosParadas>> = await listarFotosParadas(
+      antesDe,
+      Math.min(PAGINA_DA_FILA, restantes),
+      cursor,
+    );
+    if (pagina.length === 0) break;
+    await emParalelo(pagina, PROCESSAMENTOS_POR_EXECUCAO, revisar);
+    restantes -= pagina.length;
+    cursor = pagina[pagina.length - 1].cursor;
+  }
+  await terminar();
   return resultado;
 }
 
 /**
  * Como terminou o cadastro dos rostos de uma foto: `indexada` (mesmo sem nenhum rosto),
  * `desligado` (sem o Rekognition configurado), `falha_credencial` (chave, região ou permissão
- * erradas: as outras fotos vão falhar igual) ou `falha` (problema só desta foto, ou passageiro).
+ * erradas: as outras fotos vão falhar igual), `adiada` (a cota da conta está cheia; a culpa não é
+ * da foto e a fila dos rostos pega depois) ou `falha` (problema só desta foto, ou passageiro).
  */
-export type IndexacaoDeRostos = "indexada" | "desligado" | "falha_credencial" | "falha";
+export type IndexacaoDeRostos = "indexada" | "desligado" | "falha_credencial" | "adiada" | "falha";
+
+/**
+ * A cota do IndexFaces em sa-east-1 é de 5 por segundo, na conta inteira. Uma vaga a cada 250 ms
+ * dá 4 por segundo, com folga para a variação da rede.
+ */
+const VAGA_DO_CADASTRO_MS = 250;
+const LIMITE_DO_CADASTRO = "rekognition_index_faces";
+/** Quanto espera a vaga o cadastro de quem não tem pressa (fila, reindexação, botão do painel). */
+const ESPERA_PADRAO_MS = 20_000;
+/**
+ * Logo depois da foto ficar pronta: espera pouco. Com a fila cheia, deixa para a fila dos rostos
+ * em vez de segurar a função e a cópia reduzida na memória.
+ */
+const ESPERA_NA_HORA_MS = 3_000;
+const TENTATIVAS_COM_COTA_CHEIA = 4;
+
+class SemVagaNoCadastro extends Error {}
+
+/** IndexFaces dentro do limite da conta, com repetição e espera se a cota estourar mesmo assim. */
+async function indexarDentroDoLimite(
+  eventoId: string,
+  fotoId: string,
+  imagem: Uint8Array,
+  esperaMaximaMs: number,
+) {
+  const pegarVaga = async () => {
+    const espera = await reservarVagaDoLimite(
+      LIMITE_DO_CADASTRO,
+      VAGA_DO_CADASTRO_MS,
+      esperaMaximaMs,
+    );
+    if (espera === null) throw new SemVagaNoCadastro();
+    if (espera > 0) await new Promise((ok) => setTimeout(ok, espera));
+  };
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      return await indexarRostos(eventoId, fotoId, imagem, pegarVaga);
+    } catch (erro) {
+      if (!ehErroDeCota(erro) || tentativa >= TENTATIVAS_COM_COTA_CHEIA) throw erro;
+      await new Promise((ok) => setTimeout(ok, esperaDaTentativa(tentativa)));
+    }
+  }
+}
 
 /**
  * Cadastra os rostos da foto no reconhecimento facial (com as credenciais REKOGNITION_*), para a
@@ -905,6 +1093,7 @@ export async function indexarRostosDaFoto(
   fotoId: string,
   original: Buffer | (() => Promise<Buffer>),
   depoisDeSalvar?: (rostos: RostoIndexado[]) => Promise<void>,
+  esperaMaximaMs = ESPERA_PADRAO_MS,
 ): Promise<IndexacaoDeRostos> {
   if (provedorFacial() !== "rekognition") return "desligado";
   let rostos: RostoIndexado[];
@@ -912,9 +1101,10 @@ export async function indexarRostosDaFoto(
     // No envio, a cópia reduzida já vem da decodificação das prévias (gerarVersoes).
     const imagem =
       typeof original === "function" ? await original() : await copiaParaRostos(original);
-    rostos = await indexarRostos(eventoId, fotoId, imagem);
+    rostos = await indexarDentroDoLimite(eventoId, fotoId, imagem, esperaMaximaMs);
     await salvarRostos(fotoId, rostos);
   } catch (erro) {
+    if (erro instanceof SemVagaNoCadastro || ehErroDeCota(erro)) return "adiada";
     // Só o id da foto e o nome do erro (ex.: UnrecognizedClientException): nada da imagem.
     console.error(
       `[envios] falha ao indexar os rostos da foto ${fotoId}: ${nomeDoErro(erro)}` +
@@ -948,11 +1138,12 @@ export async function indexarRostosDoVideo(
     const lista = typeof quadros === "function" ? await quadros() : quadros;
     const rostos: RostoIndexado[] = [];
     for (const quadro of lista) {
-      const encontrados = await indexarRostos(eventoId, fotoId, quadro);
+      const encontrados = await indexarDentroDoLimite(eventoId, fotoId, quadro, ESPERA_PADRAO_MS);
       rostos.push(...encontrados.map((r) => ({ rostoId: r.rostoId, caixa: null })));
     }
     await salvarRostos(fotoId, rostos);
   } catch (erro) {
+    if (erro instanceof SemVagaNoCadastro || ehErroDeCota(erro)) return "adiada";
     console.error(
       `[envios] falha ao indexar os rostos do vídeo ${fotoId}: ${nomeDoErro(erro)}` +
         (erro instanceof Error ? ` (${erro.message})` : ""),

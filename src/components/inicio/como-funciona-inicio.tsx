@@ -94,11 +94,18 @@ export function BannerFotografos({ comissaoPct }: { comissaoPct: number }) {
               <span className="hidden md:inline">Publique suas fotos e aumente suas vendas.</span>
             </h2>
             <p className="text-sm text-pretty text-white/85 md:text-base">
-              Mais visibilidade, controle sobre suas fotos e uma taxa de apenas{" "}
+              Mais visibilidade e controle sobre suas fotos, com comissão de{" "}
               <strong className="font-semibold text-white">
                 {comissaoPct.toLocaleString("pt-BR")}%
               </strong>{" "}
-              sobre as vendas.
+              sobre as vendas e sem mensalidade. No cartão, metade da taxa do cartão sai da sua
+              parte.{" "}
+              <Link
+                href="/vender-fotos"
+                className="rounded-sm font-semibold text-white underline underline-offset-4 focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none"
+              >
+                Saiba como funciona
+              </Link>
             </p>
           </div>
           <Link

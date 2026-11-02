@@ -7,7 +7,6 @@ Marketplace onde fotógrafos vendem fotos e vídeos de eventos e clientes encont
 Ler antes de implementar qualquer parte do sistema:
 
 - [arquitetura.md](arquitetura.md) — stack, armazenamento no R2, modelo de dados, fluxos (upload, busca, galeria, compra, descontos, download, repasse, loja, denúncia), segurança/LGPD, estrutura de pastas e decisões em aberto.
-- [referencias/fotto.md](referencias/fotto.md) — como funciona a Fotto, nossa referência de produto. Consultar ao desenhar um fluxo ou tela; ela orienta, mas quem decide é a arquitetura. Nunca copiar textos, telas ou visual da Fotto.
 - [marca/marca.md](marca/marca.md) — logo, cores (`#315CFF` azul elétrico, `#B8FF32` limão, `#061A42` azul profundo), fonte Plus Jakarta Sans e regras de contraste. Usar ao criar qualquer tela.
 - [riscos.md](riscos.md) — 35 riscos com como evitar e prioridade. Os 10 de prioridade alta precisam estar resolvidos antes do lançamento.
 - [seguranca.md](seguranca.md) — checklist de segurança de 21 itens (HTTPS, senhas, MFA, limites, validação, sessão, segredos, backups, menor privilégio, monitoramento, retenção pelo provedor de IA, fotos e vídeos à venda só como prévia protegida…) com o estado de cada um, onde está no código e os passos que dependem de configuração.

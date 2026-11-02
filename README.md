@@ -2,28 +2,32 @@
 
 ![ClicouAí](instrucoes/marca/logo.png)
 
-Marketplace onde fotógrafos vendem fotos e vídeos de eventos e clientes encontram os seus por selfie ou número de peito e compram os originais. Pagamento por Pix e cartão, dados hospedados no Brasil.
+Marketplace brasileiro onde fotógrafos vendem fotos e vídeos de eventos e clientes encontram os seus por selfie ou número de peito e compram os originais. Pagamento por Pix e cartão, em reais.
 
-## Status
+Site: [www.clicouai.com](https://www.clicouai.com) · Página para fotógrafos: [`/vender-fotos`](https://www.clicouai.com/vender-fotos)
 
-O projeto está na **Parte A**: o produto inteiro sendo construído com dados de exemplo, atrás de uma camada de dados (`src/dados/`). As integrações (banco, login real, R2, processamento no servidor, reconhecimento facial e numérico, gateway de pagamento, e-mail e WhatsApp) ficam para a **Parte B**, quando formos testar com fotos reais. Na troca, só a camada de dados muda; as telas continuam iguais.
+## O que o produto faz
 
-O que já funciona:
+**Para quem compra**
 
-- Página inicial com carrossel (fotos horizontais no computador, verticais no celular) e os eventos recentes com busca; lista de eventos com busca por nome, cidade ou fotógrafo (sem diferenciar acentos) e filtro por data
-- Busca por selfie e por número de peito na página do evento (Amazon Rekognition com as credenciais `REKOGNITION_*`; rostos de exemplo sem elas)
-- Página do evento com galeria paginada por cursor e botão "Carregar mais fotos", e aviso quando a galeria está fechada (aguardando liberação ou com senha)
-- Página da foto com a prévia grande, preço e navegação para a foto anterior e a próxima
-- Prévias e miniaturas com a marca d'água gravada nos pixels, rotação do EXIF corrigida e metadados (GPS, câmera) removidos
-- Carrinho e checkout com Mercado Pago (Pix e cartão dentro do site, webhook e conferência na API) ou pagamento simulado sem credenciais; download do original só para pedido pago
-- Vendas e saques do fotógrafo: saldo bruto, saque normal (30 dias, 10%) e antecipado (1 dia, 11%) por Pix para o CPF/CNPJ, simulado sem credenciais
-- Cadastro e login com Google ou com e-mail e senha, confirmação de e-mail, Minhas compras e perfil do fotógrafo
-- Painel de gestão (`/admin`) para gestores: entradas, saídas, receita, vendas, saques e usuários com troca de papel
-- Headers de segurança e validação com Zod de tudo que vem do navegador
+- Lista de eventos com busca; dentro do evento, busca por selfie (a selfie nunca é gravada) e por número de peito
+- Prévias sempre com a marca d'água gravada nos pixels; compra de fotos e vídeos com Pix ou cartão, sem precisar de cadastro
+- Download do original só depois do pagamento conferido no servidor, com o link enviado por e-mail
 
-O andamento completo, fase por fase, está em [instrucoes/tarefas.md](instrucoes/tarefas.md).
+**Para quem vende**
 
-**Contas de exemplo** (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` e `pedro@exemplo.com` (fotógrafos) e `admin@exemplo.com` (gestor); todas só fora da produção; lá a equipe entra pelas contas de `GESTORES` (ver `.env.example`). Sem `DATABASE_URL`, fora da produção, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e esses dados de exemplo, recriado a cada início do servidor. Com `DATABASE_URL` ou `POSTGRES_URL` (Supabase), os dados ficam no banco; `npm run db:migrar` aplica as migrações e grava os exemplos num banco vazio, sem as contas com a senha de exemplo, que só existem no PGlite (na produção, só as categorias; ver [deploy.md](instrucoes/deploy.md)). A dica dessas contas em `/entrar` só aparece no PGlite e nunca na produção.
+- Página pública com as condições e os recursos: `/vender-fotos`
+- Painel com eventos, pastas, envio direto ao armazenamento, liberação automática, manual ou agendada
+- Preço por foto e por vídeo, cupons, desconto por quantidade e pacotes
+- Colaboradores no mesmo evento, com a divisão automática de cada venda
+- Loja própria, escolha e ajuste do modelo da marca d'água, desempenho e relatório do evento, plugin do Lightroom Classic
+- Financeiro com o extrato de cada venda e saque por Pix, só para a chave do próprio CPF/CNPJ
+
+**Taxas** (regras em `src/servicos/financeiro.ts` e `src/lib/taxas.ts`): comissão de 8%, descontada no saque, sem mensalidade. Vendas no Pix ficam disponíveis em 1 dia, sem taxa extra. Vendas no cartão ficam em 30 dias, ou em 1 dia com a antecipação opcional, de 1,99%. A taxa do cartão é dividida entre o comprador e o fotógrafo.
+
+**Para a equipe:** área de gestão (`/admin`) com eventos, finanças, saques, denúncias, usuários e painel de uso.
+
+Ainda não está pronto: a entrega por WhatsApp é simulada, e o que falta está em [instrucoes/tarefas.md](instrucoes/tarefas.md).
 
 ## Como rodar
 
@@ -34,77 +38,66 @@ npm install
 npm run dev
 ```
 
-Abra http://localhost:3000. Não há banco para configurar na Parte A.
+Abra http://localhost:3000. Sem `DATABASE_URL`, fora da produção, o app usa o PGlite: um Postgres em memória, com as mesmas migrações e dados de exemplo, recriado a cada início do servidor. Contas de exemplo, só nesse modo (senha `clicouai123`): `ana@exemplo.com` (cliente), `lia@exemplo.com` (fotógrafa) e `admin@exemplo.com` (gestão).
 
-**Mercado Pago (opcional):** sem credenciais, o pagamento e o saque são simulados. Para testar com o Mercado Pago, copie `.env.example` para `.env.local` e preencha as credenciais de **teste** da aplicação. Com elas:
+As integrações são configuradas por variáveis de ambiente, explicadas em [`.env.example`](.env.example): Mercado Pago, Google, Cloudflare R2, Amazon Rekognition e Resend. Sem credenciais, o que depende delas é simulado ou fica desligado.
 
-- o checkout gera o QR Code Pix de verdade e o cartão usa o formulário do Mercado Pago (cartões de teste em Suas integrações > Cartões de teste);
-- a página do pedido confere o pagamento na API a cada 5 segundos, então funciona em `localhost` mesmo sem o webhook;
-- para receber o webhook na sua máquina, exponha a porta com um túnel (ex.: `ngrok http 3000`) e cadastre `https://<túnel>/api/webhooks/mercadopago` no evento "Order (Mercado Pago)".
+> **Cuidado:** com `DATABASE_URL` no `.env.local`, `npm run dev` e `npm run build` usam esse banco, e o build roda as migrações. Se ele apontar para a produção, deixe as variáveis de banco vazias ao rodar na sua máquina.
 
-**Login com Google e reconhecimento facial (opcionais):** também no `.env.local`. Com `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `APP_URL`, aparece o botão "Continuar com Google" (URI de redirecionamento no Google Cloud: `{APP_URL}/api/auth/google/callback`); e-mails em `ADMIN_EMAILS` entram como gestores. Com `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID` e `REKOGNITION_SECRET_ACCESS_KEY`, a busca por selfie usa o Amazon Rekognition (não use os nomes `AWS_*`, que a Vercel reserva). Detalhes em `.env.example`.
-
-| Comando                  | O que faz                                                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`            | Servidor de desenvolvimento                                                                                       |
-| `npm run build`          | Build de produção (também confere os tipos)                                                                       |
-| `npm run start`          | Sobe o build de produção                                                                                          |
-| `npm run lint`           | ESLint                                                                                                            |
-| `npm run test`           | Testes (Vitest) das regras de dinheiro e da validação                                                             |
-| `npm run typecheck`      | Gera os tipos de rota do Next e confere os tipos                                                                  |
-| `npm run format`         | Formata o código com Prettier                                                                                     |
-| `npm run format:check`   | Confere a formatação sem alterar arquivos                                                                         |
-| `npm run exemplos:gerar` | Baixa 24 fotos do picsum.photos e gera as prévias e miniaturas de exemplo, com marca d'água, em `public/exemplo/` |
-
-As imagens de exemplo já estão no repositório; só é preciso rodar `exemplos:gerar` de novo se a marca d'água mudar.
-
-## Dados de exemplo
-
-Ficam em [`src/dados/exemplo/`](src/dados/exemplo/): 3 fotógrafos, 5 categorias, 10 eventos e 780 fotos, além de pastas, colaborador, números de peito, cupons, faixas de desconto, pacotes e uma loja. Cada evento exercita uma regra: não listado, com senha (senha de exemplo `formatura2026`), liberação agendada no passado e no futuro, liberação manual e rascunho. Há também uma foto excluída, uma em processamento e uma com preço individual. As telas nunca importam esses arquivos direto: tudo passa por [`src/dados/index.ts`](src/dados/index.ts), que tem as mesmas assinaturas que a implementação com o banco terá e concentra as regras de quem vê o quê.
+| Comando                | O que faz                                              |
+| ---------------------- | ------------------------------------------------------ |
+| `npm run dev`          | Servidor de desenvolvimento                            |
+| `npm run build`        | Aplica as migrações e faz o build de produção          |
+| `npm run start`        | Sobe o build de produção                               |
+| `npm run lint`         | ESLint                                                 |
+| `npm run test`         | Testes (Vitest)                                        |
+| `npm run typecheck`    | Gera os tipos de rota do Next e confere os tipos       |
+| `npm run format`       | Formata o código com Prettier                          |
+| `npm run format:check` | Confere a formatação sem alterar arquivos              |
+| `npm run db:gerar`     | Gera uma migração a partir de `src/db/schema.ts`       |
+| `npm run db:migrar`    | Aplica as migrações no banco configurado               |
 
 ## Stack
 
-Next.js 16 (App Router, Cache Components) + TypeScript, Tailwind CSS 4 + shadcn/ui (Base UI), Zod, Sharp e Mercado Pago (Orders e Payouts). Na Parte B entram PostgreSQL com Drizzle, Cloudflare R2, FFmpeg (worker de vídeo), reconhecimento facial e numérico, Inngest, Better Auth, Resend e a API oficial do WhatsApp. Detalhes e motivos em [instrucoes/arquitetura.md](instrucoes/arquitetura.md).
+Next.js 16 (App Router) e TypeScript, Tailwind CSS 4 e shadcn/ui (Base UI), Motion, PostgreSQL (Supabase; PGlite no desenvolvimento e nos testes) com Drizzle, Cloudflare R2, Sharp e FFmpeg, Amazon Rekognition, Mercado Pago, Resend, Sentry e Zod. Hospedagem na Vercel (região `gru1`), com os jobs agendados pelo GitHub Actions ([`.github/workflows/jobs.yml`](.github/workflows/jobs.yml)).
 
 ## Estrutura
 
 ```
 src/
+  proxy.ts      # CSP com nonce e host das lojas próprias
   app/
-    (publico)/          # página inicial, eventos, página do evento, página da foto
-  components/
-    galeria/            # cartão de evento, grade de fotos
-    site/               # cabeçalho e rodapé
-    ui/                 # componentes do shadcn/ui
-  dados/                # camada de dados usada pelas telas
-    exemplo/            #   implementação com dados de exemplo (Parte A)
-  lib/                  # formatação, validação com Zod, utilitários
-  servicos/
-    imagens.ts          # prévia e miniatura com marca d'água (Sharp)
-scripts/
-  gerar-exemplos.ts     # gera as imagens de exemplo
-public/exemplo/         # prévias e miniaturas de exemplo
-instrucoes/             # arquitetura, riscos, tarefas, marca, skills
-.claude/skills/         # skills do Claude Code usadas no projeto
+    (publico)/  # inicial, eventos, foto, ajuda, páginas legais, vender-fotos
+    (acesso)/   # login
+    (cliente)/  # carrinho, checkout, minhas compras, conta
+    (fotografo)/painel/
+    (admin)/    # área de gestão
+    loja/       # lojas próprias
+    api/        # busca facial, envios, downloads, webhooks, jobs, plugin
+  components/   # interface
+  dados/        # camada de dados usada pelas telas
+  db/           # schema e migrações
+  lib/          # utilitários e clientes de serviços
+  servicos/     # regras de negócio
+plugin-lightroom/  # plugin do Lightroom Classic
+scripts/           # migração e ferramentas
+instrucoes/        # documentação do projeto
 ```
-
-A estrutura completa planejada, com cliente, painel do fotógrafo, admin, loja própria e API, está em [instrucoes/arquitetura.md](instrucoes/arquitetura.md#estrutura-de-pastas).
 
 ## Documentação
 
-- [Arquitetura](instrucoes/arquitetura.md): stack, armazenamento, modelo de dados, fluxos, segurança e decisões em aberto
-- [Referência de produto: Fotto](instrucoes/referencias/fotto.md): como funciona a plataforma que usamos de referência
-- [Riscos e erros possíveis](instrucoes/riscos.md): 35 riscos mapeados, com prioridade e como evitar
-- [Tarefas](instrucoes/tarefas.md): o que já foi feito e o que falta, por fase
-- [Deploy e contas](instrucoes/deploy.md): contas a criar, variáveis de produção, domínio, lojas e Sentry
+- [Arquitetura](instrucoes/arquitetura.md): stack, armazenamento, modelo de dados e fluxos
+- [Segurança](instrucoes/seguranca.md): checklist e estado de cada item
+- [Riscos](instrucoes/riscos.md): riscos mapeados, com prioridade e como evitar
+- [Tarefas](instrucoes/tarefas.md): o que foi feito e o que falta
+- [Deploy](instrucoes/deploy.md): contas e variáveis de produção
 - [Marca](instrucoes/marca/marca.md): logo, cores e regras de contraste
 - [Skills](instrucoes/skills.md): skills do Claude Code usadas no projeto
-- [Instruções para contribuir](instrucoes/CLAUDE.md): regras do projeto e padrão de commits
+- [Instruções do projeto](instrucoes/CLAUDE.md): regras que não podem ser quebradas e padrão de commits
 
 ## Como contribuir
 
-- Leia [instrucoes/CLAUDE.md](instrucoes/CLAUDE.md) antes de começar. Ele lista as regras que o código não pode quebrar (por exemplo: nenhum original acessível sem pedido pago, preço sempre recalculado no servidor, selfie nunca gravada).
-- Commits seguem o [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/), em português: `feat(galeria): cria a página da foto`. Um commit por mudança lógica.
-- Ao concluir uma tarefa, marque `[x]` em [instrucoes/tarefas.md](instrucoes/tarefas.md) no mesmo commit.
-- Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build` sem erros.
-- Quem usa o Claude Code recebe essas regras automaticamente: o `CLAUDE.md` da raiz importa o `instrucoes/CLAUDE.md`.
+- Leia [instrucoes/CLAUDE.md](instrucoes/CLAUDE.md) antes de começar.
+- Commits seguem o [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/), em português: `feat(galeria): cria a página da foto`.
+- Ao concluir uma tarefa, marque em [instrucoes/tarefas.md](instrucoes/tarefas.md) no mesmo commit.
+- Antes de abrir um PR: `npm run lint`, `npm run test`, `npm run format:check` e `npm run build`, sem erros.

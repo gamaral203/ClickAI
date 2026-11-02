@@ -28,7 +28,6 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   autoresPorId,
   buscarEventoPublicado,
-  eventoTemNumeros,
   listarFotosDoEvento,
   listarOpcoesGaleria,
   type EventoResumo,
@@ -204,14 +203,15 @@ async function Galeria({
   }
   // Quem vende vê a busca como o cliente, mas sem os botões de compra (conta de fotógrafo não
   // compra; a regra vale no checkout).
-  const [temNumeros, usuario] = await Promise.all([eventoTemNumeros(evento.id), usuarioAtual()]);
+  const usuario = await usuarioAtual();
   const compra = podeComprar(usuario);
   const busca = (
     <BuscaNoEvento
       slug={evento.slug}
       tituloEvento={evento.titulo}
-      // Busca por número: com a leitura ligada ou com números já gravados (lidos ou postos à mão).
-      temNumeros={Boolean(evento.lerNumeros) || temNumeros}
+      // A busca por número não está sendo anunciada: fica fora da tela. Para voltar, passe
+      // `Boolean(evento.lerNumeros) || (await eventoTemNumeros(evento.id))`.
+      temNumeros={false}
       podeComprar={compra}
       precoFotoCentavos={evento.precoFotoCentavos}
       previaDesfocada={Boolean(evento.previaDesfocada)}

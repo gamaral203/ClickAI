@@ -32,7 +32,10 @@ export async function reservarFotoParaProcessar(
   const banco = await obterBanco();
   const reservadas = await banco
     .update(t.fotos)
-    .set({ envioIniciadoEm: ate })
+    .set({
+      envioIniciadoEm: ate,
+      tentativasProcessamento: sql`${t.fotos.tentativasProcessamento} + 1`,
+    })
     .where(
       and(
         eq(t.fotos.id, fotoId),
@@ -49,15 +52,50 @@ export async function reservarFotoParaProcessar(
 /**
  * Devolve a marca de início do envio (desfaz a reserva) de uma foto ainda em `processando`: o
  * arquivo ainda não chegou e o envio pode estar em andamento, então a foto volta para a fila do
- * job com o horário original, sem virar erro.
+ * job com o horário original, sem virar erro. Esperar o arquivo não gasta tentativa.
  */
 export async function devolverReserva(fotoId: string, inicio: Date) {
   const banco = await obterBanco();
   await banco
     .update(t.fotos)
-    .set({ envioIniciadoEm: inicio })
+    .set({
+      envioIniciadoEm: inicio,
+      tentativasProcessamento: sql`greatest(${t.fotos.tentativasProcessamento} - 1, 0)`,
+    })
     .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
 }
+
+/**
+ * Falha passageira (R2 ou banco fora do ar por um momento): a foto volta para a fila com a marca
+ * em `agora`, então só é vista de novo depois de ESPERA_FOTO_PRESA_MS. A tentativa fica contada.
+ */
+export async function devolverParaFila(fotoId: string, agora: Date) {
+  const banco = await obterBanco();
+  await banco
+    .update(t.fotos)
+    .set({ envioIniciadoEm: agora })
+    .where(and(eq(t.fotos.id, fotoId), eq(t.fotos.status, "processando")));
+}
+
+/** Se há alguma foto na fila, sem trazer as linhas: a chamada mais comum do cron por minuto. */
+export async function haFotoParada(antesDe: Date): Promise<boolean> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({ id: t.fotos.id })
+    .from(t.fotos)
+    .where(
+      and(
+        eq(t.fotos.status, "processando"),
+        isNull(t.fotos.excluidaEm),
+        lt(inicioDoEnvio, antesDe),
+      ),
+    )
+    .limit(1);
+  return linhas.length > 0;
+}
+
+/** Onde a listagem parou: a marca crua do banco (microssegundos) e o id, que desempata o lote. */
+export type CursorDaFila = { inicio: string; id: string };
 
 /** Situação atual da foto do fotógrafo (para responder a quem chegou depois da reserva). */
 export async function situacaoDaFoto(fotoId: string, fotografoId: string) {
@@ -101,25 +139,42 @@ export async function situacaoDasFotos(
 /**
  * Fotos paradas em `processando` cujo envio começou (ou cuja reserva venceu) antes de
  * `antesDe`, as mais antigas primeiro, com o início do envio (para não marcar erro numa foto
- * cujo arquivo ainda pode estar subindo).
+ * cujo arquivo ainda pode estar subindo). Com `depois`, continua de onde a página anterior parou:
+ * as fotos que ainda esperam o arquivo voltam com o horário antigo e não podem prender as demais.
  */
 export async function listarFotosParadas(
   antesDe: Date,
   limite: number,
-): Promise<{ id: string; enviadaPor: string; inicio: Date }[]> {
+  depois: CursorDaFila | null = null,
+): Promise<
+  { id: string; enviadaPor: string; inicio: Date; tentativas: number; cursor: CursorDaFila }[]
+> {
   const banco = await obterBanco();
   const linhas = await banco
-    .select({ id: t.fotos.id, enviadaPor: t.fotos.enviadaPor, inicio: inicioDoEnvio })
+    .select({
+      id: t.fotos.id,
+      enviadaPor: t.fotos.enviadaPor,
+      inicio: inicioDoEnvio,
+      inicioCru: sql<string>`(${inicioDoEnvio})::text`,
+      tentativas: t.fotos.tentativasProcessamento,
+    })
     .from(t.fotos)
     .where(
       and(
         eq(t.fotos.status, "processando"),
         isNull(t.fotos.excluidaEm),
         lt(inicioDoEnvio, antesDe),
+        depois
+          ? sql`(${inicioDoEnvio}, ${t.fotos.id}) > (${depois.inicio}::timestamptz, ${depois.id}::uuid)`
+          : undefined,
       ),
     )
-    .orderBy(asc(inicioDoEnvio))
+    .orderBy(asc(inicioDoEnvio), asc(t.fotos.id))
     .limit(limite);
   // O coalesce volta como texto em alguns drivers: normaliza para Date.
-  return linhas.map((l) => ({ ...l, inicio: new Date(l.inicio) }));
+  return linhas.map(({ inicioCru, ...l }) => ({
+    ...l,
+    inicio: new Date(l.inicio),
+    cursor: { inicio: inicioCru, id: l.id },
+  }));
 }

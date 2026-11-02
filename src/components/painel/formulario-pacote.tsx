@@ -43,7 +43,7 @@ export function FormularioPacote({
 
       <label className="flex items-center gap-3 text-sm">
         <Interruptor name="ativo" defaultChecked={pacote?.ativo ?? true} />
-        Oferecer o pacote depois da busca por selfie ou número de peito
+        Oferecer o pacote depois da busca por selfie
       </label>
 
       <fieldset className="flex flex-col gap-2">

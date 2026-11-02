@@ -4,11 +4,13 @@ import { estadoDaLiberacao, type EstadoLiberacao } from "./liberacao";
 import { idsDaPastaComSubpastas } from "./pastas";
 
 // Filtros da grade de fotos do painel do evento (docs/arquitetura.md, "Pastas e subpastas"):
-// liberação, pasta e dia, combináveis e guardados na URL. As mesmas regras valem na tela (que
-// conta e mostra) e no servidor (que reavalia o filtro na hora de mover "todas do filtro"), por
-// isso ficam aqui, puras. O dia é o de Brasília (UTC-3, sem horário de verão desde 2019).
+// situação, liberação, pasta e dia, combináveis e guardados na URL. As mesmas regras valem no
+// servidor, que pagina e conta (src/dados/fotos-do-painel.ts) e reavalia o filtro na hora de mover
+// ou liberar "todas do filtro", por isso ficam aqui, puras. O dia é o de Brasília (UTC-3, sem horário de verão desde 2019).
 
 export const PASTA_TODAS = "todas";
+export const LIBERACAO_TODAS = "todas";
+export const SITUACAO_TODAS = "todas";
 export const SEM_PASTA = "sem";
 export const DIA_TODOS = "todos";
 /** Fotos sem data de captura no EXIF (só no dia por captura). */
@@ -20,6 +22,8 @@ const DIA = /^\d{4}-\d{2}-\d{2}$/;
 
 export const filtroDoPainelSchema = z
   .object({
+    /** Situação do processamento. */
+    situacao: z.enum(["todas", "pronta", "processando", "erro"]).default("todas"),
     liberacao: z.enum(["todas", "liberada", "agendada", "manual"]).default("todas"),
     /** "todas", "sem" (sem pasta) ou o id da pasta (a de nível 1 inclui as subpastas). */
     pasta: z.union([z.literal(PASTA_TODAS), z.literal(SEM_PASTA), z.uuid()]).default(PASTA_TODAS),
@@ -40,6 +44,7 @@ export const filtroDoPainelSchema = z
 export type FiltroDoPainel = z.infer<typeof filtroDoPainelSchema>;
 
 export const FILTRO_PADRAO: FiltroDoPainel = {
+  situacao: "todas",
   liberacao: "todas",
   pasta: PASTA_TODAS,
   base: "captura",
@@ -72,6 +77,7 @@ export type ItemFiltravel = {
   liberarEm: string | null;
   criadoEm: string;
   capturadaEm: string | null;
+  status?: "processando" | "pronta" | "erro";
 };
 
 /** O dia do item conforme a base, ou `null` (captura sem EXIF). */
@@ -95,6 +101,7 @@ export function filtrarItensDoPainel<T extends ItemFiltravel>(
       ? idsDaPastaComSubpastas(filtro.pasta, pastas)
       : null;
   return itens.filter((item) => {
+    if (filtro.situacao !== "todas" && item.status !== filtro.situacao) return false;
     if (
       filtro.liberacao !== "todas" &&
       estadoDaLiberacao(item.liberarEm, agora) !== (filtro.liberacao as EstadoLiberacao)
@@ -150,6 +157,7 @@ export function filtroDaUrl(
         : FILTRO_PADRAO[chave];
   };
   const filtro: FiltroDoPainel = {
+    situacao: campo("situacao", "situacao"),
     liberacao: campo("liberacao", "liberacao"),
     pasta: campo("pasta", "pasta"),
     base: campo("base", "data"),
@@ -169,6 +177,7 @@ export function filtroParaUrl(
     if (valor === padrao) p.delete(nome);
     else p.set(nome, valor);
   };
+  definir("situacao", filtro.situacao, FILTRO_PADRAO.situacao);
   definir("liberacao", filtro.liberacao, FILTRO_PADRAO.liberacao);
   definir("pasta", filtro.pasta, FILTRO_PADRAO.pasta);
   definir("data", filtro.base, basePadrao);

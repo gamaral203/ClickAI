@@ -12,7 +12,6 @@ import {
 } from "@/app/(fotografo)/painel/suporte-acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { linkWhatsappSuporte } from "@/lib/suporte";
 
 /** De quanto em quanto tempo o chat aberto procura resposta nova. */
 const ATUALIZAR_A_CADA_MS = 15_000;
@@ -117,14 +116,14 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
               </span>
               <div className="flex min-w-0 flex-1 flex-col">
                 <p className="font-semibold">Ajuda - ClicouAí</p>
-                <p className="truncate text-xs text-primary-foreground/80">
+                <p className="text-xs leading-tight text-primary-foreground/80">
                   Respondemos por aqui e avisamos você
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAberto(false)}
-                className="flex size-9 items-center justify-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
               >
                 <X aria-hidden="true" className="size-5" />
                 <span className="sr-only">Fechar o chat</span>
@@ -152,17 +151,6 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
                     <Balao autor="equipe" rotulo="ClicouAí">
                       Recebemos a sua mensagem! A nossa equipe responde por aqui mesmo, e você
                       recebe uma notificação e um e-mail quando a resposta chegar.
-                      {"\n\n"}
-                      Se for urgente,{" "}
-                      <a
-                        href={linkWhatsappSuporte()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-primary underline underline-offset-2"
-                      >
-                        chame no WhatsApp
-                      </a>
-                      .
                     </Balao>
                   )}
                 </div>
@@ -204,7 +192,7 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
                         <button
                           type="button"
                           onClick={() => setPasso(passo - 1)}
-                          className="mr-2 font-medium text-foreground hover:underline"
+                          className="mr-1 inline-flex min-h-11 items-center px-1 font-medium text-foreground hover:underline"
                         >
                           Voltar
                         </button>
@@ -215,7 +203,7 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
                       type="submit"
                       size="touch"
                       disabled={enviando}
-                      className="h-10 rounded-full"
+                      className="h-11 rounded-full"
                     >
                       {enviando && <Loader2 aria-hidden="true" className="animate-spin" />}
                       {passo < passos.length - 1 ? "Avançar" : "Enviar"}
@@ -276,6 +264,9 @@ export function ChatSuporte({ novidade: novidadeInicial }: { novidade: boolean }
 
       <motion.button
         type="button"
+        // O motion põe tabindex sozinho quando há whileTap, que o servidor sempre manda e o navegador
+        // com menos movimento não. Fixo aqui, os dois HTML batem.
+        tabIndex={0}
         onClick={() => setAberto(!aberto)}
         aria-expanded={aberto}
         whileHover={reduzir ? undefined : { scale: 1.06 }}

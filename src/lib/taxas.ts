@@ -6,8 +6,9 @@
 //   - o comprador paga um acréscimo A = I × p / (2 × (1 − p));
 //   - o fotógrafo deixa I × p / 2 da parte dele;
 //   - A + I×p/2 = p × (I + A), que é exatamente o que o Mercado Pago desconta.
-// Com 4,98%: acréscimo de ~2,62% para o comprador e 2,49% sai da parte do fotógrafo. Os
-// arredondamentos são para cima, então a plataforma nunca fica com centavo a menos.
+// Com 4,98%: acréscimo de ~2,62% para o comprador e 2,49% sai da parte do fotógrafo. O acréscimo é
+// arredondado para cima e a parte do fotógrafo para baixo: o centavo fica com ele, e a plataforma
+// absorve a diferença, quando há, de menos de 1 centavo por lançamento.
 //
 // Sem dependências: roda no servidor e no navegador (o checkout mostra o acréscimo).
 
@@ -26,10 +27,15 @@ export function acrescimoCartao(itensCentavos: number, pct: number): number {
   return Math.ceil((itensCentavos * p) / (2 * (1 - p)));
 }
 
-/** Parte da taxa do cartão que sai do valor de um lançamento do fotógrafo, em centavos. */
+/**
+ * Parte da taxa do cartão que sai do valor de um lançamento do fotógrafo, em centavos, arredondada
+ * para baixo a favor dele. A conta é em inteiros: com número decimal, 10000 × 4,98 ÷ 200 não dá
+ * 249 exatos. Vale só para lançamentos novos; os gravados não são recalculados.
+ */
 export function parteDoVendedorNaTaxa(valorCentavos: number, pct: number): number {
   if (valorCentavos <= 0) return 0;
-  return Math.ceil((valorCentavos * pct) / 200);
+  // % em décimos de milésimo (4,98 vira 49800); a metade da taxa é valor × isso ÷ 2.000.000.
+  return Math.floor((valorCentavos * Math.round(pct * 10_000)) / 2_000_000);
 }
 
 /** O acréscimo em % sobre o valor das fotos, para mostrar ("2,62%"). */

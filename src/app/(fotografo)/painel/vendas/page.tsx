@@ -11,6 +11,7 @@ import { ListaTransferencias } from "@/components/painel/lista-transferencias";
 import type { Saque } from "@/dados";
 import { formatarCpfCnpj } from "@/lib/documentos";
 import { formatarData, formatarPreco } from "@/lib/formatar";
+import { taxaCartaoPct } from "@/lib/taxas";
 import {
   FREQUENCIA_TRANSFERENCIA_PADRAO,
   liberaEm,
@@ -234,6 +235,7 @@ async function Conteudo({ searchParams }: { searchParams: Busca }) {
       <AntecipacaoFinanceiro
         ligado={anteciparCartao}
         comissaoPct={conta.comissaoPct}
+        taxaCartaoPct={taxaCartaoPct()}
         antecipavelCentavos={saldo.antecipavelCentavos}
         antecipavelLiquidoCentavos={saldo.antecipavelLiquidoCentavos}
       />

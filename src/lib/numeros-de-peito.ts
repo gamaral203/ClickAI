@@ -11,7 +11,29 @@
 // - Um dígito só entra com confiança alta (CONFIANCA_UM_DIGITO): "1" e "7" aparecem em relógio,
 //   camiseta e logotipo o tempo todo.
 
-/** Slugs das categorias em que a leitura nasce ligada (esportes com número no peito). */
+/**
+ * Interruptor geral da leitura do número de peito na tela e nos eventos novos (desligado em
+ * 01/11/2026: a busca por número está fora da tela e cada leitura é cobrada). Desligado, a opção e
+ * a aba somem do painel, evento novo nasce com a leitura desligada e evento que já existe guarda
+ * o valor que tem. Para religar, troque para `true` (arquitetura.md, "Número de peito").
+ */
+export const LEITURA_DE_NUMEROS_DISPONIVEL: boolean = false;
+
+/**
+ * O que gravar em `eventos.ler_numeros` ao salvar: com o interruptor desligado, o pedido do
+ * navegador é ignorado; evento novo nasce desligado e o que já existe não muda (`undefined` fica
+ * de fora do UPDATE).
+ */
+export function lerNumerosAoSalvar(
+  eventoJaExiste: boolean,
+  pedido: boolean,
+  disponivel = LEITURA_DE_NUMEROS_DISPONIVEL,
+): boolean | undefined {
+  if (disponivel) return pedido;
+  return eventoJaExiste ? undefined : false;
+}
+
+/** Slugs das categorias em que a leitura nasce ligada, com o interruptor ligado. */
 export const CATEGORIAS_COM_NUMERO: readonly string[] = [
   "corrida",
   "ciclismo",

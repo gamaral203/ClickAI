@@ -172,6 +172,7 @@ export function SecoesDoEvento({
                 <li key={p.href} role="none" className="first:border-t">
                   <Link
                     href={p.href}
+                    prefetch={false}
                     className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-muted"
                   >
                     <Icone aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
@@ -214,6 +215,7 @@ export function SecoesDoEvento({
               <li key={p.href} className="ml-auto first:ml-0">
                 <Link
                   href={p.href}
+                  prefetch={false}
                   className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
                   <Icone aria-hidden="true" className="size-4" />

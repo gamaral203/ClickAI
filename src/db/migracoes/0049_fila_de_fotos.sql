@@ -1,0 +1,2 @@
+ALTER TABLE "fotos" ADD COLUMN "tentativas_processamento" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+CREATE INDEX "fotos_fila_processando_idx" ON "fotos" USING btree ("envio_iniciado_em") WHERE status = 'processando';

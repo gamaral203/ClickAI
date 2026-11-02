@@ -95,8 +95,8 @@ export function FormularioCheckout({
           ids: [...ids],
           nome: String(formulario.get("nome") ?? ""),
           email: String(formulario.get("email") ?? ""),
-          whatsapp: String(formulario.get("whatsapp") ?? ""),
-          // Por enquanto o link não vai por WhatsApp: o número fica só para contato.
+          // Campo fora da tela enquanto não há WhatsApp; a ação continua aceitando o dado vazio.
+          whatsapp: "",
           aceitaWhatsapp: false,
           metodo: formulario.get("metodo"),
           // Só manda o cupom que o servidor aceitou no resumo; o pedido confere de novo.
@@ -155,25 +155,6 @@ export function FormularioCheckout({
               valorInicial={inicial?.email}
               invalido={Boolean(erros.email)}
               descritoPor={erros.email ? "email-erro" : "email-ajuda"}
-            />
-          </Campo>
-          <Campo
-            id="whatsapp"
-            rotulo="WhatsApp (opcional)"
-            ajuda="Com DDD. Só para a gente falar com você sobre o pedido, se precisar."
-            erro={erros.whatsapp}
-          >
-            <Input
-              id="whatsapp"
-              name="whatsapp"
-              type="tel"
-              autoComplete="tel-national"
-              inputMode="tel"
-              maxLength={20}
-              placeholder="(11) 91234-5678"
-              aria-invalid={Boolean(erros.whatsapp)}
-              aria-describedby={erros.whatsapp ? "whatsapp-erro" : "whatsapp-ajuda"}
-              className="h-11"
             />
           </Campo>
         </fieldset>
@@ -313,7 +294,7 @@ export function FormularioCheckout({
         )}
         <Link
           href="/carrinho"
-          className="-my-2.5 py-2.5 text-sm font-medium text-primary hover:underline"
+          className="-my-3 py-3 text-sm font-medium text-primary hover:underline"
         >
           Revisar o carrinho
         </Link>

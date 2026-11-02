@@ -13,7 +13,7 @@ export default function LayoutCliente({ children }: LayoutProps<"/">) {
       <FaixaFotosCompradas />
       <main className="flex-1">{children}</main>
       <Rodape />
-      {/* Chat de ajuda com a equipe (e o WhatsApp), para cliente e visitante. */}
+      {/* Chat de ajuda com a equipe, para cliente e visitante. */}
       <ChatDoSite />
     </PortaoManutencao>
   );

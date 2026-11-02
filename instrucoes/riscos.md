@@ -6,6 +6,8 @@ Dez erros de prioridade alta quebram o sistema em produção, expõem o original
 
 Arquitetura completa: [Arquitetura — Plataforma de Venda de Fotos](arquitetura.md).
 
+> **Lote grande preso em `processando` (medido em produção, 2.560 fotos):** pacotes de 100 cortados no prazo deixavam o resto parado até o job de revisão, e o pico estourava a cota do IndexFaces. Evitar: fila no banco com cron por minuto, teto de 5 tentativas com estado de erro claro, limite de 12 fotos por instância e 4 IndexFaces por segundo na conta inteira, com reprocesso automático (`arquitetura.md`, "Filas no servidor"). Ainda depende de confirmação em produção: uma instância faz ~70 fotos por execução, então um lote só na fila anda nesse ritmo.
+
 | Área | Problema | Como evitar | Prioridade |
 |---|---|---|---|
 | Banco | Funções serverless abrem conexões demais e o Postgres recusa novas | Usar a URL do pooler do Supabase em modo transaction (porta 6543), node-postgres (sem prepared statements com nome e com uma consulta por vez em cada conexão, porque o pooler trava com consultas enfileiradas na mesma conexão) e poucas conexões por instância | Alta |

@@ -118,8 +118,9 @@ describe("decomposição do pedido", () => {
     );
     expect(d.taxaGatewayCentavos).toBe(taxaEstimada(total, "cartao", TAXAS));
     expect(d.coberturaDaTaxaCentavos).toBe(acrescimo + (itens - parte));
-    // Arredondamentos para cima no acréscimo: a plataforma nunca paga mais que 1 centavo.
+    // Acréscimo para cima e parte do fotógrafo para baixo: a plataforma absorve até 1 centavo.
     expect(d.taxaAbsorvidaCentavos).toBeLessThanOrEqual(1);
+    expect(d.compradorPagouCentavos).toBe(d.parteFotografosCentavos + d.coberturaDaTaxaCentavos);
     expect(d.receitaLiquidaCentavos).toBe(d.receitaBrutaCentavos - d.taxaAbsorvidaCentavos);
   });
 

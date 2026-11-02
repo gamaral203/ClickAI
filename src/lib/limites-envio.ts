@@ -9,7 +9,7 @@ const MB = 1024 * 1024;
  * Teto por arquivo, só contra abuso e para caber na função que processa a foto. Folga para
  * qualquer foto final de evento: um JPEG de 100 MP fica em ~70 MB, um TIFF de 8 bits sem
  * compressão de 61 MP em ~180 MB e um TIFF de 16 bits de 45-60 MP com compressão ZIP/LZW em
- * 120-200 MB. O limite real é a memória da função (2 GB no plano Hobby, sem como aumentar): o
+ * 120-200 MB. O limite real é a memória da função (2 GB no padrão do plano Pro): o
  * arquivo inteiro fica na memória durante o processamento, mais ~150 MB da decodificação
  * reduzida, e uma instância pode processar mais de uma foto ao mesmo tempo (ver
  * ORCAMENTO_DE_MEMORIA_BYTES em src/servicos/envios.ts).
@@ -45,6 +45,22 @@ export function quantasPartes(tamanho: number) {
 export function tamanhoDaParte(tamanho: number, numero: number) {
   return Math.min(TAMANHO_PARTE, tamanho - (numero - 1) * TAMANHO_PARTE);
 }
+
+/**
+ * Foto parada em `processando` há mais disto (ou com a reserva vencida há mais disto) entra na
+ * fila do servidor. Curto: a reserva (src/dados/processamento.ts) já impede de pegar uma foto que
+ * outra chamada está processando, e um arquivo que ainda não chegou só vira erro depois de
+ * ENVIO_PODE_ESTAR_SUBINDO_MS (src/servicos/envios.ts).
+ */
+export const ESPERA_FOTO_PRESA_MS = 2 * 60 * 1000;
+
+/**
+ * Foto com falha nos rostos volta à fila até este número de vezes; depois fica como pendente no
+ * painel, com o botão "Cadastrar rostos que faltam".
+ */
+export const MAXIMO_DE_TENTATIVAS_DE_ROSTOS = 5;
+/** A fila dos rostos só pega envios recentes (src/dados/fila-de-rostos.ts). */
+export const JANELA_DA_FILA_DE_ROSTOS_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** Texto do limite para as mensagens. */
 export const LIMITE_FOTO_TEXTO = "200 MB";

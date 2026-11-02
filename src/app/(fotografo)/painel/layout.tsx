@@ -2,7 +2,6 @@ import { Suspense } from "react";
 
 import { MenuPainel, type ItemMenu } from "@/components/site/menu-painel";
 import { ChatDoPainel } from "@/components/suporte/chat-do-painel";
-import { linkWhatsappSuporte } from "@/lib/suporte";
 
 const itens: ItemMenu[] = [
   { href: "/painel", rotulo: "Início", icone: "inicio" },
@@ -29,7 +28,6 @@ export default function LayoutPainel({ children }: LayoutProps<"/painel">) {
           titulo="Painel do fotógrafo"
           itens={itens}
           raiz="/painel"
-          suporte={linkWhatsappSuporte()}
           semBarraNoCelular
         />
       </div>
