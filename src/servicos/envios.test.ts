@@ -94,6 +94,7 @@ import {
   iniciarEnvio,
   MAXIMO_DE_TENTATIVAS,
   MENSAGEM_VIDEO_DESISTIDO,
+  MENSAGEM_VIDEO_ILEGIVEL,
   MENSAGEM_VIDEO_PESADO,
   MENSAGEM_VIDEO_SUMIU,
   processarEmSegundoPlano,
@@ -1558,14 +1559,17 @@ describe("vídeos de até 30 segundos (convertidos aqui com o FFmpeg)", () => {
     expect(objetos.has(nome(R2.R2_BUCKET_PUBLICO, linha.urlMiniatura))).toBe(true);
   }, 120_000);
 
-  it("vídeo com mais de 30 segundos é recusado e o original não fica guardado", async () => {
+  it("vídeo com mais de 30 segundos é recusado, sem apagar o original já guardado", async () => {
     const corpo = mp4DeTeste(32, 160, 120);
     // O navegador diria 30; o servidor confere a duração de verdade.
     const fotoId = await enviarVideo(corpo, 30);
     const r = await confirmarEnvio(lia.id, fotoId);
     expect(r).toEqual({ erro: MENSAGEM_VIDEO_LONGO });
     const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
-    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(false);
+    // A duração só é lida depois de mover: o que está em originais/ nunca sai por uma recusa.
+    expect(objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))?.corpo.equals(corpo)).toBe(
+      true,
+    );
     expect((await linhaDaFoto(fotoId)).status).toBe("erro");
   }, 120_000);
 
@@ -1576,9 +1580,119 @@ describe("vídeos de até 30 segundos (convertidos aqui com o FFmpeg)", () => {
       Buffer.alloc(4000),
     ]);
     const fotoId = await enviarVideo(falso, 5);
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const r = await confirmarEnvio(lia.id, fotoId);
+    vi.mocked(console.error).mockRestore();
     expect(r).toEqual({ erro: "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie." });
+    // A leitura falhou depois de mover: o arquivo fica guardado (pode ser falha do FFmpeg).
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(true);
   }, 60_000);
+});
+
+describe("recusa nunca apaga o original já guardado em originais/", () => {
+  afterEach(() => {
+    leitura.substituto = null;
+  });
+
+  it("vídeo ilegível na conversão vira erro com mensagem clara e mantém o original", async () => {
+    const corpo = mp4DeTeste(1);
+    const fotoId = await enviarVideo(corpo, 1);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    leitura.substituto = async (real) => {
+      throw new real.VideoIlegivel("moov atom not found");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await confirmarEnvio(lia.id, fotoId);
+    vi.mocked(console.error).mockRestore();
+    expect(r).toEqual({ erro: MENSAGEM_VIDEO_ILEGIVEL });
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "erro",
+      erroMensagem: MENSAGEM_VIDEO_ILEGIVEL,
+    });
+    expect(objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))?.corpo.equals(corpo)).toBe(
+      true,
+    );
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria))).toBe(false);
+  }, 60_000);
+
+  it("vídeo já movido (retomada) e ilegível mantém o original e volta a converter depois", async () => {
+    const corpo = mp4DeTeste(1);
+    const fotoId = await enviarVideo(corpo, 1);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    // Execução anterior moveu e morreu: só existe o original; o banco ainda aponta para envios/.
+    const temporaria = nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria);
+    const definitiva = nome(R2.R2_BUCKET_ORIGINAIS, chaves.original);
+    objetos.set(definitiva, objetos.get(temporaria)!);
+    objetos.delete(temporaria);
+    leitura.substituto = async (real) => {
+      throw new real.VideoIlegivel("Invalid data found when processing input");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ erro: MENSAGEM_VIDEO_ILEGIVEL });
+    vi.mocked(console.error).mockRestore();
+    expect(objetos.get(definitiva)?.corpo.equals(corpo)).toBe(true);
+    expect((await linhaDaFoto(fotoId)).chaveOriginal).toBe(chaves.temporaria);
+
+    // De volta à fila como item novo (o que o SQL de recuperação faz), converte do original.
+    leitura.substituto = null;
+    const banco = await obterBanco();
+    await banco
+      .update(t.fotos)
+      .set({
+        status: "processando",
+        erroMensagem: null,
+        tentativasProcessamento: 0,
+        envioIniciadoEm: new Date(Date.now() - 5 * 60_000),
+      })
+      .where(eq(t.fotos.id, fotoId));
+    const r = await revisarFotosPresas();
+    expect(r).toMatchObject({ prontas: 1, comErro: 0 });
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "pronta",
+      chaveOriginal: chaves.original,
+    });
+    expect(objetos.get(definitiva)?.corpo.equals(corpo)).toBe(true);
+  }, 120_000);
+
+  it("vídeo recusado ainda em envios/ (chegou diferente) só perde o temporário", async () => {
+    const corpo = mp4DeTeste(1);
+    const fotoId = await enviarVideo(corpo, 1);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    const temporaria = nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria);
+    // Mesmo tamanho, outro conteúdo: a impressão não confere.
+    const trocado = Buffer.from(corpo);
+    trocado[trocado.length - 1] ^= 0xff;
+    objetos.set(temporaria, { corpo: trocado, tipo: "video/mp4" });
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ erro: "O arquivo chegou diferente do escolhido. Envie de novo." });
+    expect(objetos.has(temporaria)).toBe(false);
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(false);
+  }, 60_000);
+
+  it("foto já em originais/ que não pode ser lida vira erro e o original fica", async () => {
+    // Começa como JPEG, mas o conteúdo não decodifica.
+    const corpo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(5000, 7)]);
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+    const definitiva = nome(R2.R2_BUCKET_ORIGINAIS, chaves.original);
+    objetos.set(definitiva, { corpo, tipo: "image/jpeg" });
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ erro: "Não foi possível ler a imagem. Exporte de novo e envie." });
+    expect((await linhaDaFoto(fotoId)).status).toBe("erro");
+    expect(objetos.get(definitiva)?.corpo.equals(corpo)).toBe(true);
+  });
+
+  it("foto ilegível ainda em envios/ segue saindo do temporário", async () => {
+    const corpo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(5000, 9)]);
+    const { fotoId } = await iniciarUm(lia.id, evento.id, corpo);
+    simularPut(lia.id, evento.id, fotoId, corpo);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId);
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ erro: "Não foi possível ler a imagem. Exporte de novo e envie." });
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria))).toBe(false);
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(false);
+  });
 });
 
 describe("vídeos 4K e pesados (FFmpeg lendo do R2, prazo e retomada)", () => {

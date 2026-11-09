@@ -410,7 +410,10 @@ export async function concluirPartes(
   return { ok: true };
 }
 
-/** Recusa com mensagem para o fotógrafo; o arquivo temporário é apagado. */
+/**
+ * Recusa com mensagem para o fotógrafo; só o arquivo temporário (`envios/`) é apagado. O que já
+ * está em `originais/` nunca sai por uma recusa.
+ */
 class ArquivoRecusado extends Error {}
 
 /**
@@ -977,8 +980,11 @@ async function confirmarVideo(
   } catch (erro) {
     if (erro instanceof ArquivoRecusado) {
       await marcarFotoComErro(foto.id, erro.message);
-      // O arquivo recusado não fica guardado (nem o temporário, nem o original já movido).
-      await removerOriginal(movido ? chaves.original : chaves.temporaria).catch(() => {});
+      // Só o temporário de `envios/` sai (recusa antes de mover: tamanho, formato ou impressão).
+      // O que já está em `originais/` nunca é apagado aqui: a recusa depois de mover vem da
+      // leitura ou da conversão (VideoIlegivel, duração), que pode ser falha nossa (FFmpeg,
+      // memória, versão) e não do arquivo. O original fica guardado para reprocessar.
+      if (!movido) await removerOriginal(chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
     // Daqui para baixo, nenhum arquivo é apagado: o original fica em `originais/` para a próxima
