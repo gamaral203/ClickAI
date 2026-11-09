@@ -251,7 +251,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 ## Em andamento
 
 - [ ] **Vídeos 4K em produção (depois do merge e do deploy autorizados):** conferir nos logs `[envios] vídeo pronto` (tempo por vídeo) e a ausência de `ENOSPC`, falta de memória e 300 s esgotados num envio grande de vídeos; regerar os 23 vídeos em `erro` do evento `76397b4d` cujo original estiver em `originais/` (HEAD na chave `originais/<fotografo>/<evento>/<id>.mp4`, não na `envios/` gravada no banco) ou pedir o reenvio ao fotógrafo dos que não estiverem
-- [ ] Decidir como a tela de envio mostra o aviso de vídeo com trechos danificados (a rota já devolve `aviso`; hoje a lista da tela só mostra itens com erro ou recusados)
+- [x] Aviso de vídeo com trechos danificados: o dono decidiu (09/11/2026) que **nada é exibido** em nenhuma tela (envio, painel, galeria); a rota de processamento ainda devolve `aviso` no JSON, mas a interface o ignora de propósito
 - [ ] Dono aprovar a aparência da grade com "N processando" (prints no relatório do item 4).
 - [ ] Dono conferir o CORS e decidir se liga `NEXT_PUBLIC_R2_DUAS_ORIGENS` (`deploy.md`, item 7).
 - [ ] Conferir em produção, pelos logs `[jobs] fila de fotos` e `[envios] tempos da foto`, o ritmo real e o limite de 12 por instância.
