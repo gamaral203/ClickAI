@@ -238,7 +238,9 @@ export async function rodarJobDeRevisao(agora = Date.now()): Promise<ResultadoJo
   }
 
   try {
-    resultado.fotos = await revisarFotosPresas(agora);
+    // A rota tem 120 s: um vídeo só começa aqui se terminar antes disso (na prática, os vídeos
+    // ficam para a fila por minuto, de 300 s).
+    resultado.fotos = await revisarFotosPresas(agora, { terminarAte: inicio + 110 * 1000 });
   } catch (erro) {
     console.error("[jobs] falha ao revisar as fotos presas", erro);
   }

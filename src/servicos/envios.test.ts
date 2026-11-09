@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -19,7 +21,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { and, eq, inArray } from "drizzle-orm";
 import sharp from "sharp";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // `connection()` só existe dentro de uma requisição do Next; aqui as funções rodam direto.
 // `after()` roda o trabalho depois da resposta; aqui ele fica guardado e o teste o executa.
@@ -34,6 +36,26 @@ async function rodarDepois() {
   while (depois.tarefas.length > 0) await depois.tarefas.shift()!();
 }
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+// O FFmpeg lê o vídeo por URL assinada do R2 (src/servicos/video.ts); aqui, a URL aponta para um
+// servidor HTTP local que serve o S3 falso (com Range, como o R2). A troca da conversão deixa o
+// teste simular o prazo esgotado e a falha passageira sem um vídeo de minutos.
+const leitura = vi.hoisted(() => ({
+  porta: 0,
+  substituto: null as null | ((real: typeof import("./video")) => Promise<never>),
+}));
+vi.mock("@/lib/r2", async (original) => ({
+  ...(await original<typeof import("@/lib/r2")>()),
+  urlDeLeituraNoServidor: async (chave: string) =>
+    `http://127.0.0.1:${leitura.porta}/${encodeURIComponent(chave)}`,
+}));
+vi.mock("@/servicos/video", async (original) => {
+  const real = await original<typeof import("./video")>();
+  return {
+    ...real,
+    prepararVideo: (...args: Parameters<typeof real.prepararVideo>) =>
+      leitura.substituto ? leitura.substituto(real) : real.prepararVideo(...args),
+  };
+});
 // As Server Actions pedem o fotógrafo logado; aqui ele é escolhido pelo teste.
 const sessao = vi.hoisted(() => ({ fotografoId: "" }));
 vi.mock("@/servicos/sessao", () => ({
@@ -71,6 +93,9 @@ import {
   FOTOS_POR_LOTE,
   iniciarEnvio,
   MAXIMO_DE_TENTATIVAS,
+  MENSAGEM_VIDEO_DESISTIDO,
+  MENSAGEM_VIDEO_PESADO,
+  MENSAGEM_VIDEO_SUMIU,
   processarEmSegundoPlano,
   revisarFotosPresas,
 } from "@/servicos/envios";
@@ -107,6 +132,38 @@ function naoEncontrado() {
     $metadata: { httpStatusCode: 404 },
   });
 }
+
+/** Servidor HTTP local que serve o bucket de originais do S3 falso para o FFmpeg (com Range). */
+let servidorDosOriginais: Server;
+/** Pedidos que o FFmpeg fez ao servidor local (cada um lê só uma faixa do arquivo). */
+let leiturasPorUrl = 0;
+beforeAll(async () => {
+  servidorDosOriginais = createServer((req, res) => {
+    const chave = decodeURIComponent((req.url ?? "/").slice(1).split("?")[0]);
+    const objeto = objetos.get(nome(R2.R2_BUCKET_ORIGINAIS, chave));
+    if (!objeto) {
+      res.statusCode = 404;
+      return res.end();
+    }
+    leiturasPorUrl++;
+    const total = objeto.corpo.length;
+    const faixa = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? "");
+    const inicio = faixa ? Number(faixa[1]) : 0;
+    const fim = faixa && faixa[2] ? Number(faixa[2]) : total - 1;
+    res.writeHead(faixa ? 206 : 200, {
+      "Content-Length": fim - inicio + 1,
+      "Accept-Ranges": "bytes",
+      "Content-Type": "video/mp4",
+      ...(faixa ? { "Content-Range": `bytes ${inicio}-${fim}/${total}` } : {}),
+    });
+    res.end(objeto.corpo.subarray(inicio, fim + 1));
+  });
+  await new Promise<void>((ok) => servidorDosOriginais.listen(0, "127.0.0.1", ok));
+  leitura.porta = (servidorDosOriginais.address() as AddressInfo).port;
+});
+afterAll(() => {
+  servidorDosOriginais.close();
+});
 
 beforeAll(() => {
   vi.spyOn(S3Client.prototype, "send").mockImplementation((async (comando: unknown) => {
@@ -1422,6 +1479,8 @@ describe("situação das fotos entregues ao servidor (situacaoDoEnvioAcao)", () 
 
 // ---------------------------------------------------------------- Vídeos
 
+/** Muda o som de cada vídeo de teste: cada um tem outra impressão (senão, seria "repetida"). */
+let variacaoDoVideo = 0;
 /** Vídeo MP4 de teste, gerado pelo próprio FFmpeg (barras de cor com som). */
 function mp4DeTeste(segundos: number, largura = 640, altura = 360) {
   const pasta = mkdtempSync(path.join(tmpdir(), "video-envio-"));
@@ -1435,7 +1494,7 @@ function mp4DeTeste(segundos: number, largura = 640, altura = 360) {
     "-f",
     "lavfi",
     "-i",
-    `sine=duration=${segundos}`,
+    `sine=frequency=${300 + ++variacaoDoVideo * 7}:duration=${segundos}`,
     "-c:v",
     "libx264",
     "-preset",
@@ -1519,5 +1578,134 @@ describe("vídeos de até 30 segundos (convertidos aqui com o FFmpeg)", () => {
     const fotoId = await enviarVideo(falso, 5);
     const r = await confirmarEnvio(lia.id, fotoId);
     expect(r).toEqual({ erro: "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie." });
+  }, 60_000);
+});
+
+describe("vídeos 4K e pesados (FFmpeg lendo do R2, prazo e retomada)", () => {
+  afterEach(() => {
+    leitura.substituto = null;
+  });
+
+  /** GETs do original inteiro (sem Range) pelo SDK: o caminho antigo, que punha o vídeo na memória. */
+  function leiturasInteiras(chave: string) {
+    return vi
+      .mocked(S3Client.prototype.send)
+      .mock.calls.filter(
+        ([c]) =>
+          c instanceof GetObjectCommand && c.input.Key === chave && c.input.Range === undefined,
+      ).length;
+  }
+
+  it("4K em pé vira prévia 720x1280 lida por URL, sem baixar o original para a memória", async () => {
+    const corpo = mp4DeTeste(2, 2160, 3840);
+    const fotoId = await enviarVideo(corpo, 2);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    const antes = leiturasPorUrl;
+    const r = await confirmarEnvio(lia.id, fotoId);
+    expect(r).toEqual({ eventoId: evento.id });
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "pronta",
+      largura: 720,
+      altura: 1280,
+    });
+    // O FFmpeg leu pelo servidor (URL), em faixas; o SDK nunca baixou o arquivo inteiro.
+    expect(leiturasPorUrl).toBeGreaterThan(antes);
+    expect(leiturasInteiras(chaves.original)).toBe(0);
+    expect(leiturasInteiras(chaves.temporaria)).toBe(0);
+    const previa = objetos.get(nome(R2.R2_BUCKET_PUBLICO, chaves.previaVideo))!.corpo;
+    expect(previa.subarray(4, 8).toString()).toBe("ftyp");
+  }, 120_000);
+
+  it("conversão que passa do prazo volta para a fila e, na segunda vez, avisa que é pesado demais", async () => {
+    const corpo = mp4DeTeste(1);
+    const fotoId = await enviarVideo(corpo, 1);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    leitura.substituto = async (real) => {
+      throw new real.VideoPesado("conversão passou de 200 s");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ aguardando: true });
+    expect((await linhaDaFoto(fotoId)).status).toBe("processando");
+    // O original já está no lugar definitivo, fora do alcance da limpeza de envios/.
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(true);
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria))).toBe(false);
+
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ erro: MENSAGEM_VIDEO_PESADO });
+    const linha = await linhaDaFoto(fotoId);
+    expect(linha).toMatchObject({ status: "erro", erroMensagem: MENSAGEM_VIDEO_PESADO });
+    // Nenhum original é apagado por causa do prazo.
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(true);
+    vi.mocked(console.error).mockRestore();
+  }, 60_000);
+
+  it("falha passageira retoma pela fila com o original guardado, até a mensagem clara", async () => {
+    const corpo = mp4DeTeste(1);
+    const fotoId = await enviarVideo(corpo, 1);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    leitura.substituto = async (real) => {
+      throw new real.FalhaNoVideo("conversão falhou (SIGKILL)");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (let i = 1; i < MAXIMO_DE_TENTATIVAS; i++) {
+      expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ aguardando: true });
+    }
+    expect(await confirmarEnvio(lia.id, fotoId)).toEqual({ erro: MENSAGEM_VIDEO_DESISTIDO });
+    expect(objetos.has(nome(R2.R2_BUCKET_ORIGINAIS, chaves.original))).toBe(true);
+
+    // Outro vídeo, que falha uma vez e depois converte: a retomada usa o original já movido.
+    const outro = await enviarVideo(mp4DeTeste(1, 320, 240), 1);
+    expect(await confirmarEnvio(lia.id, outro)).toEqual({ aguardando: true });
+    leitura.substituto = null;
+    expect(await confirmarEnvio(lia.id, outro)).toEqual({ eventoId: evento.id });
+    expect(await linhaDaFoto(outro)).toMatchObject({
+      status: "pronta",
+      tentativasProcessamento: 2,
+    });
+    vi.mocked(console.error).mockRestore();
+  }, 120_000);
+
+  it("sem tempo para converter, o vídeo fica na fila sem gastar tentativa", async () => {
+    const fotoId = await enviarVideo(mp4DeTeste(1), 1);
+    const r = await confirmarEnvio(lia.id, fotoId, { terminarAte: Date.now() + 30_000 });
+    expect(r).toEqual({ aguardando: true });
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "processando",
+      tentativasProcessamento: 0,
+    });
+  }, 60_000);
+
+  it("vídeo cujo arquivo sumiu depois de uma tentativa pede o reenvio com mensagem clara", async () => {
+    const fotoId = await enviarVideo(mp4DeTeste(1), 1);
+    const chaves = chavesDaFoto(lia.id, evento.id, fotoId, "mp4");
+    objetos.delete(nome(R2.R2_BUCKET_ORIGINAIS, chaves.temporaria));
+    const banco = await obterBanco();
+    await banco.update(t.fotos).set({ tentativasProcessamento: 1 }).where(eq(t.fotos.id, fotoId));
+    const r = await confirmarEnvio(lia.id, fotoId, {
+      inicioDoEnvio: new Date(Date.now() - 2 * 24 * 60 * 60_000),
+    });
+    expect(r).toEqual({ erro: MENSAGEM_VIDEO_SUMIU });
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "erro",
+      erroMensagem: MENSAGEM_VIDEO_SUMIU,
+    });
+  }, 60_000);
+
+  it("vídeo que gastou as tentativas na fila termina com a mensagem de vídeo", async () => {
+    const fotoId = await enviarVideo(mp4DeTeste(1), 1);
+    const banco = await obterBanco();
+    await banco
+      .update(t.fotos)
+      .set({
+        tentativasProcessamento: MAXIMO_DE_TENTATIVAS,
+        envioIniciadoEm: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(t.fotos.id, fotoId));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await revisarFotosPresas();
+    expect(await linhaDaFoto(fotoId)).toMatchObject({
+      status: "erro",
+      erroMensagem: MENSAGEM_VIDEO_DESISTIDO,
+    });
+    vi.mocked(console.error).mockRestore();
   }, 60_000);
 });

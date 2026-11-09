@@ -1,13 +1,59 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { duracaoDaSaida, prepararVideo, quadrosParaRostos, VideoIlegivel } from "./video";
+import {
+  duracaoDaSaida,
+  FalhaNoVideo,
+  prepararVideo,
+  quadrosParaRostos,
+  semUrls,
+  VideoIlegivel,
+  VideoPesado,
+} from "./video";
+
+// Servidor HTTP local com Range, no papel do R2: o FFmpeg lê o vídeo pela URL, como em produção.
+const arquivos = new Map<string, Buffer>();
+let servidor: Server;
+let base = "";
+let pedidos = 0;
+beforeAll(async () => {
+  servidor = createServer((req, res) => {
+    const corpo = arquivos.get((req.url ?? "").split("?")[0]);
+    if (!corpo) {
+      res.statusCode = 404;
+      return res.end();
+    }
+    pedidos++;
+    const faixa = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? "");
+    const inicio = faixa ? Number(faixa[1]) : 0;
+    const fim = faixa && faixa[2] ? Number(faixa[2]) : corpo.length - 1;
+    res.writeHead(faixa ? 206 : 200, {
+      "Content-Length": fim - inicio + 1,
+      "Accept-Ranges": "bytes",
+      ...(faixa ? { "Content-Range": `bytes ${inicio}-${fim}/${corpo.length}` } : {}),
+    });
+    res.end(corpo.subarray(inicio, fim + 1));
+  });
+  await new Promise<void>((ok) => servidor.listen(0, "127.0.0.1", ok));
+  base = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
+});
+afterAll(() => {
+  servidor.close();
+});
+
+/** Publica o vídeo no servidor local e devolve a URL (com uma "assinatura" na consulta). */
+function publicar(nome: string, corpo: Buffer) {
+  arquivos.set(`/${nome}`, corpo);
+  return `${base}/${nome}?X-Amz-Signature=segredo`;
+}
 
 // Prévia dos vídeos com o FFmpeg: o vídeo de teste é gerado pelo próprio FFmpeg (barras de cor
 // com som), para conferir a duração, as medidas, a marca e o MP4 de saída.
@@ -102,4 +148,63 @@ describe("prévia do vídeo com o FFmpeg", () => {
       prepararVideo(Buffer.from("isto não é um vídeo"), "padrao", () => true),
     ).rejects.toBeInstanceOf(VideoIlegivel);
   }, 60_000);
+
+  it("lê por URL (como a assinada do R2), aos poucos, e nenhuma URL fica na saída", async () => {
+    const original = videoDeTeste(3, 640, 360);
+    const antes = pedidos;
+    const r = await prepararVideo(publicar("url.mp4", original), "padrao", (d) => d <= 30.5);
+    if ("recusado" in r) throw new Error("recusou");
+    expect([r.largura, r.altura]).toEqual([640, 360]);
+    expect(r.quadrosParaRostos).toHaveLength(1);
+    expect(r.trechosDanificados).toBe(0);
+    expect(pedidos).toBeGreaterThan(antes);
+    expect(semUrls("from 'https://conta.r2.cloudflarestorage.com/x?X-Amz-Signature=abc': ok")).toBe(
+      "from '<url>': ok",
+    );
+  }, 120_000);
+
+  it("4K em pé (2160x3840) sai em 720x1280, com os quadros dos rostos em 1080x1920", async () => {
+    const original = videoDeTeste(2, 2160, 3840);
+    const r = await prepararVideo(publicar("4k.mp4", original), "padrao", (d) => d <= 30.5);
+    if ("recusado" in r) throw new Error("recusou");
+    expect([r.largura, r.altura]).toEqual([720, 1280]);
+    expect((await sharp(r.quadro).metadata()).height).toBe(1280);
+    const rosto = await sharp(r.quadrosParaRostos[0]).metadata();
+    expect([rosto.width, rosto.height]).toEqual([1080, 1920]);
+    expect(r.previa.indexOf("moov")).toBeLessThan(r.previa.indexOf("mdat"));
+  }, 120_000);
+
+  it("conversão que passa do prazo lança VideoPesado (e não VideoIlegivel)", async () => {
+    const original = videoDeTeste(6, 2160, 3840, ["-r", "30"]);
+    await expect(
+      prepararVideo(publicar("pesado.mp4", original), "padrao", () => true, { prazoMs: 1000 }),
+    ).rejects.toBeInstanceOf(VideoPesado);
+  }, 120_000);
+
+  it("URL que não responde é falha passageira (o vídeo volta para a fila, nada é apagado)", async () => {
+    await expect(
+      prepararVideo(`${base}/nao-existe.mp4?X-Amz-Signature=segredo`, "padrao", () => true),
+    ).rejects.toBeInstanceOf(FalhaNoVideo);
+    await expect(quadrosParaRostos(`${base}/nao-existe.mp4`)).rejects.toBeInstanceOf(FalhaNoVideo);
+    // A mensagem do erro (que vai para o log) não leva a URL assinada.
+    const erro = await prepararVideo(
+      `${base}/nao-existe.mp4?X-Amz-Signature=segredo`,
+      "padrao",
+      () => true,
+    ).catch((e: Error) => e);
+    expect(String((erro as Error).message)).not.toContain("segredo");
+  }, 60_000);
+
+  it("vídeo com trechos danificados é aceito e conta os trechos (só para avisar)", async () => {
+    const bom = videoDeTeste(4, 640, 360, ["-g", "300", "-movflags", "+faststart"]);
+    const danificado = Buffer.from(bom);
+    // Lixo no meio dos dados (o índice fica no começo, intacto): o FFmpeg decodifica com defeitos.
+    for (let i = Math.floor(danificado.length * 0.4); i < danificado.length * 0.45; i += 7) {
+      danificado[i] = 0xff;
+    }
+    const r = await prepararVideo(publicar("danificado.mp4", danificado), "padrao", () => true);
+    if ("recusado" in r) throw new Error("recusou");
+    expect(r.trechosDanificados).toBeGreaterThan(0);
+    expect(r.previa.length).toBeGreaterThan(0);
+  }, 120_000);
 });

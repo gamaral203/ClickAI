@@ -6,6 +6,7 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Concluído
 
+- [x] Vídeos 4K sem falhar (evento com 23 de 175 vídeos em `erro`: `ENOSPC` no `/tmp`, falta de memória e 300 s esgotados, vistos nos logs de 09/11/2026): o FFmpeg lê o original direto do R2 por URL assinada, sem o vídeo na memória nem no `/tmp`; prévia e quadros dos rostos numa decodificação só, com 2 threads; até 2 vídeos por instância, espera limitada e volta para a fila sem gastar tentativa; o vídeo só começa se couber no maxDuration de quem chama, com prazo na conversão e reserva de 6 min; mensagens claras (pesado demais, arquivo sumiu, várias tentativas) sem apagar o original em falha passageira ou prazo; aviso de trechos danificados contado na mesma conversão, devolvido pela rota. A aparência da prévia não mudou ([arquitetura.md](arquitetura.md), "Vídeos pesados (4K)")
 - [x] Lote grande sem foto presa: cron por minuto `/api/jobs/fotos-presas`, retomada pela fila no banco com teto de tentativas (migração 0049), fila dos rostos com limite de 4 por segundo na conta inteira (migração 0050), limite de 12 fotos por instância, grade do painel paginada no servidor com contagens por situação e previsão, duas origens no PUT atrás de `NEXT_PUBLIC_R2_DUAS_ORIGENS` (desligada), limpeza do temporário depois da foto pronta e tempos na amostra de log. O `effort` do WebP ficou em 2: 0 ganhava só 8% de tempo e aumentava a prévia em 19%.
 - [x] Leitura de número de peito desligada nos eventos novos pelo interruptor `LEITURA_DE_NUMEROS_DISPONIVEL` (`src/lib/numeros-de-peito.ts`): falsa no servidor em toda categoria, inclusive na cópia de evento; opção, aba e números da grade fora do painel; evento antigo mantém o valor ao salvar. Serviço, API, schema e dados continuam. Decidir se desliga também nos eventos antigos ([arquitetura.md](arquitetura.md), "Número de peito")
 - [x] Revisão em emulação de celular (320, 360, 390, 430 e 844x390): área de toque de 44 px em tela de toque, perguntas frequentes com toque na linha inteira, botão de compra sem corte na barra da foto, menu sem texto vazado, formulário e cartões do painel sem rolagem horizontal e hidratação do chat com menos movimento. Falta conferir em aparelho real
@@ -249,6 +250,8 @@ Lista única do que já foi feito, do que está em andamento e do que falta. Ao 
 
 ## Em andamento
 
+- [ ] **Vídeos 4K em produção (depois do merge e do deploy autorizados):** conferir nos logs `[envios] vídeo pronto` (tempo por vídeo) e a ausência de `ENOSPC`, falta de memória e 300 s esgotados num envio grande de vídeos; regerar os 23 vídeos em `erro` do evento `76397b4d` cujo original estiver em `originais/` (HEAD na chave `originais/<fotografo>/<evento>/<id>.mp4`, não na `envios/` gravada no banco) ou pedir o reenvio ao fotógrafo dos que não estiverem
+- [ ] Decidir como a tela de envio mostra o aviso de vídeo com trechos danificados (a rota já devolve `aviso`; hoje a lista da tela só mostra itens com erro ou recusados)
 - [ ] Dono aprovar a aparência da grade com "N processando" (prints no relatório do item 4).
 - [ ] Dono conferir o CORS e decidir se liga `NEXT_PUBLIC_R2_DUAS_ORIGENS` (`deploy.md`, item 7).
 - [ ] Conferir em produção, pelos logs `[jobs] fila de fotos` e `[envios] tempos da foto`, o ritmo real e o limite de 12 por instância.
