@@ -10,7 +10,7 @@ import {
   soltarReindexacao,
 } from "@/dados";
 import { emParalelo } from "@/lib/concorrencia";
-import { lerOriginal, r2Configurado } from "@/lib/r2";
+import { lerOriginal, r2Configurado, urlDeLeituraNoServidor } from "@/lib/r2";
 import {
   apagarColecao,
   ehErroDeCredencial,
@@ -98,6 +98,14 @@ export async function indexarItemDoEvento(
   item: ItemParaIndexar,
 ): Promise<IndexacaoDeRostos | "sem_original"> {
   if (!item.chaveOriginal) return "sem_original";
+  if (item.tipo === "video") {
+    // O FFmpeg lê o vídeo direto do R2 (src/servicos/video.ts): um 4K não entra inteiro na memória
+    // nem no /tmp da função.
+    const chave = item.chaveOriginal;
+    return indexarRostosDoVideo(eventoId, item.id, async () =>
+      quadrosParaRostos(await urlDeLeituraNoServidor(chave)),
+    );
+  }
   let original: Buffer;
   try {
     original = await lerOriginal(item.chaveOriginal);
@@ -105,9 +113,7 @@ export async function indexarItemDoEvento(
     console.error(`[rostos] falha ao ler o original do item ${item.id}: ${nomeDoErro(erro)}`);
     return "falha";
   }
-  return item.tipo === "video"
-    ? indexarRostosDoVideo(eventoId, item.id, () => quadrosParaRostos(original))
-    : indexarRostosDaFoto(eventoId, item.id, original);
+  return indexarRostosDaFoto(eventoId, item.id, original);
 }
 
 export type ResultadoReindexacao = {

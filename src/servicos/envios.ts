@@ -59,13 +59,13 @@ import {
   fecharEnvioEmPartes,
   gravarPublico,
   lerEnviado,
-  lerOriginal,
   lerTrecho,
   modoEnvio,
   moverOriginal,
   removerOriginal,
   tamanhoDoEnviado,
   urlDaParte,
+  urlDeLeituraNoServidor,
   urlDeEnvio,
 } from "@/lib/r2";
 import {
@@ -105,7 +105,13 @@ import {
 
 import { copiaParaRostos, gerarVersoes } from "./imagens";
 import { lerNumerosDaFoto } from "./numeros";
-import { prepararVideo, VideoIlegivel } from "./video";
+import {
+  FalhaNoVideo,
+  PRAZO_DA_CONVERSAO_MS,
+  prepararVideo,
+  VideoIlegivel,
+  VideoPesado,
+} from "./video";
 
 export { ESPERA_FOTO_PRESA_MS, FOTOS_POR_LOTE, LIMITE_FOTO_BYTES };
 
@@ -505,11 +511,21 @@ export type OpcoesDoProcessamento = {
    * disso, a foto continua na fila, sem gastar tentativa.
    */
   comecarAte?: number;
+  /**
+   * Até quando (ms) o trabalho precisa terminar: o maxDuration de quem chama, com folga. O vídeo
+   * só começa se couber, e a conversão recebe o que sobra (src/servicos/video.ts). Sem isto, vale
+   * PRAZO_DA_FUNCAO_MS a partir da chamada (as rotas de 300 s).
+   */
+  terminarAte?: number;
 };
 
 export type ResultadoDoProcessamento =
   | { erro: string }
-  | { eventoId: string }
+  | {
+      eventoId: string;
+      /** Vídeo aceito com trechos danificados: só um aviso ao fotógrafo, sem recusar o arquivo. */
+      aviso?: string;
+    }
   /** Outra chamada está processando a foto agora, ou ela já ficou pronta. */
   | { emAndamento: true }
   /**
@@ -736,11 +752,78 @@ function umaVez<T>(gerar: () => Promise<T>): () => Promise<T> {
 }
 
 /**
+ * Vídeos (FFmpeg) ao mesmo tempo nesta instância. A função tem 1 vCPU e 2 GB: medido com um 4K de
+ * 150 Mb/s, cada conversão usa até ~310 MB e todo o processador; com vários de uma vez, a instância
+ * estourava a memória e as conversões passavam dos 300 s (produção, 09/11/2026). Quem não cabe
+ * espera a vez até ESPERA_DA_VAGA_DE_VIDEO_MS e, depois, volta para a fila sem gastar tentativa.
+ */
+export const VIDEOS_POR_INSTANCIA = 2;
+const vagasDeVideo = new Orcamento(VIDEOS_POR_INSTANCIA);
+/** Memória reservada por vídeo no orçamento da instância (o FFmpeg com 2 threads, com folga). */
+export const MEMORIA_DO_VIDEO_BYTES = 350 * 1024 * 1024;
+/** Quanto uma chamada sem prazo próprio (a do navegador) espera a vaga de vídeo. */
+export const ESPERA_DA_VAGA_DE_VIDEO_MS = 60 * 1000;
+/** Tempo de uma função de processamento (maxDuration de 300 s), menos a folga do fim. */
+export const PRAZO_DA_FUNCAO_MS = 280 * 1000;
+/** Tempo reservado depois da conversão: a miniatura, as gravações no R2 e o banco. */
+const FOLGA_DEPOIS_DA_CONVERSAO_MS = 20 * 1000;
+/** Vídeo só começa com pelo menos isto de tempo para a conversão (senão, fica para a fila). */
+export const MINIMO_PARA_CONVERTER_MS = 150 * 1000;
+/**
+ * Reserva de um vídeo em processamento: mais que o maxDuration da rota (300 s), para nenhuma
+ * outra chamada ou o job pegar o mesmo vídeo enquanto a conversão ainda roda. Com 3 min (o das
+ * fotos), um 4K demorado podia ser pego de novo no meio, e as duas conversões gastavam tentativas.
+ */
+export const RESERVA_DO_VIDEO_MS = 6 * 60 * 1000;
+/** A partir de quantas conversões cortadas pelo prazo o vídeo é dado como pesado demais. */
+export const VEZES_NO_PRAZO_ATE_DESISTIR = 2;
+
+export const MENSAGEM_VIDEO_PESADO =
+  "Vídeo pesado demais para gerar a prévia. Exporte em 1080p (ou com taxa menor) e envie de novo.";
+export const MENSAGEM_VIDEO_SUMIU =
+  "O arquivo deste vídeo não está mais no armazenamento. Envie o vídeo de novo.";
+export const MENSAGEM_VIDEO_DESISTIDO =
+  "Não foi possível gerar a prévia deste vídeo depois de várias tentativas. Envie de novo; se " +
+  "repetir, exporte em 1080p.";
+export const MENSAGEM_VIDEO_ILEGIVEL =
+  "Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie.";
+export const AVISO_VIDEO_DANIFICADO =
+  "O vídeo foi aceito, mas tem trechos danificados (quadros com defeito). Confira o arquivo e, " +
+  "se preferir, exporte de novo e envie.";
+
+/**
+ * Espera a vez de um vídeo nesta instância (vaga de vídeo, vaga de processamento e a memória do
+ * FFmpeg), até `ate`. `null` se não coube no prazo: nada fica reservado.
+ */
+async function vagaDoVideo(ate: number) {
+  const soltar: (() => void)[] = [];
+  const liberar = () => {
+    for (const f of soltar.reverse()) f();
+    soltar.length = 0;
+  };
+  for (const reservar of [
+    () => vagasDeVideo.reservarAte(1, ate),
+    () => vagasDeProcessamento.reservarAte(1, ate),
+    () => memoria.reservarAte(MEMORIA_DO_VIDEO_BYTES, ate),
+  ]) {
+    const f = await reservar();
+    if (!f) {
+      liberar();
+      return null;
+    }
+    soltar.push(f);
+  }
+  return liberar;
+}
+
+/**
  * Vídeo que terminou de subir (docs/arquitetura.md, "Vídeos"): confere o tamanho, o formato pelo
- * conteúdo e a impressão lendo só trechos do arquivo, move o original para `originais/` e gera a
- * prévia aqui mesmo com o FFmpeg (src/servicos/video.ts): um MP4 com a marca d'água das fotos em
- * todos os quadros, mais a miniatura e a prévia em imagem a partir de um quadro. Vídeo com mais de
- * 30 segundos é recusado. No fim, o vídeo fica `pronta`, como uma foto.
+ * conteúdo e a impressão lendo só trechos do arquivo, move o original para `originais/` (antes da
+ * conversão: a regra de ciclo de vida de `envios/` não alcança o vídeo que demora ou volta para a
+ * fila) e gera a prévia aqui mesmo com o FFmpeg (src/servicos/video.ts), lendo o original direto
+ * do R2 por URL assinada: um MP4 com a marca d'água das fotos em todos os quadros, mais a miniatura
+ * e a prévia em imagem a partir de um quadro. Vídeo com mais de 30 segundos é recusado. No fim, o
+ * vídeo fica `pronta`, como uma foto. Só começa se a conversão couber no tempo que resta.
  */
 async function confirmarVideo(
   fotografoId: string,
@@ -752,10 +835,16 @@ async function confirmarVideo(
   opcoes: OpcoesDoProcessamento,
 ): Promise<ResultadoDoProcessamento> {
   const { foto, chaves, formato } = valida;
-  // Arquivo, prévia e quadros na memória ao mesmo tempo: reserva com folga.
-  const liberar = await vagaDoProcessamento(
-    Math.min(ORCAMENTO_DE_MEMORIA_BYTES, (foto.tamanhoBytes || LIMITE_VIDEO_BYTES) * 2),
+  const chamada = Date.now();
+  const terminarAte = opcoes.terminarAte ?? chamada + PRAZO_DA_FUNCAO_MS;
+  // Só começa se ainda sobrar tempo para converter; a espera pela vaga também respeita isso.
+  const comecarAte = Math.min(
+    opcoes.comecarAte ?? chamada + ESPERA_DA_VAGA_DE_VIDEO_MS,
+    terminarAte - FOLGA_DEPOIS_DA_CONVERSAO_MS - MINIMO_PARA_CONVERTER_MS,
   );
+  const liberar = await vagaDoVideo(comecarAte);
+  // Sem vaga a tempo: continua na fila do servidor, sem reservar nem gastar tentativa.
+  if (!liberar) return { aguardando: true };
   const agora = Date.now();
   let reservou;
   try {
@@ -763,7 +852,7 @@ async function confirmarVideo(
       foto.id,
       fotografoId,
       new Date(agora),
-      new Date(agora + RESERVA_DO_PROCESSAMENTO_MS),
+      new Date(agora + RESERVA_DO_VIDEO_MS),
     );
   } catch (erro) {
     liberar();
@@ -792,7 +881,13 @@ async function confirmarVideo(
         await devolverReserva(foto.id, inicio);
         return { aguardando: true };
       }
-      throw new ArquivoRecusado("O arquivo não chegou ao armazenamento. Envie de novo.");
+      // Já houve tentativa antes e agora o arquivo não está em lugar nenhum: o fotógrafo precisa
+      // reenviar, e a mensagem diz isso.
+      throw new ArquivoRecusado(
+        foto.tentativas > 0
+          ? MENSAGEM_VIDEO_SUMIU
+          : "O arquivo não chegou ao armazenamento. Envie de novo.",
+      );
     }
     if (tamanho > LIMITE_VIDEO_BYTES) throw new ArquivoRecusado(`Maior que ${LIMITE_VIDEO_TEXTO}.`);
     if (foto.tamanhoBytes && tamanho !== foto.tamanhoBytes)
@@ -815,16 +910,24 @@ async function confirmarVideo(
     const publicas = chavesDaFoto(fotografoId, foto.eventoId, foto.id, formato, marca.revisao);
     let preparado;
     try {
+      // O FFmpeg lê o original direto do R2 (sem o arquivo na memória nem no /tmp), com o tempo
+      // que sobra da função, menos o das gravações depois.
       preparado = await prepararVideo(
-        await lerOriginal(chaves.original),
+        await urlDeLeituraNoServidor(chaves.original),
         modelo,
         (duracao) => duracao <= DURACAO_MAXIMA_VIDEO_S + FOLGA_DURACAO_S,
-        { semente: foto.id, config: marca },
+        {
+          marca: { semente: foto.id, config: marca },
+          prazoMs: Math.min(
+            PRAZO_DA_CONVERSAO_MS,
+            terminarAte - FOLGA_DEPOIS_DA_CONVERSAO_MS - Date.now(),
+          ),
+        },
       );
     } catch (erro) {
       if (erro instanceof VideoIlegivel) {
         console.error(`[envios] vídeo ${foto.id} ilegível: ${erro.message}`);
-        throw new ArquivoRecusado("Não foi possível ler o vídeo. Exporte em MP4 (H.264) e envie.");
+        throw new ArquivoRecusado(MENSAGEM_VIDEO_ILEGIVEL);
       }
       throw erro;
     }
@@ -851,6 +954,16 @@ async function confirmarVideo(
       duracaoS: Math.max(1, Math.round(preparado.duracaoS)),
     });
     if (!concluiu) return { emAndamento: true };
+    // Só números e o id: quanto levou, o tamanho e os trechos danificados.
+    console.info(
+      "[envios] vídeo pronto",
+      JSON.stringify({
+        id: foto.id,
+        ms: Date.now() - agora,
+        mb: Math.round(tamanho / 1048576),
+        danificados: preparado.trechosDanificados,
+      }),
+    );
     // O vídeo já está à venda; os rostos dos quadros servem à busca por selfie.
     const { quadrosParaRostos } = preparado;
     if (opcoes.depois) {
@@ -858,7 +971,9 @@ async function confirmarVideo(
     } else {
       await indexarRostosDoVideo(foto.eventoId, foto.id, quadrosParaRostos);
     }
-    return { eventoId: foto.eventoId };
+    return preparado.trechosDanificados > 0
+      ? { eventoId: foto.eventoId, aviso: AVISO_VIDEO_DANIFICADO }
+      : { eventoId: foto.eventoId };
   } catch (erro) {
     if (erro instanceof ArquivoRecusado) {
       await marcarFotoComErro(foto.id, erro.message);
@@ -866,13 +981,28 @@ async function confirmarVideo(
       await removerOriginal(movido ? chaves.original : chaves.temporaria).catch(() => {});
       return { erro: erro.message };
     }
-    console.error(`[envios] falha ao processar o vídeo ${foto.id}`, erro);
-    if (foto.tentativas + 1 < MAXIMO_DE_TENTATIVAS) {
+    // Daqui para baixo, nenhum arquivo é apagado: o original fica em `originais/` para a próxima
+    // tentativa (ou para regerar a prévia depois). Só o id e a causa vão para o log.
+    const tentativa = foto.tentativas + 1;
+    if (erro instanceof VideoPesado) {
+      console.error(`[envios] vídeo ${foto.id} passou do prazo (tentativa ${tentativa})`);
+      // Cortado pelo prazo de novo: pesado demais para a função, não adianta insistir.
+      if (tentativa >= VEZES_NO_PRAZO_ATE_DESISTIR) {
+        await marcarFotoComErro(foto.id, MENSAGEM_VIDEO_PESADO);
+        return { erro: MENSAGEM_VIDEO_PESADO };
+      }
+    } else {
+      console.error(
+        `[envios] falha ao processar o vídeo ${foto.id} (tentativa ${tentativa})`,
+        erro instanceof FalhaNoVideo ? erro.message : erro,
+      );
+    }
+    if (tentativa < MAXIMO_DE_TENTATIVAS) {
       await devolverParaFila(foto.id, new Date());
       return { aguardando: true };
     }
-    await marcarFotoComErro(foto.id, "Não foi possível processar o vídeo. Envie de novo.");
-    return { erro: "Não foi possível processar o vídeo. Tente de novo." };
+    await marcarFotoComErro(foto.id, MENSAGEM_VIDEO_DESISTIDO);
+    return { erro: MENSAGEM_VIDEO_DESISTIDO };
   } finally {
     liberar();
   }
@@ -922,6 +1052,8 @@ export async function processarEmSegundoPlano(
   const resultado = { prontas: 0, comErro: 0, puladas: 0 };
   if (modoEnvio() !== "r2") return resultado;
   const limite = Date.now() + prazoMs;
+  // O vídeo que começar no fim da entrega ainda precisa terminar dentro do maxDuration da rota.
+  const terminarAte = Date.now() + PRAZO_DA_FUNCAO_MS;
   const { depois, terminar } = trabalhoParaDepois();
   await emParalelo([...new Set(fotoIds)], PROCESSAMENTOS_POR_EXECUCAO, async (fotoId) => {
     if (Date.now() > limite) {
@@ -930,7 +1062,12 @@ export async function processarEmSegundoPlano(
     }
     try {
       const tempos: TemposDoProcessamento = {};
-      const r = await confirmarEnvio(fotografoId, fotoId, { comecarAte: limite, depois, tempos });
+      const r = await confirmarEnvio(fotografoId, fotoId, {
+        comecarAte: limite,
+        terminarAte,
+        depois,
+        tempos,
+      });
       registrarTempos("entrega", tempos);
       if ("erro" in r) resultado.comErro++;
       else if ("eventoId" in r) resultado.prontas++;
@@ -943,7 +1080,6 @@ export async function processarEmSegundoPlano(
   await terminar();
   return resultado;
 }
-
 
 /** Fotos listadas por execução do job (no máximo; o prazo costuma parar antes). */
 export const FOTOS_PRESAS_POR_VEZ = 400;
@@ -971,7 +1107,12 @@ export type ResultadoFotosPresas = {
  */
 export async function revisarFotosPresas(
   agora = Date.now(),
-  { limite = FOTOS_PRESAS_POR_VEZ, prazoMs = PRAZO_DO_JOB_MS } = {},
+  {
+    limite = FOTOS_PRESAS_POR_VEZ,
+    prazoMs = PRAZO_DO_JOB_MS,
+    // Até quando um vídeo começado aqui precisa terminar (o maxDuration de quem chama, com folga).
+    terminarAte = Date.now() + PRAZO_DA_FUNCAO_MS,
+  } = {},
 ): Promise<ResultadoFotosPresas> {
   const resultado: ResultadoFotosPresas = { revisadas: 0, prontas: 0, comErro: 0 };
   if (modoEnvio() !== "r2") return resultado;
@@ -988,7 +1129,11 @@ export async function revisarFotosPresas(
       // de voltar à fila para sempre. Nenhum arquivo é apagado.
       if (foto.tentativas >= MAXIMO_DE_TENTATIVAS) {
         console.error(`[envios] foto ${foto.id} desistida depois de ${foto.tentativas} tentativas`);
-        await marcarFotoComErro(foto.id, ERRO_DEPOIS_DAS_TENTATIVAS);
+        // No vídeo, a função que morre no meio quase sempre é a conversão pesada demais.
+        await marcarFotoComErro(
+          foto.id,
+          foto.tipo === "video" ? MENSAGEM_VIDEO_DESISTIDO : ERRO_DEPOIS_DAS_TENTATIVAS,
+        );
         resultado.comErro++;
         return;
       }
@@ -996,6 +1141,7 @@ export async function revisarFotosPresas(
       const r = await confirmarEnvio(foto.enviadaPor, foto.id, {
         inicioDoEnvio: foto.inicio,
         comecarAte: fim,
+        terminarAte,
         depois,
         tempos,
       });

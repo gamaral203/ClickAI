@@ -93,6 +93,8 @@ export async function POST(request: NextRequest) {
     ok: true,
     emAndamento: "emAndamento" in resultado,
     naFila: "aguardando" in resultado,
+    // Vídeo aceito com trechos danificados: só um aviso, o vídeo já está pronto.
+    ...("aviso" in resultado && resultado.aviso ? { aviso: resultado.aviso } : {}),
     tempos,
   });
 }

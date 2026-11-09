@@ -72,21 +72,54 @@ export class Orcamento {
   }
 
   async reservar(quanto: number): Promise<() => void> {
+    return (await this.reservarAte(quanto, Infinity))!;
+  }
+
+  /**
+   * Como `reservar`, mas desiste se não couber até `ate` (ms, como Date.now()): devolve `null` e
+   * sai da fila sem reservar nada.
+   */
+  async reservarAte(quanto: number, ate: number): Promise<(() => void) | null> {
+    if (Date.now() > ate) return null;
     if (this.fila.length === 0 && this.cabe(quanto)) {
       this.usado += quanto;
     } else {
-      await new Promise<void>((ok) => this.fila.push({ quanto, liberar: ok }));
+      const espera = ate - Date.now();
+      if (espera <= 0) return null;
+      const entrou = await new Promise<boolean>((ok) => {
+        const pedido = { quanto, liberar: () => ok(true) };
+        this.fila.push(pedido);
+        if (Number.isFinite(espera)) {
+          const prazo = setTimeout(() => {
+            const i = this.fila.indexOf(pedido);
+            if (i < 0) return;
+            this.fila.splice(i, 1);
+            // Quem estava atrás pode caber agora que este saiu da frente.
+            this.chamarProximos();
+            ok(false);
+          }, espera);
+          pedido.liberar = () => {
+            clearTimeout(prazo);
+            ok(true);
+          };
+        }
+      });
+      if (!entrou) return null;
     }
     let liberado = false;
     return () => {
       if (liberado) return;
       liberado = true;
       this.usado -= quanto;
-      while (this.fila.length > 0 && this.cabe(this.fila[0].quanto)) {
-        const proximo = this.fila.shift()!;
-        this.usado += proximo.quanto;
-        proximo.liberar();
-      }
+      this.chamarProximos();
     };
+  }
+
+  private chamarProximos() {
+    while (this.fila.length > 0 && this.cabe(this.fila[0].quanto)) {
+      const proximo = this.fila.shift()!;
+      this.usado += proximo.quanto;
+      proximo.liberar();
+    }
   }
 }

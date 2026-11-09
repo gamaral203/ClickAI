@@ -239,6 +239,25 @@ export async function urlDeDownload(chave: string, nomeArquivo: string, tipo: st
   );
 }
 
+/** Validade da URL com que o FFmpeg lê um vídeo: acima do maxDuration das rotas (300 s). */
+export const VALIDADE_LEITURA_NO_SERVIDOR_S = 10 * 60;
+
+/**
+ * URL assinada (GET, ~10 min) de um original em `originais/`, só para o FFmpeg ler o vídeo aqui
+ * no servidor, aos poucos e direto do R2, sem o arquivo inteiro na memória nem no disco da função
+ * (src/servicos/video.ts). Nunca vai ao navegador nem a log: quem chama tira a URL da saída do
+ * FFmpeg antes de guardar qualquer coisa.
+ */
+export async function urlDeLeituraNoServidor(chave: string): Promise<string> {
+  if (!chave.startsWith("originais/")) throw new Error("Chave fora dos originais");
+  const config = exigirConfig();
+  return getSignedUrl(
+    s3(config),
+    new GetObjectCommand({ Bucket: config.bucketOriginais, Key: chave }),
+    { expiresIn: VALIDADE_LEITURA_NO_SERVIDOR_S },
+  );
+}
+
 /** Lê um objeto do bucket de originais inteiro na memória (para processar a foto). */
 export async function lerOriginal(chave: string): Promise<Buffer> {
   const config = exigirConfig();

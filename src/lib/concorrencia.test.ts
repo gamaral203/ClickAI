@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { emLotes, emParalelo, esperaDaTentativa } from "./concorrencia";
+import { emLotes, emParalelo, esperaDaTentativa, Orcamento } from "./concorrencia";
 
 describe("emParalelo", () => {
   it("nunca passa do limite e devolve na ordem dos itens", async () => {
@@ -48,5 +48,42 @@ describe("esperaDaTentativa e emLotes", () => {
     expect(lotes).toHaveLength(61);
     expect(lotes.at(-1)).toEqual([3000]);
     expect(lotes.flat()).toHaveLength(3001);
+  });
+});
+
+describe("Orcamento.reservarAte", () => {
+  it("espera a vez até o prazo; passou dele, sai da fila sem reservar nada", async () => {
+    const orcamento = new Orcamento(2);
+    const a = await orcamento.reservarAte(1, Date.now() + 1000);
+    const b = await orcamento.reservarAte(1, Date.now() + 1000);
+    expect(a && b).toBeTruthy();
+    // Cheio: desiste no prazo e não fica reservado.
+    expect(await orcamento.reservarAte(1, Date.now() + 30)).toBeNull();
+    expect(orcamento.emUso).toBe(2);
+    // Prazo já vencido: nem tenta, mesmo com vaga.
+    a!();
+    expect(await orcamento.reservarAte(1, Date.now() - 1)).toBeNull();
+    expect(orcamento.emUso).toBe(1);
+    // Quem espera dentro do prazo entra quando alguém libera.
+    const esperando = orcamento.reservarAte(2, Date.now() + 1000);
+    setTimeout(() => b!(), 20);
+    const c = await esperando;
+    expect(c).toBeTruthy();
+    expect(orcamento.emUso).toBe(2);
+    c!();
+    expect(orcamento.emUso).toBe(0);
+  });
+
+  it("quem desistiu na frente da fila não prende quem cabe atrás", async () => {
+    const orcamento = new Orcamento(3);
+    const grande = await orcamento.reservar(2);
+    const desiste = orcamento.reservarAte(3, Date.now() + 20);
+    const pequeno = orcamento.reservar(1);
+    expect(await desiste).toBeNull();
+    const soltar = await pequeno;
+    expect(orcamento.emUso).toBe(3);
+    soltar();
+    grande();
+    expect(orcamento.emUso).toBe(0);
   });
 });

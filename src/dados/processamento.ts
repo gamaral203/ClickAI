@@ -147,13 +147,21 @@ export async function listarFotosParadas(
   limite: number,
   depois: CursorDaFila | null = null,
 ): Promise<
-  { id: string; enviadaPor: string; inicio: Date; tentativas: number; cursor: CursorDaFila }[]
+  {
+    id: string;
+    enviadaPor: string;
+    tipo: "foto" | "video";
+    inicio: Date;
+    tentativas: number;
+    cursor: CursorDaFila;
+  }[]
 > {
   const banco = await obterBanco();
   const linhas = await banco
     .select({
       id: t.fotos.id,
       enviadaPor: t.fotos.enviadaPor,
+      tipo: t.fotos.tipo,
       inicio: inicioDoEnvio,
       inicioCru: sql<string>`(${inicioDoEnvio})::text`,
       tentativas: t.fotos.tentativasProcessamento,

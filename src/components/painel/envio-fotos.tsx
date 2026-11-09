@@ -114,8 +114,12 @@ const CONFERENCIAS_SIMULTANEAS = 16;
 /** Tempo-limite do pedido de URLs de um lote, e quantas vezes tenta. */
 const LIMITE_URLS_MS = 45_000;
 const TENTATIVAS_URLS = 4;
-/** Tempo-limite de uma chamada de processamento (a rota vai até 300 s; uma foto leva segundos). */
-const LIMITE_PROCESSAR_MS = 180_000;
+/**
+ * Tempo-limite de uma chamada de processamento: a rota vai até 300 s. Uma foto leva segundos; um
+ * vídeo 4K pode esperar a vez e converter por alguns minutos, e cortar antes faria a tela chamar de
+ * novo e receber "em andamento" de um vídeo que ainda não terminou.
+ */
+const LIMITE_PROCESSAR_MS = 295_000;
 /** Tempo-limite das outras chamadas curtas (partes, entrega, consulta). */
 const LIMITE_CHAMADA_MS = 45_000;
 /** PUT sem nenhum avanço por este tempo é abandonado (e tentado de novo). */
