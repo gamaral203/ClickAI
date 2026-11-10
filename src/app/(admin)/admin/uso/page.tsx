@@ -15,6 +15,7 @@ import {
   Plus,
   ReceiptText,
   ScanFace,
+  ServerCog,
   ShoppingBag,
 } from "lucide-react";
 
@@ -37,6 +38,7 @@ import {
   type UsoInterno,
 } from "@/dados";
 import { lerCreditosAws } from "@/lib/creditos-aws";
+import { lerUsoVercel } from "@/lib/uso-vercel";
 import { formatarDolares } from "@/lib/custo-reconhecimento";
 import { centavosParaCampo } from "@/lib/dinheiro";
 import { textoCotacao } from "@/lib/financeiro-plataforma";
@@ -928,6 +930,10 @@ function UsoDoSistema({
         <QuadroCreditosAws config={config} agora={agora} />
       </Suspense>
 
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-xl border bg-muted" />}>
+        <QuadroVercel config={config} agora={agora} />
+      </Suspense>
+
       <Quadro
         icone={<ShoppingBag aria-hidden="true" className="size-4" />}
         titulo="Pedidos e vendas"
@@ -1107,6 +1113,141 @@ async function QuadroCreditosAws({
       <Barra usado={r.usadoCentavos} limite={r.totalCentavos} rotulo="Usados" formatar={usd} />
       {validade}
       {plano && <p className="text-xs text-muted-foreground">{plano}</p>}
+    </Quadro>
+  );
+}
+
+// ---------------------------------------------------------------- Vercel
+
+/** Quantidade de um item da Vercel, com a unidade que ela informou ("1.234,5 GB-Hours"). */
+function quantidadeVercel(quantidade: number | null, unidade: string | null) {
+  if (quantidade === null || !unidade) return null;
+  return `${quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${unidade}`;
+}
+
+/**
+ * Gasto da Vercel no ciclo atual, lido na API de cobrança (FOCUS) com cache de 5 minutos. Qualquer
+ * falha da Vercel fica só neste quadro; o resto do painel não depende dele.
+ */
+async function QuadroVercel({ config, agora }: { config: ConfiguracoesGestao; agora: number }) {
+  const leitura = await lerUsoVercel();
+  const icone = <ServerCog aria-hidden="true" className="size-4" />;
+  const titulo = "Uso da Vercel";
+
+  if (leitura.estado === "nao-configurado") {
+    return (
+      <Quadro icone={icone} titulo={titulo}>
+        <p className="text-sm text-muted-foreground">
+          Não configurado: sem <code>VERCEL_API_TOKEN</code>, o painel não consulta a Vercel (veja
+          instrucoes/deploy.md).
+        </p>
+      </Quadro>
+    );
+  }
+
+  const lida = `Lido às ${formatarHora(Date.parse(leitura.lidoEm))} (${textoAtualizadoHa(leitura.lidoEm, agora)}); a leitura vale por 5 minutos.`;
+
+  if (leitura.estado === "falha") {
+    return (
+      <Quadro icone={icone} titulo={titulo} nota={lida}>
+        <AvisoDoQuadro tom="ambar">
+          Indisponível: não deu para ler o uso na Vercel agora (<code>{leitura.erro}</code>). O
+          painel tenta de novo em alguns minutos.
+        </AvisoDoQuadro>
+      </Quadro>
+    );
+  }
+
+  const emReais = (centavos: number) =>
+    config.cotacaoUsdCentavos
+      ? ` (≈ ${formatarPreco(dolarParaReal(centavos, config.cotacaoUsdCentavos))})`
+      : "";
+  const maiorItem = Math.max(1, ...leitura.itens.map((i) => i.custoCentavos));
+  const ultimoDia = new Date(Date.parse(leitura.ate) - 1).toISOString().slice(0, 10);
+  const periodo = `${formatarDia(leitura.de.slice(0, 10))} a ${formatarDia(ultimoDia)}`;
+
+  return (
+    <Quadro
+      icone={icone}
+      titulo={titulo}
+      nota={
+        <>
+          {lida} Ciclo de {periodo} (UTC). Valores da fatura (BilledCost) da API de cobrança da
+          Vercel; o crédito incluso do Pro ({usd(leitura.creditoInclusoCentavos)} por ciclo) é
+          descontado do uso.
+          {leitura.ignoradas > 0 && ` ${n(leitura.ignoradas)} linhas não puderam ser lidas.`}
+        </>
+      }
+    >
+      {leitura.excedenteCentavos > 0 && (
+        <AvisoDoQuadro tom="ambar">
+          O uso passou do crédito incluso: {usd(leitura.excedenteCentavos)} on-demand neste ciclo.
+        </AvisoDoQuadro>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        <Numero
+          valor={usd(leitura.usoCentavos)}
+          rotulo={`de uso no ciclo${emReais(leitura.usoCentavos)}`}
+        />
+        <Numero
+          valor={usd(leitura.excedenteCentavos)}
+          rotulo={`além do crédito (on-demand)${emReais(leitura.excedenteCentavos)}`}
+        />
+      </div>
+      <Barra
+        usado={leitura.creditoUsadoCentavos}
+        limite={leitura.creditoInclusoCentavos}
+        rotulo="Crédito incluso usado"
+        formatar={usd}
+      />
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium">Por item, no ciclo</p>
+        {leitura.itens.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum uso cobrado no ciclo.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {leitura.itens.map((i) => {
+              const q = quantidadeVercel(i.quantidade, i.unidade);
+              return (
+                <li
+                  key={i.nome}
+                  className="grid grid-cols-[9rem_minmax(0,1fr)_4.5rem] items-center gap-2 text-sm"
+                >
+                  <span
+                    className="truncate text-muted-foreground"
+                    title={q ? `${i.nome}: ${q}` : i.nome}
+                  >
+                    {i.nome}
+                  </span>
+                  <span className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                    <span
+                      className="block h-full rounded-full bg-primary/70"
+                      style={{ width: `${(Math.max(0, i.custoCentavos) / maiorItem) * 100}%` }}
+                    />
+                  </span>
+                  <span className="text-right font-semibold tabular-nums">
+                    {usd(i.custoCentavos)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      {(leitura.fixoCentavos !== 0 ||
+        leitura.creditosEAjustesCentavos !== 0 ||
+        leitura.impostosCentavos !== 0) && (
+        <p className="text-xs text-muted-foreground">
+          {[
+            leitura.fixoCentavos !== 0 && `Plano e valores fixos: ${usd(leitura.fixoCentavos)}`,
+            leitura.creditosEAjustesCentavos !== 0 &&
+              `créditos e ajustes da Vercel: ${usd(leitura.creditosEAjustesCentavos)}`,
+            leitura.impostosCentavos !== 0 && `impostos: ${usd(leitura.impostosCentavos)}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
     </Quadro>
   );
 }
