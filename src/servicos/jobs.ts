@@ -6,6 +6,7 @@ import {
   apagarRedefinicoesVencidas,
   apagarSessoesRevogadasVencidas,
   apagarTentativasAntigas,
+  garantirAssinaturasDoMes,
   listarExpiradosSemLembrete,
   listarFotografosComSaqueProcessando,
   listarPendentesComCobranca,
@@ -16,6 +17,7 @@ import {
   mudarStatusPedido,
 } from "@/dados";
 import { gatewayConfigurado } from "@/lib/gateway";
+import { periodoDoMes } from "@/lib/painel-de-uso";
 
 import { avisarVencimentosDeAssinaturas } from "./avisos-assinaturas";
 import {
@@ -145,6 +147,14 @@ export async function rodarJobDePedidos(): Promise<ResultadoJobPedidos> {
     resultado.avisosAssinaturas = await avisarVencimentosDeAssinaturas(agora);
   } catch (erro) {
     console.error("[jobs] falha ao avisar o vencimento das assinaturas", erro);
+  }
+
+  // 6. Virada do mês das assinaturas (Painel de uso): as marcadas para renovar entram no mês novo
+  // como não pagas. Idempotente (restrição única assinatura + mês); o painel também chama ao abrir.
+  try {
+    await garantirAssinaturasDoMes(periodoDoMes("atual", agora).diaInicio);
+  } catch (erro) {
+    console.error("[jobs] falha ao levar as assinaturas para o mês novo", erro);
   }
 
   await apagarTentativasAntigas(agora - VALIDADE_TENTATIVAS_MS);

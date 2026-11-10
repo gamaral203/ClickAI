@@ -17,6 +17,7 @@ import {
 } from "@/lib/financeiro-plataforma";
 import {
   CONFIG,
+  CICLOS_QUE_RENOVAM,
   CONTADOR,
   CREDITOS_AWS_TOTAL_PADRAO_CENTAVOS,
   hojeEmBrasilia,
@@ -118,6 +119,148 @@ export async function excluirAssinatura(id: string) {
     .delete(t.assinaturas)
     .where(eq(t.assinaturas.id, id))
     .returning({ id: t.assinaturas.id });
+  return linhas.length > 0;
+}
+
+// ---------------------------------------------------------------- Assinaturas do mês
+
+/** A assinatura num mês: a marcação de paga e o "renova no próximo mês". */
+export type AssinaturaDoMes = {
+  id: string;
+  assinaturaId: string;
+  mes: string;
+  renova: boolean;
+  /** Instante ISO em que foi marcada como paga; `null` se não está paga. */
+  pagaEm: string | null;
+  nome: string;
+  plano: string;
+  valorCentavos: number;
+  moeda: DadosAssinatura["moeda"];
+  ciclo: DadosAssinatura["ciclo"];
+};
+
+/**
+ * Garante as assinaturas do mês `mes` (dia 1, Brasília), sem nunca duplicar (restrição única
+ * assinatura + mês, e origem única, com ON CONFLICT DO NOTHING: duas execuções ao mesmo tempo não
+ * se atrapalham):
+ *  1. Virada: as do último mês anterior com assinaturas que estavam marcadas para renovar (e
+ *     seguem ativas) entram em `mes` como não pagas e ainda renovando. As que não renovam não
+ *     entram. Se algum mês ficou sem ninguém abrir o painel nem rodar o job, ele fica vazio: a
+ *     cópia vai direto do último mês com assinaturas para `mes`.
+ *  2. Primeira vez: assinatura ativa que nunca apareceu em mês nenhum entra em `mes`, renovando se
+ *     o ciclo é mensal ou por uso.
+ * Chamada com o mês atual (job de pedidos e ao abrir o painel). Devolve quantas linhas criou.
+ */
+export async function garantirAssinaturasDoMes(mes: string): Promise<number> {
+  const banco = await obterBanco();
+  let criadas = 0;
+  const [ultimo] = await banco
+    .select({ mes: sql<string | null>`max(${t.assinaturasDoMes.mes})::text` })
+    .from(t.assinaturasDoMes)
+    .where(lt(t.assinaturasDoMes.mes, mes));
+  if (ultimo?.mes) {
+    const r = await banco.execute(sql`
+      insert into ${t.assinaturasDoMes} (assinatura_id, mes, renova, origem_id)
+      select m.assinatura_id, ${mes}::date, true, m.id
+        from ${t.assinaturasDoMes} m
+        join ${t.assinaturas} a on a.id = m.assinatura_id
+       where m.mes = ${ultimo.mes}::date and m.renova and a.ativa
+      on conflict do nothing
+      returning id`);
+    criadas += r.rows.length;
+  }
+  const r = await banco.execute(sql`
+    insert into ${t.assinaturasDoMes} (assinatura_id, mes, renova)
+    select a.id, ${mes}::date, a.ciclo::text in (${sql.join(
+      CICLOS_QUE_RENOVAM.map((c) => sql`${c}`),
+      sql`, `,
+    )})
+      from ${t.assinaturas} a
+     where a.ativa
+       and not exists (select 1 from ${t.assinaturasDoMes} m where m.assinatura_id = a.id)
+    on conflict do nothing
+    returning id`);
+  return criadas + r.rows.length;
+}
+
+/** Põe a assinatura no mês (ao reativar), se ainda não está; mantém a linha que já existir. */
+export async function incluirAssinaturaNoMes(assinaturaId: string, mes: string) {
+  const banco = await obterBanco();
+  const [a] = await banco
+    .select({ ciclo: t.assinaturas.ciclo })
+    .from(t.assinaturas)
+    .where(eq(t.assinaturas.id, assinaturaId));
+  if (!a) return false;
+  await banco
+    .insert(t.assinaturasDoMes)
+    .values({ assinaturaId, mes, renova: CICLOS_QUE_RENOVAM.includes(a.ciclo) })
+    .onConflictDoNothing();
+  return true;
+}
+
+/** As assinaturas do mês, com nome e valor da assinatura; a mais cara primeiro, depois o nome. */
+export async function listarAssinaturasDoMes(mes: string): Promise<AssinaturaDoMes[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .select({
+      id: t.assinaturasDoMes.id,
+      assinaturaId: t.assinaturasDoMes.assinaturaId,
+      mes: t.assinaturasDoMes.mes,
+      renova: t.assinaturasDoMes.renova,
+      pagaEm: t.assinaturasDoMes.pagaEm,
+      nome: t.assinaturas.nome,
+      plano: t.assinaturas.plano,
+      valorCentavos: t.assinaturas.valorCentavos,
+      moeda: t.assinaturas.moeda,
+      ciclo: t.assinaturas.ciclo,
+    })
+    .from(t.assinaturasDoMes)
+    .innerJoin(t.assinaturas, eq(t.assinaturas.id, t.assinaturasDoMes.assinaturaId))
+    .where(eq(t.assinaturasDoMes.mes, mes))
+    .orderBy(asc(t.assinaturas.nome));
+  return linhas.map((l) => ({ ...l, pagaEm: l.pagaEm ? l.pagaEm.toISOString() : null }));
+}
+
+/** Uma linha do mês (para a ação conferir o mês antes de mudar). */
+export async function buscarAssinaturaDoMes(id: string) {
+  const banco = await obterBanco();
+  const [linha] = await banco
+    .select({ id: t.assinaturasDoMes.id, mes: t.assinaturasDoMes.mes })
+    .from(t.assinaturasDoMes)
+    .where(eq(t.assinaturasDoMes.id, id));
+  return linha ?? null;
+}
+
+/**
+ * Marca (com o instante e o gestor) ou desmarca como paga. Marcar de novo o que já está pago
+ * mantém o instante da primeira marcação. Devolve se a linha existia.
+ */
+export async function marcarAssinaturaDoMesPaga(id: string, paga: boolean, gestorId: string) {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .update(t.assinaturasDoMes)
+    .set(
+      paga
+        ? {
+            pagaEm: sql`coalesce(${t.assinaturasDoMes.pagaEm}, now())`,
+            pagaPor: sql`coalesce(${t.assinaturasDoMes.pagaPor}, ${gestorId}::uuid)`,
+            atualizadoEm: sql`now()`,
+          }
+        : { pagaEm: null, pagaPor: null, atualizadoEm: sql`now()` },
+    )
+    .where(eq(t.assinaturasDoMes.id, id))
+    .returning({ id: t.assinaturasDoMes.id });
+  return linhas.length > 0;
+}
+
+/** Liga ou desliga o "renova no próximo mês" de uma linha do mês. Devolve se existia. */
+export async function definirRenovacaoDoMes(id: string, renova: boolean) {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .update(t.assinaturasDoMes)
+    .set({ renova, atualizadoEm: sql`now()` })
+    .where(eq(t.assinaturasDoMes.id, id))
+    .returning({ id: t.assinaturasDoMes.id });
   return linhas.length > 0;
 }
 

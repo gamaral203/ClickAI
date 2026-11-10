@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   date,
   doublePrecision,
   index,
@@ -549,7 +550,9 @@ export const fotos = pgTable(
     index().on(t.eventoId, t.liberarEm),
     // A fila por minuto (src/dados/processamento.ts): só as linhas em `processando`, sem varrer
     // a tabela inteira a cada minuto.
-    index("fotos_fila_processando_idx").on(t.envioIniciadoEm).where(sql`status = 'processando'`),
+    index("fotos_fila_processando_idx")
+      .on(t.envioIniciadoEm)
+      .where(sql`status = 'processando'`),
     index("fotos_fila_rostos_idx")
       .on(t.criadoEm)
       .where(sql`status = 'pronta' and rostos_indexados_em is null`),
@@ -1236,6 +1239,37 @@ export const assinaturas = pgTable(
     chaveImportacao: text(),
   },
   (t) => [index().on(t.ativa, t.renovaEm), uniqueIndex().on(t.chaveImportacao)],
+).enableRLS();
+
+/**
+ * A assinatura num mês (`mes` = dia 1, horário de Brasília), em /admin/uso: se foi marcada como
+ * paga (e quando, por quem) e se "renova no próximo mês". Na virada do mês (job de pedidos ou ao
+ * abrir o painel), as que renovam ganham a linha do mês novo, não paga e ainda renovando
+ * (`origem_id` = a linha copiada); as que não renovam somem do mês seguinte. A cópia é
+ * idempotente pela restrição única (assinatura, mês). Nome, valor e ciclo vêm da assinatura.
+ * Só marcação de controle: não cria nem muda cobrança do Financeiro.
+ */
+export const assinaturasDoMes = pgTable(
+  "assinaturas_do_mes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    assinaturaId: uuid()
+      .notNull()
+      .references(() => assinaturas.id, { onDelete: "cascade" }),
+    mes: date({ mode: "string" }).notNull(),
+    renova: boolean().notNull().default(false),
+    pagaEm: data(),
+    pagaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
+    origemId: uuid().references((): AnyPgColumn => assinaturasDoMes.id, { onDelete: "set null" }),
+    criadoEm: momento(),
+    atualizadoEm: momento(),
+  },
+  (t) => [
+    uniqueIndex().on(t.assinaturaId, t.mes),
+    uniqueIndex().on(t.origemId),
+    index().on(t.mes),
+    check("assinaturas_do_mes_dia_1", sql`extract(day from ${t.mes}) = 1`),
+  ],
 ).enableRLS();
 
 /**

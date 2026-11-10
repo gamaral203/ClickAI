@@ -219,6 +219,15 @@ export function periodoDoMes(qual: "atual" | "anterior", agora: number = Date.no
   };
 }
 
+/** O mês ("AAAA-MM-01") somado de `n` meses (negativo volta). */
+export function somarMeses(mes: string, n: number) {
+  const [ano, m] = mes.split("-").map(Number);
+  return new Date(Date.UTC(ano, m - 1 + n, 1)).toISOString().slice(0, 10);
+}
+
+/** Ciclos que entram marcados para renovar quando a assinatura aparece num mês pela 1ª vez. */
+export const CICLOS_QUE_RENOVAM: readonly Ciclo[] = ["mensal", "uso"];
+
 // ---------------------------------------------------------------- Formulário
 
 /** Doze dígitos ou mais seguidos (com espaço, ponto ou hífen no meio): parece número de cartão. */

@@ -28,6 +28,7 @@ import {
 import { FormularioConfiguracoes } from "@/components/admin/painel-de-uso/formulario-configuracoes";
 import { buttonVariants } from "@/components/ui/button";
 import {
+  garantirAssinaturasDoMes,
   lerConfiguracoesGestao,
   lerUsoInterno,
   listarAssinaturas,
@@ -140,6 +141,8 @@ async function Conteudo({
 
   const agora = await instanteAtual();
   const mes = periodoDoMes(periodo, agora);
+  // Virada do mês das assinaturas, se o job ainda não fez (idempotente: nunca duplica).
+  await garantirAssinaturasDoMes(periodoDoMes("atual", agora).diaInicio);
   const [assinaturas, config, uso] = await Promise.all([
     listarAssinaturas(),
     lerConfiguracoesGestao(),
