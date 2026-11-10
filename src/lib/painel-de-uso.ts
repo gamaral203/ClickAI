@@ -238,6 +238,44 @@ export function rotuloDoMes(mes: string) {
 /** Ciclos que entram marcados para renovar quando a assinatura aparece num mês pela 1ª vez. */
 export const CICLOS_QUE_RENOVAM: readonly Ciclo[] = ["mensal", "uso"];
 
+/** Quantos meses um ciclo avança a renovação (`null`: avulsa, sem recorrência). */
+const MESES_DO_CICLO: Record<Ciclo, number | null> = { mensal: 1, uso: 1, anual: 12, avulsa: null };
+
+/**
+ * O dia ("AAAA-MM-DD") somado de `n` meses, mantendo o dia; num mês mais curto, o último dia
+ * (31/01 + 1 mês = 28/02 ou 29/02).
+ */
+export function somarMesesAoDia(dia: string, n: number) {
+  const [ano, m, d] = dia.split("-").map(Number);
+  const ultimo = new Date(Date.UTC(ano, m - 1 + n + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(ano, m - 1 + n, Math.min(d, ultimo))).toISOString().slice(0, 10);
+}
+
+/**
+ * Vencimento a mostrar, derivado das contas do mês pagas (nada é gravado na assinatura): se o
+ * último mês pago (`ultimoMesPago`, "AAAA-MM-01") cobre a data de renovação (ela cai nele ou
+ * antes), a renovação avança ciclos a partir dela até passar do fim desse mês (mensal → +1 mês,
+ * anual → +12). Desmarcar a paga volta o último mês pago, e com ele a data. Avulsa não avança:
+ * fica `paga`, para a tela não dizer "venceu".
+ */
+export function vencimentoExibido(
+  renovaEm: string | null,
+  ciclo: Ciclo,
+  ultimoMesPago: string | null,
+): { renovaEm: string | null; paga: boolean } {
+  if (!renovaEm || !ultimoMesPago) return { renovaEm, paga: false };
+  const fimDoMesPago = somarMeses(ultimoMesPago, 1);
+  if (renovaEm >= fimDoMesPago) return { renovaEm, paga: false };
+  const passo = MESES_DO_CICLO[ciclo];
+  if (!passo) return { renovaEm, paga: true };
+  // Sempre a partir da data original (sem acumular o ajuste de fim de mês); limite de segurança.
+  for (let k = 1; k <= 600; k++) {
+    const proxima = somarMesesAoDia(renovaEm, k * passo);
+    if (proxima >= fimDoMesPago) return { renovaEm: proxima, paga: false };
+  }
+  return { renovaEm, paga: true };
+}
+
 // ---------------------------------------------------------------- Formulário
 
 /** Doze dígitos ou mais seguidos (com espaço, ponto ou hífen no meio): parece número de cartão. */
@@ -455,3 +493,17 @@ export function textoAtualizadoHa(lidoEm: string, agora: number = Date.now()) {
   const dias = Math.floor(horas / 24);
   return dias === 1 ? "há 1 dia" : `há ${dias} dias`;
 }
+
+// ---------------------------------------------------------------- Itens dos quadros de uso
+
+/**
+ * Só os itens com uso ou custo maior que zero no período (quadros de uso por serviço, como o da
+ * Vercel e o do R2): os zerados ficam ocultos e voltam sozinhos quando passam a ser usados. Os
+ * totais do quadro não passam por aqui.
+ */
+export function itensComUso<T>(itens: readonly T[], usos: (item: T) => (number | null)[]): T[] {
+  return itens.filter((i) => usos(i).some((v) => v !== null && Number.isFinite(v) && v > 0));
+}
+
+/** Texto do quadro quando nenhum item teve uso. */
+export const SEM_USO_NO_PERIODO = "Nenhum uso neste período.";

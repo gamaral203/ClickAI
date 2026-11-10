@@ -37,7 +37,9 @@ import {
   definirAssinaturaAtiva,
   definirRenovacaoDoMes,
   garantirAssinaturasDoMes,
+  buscarAssinatura,
   listarAssinaturasDoMes,
+  reservarAvisosDeVencimento,
   marcarAssinaturaDoMesPaga,
   versaoDaSessao,
   type Papel,
@@ -48,9 +50,12 @@ import { assinar } from "@/lib/assinatura";
 import { periodoFinanceiro } from "@/lib/financeiro-plataforma";
 import {
   hojeEmBrasilia,
+  itensComUso,
   periodoDoMes,
   rotuloDoMes,
   somarMeses,
+  somarMesesAoDia,
+  vencimentoExibido,
   type DadosAssinatura,
 } from "@/lib/painel-de-uso";
 import { lerPainelFinanceiro } from "./financeiro-plataforma";
@@ -386,5 +391,86 @@ describe("marcar paga lança no Financeiro", () => {
     expect(await noMes(id, MES_ATUAL)).toMatchObject({ pagaEm: null, cobrancaId: null });
     await marcarAssinaturaPagaAcao(linha.id, true);
     expect(await cobrancasDa(id)).toHaveLength(1);
+  });
+});
+
+describe("vencimento exibido pela conta do mês paga", () => {
+  it("avança um ciclo a partir do vencimento pago, sem acumular o fim de mês", () => {
+    expect(vencimentoExibido("2026-11-08", "mensal", null)).toEqual({
+      renovaEm: "2026-11-08",
+      paga: false,
+    });
+    expect(vencimentoExibido("2026-11-08", "mensal", "2026-11-01")).toEqual({
+      renovaEm: "2026-12-08",
+      paga: false,
+    });
+    // Vencimento já depois do mês pago: não muda (não avança duas vezes).
+    expect(vencimentoExibido("2026-12-08", "mensal", "2026-11-01").renovaEm).toBe("2026-12-08");
+    // Atrasada de meses: chega ao primeiro vencimento depois do mês pago.
+    expect(vencimentoExibido("2026-09-30", "uso", "2026-11-01").renovaEm).toBe("2026-12-30");
+    expect(vencimentoExibido("2026-11-20", "anual", "2026-11-01").renovaEm).toBe("2027-11-20");
+    expect(vencimentoExibido("2026-11-20", "avulsa", "2026-11-01")).toEqual({
+      renovaEm: "2026-11-20",
+      paga: true,
+    });
+    expect(vencimentoExibido(null, "mensal", "2026-11-01").renovaEm).toBeNull();
+    expect(vencimentoExibido("2027-01-31", "mensal", "2027-01-01").renovaEm).toBe("2027-02-28");
+    expect(somarMesesAoDia("2027-01-31", 2)).toBe("2027-03-31");
+    expect(somarMesesAoDia("2028-01-31", 1)).toBe("2028-02-29");
+  });
+
+  it("marcar paga leva o vencimento ao mês seguinte; desmarcar volta, sem mudar renova_em", async () => {
+    const gestor = (await entrarComo("admin"))!;
+    const mes = "2041-05-01";
+    const id = await criarAssinatura(dados({ renovaEm: "2041-05-08", moeda: "BRL" }), null);
+    await garantirAssinaturasDoMes(mes);
+    const linha = (await noMes(id, mes))!;
+    const opcoes = { cotacaoDezMilesimos: 53495, hoje: "2041-05-09" };
+    const exibido = async () => {
+      const a = (await buscarAssinatura(id))!;
+      expect(a.renovaEm).toBe("2041-05-08");
+      return vencimentoExibido(a.renovaEm, a.ciclo, a.ultimoMesPago);
+    };
+
+    expect((await exibido()).renovaEm).toBe("2041-05-08");
+    expect(await marcarAssinaturaDoMesPaga(linha.id, true, gestor.id, opcoes)).toBe("ok");
+    expect((await buscarAssinatura(id))!.ultimoMesPago).toBe(mes);
+    expect(await exibido()).toEqual({ renovaEm: "2041-06-08", paga: false });
+    // Marcar de novo (idempotente) não avança outra vez.
+    expect(await marcarAssinaturaDoMesPaga(linha.id, true, gestor.id, opcoes)).toBe("ok");
+    expect((await exibido()).renovaEm).toBe("2041-06-08");
+
+    expect(await marcarAssinaturaDoMesPaga(linha.id, false, gestor.id, opcoes)).toBe("ok");
+    expect((await buscarAssinatura(id))!.ultimoMesPago).toBeNull();
+    expect(await exibido()).toEqual({ renovaEm: "2041-05-08", paga: false });
+  });
+
+  it("conta do mês paga não gera aviso de vencimento; desmarcada, volta a gerar", async () => {
+    const gestor = (await entrarComo("admin"))!;
+    const mes = "2042-02-01";
+    const id = await criarAssinatura(dados({ renovaEm: "2042-02-10", moeda: "BRL" }), null);
+    await garantirAssinaturasDoMes(mes);
+    const linha = (await noMes(id, mes))!;
+    const opcoes = { cotacaoDezMilesimos: 53495, hoje: "2042-02-05" };
+    await marcarAssinaturaDoMesPaga(linha.id, true, gestor.id, opcoes);
+    const agora = Date.parse("2042-02-09T12:00:00-03:00");
+    expect((await reservarAvisosDeVencimento(agora)).some((a) => a.id === id)).toBe(false);
+    await marcarAssinaturaDoMesPaga(linha.id, false, gestor.id, opcoes);
+    expect((await reservarAvisosDeVencimento(agora)).filter((a) => a.id === id)).toHaveLength(1);
+  });
+});
+
+describe("itens dos quadros de uso", () => {
+  it("oculta os zerados e mostra os que passam a ter uso ou custo", () => {
+    const itens = [
+      { nome: "Fluid Active CPU", custoCentavos: 120, quantidade: 3.5 },
+      { nome: "Edge Requests", custoCentavos: 0, quantidade: 0 },
+      { nome: "Build Minutes", custoCentavos: 0, quantidade: 12 },
+      { nome: "Blob", custoCentavos: 0, quantidade: null },
+    ];
+    const comUso = itensComUso(itens, (i) => [i.custoCentavos, i.quantidade]);
+    expect(comUso.map((i) => i.nome)).toEqual(["Fluid Active CPU", "Build Minutes"]);
+    expect(itensComUso([{ bytes: 0 }, { bytes: NaN }], (i) => [i.bytes])).toEqual([]);
+    expect(itensComUso([{ bytes: 0 }, { bytes: 10 }], (i) => [i.bytes])).toEqual([{ bytes: 10 }]);
   });
 });

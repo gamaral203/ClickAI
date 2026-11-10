@@ -76,6 +76,9 @@ import {
   textoAtualizadoHa,
   textoDaExpiracao,
   textoDoVencimento,
+  itensComUso,
+  SEM_USO_NO_PERIODO,
+  vencimentoExibido,
   type CategoriaAssinatura,
 } from "@/lib/painel-de-uso";
 import { exigirGestor } from "@/servicos/sessao";
@@ -324,16 +327,25 @@ function tomDoVencimento(dias: number) {
   return "bg-muted text-muted-foreground ring-border";
 }
 
-function Vencimento({ renovaEm, agora }: { renovaEm: string | null; agora: number }) {
+/**
+ * Renovação da assinatura como a tela mostra: derivada das contas do mês pagas (pagar o mês leva
+ * o vencimento um ciclo adiante; desmarcar volta). `renovaEm` no banco não muda.
+ */
+function vencimentoDe(a: Pick<Assinatura, "renovaEm" | "ciclo" | "ultimoMesPago">) {
+  return vencimentoExibido(a.renovaEm, a.ciclo, a.ultimoMesPago);
+}
+
+function Vencimento({ a, agora }: { a: Assinatura; agora: number }) {
+  const { renovaEm, paga } = vencimentoDe(a);
   if (!renovaEm) return <span className="text-muted-foreground">Não renova</span>;
   const dias = diasParaVencer(renovaEm, agora);
   return (
     <span className="flex flex-col items-start gap-0.5 md:items-start">
       <span className="tabular-nums">{formatarDia(renovaEm)}</span>
       <span
-        className={`rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ring-1 ring-inset ${tomDoVencimento(dias)}`}
+        className={`rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ring-1 ring-inset ${paga ? tomDoVencimento(30) : tomDoVencimento(dias)}`}
       >
-        {textoDoVencimento(dias)}
+        {paga ? "paga" : textoDoVencimento(dias)}
       </span>
     </span>
   );
@@ -435,9 +447,12 @@ function ResumoDeGastos({
     `${formatarMoeda(brl, "BRL")} + ${formatarMoeda(usd, "USD")}`;
   const semCotacao = "Defina a cotação do dólar abaixo";
   const proximas = assinaturas
-    .filter((a) => a.ativa && a.renovaEm)
-    .map((a) => ({ a, dias: diasParaVencer(a.renovaEm!, agora) }))
-    .filter(({ dias }) => dias >= 0 && dias <= 30);
+    .filter((a) => a.ativa)
+    .map((a) => ({ a, v: vencimentoDe(a) }))
+    .filter(({ v }) => v.renovaEm && !v.paga)
+    .map(({ a, v }) => ({ a, dias: diasParaVencer(v.renovaEm!, agora) }))
+    .filter(({ dias }) => dias >= 0 && dias <= 30)
+    .sort((x, y) => x.dias - y.dias);
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -647,9 +662,13 @@ function ListaDeAssinaturas({
   const daSituacao = (s: Situacao) =>
     assinaturas.filter((a) => (s === "todas" ? true : s === "ativas" ? a.ativa : !a.ativa));
   const naSituacao = daSituacao(filtros.situacao);
-  const visiveis = filtros.categoria
-    ? naSituacao.filter((a) => a.categoria === filtros.categoria)
-    : naSituacao;
+  // O próximo vencimento primeiro, pela data exibida (já avançada pela conta paga).
+  const ordem = (a: Assinatura) => vencimentoDe(a).renovaEm ?? "9999-12-31";
+  const visiveis = [
+    ...(filtros.categoria
+      ? naSituacao.filter((a) => a.categoria === filtros.categoria)
+      : naSituacao),
+  ].sort((x, y) => ordem(x).localeCompare(ordem(y)) || x.nome.localeCompare(y.nome));
   const categoriasUsadas = CATEGORIAS_ASSINATURA.filter((c) =>
     naSituacao.some((a) => a.categoria === c),
   );
@@ -848,7 +867,7 @@ function TabelaDeAssinaturas({
                 </td>
                 <td className="px-4 py-3 tabular-nums">{formatarDia(a.assinadaEm)}</td>
                 <td className="px-4 py-3">
-                  <Vencimento renovaEm={a.renovaEm} agora={agora} />
+                  <Vencimento a={a} agora={agora} />
                 </td>
                 <td className="max-w-[11rem] px-4 py-3 [overflow-wrap:anywhere]">
                   {a.formaPagamento || <span className="text-muted-foreground">—</span>}
@@ -884,7 +903,7 @@ function TabelaDeAssinaturas({
               <div className="flex flex-col">
                 <dt className="text-xs text-muted-foreground">Renova em</dt>
                 <dd>
-                  <Vencimento renovaEm={a.renovaEm} agora={agora} />
+                  <Vencimento a={a} agora={agora} />
                 </dd>
               </div>
               <div className="flex flex-col">
@@ -951,7 +970,8 @@ function UsoDoSistema({
     (periodo === "atual" &&
       fracaoDoLimite(emails.resendHoje, config.limiteEmailDia) >= FRACAO_ALERTA) ||
     fracaoDoLimite(emails.resendPeriodo, config.limiteEmailMes) >= FRACAO_ALERTA;
-  const maiorTipo = Math.max(1, ...emails.caixaPorTipo.map((t) => t.total));
+  const porTipo = itensComUso(emails.caixaPorTipo, (t) => [t.total]);
+  const maiorTipo = Math.max(1, ...porTipo.map((t) => t.total));
 
   const bytesOriginais =
     armazenamento.bytesOriginaisMedidos + armazenamento.itensSemTamanho * BYTES_ORIGINAL_ESTIMADO;
@@ -959,6 +979,13 @@ function UsoDoSistema({
   const bytesTotal = bytesOriginais + bytesPrevias;
   const custoUsd = custoR2CentavosUsd(bytesTotal);
   const fracaoGratis = bytesTotal / 1024 ** 3 / R2_GB_GRATIS;
+  const partesR2 = itensComUso(
+    [
+      { rotulo: "Originais", bytes: bytesOriginais },
+      { rotulo: "prévias", bytes: bytesPrevias },
+    ],
+    (p) => [p.bytes],
+  );
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -986,11 +1013,11 @@ function UsoDoSistema({
         />
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Por tipo, no mês</p>
-          {emails.caixaPorTipo.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum e-mail registrado no período.</p>
+          {porTipo.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{SEM_USO_NO_PERIODO}</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {emails.caixaPorTipo.map((t) => (
+              {porTipo.map((t) => (
                 <li
                   key={t.tipo}
                   className="grid grid-cols-[9rem_minmax(0,1fr)_3rem] items-center gap-2 text-sm"
@@ -1087,7 +1114,9 @@ function UsoDoSistema({
           rotulo="Faixa grátis (MB)"
         />
         <p className="text-xs text-muted-foreground">
-          Originais ≈ {formatarBytes(bytesOriginais)} · prévias ≈ {formatarBytes(bytesPrevias)}
+          {partesR2.length === 0
+            ? SEM_USO_NO_PERIODO
+            : partesR2.map((p) => `${p.rotulo} ≈ ${formatarBytes(p.bytes)}`).join(" · ")}
           {fracaoGratis >= 1 && " · acima da faixa grátis"}
         </p>
       </Quadro>
@@ -1328,7 +1357,9 @@ async function QuadroVercel({ config, agora }: { config: ConfiguracoesGestao; ag
     config.cotacaoUsdCentavos
       ? ` (≈ ${formatarPreco(dolarParaReal(centavos, config.cotacaoUsdCentavos))})`
       : "";
-  const maiorItem = Math.max(1, ...leitura.itens.map((i) => i.custoCentavos));
+  // Só os itens com custo ou consumo no ciclo; os zerados voltam quando passarem a ser usados.
+  const itens = itensComUso(leitura.itens, (i) => [i.custoCentavos, i.quantidade]);
+  const maiorItem = Math.max(1, ...itens.map((i) => i.custoCentavos));
   const ultimoDia = new Date(Date.parse(leitura.ate) - 1).toISOString().slice(0, 10);
   const periodo = `${formatarDia(leitura.de.slice(0, 10))} a ${formatarDia(ultimoDia)}`;
 
@@ -1368,11 +1399,11 @@ async function QuadroVercel({ config, agora }: { config: ConfiguracoesGestao; ag
       />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium">Por item, no ciclo</p>
-        {leitura.itens.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum uso cobrado no ciclo.</p>
+        {itens.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{SEM_USO_NO_PERIODO}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {leitura.itens.map((i) => {
+            {itens.map((i) => {
               const q = quantidadeVercel(i.quantidade, i.unidade);
               return (
                 <li
