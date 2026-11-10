@@ -1247,7 +1247,8 @@ export const assinaturas = pgTable(
  * abrir o painel), as que renovam ganham a linha do mês novo, não paga e ainda renovando
  * (`origem_id` = a linha copiada); as que não renovam somem do mês seguinte. A cópia é
  * idempotente pela restrição única (assinatura, mês). Nome, valor e ciclo vêm da assinatura.
- * Só marcação de controle: não cria nem muda cobrança do Financeiro.
+ * Marcar como paga lança a cobrança paga no Financeiro (`cobranca_id`, uma por linha); desmarcar
+ * apaga essa cobrança. A linha só conta como paga se a cobrança ligada está `paga`.
  */
 export const assinaturasDoMes = pgTable(
   "assinaturas_do_mes",
@@ -1261,12 +1262,15 @@ export const assinaturasDoMes = pgTable(
     pagaEm: data(),
     pagaPor: uuid().references(() => usuarios.id, { onDelete: "set null" }),
     origemId: uuid().references((): AnyPgColumn => assinaturasDoMes.id, { onDelete: "set null" }),
+    /** Cobrança paga lançada no Financeiro ao marcar; excluída lá, volta a nula. */
+    cobrancaId: uuid().references((): AnyPgColumn => cobrancasDespesa.id, { onDelete: "set null" }),
     criadoEm: momento(),
     atualizadoEm: momento(),
   },
   (t) => [
     uniqueIndex().on(t.assinaturaId, t.mes),
     uniqueIndex().on(t.origemId),
+    uniqueIndex().on(t.cobrancaId),
     index().on(t.mes),
     check("assinaturas_do_mes_dia_1", sql`extract(day from ${t.mes}) = 1`),
   ],

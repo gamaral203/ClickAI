@@ -225,6 +225,16 @@ export function somarMeses(mes: string, n: number) {
   return new Date(Date.UTC(ano, m - 1 + n, 1)).toISOString().slice(0, 10);
 }
 
+/** "novembro de 2026" para o mês "2026-11-01". */
+export function rotuloDoMes(mes: string) {
+  const [ano, m] = mes.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(ano, m - 1, 15)));
+}
+
 /** Ciclos que entram marcados para renovar quando a assinatura aparece num mês pela 1ª vez. */
 export const CICLOS_QUE_RENOVAM: readonly Ciclo[] = ["mensal", "uso"];
 

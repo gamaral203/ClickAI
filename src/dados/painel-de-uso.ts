@@ -12,7 +12,9 @@ import * as t from "@/db/schema";
 import {
   COTACAO_PADRAO_DEZ_MILESIMOS,
   TAXA_CARTAO_PB_PADRAO,
+  somarDias,
   TAXA_PIX_PB_PADRAO,
+  valoresDaCobranca,
   type TaxasDeReferencia,
 } from "@/lib/financeiro-plataforma";
 import {
@@ -23,6 +25,8 @@ import {
   hojeEmBrasilia,
   LIMITE_EMAIL_DIA_PADRAO,
   LIMITE_EMAIL_MES_PADRAO,
+  rotuloDoMes,
+  somarMeses,
   type DadosAssinatura,
 } from "@/lib/painel-de-uso";
 
@@ -130,8 +134,13 @@ export type AssinaturaDoMes = {
   assinaturaId: string;
   mes: string;
   renova: boolean;
-  /** Instante ISO em que foi marcada como paga; `null` se não está paga. */
+  /**
+   * Instante ISO em que foi marcada como paga; `null` se não está paga. Paga = a cobrança ligada
+   * no Financeiro existe e está `paga` (marcar ou reabrir lá aparece aqui).
+   */
   pagaEm: string | null;
+  /** Cobrança lançada no Financeiro; `null` se não há. */
+  cobrancaId: string | null;
   nome: string;
   plano: string;
   valorCentavos: number;
@@ -198,7 +207,7 @@ export async function incluirAssinaturaNoMes(assinaturaId: string, mes: string) 
   return true;
 }
 
-/** As assinaturas do mês, com nome e valor da assinatura; a mais cara primeiro, depois o nome. */
+/** As assinaturas do mês, com nome e valor da assinatura, pelo nome. */
 export async function listarAssinaturasDoMes(mes: string): Promise<AssinaturaDoMes[]> {
   const banco = await obterBanco();
   const linhas = await banco
@@ -207,7 +216,10 @@ export async function listarAssinaturasDoMes(mes: string): Promise<AssinaturaDoM
       assinaturaId: t.assinaturasDoMes.assinaturaId,
       mes: t.assinaturasDoMes.mes,
       renova: t.assinaturasDoMes.renova,
-      pagaEm: t.assinaturasDoMes.pagaEm,
+      pagaEm: sql<
+        Date | string | null
+      >`case when ${t.cobrancasDespesa.status} = 'paga' then coalesce(${t.assinaturasDoMes.pagaEm}, ${t.cobrancasDespesa.atualizadoEm}) end`,
+      cobrancaId: t.cobrancasDespesa.id,
       nome: t.assinaturas.nome,
       plano: t.assinaturas.plano,
       valorCentavos: t.assinaturas.valorCentavos,
@@ -216,9 +228,24 @@ export async function listarAssinaturasDoMes(mes: string): Promise<AssinaturaDoM
     })
     .from(t.assinaturasDoMes)
     .innerJoin(t.assinaturas, eq(t.assinaturas.id, t.assinaturasDoMes.assinaturaId))
+    .leftJoin(t.cobrancasDespesa, eq(t.cobrancasDespesa.id, t.assinaturasDoMes.cobrancaId))
     .where(eq(t.assinaturasDoMes.mes, mes))
     .orderBy(asc(t.assinaturas.nome));
-  return linhas.map((l) => ({ ...l, pagaEm: l.pagaEm ? l.pagaEm.toISOString() : null }));
+  return linhas.map((l) => ({
+    ...l,
+    pagaEm: l.pagaEm ? new Date(l.pagaEm).toISOString() : null,
+  }));
+}
+
+/** Os meses que têm assinaturas, do mais novo ao mais antigo (até 12), para o seletor. */
+export async function listarMesesDeAssinaturas(): Promise<string[]> {
+  const banco = await obterBanco();
+  const linhas = await banco
+    .selectDistinct({ mes: t.assinaturasDoMes.mes })
+    .from(t.assinaturasDoMes)
+    .orderBy(sql`${t.assinaturasDoMes.mes} desc`)
+    .limit(12);
+  return linhas.map((l) => l.mes);
 }
 
 /** Uma linha do mês (para a ação conferir o mês antes de mudar). */
@@ -231,26 +258,113 @@ export async function buscarAssinaturaDoMes(id: string) {
   return linha ?? null;
 }
 
+export type ResultadoMarcarPaga = "ok" | "nao-encontrada" | "sem-cotacao";
+
 /**
- * Marca (com o instante e o gestor) ou desmarca como paga. Marcar de novo o que já está pago
- * mantém o instante da primeira marcação. Devolve se a linha existia.
+ * Data da cobrança lançada no Financeiro: hoje, se o mês é o atual; o último dia do mês, se ele
+ * já passou (a cobrança conta no mês dela nos totais do Financeiro).
  */
-export async function marcarAssinaturaDoMesPaga(id: string, paga: boolean, gestorId: string) {
+export function dataDaCobrancaDoMes(mes: string, hoje: string) {
+  const ultimoDia = somarDias(somarMeses(mes, 1), -1);
+  return hoje < mes ? mes : hoje > ultimoDia ? ultimoDia : hoje;
+}
+
+/**
+ * Marca ou desmarca como paga, numa transação com a linha travada (FOR UPDATE): duas marcações ao
+ * mesmo tempo nunca lançam duas cobranças.
+ *  - Marcar: grava o instante e o gestor (o primeiro fica) e lança no Financeiro a cobrança da
+ *    despesa já paga, com o valor da assinatura (em dólar, convertido pela cotação de 4 casas da
+ *    gestão, gravada na cobrança), uma só por linha (`cobranca_id`, único). Se a cobrança ligada
+ *    já existe (ex.: alguém a reabriu no Financeiro), volta a `paga` em vez de criar outra. Paga,
+ *    ela entra nos Gastos e no Resultado do Financeiro, como qualquer cobrança paga; no saldo do
+ *    Mercado Pago só entraria com `pago_pelo_saldo_mp`, que fica falso (assinatura no cartão).
+ *  - Desmarcar: apaga a cobrança lançada por ela (só a ligada) e zera a marcação.
+ * Nunca toca em lançamentos, saldo ou saque de fotógrafo.
+ */
+export async function marcarAssinaturaDoMesPaga(
+  id: string,
+  paga: boolean,
+  gestorId: string,
+  opcoes: { cotacaoDezMilesimos: number | null; hoje: string },
+): Promise<ResultadoMarcarPaga> {
   const banco = await obterBanco();
-  const linhas = await banco
-    .update(t.assinaturasDoMes)
-    .set(
-      paga
-        ? {
-            pagaEm: sql`coalesce(${t.assinaturasDoMes.pagaEm}, now())`,
-            pagaPor: sql`coalesce(${t.assinaturasDoMes.pagaPor}, ${gestorId}::uuid)`,
-            atualizadoEm: sql`now()`,
-          }
-        : { pagaEm: null, pagaPor: null, atualizadoEm: sql`now()` },
-    )
-    .where(eq(t.assinaturasDoMes.id, id))
-    .returning({ id: t.assinaturasDoMes.id });
-  return linhas.length > 0;
+  return banco.transaction(async (tx) => {
+    const [linha] = await tx
+      .select({
+        id: t.assinaturasDoMes.id,
+        mes: t.assinaturasDoMes.mes,
+        cobrancaId: t.assinaturasDoMes.cobrancaId,
+        assinaturaId: t.assinaturasDoMes.assinaturaId,
+      })
+      .from(t.assinaturasDoMes)
+      .where(eq(t.assinaturasDoMes.id, id))
+      .for("update");
+    if (!linha) return "nao-encontrada";
+
+    if (!paga) {
+      if (linha.cobrancaId) {
+        await tx
+          .delete(t.cobrancasDespesa)
+          .where(
+            and(
+              eq(t.cobrancasDespesa.id, linha.cobrancaId),
+              eq(t.cobrancasDespesa.assinaturaId, linha.assinaturaId),
+            ),
+          );
+      }
+      await tx
+        .update(t.assinaturasDoMes)
+        .set({ pagaEm: null, pagaPor: null, cobrancaId: null, atualizadoEm: sql`now()` })
+        .where(eq(t.assinaturasDoMes.id, id));
+      return "ok";
+    }
+
+    let cobrancaId = linha.cobrancaId;
+    if (cobrancaId) {
+      await tx
+        .update(t.cobrancasDespesa)
+        .set({ status: "paga", atualizadoEm: sql`now()` })
+        .where(eq(t.cobrancasDespesa.id, cobrancaId));
+    } else {
+      const [a] = await tx
+        .select({
+          nome: t.assinaturas.nome,
+          valorCentavos: t.assinaturas.valorCentavos,
+          moeda: t.assinaturas.moeda,
+        })
+        .from(t.assinaturas)
+        .where(eq(t.assinaturas.id, linha.assinaturaId));
+      if (!a) return "nao-encontrada";
+      const valores = valoresDaCobranca(a.valorCentavos, a.moeda, opcoes.cotacaoDezMilesimos);
+      if (!valores) return "sem-cotacao";
+      const [nova] = await tx
+        .insert(t.cobrancasDespesa)
+        .values({
+          assinaturaId: linha.assinaturaId,
+          data: dataDaCobrancaDoMes(linha.mes, opcoes.hoje),
+          valorCentavos: a.valorCentavos,
+          moeda: a.moeda,
+          ...valores,
+          iofCentavos: 0,
+          status: "paga",
+          pagoPeloSaldoMp: false,
+          observacao: `${a.nome.slice(0, 200)}, ${rotuloDoMes(linha.mes)} (Contas do mês, Painel de uso)`,
+          criadoPor: gestorId,
+        })
+        .returning({ id: t.cobrancasDespesa.id });
+      cobrancaId = nova.id;
+    }
+    await tx
+      .update(t.assinaturasDoMes)
+      .set({
+        cobrancaId,
+        pagaEm: sql`coalesce(${t.assinaturasDoMes.pagaEm}, now())`,
+        pagaPor: sql`coalesce(${t.assinaturasDoMes.pagaPor}, ${gestorId}::uuid)`,
+        atualizadoEm: sql`now()`,
+      })
+      .where(eq(t.assinaturasDoMes.id, id));
+    return "ok";
+  });
 }
 
 /** Liga ou desliga o "renova no próximo mês" de uma linha do mês. Devolve se existia. */

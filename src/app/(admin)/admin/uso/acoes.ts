@@ -12,6 +12,7 @@ import {
   definirRenovacaoDoMes,
   excluirAssinatura,
   incluirAssinaturaNoMes,
+  lerConfiguracoesGestao,
   marcarAssinaturaDoMesPaga,
   salvarConfiguracoesGestao,
 } from "@/dados";
@@ -20,6 +21,7 @@ import { reaisParaCentavos } from "@/lib/dinheiro";
 import {
   CONFIG,
   CREDITOS_AWS_TOTAL_MAXIMO_CENTAVOS,
+  hojeEmBrasilia,
   periodoDoMes,
   validarAssinatura,
   type CampoAssinatura,
@@ -180,7 +182,10 @@ export async function salvarConfiguracoesAcao(
 
 // ---------------------------------------------------------------- Assinaturas do mês
 
-/** Marca ou desmarca como paga a assinatura de um mês (linha de assinaturas_do_mes). */
+/**
+ * Marca ou desmarca como paga a assinatura de um mês. Marcar lança a cobrança paga no Financeiro
+ * (uma por linha); desmarcar apaga essa cobrança (src/dados/painel-de-uso.ts).
+ */
 export async function marcarAssinaturaPagaAcao(
   assinaturaDoMesId: unknown,
   paga: unknown,
@@ -188,10 +193,17 @@ export async function marcarAssinaturaPagaAcao(
   const gestor = await exigirGestor(CAMINHO);
   const dados = z.object({ id, paga: z.boolean() }).safeParse({ id: assinaturaDoMesId, paga });
   if (!dados.success) return { erro: "Assinatura não encontrada." };
-  if (!(await marcarAssinaturaDoMesPaga(dados.data.id, dados.data.paga, gestor.id))) {
-    return { erro: "Assinatura não encontrada." };
-  }
+  const { cotacaoDezMilesimos } = await lerConfiguracoesGestao();
+  const r = await marcarAssinaturaDoMesPaga(dados.data.id, dados.data.paga, gestor.id, {
+    cotacaoDezMilesimos,
+    hoje: hojeEmBrasilia(),
+  });
+  if (r === "nao-encontrada") return { erro: "Assinatura não encontrada." };
+  if (r === "sem-cotacao") return { erro: "Defina a cotação do dólar antes de marcar como paga." };
+  // A cobrança paga muda os Gastos e o Resultado do Financeiro e o histórico da despesa.
   revalidatePath(CAMINHO);
+  revalidatePath("/admin/uso/financeiro");
+  revalidatePath("/admin/uso/despesas/[id]", "page");
   return {};
 }
 

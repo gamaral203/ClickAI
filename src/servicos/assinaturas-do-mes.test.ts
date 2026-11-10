@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 // `connection()` só existe dentro de uma requisição do Next; aqui as funções rodam direto.
@@ -32,6 +32,8 @@ import {
 import {
   criarAssinatura,
   criarUsuario,
+  dataDaCobrancaDoMes,
+  lerCaixaAte,
   definirAssinaturaAtiva,
   definirRenovacaoDoMes,
   garantirAssinaturasDoMes,
@@ -43,7 +45,15 @@ import {
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
 import { assinar } from "@/lib/assinatura";
-import { periodoDoMes, somarMeses, type DadosAssinatura } from "@/lib/painel-de-uso";
+import { periodoFinanceiro } from "@/lib/financeiro-plataforma";
+import {
+  hojeEmBrasilia,
+  periodoDoMes,
+  rotuloDoMes,
+  somarMeses,
+  type DadosAssinatura,
+} from "@/lib/painel-de-uso";
+import { lerPainelFinanceiro } from "./financeiro-plataforma";
 
 // Assinaturas do mês no Painel de uso: marcar como paga (só o gestor) e a virada do mês, que leva
 // as que renovam para o mês novo como não pagas, sem nunca duplicar.
@@ -112,9 +122,12 @@ describe("virada do mês", () => {
     const r1 = (await noMes(renova, mes))!;
     expect(r1).toMatchObject({ renova: true, pagaEm: null, nome: "Vercel", valorCentavos: 2000 });
     expect((await noMes(naoRenova, mes))?.renova).toBe(false);
-    expect(await marcarAssinaturaDoMesPaga(r1.id, true, (await entrarComo("admin"))!.id)).toBe(
-      true,
-    );
+    expect(
+      await marcarAssinaturaDoMesPaga(r1.id, true, (await entrarComo("admin"))!.id, {
+        cotacaoDezMilesimos: 53495,
+        hoje: "2040-03-10",
+      }),
+    ).toBe("ok");
     await definirAssinaturaAtiva(desativada, false);
 
     const seguinte = somarMeses(mes, 1);
@@ -247,5 +260,131 @@ describe("ações: marcar paga e renovação", () => {
     expect(await noMes(id, MES_ATUAL)).toBeUndefined();
     expect(await alternarAssinaturaAcao(id, true)).toEqual({});
     expect((await noMes(id, MES_ATUAL))?.renova).toBe(true);
+  });
+});
+
+describe("marcar paga lança no Financeiro", () => {
+  async function cobrancasDa(assinaturaId: string) {
+    const banco = await obterBanco();
+    return banco
+      .select()
+      .from(t.cobrancasDespesa)
+      .where(eq(t.cobrancasDespesa.assinaturaId, assinaturaId));
+  }
+
+  it("data: hoje no mês atual, último dia num mês passado", () => {
+    expect(dataDaCobrancaDoMes("2026-11-01", "2026-11-09")).toBe("2026-11-09");
+    expect(dataDaCobrancaDoMes("2026-10-01", "2026-11-09")).toBe("2026-10-31");
+    expect(dataDaCobrancaDoMes("2027-01-01", "2026-11-09")).toBe("2027-01-01");
+  });
+
+  it("lança uma cobrança paga, desconta nos Gastos e no Resultado, e desfaz ao desmarcar", async () => {
+    const gestor = (await entrarComo("admin"))!;
+    const id = await criarAssinatura(
+      dados({ nome: "Supabase", moeda: "BRL", valorCentavos: 13_990 }),
+      null,
+    );
+    await garantirAssinaturasDoMes(MES_ATUAL);
+    const linha = (await noMes(id, MES_ATUAL))!;
+    const periodo = periodoFinanceiro("mes");
+    const banco = await obterBanco();
+    const contarLancamentos = async () =>
+      (await banco.select({ n: sql<number>`count(*)::int` }).from(t.lancamentos))[0].n;
+    const lancamentosAntes = await contarLancamentos();
+    const caixaAntes = await lerCaixaAte(new Date(Date.now() + 86_400_000).toISOString());
+    const antes = await lerPainelFinanceiro(periodo);
+
+    expect(await marcarAssinaturaPagaAcao(linha.id, true)).toEqual({});
+    const [cobranca, ...outras] = await cobrancasDa(id);
+    expect(outras).toHaveLength(0);
+    expect(cobranca).toMatchObject({
+      status: "paga",
+      valorCentavos: 13_990,
+      moeda: "BRL",
+      valorBrlCentavos: 13_990,
+      cotacaoDezMilesimos: null,
+      iofCentavos: 0,
+      pagoPeloSaldoMp: false,
+      data: hojeEmBrasilia(),
+      criadoPor: gestor.id,
+    });
+    expect(cobranca.observacao).toContain("Supabase");
+    expect(cobranca.observacao).toContain(rotuloDoMes(MES_ATUAL));
+    expect((await noMes(id, MES_ATUAL))?.cobrancaId).toBe(cobranca.id);
+
+    const depois = await lerPainelFinanceiro(periodo);
+    expect(depois.despesas.pagasCentavos - antes.despesas.pagasCentavos).toBe(13_990);
+    expect(antes.resultadoCentavos - depois.resultadoCentavos).toBe(13_990);
+    expect(depois.acumulado.despesasPagasCentavos - antes.acumulado.despesasPagasCentavos).toBe(
+      13_990,
+    );
+    // Só o caixa da plataforma: saldo, lançamentos e saques dos fotógrafos não mudam.
+    expect(await contarLancamentos()).toBe(lancamentosAntes);
+    expect(await lerCaixaAte(new Date(Date.now() + 86_400_000).toISOString())).toEqual(caixaAntes);
+
+    // Marcar de novo (e ao mesmo tempo) não lança outra.
+    await Promise.all([
+      marcarAssinaturaPagaAcao(linha.id, true),
+      marcarAssinaturaPagaAcao(linha.id, true),
+    ]);
+    expect(await cobrancasDa(id)).toHaveLength(1);
+
+    expect(await marcarAssinaturaPagaAcao(linha.id, false)).toEqual({});
+    expect(await cobrancasDa(id)).toHaveLength(0);
+    expect(await noMes(id, MES_ATUAL)).toMatchObject({ pagaEm: null, cobrancaId: null });
+    const desfeito = await lerPainelFinanceiro(periodo);
+    expect(desfeito.despesas.pagasCentavos).toBe(antes.despesas.pagasCentavos);
+    expect(desfeito.resultadoCentavos).toBe(antes.resultadoCentavos);
+    expect(await lerCaixaAte(new Date(Date.now() + 86_400_000).toISOString())).toEqual(caixaAntes);
+  });
+
+  it("em dólar, converte pela cotação de 4 casas da gestão", async () => {
+    const gestor = (await entrarComo("admin"))!;
+    const id = await criarAssinatura(dados({ moeda: "USD", valorCentavos: 2000 }), null);
+    await garantirAssinaturasDoMes("2044-02-01");
+    const linha = (await noMes(id, "2044-02-01"))!;
+    const opcoes = { cotacaoDezMilesimos: 53_495, hoje: "2044-02-10" };
+    expect(
+      await marcarAssinaturaDoMesPaga(linha.id, true, gestor.id, {
+        ...opcoes,
+        cotacaoDezMilesimos: null,
+      }),
+    ).toBe("sem-cotacao");
+    expect(await cobrancasDa(id)).toHaveLength(0);
+    expect(await marcarAssinaturaDoMesPaga(linha.id, true, gestor.id, opcoes)).toBe("ok");
+    expect((await cobrancasDa(id))[0]).toMatchObject({
+      moeda: "USD",
+      valorCentavos: 2000,
+      cotacaoDezMilesimos: 53_495,
+      valorBrlCentavos: 10_699,
+      data: "2044-02-10",
+    });
+  });
+
+  it("reabrir ou excluir no Financeiro aparece no bloco; marcar de novo reaproveita a cobrança", async () => {
+    await entrarComo("admin");
+    const id = await criarAssinatura(dados({ moeda: "BRL" }), null);
+    await garantirAssinaturasDoMes(MES_ATUAL);
+    const linha = (await noMes(id, MES_ATUAL))!;
+    await marcarAssinaturaPagaAcao(linha.id, true);
+    const [cobranca] = await cobrancasDa(id);
+    const banco = await obterBanco();
+
+    await banco
+      .update(t.cobrancasDespesa)
+      .set({ status: "pendente" })
+      .where(eq(t.cobrancasDespesa.id, cobranca.id));
+    expect((await noMes(id, MES_ATUAL))?.pagaEm).toBeNull();
+    await marcarAssinaturaPagaAcao(linha.id, true);
+    const depois = await cobrancasDa(id);
+    expect(depois).toHaveLength(1);
+    expect(depois[0]).toMatchObject({ id: cobranca.id, status: "paga" });
+    expect((await noMes(id, MES_ATUAL))?.pagaEm).not.toBeNull();
+
+    // Excluída no Financeiro: o bloco volta a "não paga"; marcar lança outra.
+    await banco.delete(t.cobrancasDespesa).where(eq(t.cobrancasDespesa.id, cobranca.id));
+    expect(await noMes(id, MES_ATUAL)).toMatchObject({ pagaEm: null, cobrancaId: null });
+    await marcarAssinaturaPagaAcao(linha.id, true);
+    expect(await cobrancasDa(id)).toHaveLength(1);
   });
 });

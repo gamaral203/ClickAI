@@ -22,6 +22,7 @@ import {
 import { CartaoNumero } from "@/components/admin/tabela";
 import { AbasDoPainelDeUso } from "@/components/admin/painel-de-uso/abas";
 import { AcoesAssinatura } from "@/components/admin/painel-de-uso/acoes-assinatura";
+import { BotaoPaga, CaixaRenova } from "@/components/admin/painel-de-uso/acoes-conta-do-mes";
 import {
   FormularioAssinatura,
   type AssinaturaNoFormulario,
@@ -33,7 +34,10 @@ import {
   lerConfiguracoesGestao,
   lerUsoInterno,
   listarAssinaturas,
+  listarAssinaturasDoMes,
+  listarMesesDeAssinaturas,
   type Assinatura,
+  type AssinaturaDoMes,
   type ConfiguracoesGestao,
   type UsoInterno,
 } from "@/dados";
@@ -68,6 +72,7 @@ import {
   resumirGastos,
   ROTULO_CATEGORIA,
   ROTULO_CICLO,
+  rotuloDoMes,
   textoAtualizadoHa,
   textoDaExpiracao,
   textoDoVencimento,
@@ -93,6 +98,8 @@ type Filtros = {
   situacao: Situacao;
   categoria: CategoriaAssinatura | null;
   periodo: "atual" | "anterior";
+  /** Mês das Contas do mês ("AAAA-MM-01"); `null` = o atual. */
+  contas: string | null;
 };
 
 /** Endereço da página com os filtros (sem os padrões) e, opcionalmente, o formulário aberto. */
@@ -101,6 +108,7 @@ function endereco(f: Filtros, extra: Record<string, string> = {}) {
   if (f.situacao !== "ativas") p.set("situacao", f.situacao);
   if (f.categoria) p.set("categoria", f.categoria);
   if (f.periodo !== "atual") p.set("periodo", f.periodo);
+  if (f.contas) p.set("contas", f.contas.slice(0, 7));
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   const q = p.toString();
   return q ? `${CAMINHO}?${q}` : CAMINHO;
@@ -137,18 +145,31 @@ async function Conteudo({
     (["inativas", "todas"] as const).find((s) => s === p.situacao) ?? "ativas";
   const categoria = CATEGORIAS_ASSINATURA.find((c) => c === p.categoria) ?? null;
   const periodo = p.periodo === "anterior" ? "anterior" : "atual";
-  const filtros: Filtros = { situacao, categoria, periodo };
+  const contasPedido = /^\d{4}-(0[1-9]|1[0-2])$/.test(texto(p.contas))
+    ? `${texto(p.contas)}-01`
+    : null;
   const nova = texto(p.nova) === "1";
   const editarId = texto(p.editar);
 
   const agora = await instanteAtual();
   const mes = periodoDoMes(periodo, agora);
   // Virada do mês das assinaturas, se o job ainda não fez (idempotente: nunca duplica).
-  await garantirAssinaturasDoMes(periodoDoMes("atual", agora).diaInicio);
-  const [assinaturas, config, uso] = await Promise.all([
+  const mesAtual = periodoDoMes("atual", agora).diaInicio;
+  await garantirAssinaturasDoMes(mesAtual);
+  const meses = await listarMesesDeAssinaturas();
+  // Só um mês que tem contas; qualquer outro valor no endereço vira o mês atual.
+  const mesDasContas = contasPedido && meses.includes(contasPedido) ? contasPedido : mesAtual;
+  const filtros: Filtros = {
+    situacao,
+    categoria,
+    periodo,
+    contas: mesDasContas === mesAtual ? null : mesDasContas,
+  };
+  const [assinaturas, config, uso, contas] = await Promise.all([
     listarAssinaturas(),
     lerConfiguracoesGestao(),
     lerUsoInterno(mes, mes.inicioHoje, mes.hoje),
+    listarAssinaturasDoMes(mesDasContas),
   ]);
   const editando = assinaturas.find((a) => a.id === editarId);
 
@@ -159,6 +180,14 @@ async function Conteudo({
           Assinaturas e gastos
         </h2>
         <ResumoDeGastos assinaturas={assinaturas} config={config} agora={agora} />
+        <ContasDoMes
+          contas={contas}
+          mes={mesDasContas}
+          mesAtual={mesAtual}
+          meses={meses.includes(mesAtual) ? meses : [mesAtual, ...meses]}
+          filtros={filtros}
+          config={config}
+        />
         <ListaDeAssinaturas
           assinaturas={assinaturas}
           filtros={filtros}
@@ -461,6 +490,143 @@ function ResumoDeGastos({
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Contas do mês
+
+/**
+ * As assinaturas de um mês (assinaturas_do_mes): marcar como paga (lança a cobrança paga no
+ * Financeiro) e "Renova no próximo mês?" (só no mês atual). Tabela a partir de 1024 px; abaixo
+ * disso, um cartão por conta, como a lista de assinaturas.
+ */
+function ContasDoMes({
+  contas,
+  mes,
+  mesAtual,
+  meses,
+  filtros,
+  config,
+}: {
+  contas: AssinaturaDoMes[];
+  mes: string;
+  mesAtual: string;
+  meses: string[];
+  filtros: Filtros;
+  config: ConfiguracoesGestao;
+}) {
+  const atual = mes === mesAtual;
+  const pagas = contas.filter((c) => c.pagaEm).length;
+  const th = "px-4 py-3 font-medium whitespace-nowrap";
+  const diaDaMarcacao = (c: AssinaturaDoMes) =>
+    c.pagaEm ? formatarDataCurta(c.pagaEm, { hora: false }) : null;
+  const valor = (c: AssinaturaDoMes) => (
+    <span className="flex flex-col md:items-end">
+      <span className="font-semibold whitespace-nowrap tabular-nums">
+        {formatarMoeda(c.valorCentavos, c.moeda)}
+      </span>
+      {c.moeda === "USD" && config.cotacaoUsdCentavos ? (
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          ≈ {formatarPreco(dolarParaReal(c.valorCentavos, config.cotacaoUsdCentavos))}
+        </span>
+      ) : null}
+    </span>
+  );
+  const nome = (c: AssinaturaDoMes) => (
+    <span className="flex min-w-0 flex-col">
+      <span className="font-semibold [overflow-wrap:anywhere]">{c.nome}</span>
+      {c.plano && <span className="text-xs text-muted-foreground">{c.plano}</span>}
+    </span>
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-lg font-semibold">Contas do mês</h3>
+        <p className="text-sm text-muted-foreground">
+          {contas.length === 0
+            ? "Nenhuma assinatura neste mês."
+            : `${pagas} de ${contas.length} pagas em ${rotuloDoMes(mes)}.`}{" "}
+          Marcar como paga lança a cobrança paga no Financeiro.
+          {atual && " As que renovam passam para o mês seguinte como não pagas."}
+        </p>
+      </div>
+      {meses.length > 1 && (
+        <nav
+          aria-label="Mês das contas"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
+        >
+          {meses.map((m) => (
+            <Chip
+              key={m}
+              href={endereco({ ...filtros, contas: m === mesAtual ? null : m })}
+              ativo={m === mes}
+              rotulo={rotuloDoMes(m)}
+            />
+          ))}
+        </nav>
+      )}
+      {contas.length > 0 && (
+        <>
+          <div className="hidden overflow-x-auto rounded-xl border lg:block">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-left text-muted-foreground">
+                <tr>
+                  <th scope="col" className={th}>
+                    Serviço e plano
+                  </th>
+                  <th scope="col" className={`${th} w-[10rem] text-right`}>
+                    Valor
+                  </th>
+                  <th scope="col" className={`${th} w-[18rem]`}>
+                    Paga
+                  </th>
+                  <th scope="col" className={`${th} w-[13rem]`}>
+                    Renova no próximo mês?
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {contas.map((c) => (
+                  <tr key={c.id} className="align-top">
+                    <td className="min-w-[12rem] px-4 py-3">{nome(c)}</td>
+                    <td className="px-4 py-3 text-right">{valor(c)}</td>
+                    <td className="px-4 py-3">
+                      <BotaoPaga
+                        id={c.id}
+                        nome={c.nome}
+                        paga={!!c.pagaEm}
+                        pagaEm={diaDaMarcacao(c)}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <CaixaRenova id={c.id} nome={c.nome} renova={c.renova} editavel={atual} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul className="flex flex-col gap-3 lg:hidden">
+            {contas.map((c) => (
+              <li key={c.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  {nome(c)}
+                  <span className="shrink-0 text-right">{valor(c)}</span>
+                </div>
+                <div className="flex flex-col gap-2 border-t pt-3">
+                  <BotaoPaga id={c.id} nome={c.nome} paga={!!c.pagaEm} pagaEm={diaDaMarcacao(c)} />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">Renova no próximo mês?</span>
+                    <CaixaRenova id={c.id} nome={c.nome} renova={c.renova} editavel={atual} />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
