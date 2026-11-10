@@ -461,15 +461,21 @@ describe("vencimento exibido pela conta do mês paga", () => {
 });
 
 describe("itens dos quadros de uso", () => {
-  it("oculta os zerados e mostra os que passam a ter uso ou custo", () => {
+  it("Vercel: só os com custo; consumo na cota grátis (US$ 0,00) fica oculto", () => {
     const itens = [
       { nome: "Fluid Active CPU", custoCentavos: 120, quantidade: 3.5 },
       { nome: "Edge Requests", custoCentavos: 0, quantidade: 0 },
       { nome: "Build Minutes", custoCentavos: 0, quantidade: 12 },
       { nome: "Blob", custoCentavos: 0, quantidade: null },
     ];
-    const comUso = itensComUso(itens, (i) => [i.custoCentavos, i.quantidade]);
-    expect(comUso.map((i) => i.nome)).toEqual(["Fluid Active CPU", "Build Minutes"]);
+    const comCusto = itensComUso(itens, (i) => [i.custoCentavos]);
+    expect(comCusto.map((i) => i.nome)).toEqual(["Fluid Active CPU"]);
+    // Passou a custar: aparece sozinho.
+    const depois = itens.map((i) => (i.nome === "Build Minutes" ? { ...i, custoCentavos: 3 } : i));
+    expect(itensComUso(depois, (i) => [i.custoCentavos]).map((i) => i.nome)).toEqual([
+      "Fluid Active CPU",
+      "Build Minutes",
+    ]);
     expect(itensComUso([{ bytes: 0 }, { bytes: NaN }], (i) => [i.bytes])).toEqual([]);
     expect(itensComUso([{ bytes: 0 }, { bytes: 10 }], (i) => [i.bytes])).toEqual([{ bytes: 10 }]);
   });

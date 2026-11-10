@@ -497,9 +497,9 @@ export function textoAtualizadoHa(lidoEm: string, agora: number = Date.now()) {
 // ---------------------------------------------------------------- Itens dos quadros de uso
 
 /**
- * Só os itens com uso ou custo maior que zero no período (quadros de uso por serviço, como o da
- * Vercel e o do R2): os zerados ficam ocultos e voltam sozinhos quando passam a ser usados. Os
- * totais do quadro não passam por aqui.
+ * Só os itens com valor maior que zero no período (quadros de uso por serviço): na Vercel, o
+ * custo (consumo dentro da cota grátis, US$ 0,00, fica oculto); no R2 e nos e-mails por tipo, a
+ * quantidade. Os zerados voltam sozinhos quando passam a contar. Os totais não passam por aqui.
  */
 export function itensComUso<T>(itens: readonly T[], usos: (item: T) => (number | null)[]): T[] {
   return itens.filter((i) => usos(i).some((v) => v !== null && Number.isFinite(v) && v > 0));
