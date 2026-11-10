@@ -5,7 +5,7 @@
 
 import "server-only";
 
-import { and, asc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { obterBanco } from "@/db";
 import * as t from "@/db/schema";
@@ -35,9 +35,22 @@ export type Assinatura = DadosAssinatura & {
   ativa: boolean;
   criadoEm: string;
   atualizadoEm: string;
+  /**
+   * Último mês ("AAAA-MM-01") com a conta do mês paga (cobrança ligada em `paga`); `null` se
+   * nenhum. A tela deriva dele o vencimento exibido (vencimentoExibido), sem mudar `renovaEm`.
+   */
+  ultimoMesPago: string | null;
 };
 
-type LinhaAssinatura = typeof t.assinaturas.$inferSelect;
+type LinhaAssinatura = typeof t.assinaturas.$inferSelect & { ultimoMesPago: string | null };
+
+/** Último mês com a conta paga, por assinatura (subconsulta correlacionada, sem trazer linhas). */
+const ultimoMesPago = sql<string | null>`(
+  select max(m.mes)::text
+    from ${t.assinaturasDoMes} m
+    join ${t.cobrancasDespesa} c on c.id = m.cobranca_id
+   where m.assinatura_id = ${t.assinaturas}.id and c.status = 'paga'
+)`;
 
 function paraAssinatura(l: LinhaAssinatura): Assinatura {
   return {
@@ -57,6 +70,7 @@ function paraAssinatura(l: LinhaAssinatura): Assinatura {
     observacoes: l.observacoes,
     criadoEm: l.criadoEm.toISOString(),
     atualizadoEm: l.atualizadoEm.toISOString(),
+    ultimoMesPago: l.ultimoMesPago ?? null,
   };
 }
 
@@ -66,7 +80,7 @@ function paraAssinatura(l: LinhaAssinatura): Assinatura {
 export async function listarAssinaturas(): Promise<Assinatura[]> {
   const banco = await obterBanco();
   const linhas = await banco
-    .select()
+    .select({ ...getTableColumns(t.assinaturas), ultimoMesPago })
     .from(t.assinaturas)
     .orderBy(sql`${t.assinaturas.renovaEm} asc nulls last`, asc(t.assinaturas.nome));
   return linhas.map(paraAssinatura);
@@ -74,7 +88,10 @@ export async function listarAssinaturas(): Promise<Assinatura[]> {
 
 export async function buscarAssinatura(id: string): Promise<Assinatura | null> {
   const banco = await obterBanco();
-  const [linha] = await banco.select().from(t.assinaturas).where(eq(t.assinaturas.id, id));
+  const [linha] = await banco
+    .select({ ...getTableColumns(t.assinaturas), ultimoMesPago })
+    .from(t.assinaturas)
+    .where(eq(t.assinaturas.id, id));
   return linha ? paraAssinatura(linha) : null;
 }
 
@@ -391,7 +408,7 @@ export type AvisoDeVencimento = Pick<
  *   - "1d": ativa e renova hoje ou amanhã (Brasília), sem o aviso de 1 dia. Marca também o de 7
  *     dias, para não sair um "vence em 7 dias" atrasado depois;
  *   - "7d": ativa e renova em até 7 dias, sem o aviso de 7 dias.
- * Assinatura já vencida não gera aviso.
+ * Assinatura já vencida, ou com a conta do mês do vencimento já paga, não gera aviso.
  */
 export async function reservarAvisosDeVencimento(
   agora: number = Date.now(),
@@ -400,6 +417,8 @@ export async function reservarAvisosDeVencimento(
   const hoje = hojeEmBrasilia(agora);
   const em = (dias: number) => sql`${hoje}::date + ${dias}::int`;
   const momento = new Date(agora);
+  // Com a conta do mês do vencimento (ou de um mês depois) já paga, não há o que avisar.
+  const naoPaga = sql`(${ultimoMesPago} is null or ${ultimoMesPago}::date < date_trunc('month', ${t.assinaturas.renovaEm})::date)`;
   const campos = {
     id: t.assinaturas.id,
     nome: t.assinaturas.nome,
@@ -422,6 +441,7 @@ export async function reservarAvisosDeVencimento(
         isNull(t.assinaturas.aviso1dEm),
         gte(t.assinaturas.renovaEm, sql`${hoje}::date`),
         lte(t.assinaturas.renovaEm, em(1)),
+        naoPaga,
       ),
     )
     .returning(campos);
@@ -434,6 +454,7 @@ export async function reservarAvisosDeVencimento(
         isNull(t.assinaturas.aviso7dEm),
         gte(t.assinaturas.renovaEm, sql`${hoje}::date`),
         lte(t.assinaturas.renovaEm, em(7)),
+        naoPaga,
       ),
     )
     .returning(campos);

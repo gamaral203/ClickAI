@@ -76,6 +76,9 @@ import {
   textoAtualizadoHa,
   textoDaExpiracao,
   textoDoVencimento,
+  itensComUso,
+  SEM_USO_NO_PERIODO,
+  vencimentoExibido,
   type CategoriaAssinatura,
 } from "@/lib/painel-de-uso";
 import { exigirGestor } from "@/servicos/sessao";
@@ -180,17 +183,16 @@ async function Conteudo({
           Assinaturas e gastos
         </h2>
         <ResumoDeGastos assinaturas={assinaturas} config={config} agora={agora} />
-        <ContasDoMes
-          contas={contas}
-          mes={mesDasContas}
-          mesAtual={mesAtual}
-          meses={meses.includes(mesAtual) ? meses : [mesAtual, ...meses]}
-          filtros={filtros}
-          config={config}
-        />
         <ListaDeAssinaturas
           assinaturas={assinaturas}
+          doMes={{
+            contas,
+            mes: mesDasContas,
+            mesAtual,
+            meses: meses.includes(mesAtual) ? meses : [mesAtual, ...meses],
+          }}
           filtros={filtros}
+          config={config}
           agora={agora}
           formulario={
             nova || editando ? (
@@ -324,16 +326,25 @@ function tomDoVencimento(dias: number) {
   return "bg-muted text-muted-foreground ring-border";
 }
 
-function Vencimento({ renovaEm, agora }: { renovaEm: string | null; agora: number }) {
+/**
+ * Renovação da assinatura como a tela mostra: derivada das contas do mês pagas (pagar o mês leva
+ * o vencimento um ciclo adiante; desmarcar volta). `renovaEm` no banco não muda.
+ */
+function vencimentoDe(a: Pick<Assinatura, "renovaEm" | "ciclo" | "ultimoMesPago">) {
+  return vencimentoExibido(a.renovaEm, a.ciclo, a.ultimoMesPago);
+}
+
+function Vencimento({ a, agora }: { a: Assinatura; agora: number }) {
+  const { renovaEm, paga } = vencimentoDe(a);
   if (!renovaEm) return <span className="text-muted-foreground">Não renova</span>;
   const dias = diasParaVencer(renovaEm, agora);
   return (
     <span className="flex flex-col items-start gap-0.5 md:items-start">
       <span className="tabular-nums">{formatarDia(renovaEm)}</span>
       <span
-        className={`rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ring-1 ring-inset ${tomDoVencimento(dias)}`}
+        className={`rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ring-1 ring-inset ${paga ? tomDoVencimento(30) : tomDoVencimento(dias)}`}
       >
-        {textoDoVencimento(dias)}
+        {paga ? "paga" : textoDoVencimento(dias)}
       </span>
     </span>
   );
@@ -435,9 +446,12 @@ function ResumoDeGastos({
     `${formatarMoeda(brl, "BRL")} + ${formatarMoeda(usd, "USD")}`;
   const semCotacao = "Defina a cotação do dólar abaixo";
   const proximas = assinaturas
-    .filter((a) => a.ativa && a.renovaEm)
-    .map((a) => ({ a, dias: diasParaVencer(a.renovaEm!, agora) }))
-    .filter(({ dias }) => dias >= 0 && dias <= 30);
+    .filter((a) => a.ativa)
+    .map((a) => ({ a, v: vencimentoDe(a) }))
+    .filter(({ v }) => v.renovaEm && !v.paga)
+    .map(({ a, v }) => ({ a, dias: diasParaVencer(v.renovaEm!, agora) }))
+    .filter(({ dias }) => dias >= 0 && dias <= 30)
+    .sort((x, y) => x.dias - y.dias);
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -494,165 +508,55 @@ function ResumoDeGastos({
   );
 }
 
-// ---------------------------------------------------------------- Contas do mês
+// ---------------------------------------------------------------- Assinaturas (tabela única)
 
-/**
- * As assinaturas de um mês (assinaturas_do_mes): marcar como paga (lança a cobrança paga no
- * Financeiro) e "Renova no próximo mês?" (só no mês atual). Tabela a partir de 1024 px; abaixo
- * disso, um cartão por conta, como a lista de assinaturas.
- */
-function ContasDoMes({
-  contas,
-  mes,
-  mesAtual,
-  meses,
-  filtros,
-  config,
-}: {
+/** O mês na tabela: as contas do mês escolhido e o seletor dos meses que têm contas. */
+type MesDaTabela = {
   contas: AssinaturaDoMes[];
   mes: string;
   mesAtual: string;
   meses: string[];
-  filtros: Filtros;
-  config: ConfiguracoesGestao;
-}) {
-  const atual = mes === mesAtual;
-  const pagas = contas.filter((c) => c.pagaEm).length;
-  const th = "px-4 py-3 font-medium whitespace-nowrap";
-  const diaDaMarcacao = (c: AssinaturaDoMes) =>
-    c.pagaEm ? formatarDataCurta(c.pagaEm, { hora: false }) : null;
-  const valor = (c: AssinaturaDoMes) => (
-    <span className="flex flex-col md:items-end">
-      <span className="font-semibold whitespace-nowrap tabular-nums">
-        {formatarMoeda(c.valorCentavos, c.moeda)}
-      </span>
-      {c.moeda === "USD" && config.cotacaoUsdCentavos ? (
-        <span className="text-xs whitespace-nowrap text-muted-foreground">
-          ≈ {formatarPreco(dolarParaReal(c.valorCentavos, config.cotacaoUsdCentavos))}
-        </span>
-      ) : null}
-    </span>
-  );
-  const nome = (c: AssinaturaDoMes) => (
-    <span className="flex min-w-0 flex-col">
-      <span className="font-semibold [overflow-wrap:anywhere]">{c.nome}</span>
-      {c.plano && <span className="text-xs text-muted-foreground">{c.plano}</span>}
-    </span>
-  );
+};
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h3 className="text-lg font-semibold">Contas do mês</h3>
-        <p className="text-sm text-muted-foreground">
-          {contas.length === 0
-            ? "Nenhuma assinatura neste mês."
-            : `${pagas} de ${contas.length} pagas em ${rotuloDoMes(mes)}.`}{" "}
-          Marcar como paga lança a cobrança paga no Financeiro.
-          {atual && " As que renovam passam para o mês seguinte como não pagas."}
-        </p>
-      </div>
-      {meses.length > 1 && (
-        <nav
-          aria-label="Mês das contas"
-          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
-        >
-          {meses.map((m) => (
-            <Chip
-              key={m}
-              href={endereco({ ...filtros, contas: m === mesAtual ? null : m })}
-              ativo={m === mes}
-              rotulo={rotuloDoMes(m)}
-            />
-          ))}
-        </nav>
-      )}
-      {contas.length > 0 && (
-        <>
-          <div className="hidden overflow-x-auto rounded-xl border lg:block">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-muted-foreground">
-                <tr>
-                  <th scope="col" className={th}>
-                    Serviço e plano
-                  </th>
-                  <th scope="col" className={`${th} w-[10rem] text-right`}>
-                    Valor
-                  </th>
-                  <th scope="col" className={`${th} w-[18rem]`}>
-                    Paga
-                  </th>
-                  <th scope="col" className={`${th} w-[13rem]`}>
-                    Renova no próximo mês?
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {contas.map((c) => (
-                  <tr key={c.id} className="align-top">
-                    <td className="min-w-[12rem] px-4 py-3">{nome(c)}</td>
-                    <td className="px-4 py-3 text-right">{valor(c)}</td>
-                    <td className="px-4 py-3">
-                      <BotaoPaga
-                        id={c.id}
-                        nome={c.nome}
-                        paga={!!c.pagaEm}
-                        pagaEm={diaDaMarcacao(c)}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <CaixaRenova id={c.id} nome={c.nome} renova={c.renova} editavel={atual} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <ul className="flex flex-col gap-3 lg:hidden">
-            {contas.map((c) => (
-              <li key={c.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  {nome(c)}
-                  <span className="shrink-0 text-right">{valor(c)}</span>
-                </div>
-                <div className="flex flex-col gap-2 border-t pt-3">
-                  <BotaoPaga id={c.id} nome={c.nome} paga={!!c.pagaEm} pagaEm={diaDaMarcacao(c)} />
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-muted-foreground">Renova no próximo mês?</span>
-                    <CaixaRenova id={c.id} nome={c.nome} renova={c.renova} editavel={atual} />
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- Lista de assinaturas
-
+/**
+ * Tabela única das assinaturas com as contas do mês (assinaturas_do_mes): filtros, seletor de mês,
+ * "Paga" (lança a cobrança paga no Financeiro) e "Renova no próximo mês?" (só no mês atual). No
+ * mês atual aparecem todas as do filtro, com "Fora do mês" (sem botões) nas que não entraram nele;
+ * num mês passado, só as que estavam naquele mês.
+ */
 function ListaDeAssinaturas({
   assinaturas,
+  doMes,
   filtros,
+  config,
   agora,
   formulario,
 }: {
   assinaturas: Assinatura[];
+  doMes: MesDaTabela;
   filtros: Filtros;
+  config: ConfiguracoesGestao;
   agora: number;
   formulario: React.ReactNode;
 }) {
+  const { contas, mes, mesAtual, meses } = doMes;
+  const atual = mes === mesAtual;
+  const contaDe = new Map(contas.map((c) => [c.assinaturaId, c]));
+  const doPeriodo = atual ? assinaturas : assinaturas.filter((a) => contaDe.has(a.id));
   const daSituacao = (s: Situacao) =>
-    assinaturas.filter((a) => (s === "todas" ? true : s === "ativas" ? a.ativa : !a.ativa));
+    doPeriodo.filter((a) => (s === "todas" ? true : s === "ativas" ? a.ativa : !a.ativa));
   const naSituacao = daSituacao(filtros.situacao);
-  const visiveis = filtros.categoria
-    ? naSituacao.filter((a) => a.categoria === filtros.categoria)
-    : naSituacao;
+  // O próximo vencimento primeiro, pela data exibida (já avançada pela conta paga).
+  const ordem = (a: Assinatura) => vencimentoDe(a).renovaEm ?? "9999-12-31";
+  const visiveis = [
+    ...(filtros.categoria
+      ? naSituacao.filter((a) => a.categoria === filtros.categoria)
+      : naSituacao),
+  ].sort((x, y) => ordem(x).localeCompare(ordem(y)) || x.nome.localeCompare(y.nome));
   const categoriasUsadas = CATEGORIAS_ASSINATURA.filter((c) =>
     naSituacao.some((a) => a.categoria === c),
   );
+  const pagas = contas.filter((c) => c.pagaEm).length;
 
   if (assinaturas.length === 0) {
     return (
@@ -681,6 +585,28 @@ function ListaDeAssinaturas({
 
   return (
     <div className="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
+        {contas.length === 0
+          ? `Nenhuma conta em ${rotuloDoMes(mes)}.`
+          : `${pagas} de ${contas.length} pagas em ${rotuloDoMes(mes)}.`}{" "}
+        Marcar como paga lança a cobrança paga no Financeiro e leva o vencimento ao próximo ciclo.
+        {atual && " As que renovam passam para o mês seguinte como não pagas."}
+      </p>
+      {meses.length > 1 && (
+        <nav
+          aria-label="Mês das contas"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
+        >
+          {meses.map((m) => (
+            <Chip
+              key={m}
+              href={endereco({ ...filtros, contas: m === mesAtual ? null : m })}
+              ativo={m === mes}
+              rotulo={rotuloDoMes(m)}
+            />
+          ))}
+        </nav>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav
           aria-label="Situação da assinatura"
@@ -737,10 +663,19 @@ function ListaDeAssinaturas({
       {formulario}
       {visiveis.length === 0 ? (
         <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-          Nenhuma assinatura com esse filtro.
+          {atual
+            ? "Nenhuma assinatura com esse filtro."
+            : "Nenhuma conta com esse filtro neste mês."}
         </p>
       ) : (
-        <TabelaDeAssinaturas assinaturas={visiveis} filtros={filtros} agora={agora} />
+        <TabelaDeAssinaturas
+          assinaturas={visiveis}
+          contaDe={contaDe}
+          atual={atual}
+          filtros={filtros}
+          config={config}
+          agora={agora}
+        />
       )}
     </div>
   );
@@ -774,12 +709,17 @@ function NomeEPlano({ a }: { a: Assinatura }) {
   );
 }
 
-function ValorECiclo({ a }: { a: Assinatura }) {
+function ValorECiclo({ a, config }: { a: Assinatura; config: ConfiguracoesGestao }) {
   return (
     <span className="flex flex-col md:items-end">
       <span className="font-semibold whitespace-nowrap tabular-nums">
         {formatarMoeda(a.valorCentavos, a.moeda)}
       </span>
+      {a.moeda === "USD" && config.cotacaoUsdCentavos ? (
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          ≈ {formatarPreco(dolarParaReal(a.valorCentavos, config.cotacaoUsdCentavos))}
+        </span>
+      ) : null}
       <span className="text-xs whitespace-nowrap text-muted-foreground">
         {ROTULO_CICLO[a.ciclo]}
       </span>
@@ -787,17 +727,53 @@ function ValorECiclo({ a }: { a: Assinatura }) {
   );
 }
 
+/** Assinatura sem conta no mês atual (não renovou ou não entrou nele): sem botões. */
+function ForaDoMes() {
+  return <span className="text-sm text-muted-foreground">Fora do mês</span>;
+}
+
+function PagaDaConta({ a, conta }: { a: Assinatura; conta: AssinaturaDoMes | undefined }) {
+  if (!conta) return <ForaDoMes />;
+  return (
+    <BotaoPaga
+      id={conta.id}
+      nome={a.nome}
+      paga={!!conta.pagaEm}
+      pagaEm={conta.pagaEm ? formatarDataCurta(conta.pagaEm, { hora: false }) : null}
+    />
+  );
+}
+
+function RenovaDaConta({
+  a,
+  conta,
+  atual,
+}: {
+  a: Assinatura;
+  conta: AssinaturaDoMes | undefined;
+  atual: boolean;
+}) {
+  if (!conta) return <ForaDoMes />;
+  return <CaixaRenova id={conta.id} nome={a.nome} renova={conta.renova} editavel={atual} />;
+}
+
 /**
  * Tabela a partir de 1024 px (rola dentro do quadro se não couber, nunca corta coluna, com as
- * ações presas à direita); abaixo disso, um cartão por assinatura.
+ * ações presas à direita); abaixo disso, um cartão por assinatura, com tudo.
  */
 function TabelaDeAssinaturas({
   assinaturas,
+  contaDe,
+  atual,
   filtros,
+  config,
   agora,
 }: {
   assinaturas: Assinatura[];
+  contaDe: Map<string, AssinaturaDoMes>;
+  atual: boolean;
   filtros: Filtros;
+  config: ConfiguracoesGestao;
   agora: number;
 }) {
   const th = "px-4 py-3 font-medium whitespace-nowrap";
@@ -807,7 +783,7 @@ function TabelaDeAssinaturas({
   return (
     <>
       <div className="hidden overflow-x-auto rounded-xl border lg:block">
-        <table className="w-full min-w-[64rem] text-sm">
+        <table className="w-full min-w-[92rem] text-sm">
           <thead className="bg-muted text-left text-muted-foreground">
             <tr>
               <th scope="col" className={th}>
@@ -831,92 +807,118 @@ function TabelaDeAssinaturas({
               <th scope="col" className={`${th} w-[9rem]`}>
                 Responsável
               </th>
+              <th scope="col" className={`${th} w-[16rem]`}>
+                Paga
+              </th>
+              <th scope="col" className={`${th} w-[12rem]`}>
+                Renova no próximo mês?
+              </th>
               <th scope="col" className={`${th} ${fixaDireita} w-[15rem] bg-muted`}>
                 Ações
               </th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {assinaturas.map((a) => (
-              <tr key={a.id} className={`align-top ${a.ativa ? "" : "text-muted-foreground"}`}>
-                <td className="min-w-[12rem] px-4 py-3">
-                  <NomeEPlano a={a} />
-                </td>
-                <td className="px-4 py-3">{ROTULO_CATEGORIA[a.categoria]}</td>
-                <td className="px-4 py-3 text-right">
-                  <ValorECiclo a={a} />
-                </td>
-                <td className="px-4 py-3 tabular-nums">{formatarDia(a.assinadaEm)}</td>
-                <td className="px-4 py-3">
-                  <Vencimento renovaEm={a.renovaEm} agora={agora} />
-                </td>
-                <td className="max-w-[11rem] px-4 py-3 [overflow-wrap:anywhere]">
-                  {a.formaPagamento || <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="max-w-[9rem] px-4 py-3 [overflow-wrap:anywhere]">
-                  {a.responsavel || <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className={`${fixaDireita} min-w-[14rem] bg-background px-4 py-3`}>
-                  <AcoesAssinatura
-                    id={a.id}
-                    nome={a.nome}
-                    ativa={a.ativa}
-                    editar={editar(a.id)}
-                    historico={`/admin/uso/despesas/${a.id}`}
-                  />
-                </td>
-              </tr>
-            ))}
+            {assinaturas.map((a) => {
+              const conta = contaDe.get(a.id);
+              return (
+                <tr key={a.id} className={`align-top ${a.ativa ? "" : "text-muted-foreground"}`}>
+                  <td className="min-w-[12rem] px-4 py-3">
+                    <NomeEPlano a={a} />
+                  </td>
+                  <td className="px-4 py-3">{ROTULO_CATEGORIA[a.categoria]}</td>
+                  <td className="px-4 py-3 text-right">
+                    <ValorECiclo a={a} config={config} />
+                  </td>
+                  <td className="px-4 py-3 tabular-nums">{formatarDia(a.assinadaEm)}</td>
+                  <td className="px-4 py-3">
+                    <Vencimento a={a} agora={agora} />
+                  </td>
+                  <td className="max-w-[11rem] px-4 py-3 [overflow-wrap:anywhere]">
+                    {a.formaPagamento || <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="max-w-[9rem] px-4 py-3 [overflow-wrap:anywhere]">
+                    {a.responsavel || <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <PagaDaConta a={a} conta={conta} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <RenovaDaConta a={a} conta={conta} atual={atual} />
+                  </td>
+                  <td className={`${fixaDireita} min-w-[14rem] bg-background px-4 py-3`}>
+                    <AcoesAssinatura
+                      id={a.id}
+                      nome={a.nome}
+                      ativa={a.ativa}
+                      editar={editar(a.id)}
+                      historico={`/admin/uso/despesas/${a.id}`}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       <ul className="flex flex-col gap-3 lg:hidden">
-        {assinaturas.map((a) => (
-          <li key={a.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <NomeEPlano a={a} />
-              <span className="shrink-0 text-right">
-                <ValorECiclo a={a} />
-              </span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-              <div className="flex flex-col">
-                <dt className="text-xs text-muted-foreground">Renova em</dt>
-                <dd>
-                  <Vencimento renovaEm={a.renovaEm} agora={agora} />
-                </dd>
+        {assinaturas.map((a) => {
+          const conta = contaDe.get(a.id);
+          return (
+            <li key={a.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <NomeEPlano a={a} />
+                <span className="shrink-0 text-right">
+                  <ValorECiclo a={a} config={config} />
+                </span>
               </div>
-              <div className="flex flex-col">
-                <dt className="text-xs text-muted-foreground">Categoria</dt>
-                <dd>{ROTULO_CATEGORIA[a.categoria]}</dd>
-              </div>
-              <div className="flex flex-col">
-                <dt className="text-xs text-muted-foreground">Assinada em</dt>
-                <dd className="tabular-nums">{formatarDia(a.assinadaEm)}</dd>
-              </div>
-              <div className="flex min-w-0 flex-col">
-                <dt className="text-xs text-muted-foreground">Pagamento</dt>
-                <dd className="[overflow-wrap:anywhere]">{a.formaPagamento || "—"}</dd>
-              </div>
-              {a.responsavel && (
-                <div className="col-span-2 flex flex-col">
-                  <dt className="text-xs text-muted-foreground">Responsável</dt>
-                  <dd className="[overflow-wrap:anywhere]">{a.responsavel}</dd>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                <div className="flex flex-col">
+                  <dt className="text-xs text-muted-foreground">Renova em</dt>
+                  <dd>
+                    <Vencimento a={a} agora={agora} />
+                  </dd>
                 </div>
-              )}
-            </dl>
-            <div className="border-t pt-3">
-              <AcoesAssinatura
-                id={a.id}
-                nome={a.nome}
-                ativa={a.ativa}
-                editar={editar(a.id)}
-                historico={`/admin/uso/despesas/${a.id}`}
-              />
-            </div>
-          </li>
-        ))}
+                <div className="flex flex-col">
+                  <dt className="text-xs text-muted-foreground">Categoria</dt>
+                  <dd>{ROTULO_CATEGORIA[a.categoria]}</dd>
+                </div>
+                <div className="flex flex-col">
+                  <dt className="text-xs text-muted-foreground">Assinada em</dt>
+                  <dd className="tabular-nums">{formatarDia(a.assinadaEm)}</dd>
+                </div>
+                <div className="flex min-w-0 flex-col">
+                  <dt className="text-xs text-muted-foreground">Pagamento</dt>
+                  <dd className="[overflow-wrap:anywhere]">{a.formaPagamento || "—"}</dd>
+                </div>
+                {a.responsavel && (
+                  <div className="col-span-2 flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Responsável</dt>
+                    <dd className="[overflow-wrap:anywhere]">{a.responsavel}</dd>
+                  </div>
+                )}
+              </dl>
+              <div className="flex flex-col gap-2 border-t pt-3">
+                <span className="text-xs text-muted-foreground">Paga</span>
+                <PagaDaConta a={a} conta={conta} />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">Renova no próximo mês?</span>
+                  <RenovaDaConta a={a} conta={conta} atual={atual} />
+                </div>
+              </div>
+              <div className="border-t pt-3">
+                <AcoesAssinatura
+                  id={a.id}
+                  nome={a.nome}
+                  ativa={a.ativa}
+                  editar={editar(a.id)}
+                  historico={`/admin/uso/despesas/${a.id}`}
+                />
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </>
   );
@@ -951,7 +953,8 @@ function UsoDoSistema({
     (periodo === "atual" &&
       fracaoDoLimite(emails.resendHoje, config.limiteEmailDia) >= FRACAO_ALERTA) ||
     fracaoDoLimite(emails.resendPeriodo, config.limiteEmailMes) >= FRACAO_ALERTA;
-  const maiorTipo = Math.max(1, ...emails.caixaPorTipo.map((t) => t.total));
+  const porTipo = itensComUso(emails.caixaPorTipo, (t) => [t.total]);
+  const maiorTipo = Math.max(1, ...porTipo.map((t) => t.total));
 
   const bytesOriginais =
     armazenamento.bytesOriginaisMedidos + armazenamento.itensSemTamanho * BYTES_ORIGINAL_ESTIMADO;
@@ -959,6 +962,13 @@ function UsoDoSistema({
   const bytesTotal = bytesOriginais + bytesPrevias;
   const custoUsd = custoR2CentavosUsd(bytesTotal);
   const fracaoGratis = bytesTotal / 1024 ** 3 / R2_GB_GRATIS;
+  const partesR2 = itensComUso(
+    [
+      { rotulo: "Originais", bytes: bytesOriginais },
+      { rotulo: "prévias", bytes: bytesPrevias },
+    ],
+    (p) => [p.bytes],
+  );
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -986,11 +996,11 @@ function UsoDoSistema({
         />
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Por tipo, no mês</p>
-          {emails.caixaPorTipo.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum e-mail registrado no período.</p>
+          {porTipo.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{SEM_USO_NO_PERIODO}</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {emails.caixaPorTipo.map((t) => (
+              {porTipo.map((t) => (
                 <li
                   key={t.tipo}
                   className="grid grid-cols-[9rem_minmax(0,1fr)_3rem] items-center gap-2 text-sm"
@@ -1087,7 +1097,9 @@ function UsoDoSistema({
           rotulo="Faixa grátis (MB)"
         />
         <p className="text-xs text-muted-foreground">
-          Originais ≈ {formatarBytes(bytesOriginais)} · prévias ≈ {formatarBytes(bytesPrevias)}
+          {partesR2.length === 0
+            ? SEM_USO_NO_PERIODO
+            : partesR2.map((p) => `${p.rotulo} ≈ ${formatarBytes(p.bytes)}`).join(" · ")}
           {fracaoGratis >= 1 && " · acima da faixa grátis"}
         </p>
       </Quadro>
@@ -1328,7 +1340,10 @@ async function QuadroVercel({ config, agora }: { config: ConfiguracoesGestao; ag
     config.cotacaoUsdCentavos
       ? ` (≈ ${formatarPreco(dolarParaReal(centavos, config.cotacaoUsdCentavos))})`
       : "";
-  const maiorItem = Math.max(1, ...leitura.itens.map((i) => i.custoCentavos));
+  // Só os itens com custo no ciclo (consumo dentro da cota grátis, US$ 0,00, fica oculto); voltam
+  // sozinhos quando passarem a custar.
+  const itens = itensComUso(leitura.itens, (i) => [i.custoCentavos]);
+  const maiorItem = Math.max(1, ...itens.map((i) => i.custoCentavos));
   const ultimoDia = new Date(Date.parse(leitura.ate) - 1).toISOString().slice(0, 10);
   const periodo = `${formatarDia(leitura.de.slice(0, 10))} a ${formatarDia(ultimoDia)}`;
 
@@ -1368,11 +1383,11 @@ async function QuadroVercel({ config, agora }: { config: ConfiguracoesGestao; ag
       />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium">Por item, no ciclo</p>
-        {leitura.itens.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum uso cobrado no ciclo.</p>
+        {itens.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{SEM_USO_NO_PERIODO}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {leitura.itens.map((i) => {
+            {itens.map((i) => {
               const q = quantidadeVercel(i.quantidade, i.unidade);
               return (
                 <li
