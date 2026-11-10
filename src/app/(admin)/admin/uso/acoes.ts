@@ -5,10 +5,15 @@ import { z } from "zod";
 
 import {
   atualizarAssinatura,
+  buscarAssinaturaDoMes,
   contarCobrancas,
   criarAssinatura,
   definirAssinaturaAtiva,
+  definirRenovacaoDoMes,
   excluirAssinatura,
+  incluirAssinaturaNoMes,
+  lerConfiguracoesGestao,
+  marcarAssinaturaDoMesPaga,
   salvarConfiguracoesGestao,
 } from "@/dados";
 import { dividirArredondando, lerCotacao } from "@/lib/financeiro-plataforma";
@@ -16,6 +21,8 @@ import { reaisParaCentavos } from "@/lib/dinheiro";
 import {
   CONFIG,
   CREDITOS_AWS_TOTAL_MAXIMO_CENTAVOS,
+  hojeEmBrasilia,
+  periodoDoMes,
   validarAssinatura,
   type CampoAssinatura,
 } from "@/lib/painel-de-uso";
@@ -68,6 +75,10 @@ export async function alternarAssinaturaAcao(
   if (!dados.success) return { erro: "Assinatura não encontrada." };
   if (!(await definirAssinaturaAtiva(dados.data.id, dados.data.ativa))) {
     return { erro: "Assinatura não encontrada." };
+  }
+  // Reativada, volta a aparecer no mês atual (se já não estiver).
+  if (dados.data.ativa) {
+    await incluirAssinaturaNoMes(dados.data.id, periodoDoMes("atual").diaInicio);
   }
   revalidatePath(CAMINHO);
   return {};
@@ -167,4 +178,52 @@ export async function salvarConfiguracoesAcao(
   );
   revalidatePath(CAMINHO);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------- Assinaturas do mês
+
+/**
+ * Marca ou desmarca como paga a assinatura de um mês. Marcar lança a cobrança paga no Financeiro
+ * (uma por linha); desmarcar apaga essa cobrança (src/dados/painel-de-uso.ts).
+ */
+export async function marcarAssinaturaPagaAcao(
+  assinaturaDoMesId: unknown,
+  paga: unknown,
+): Promise<ResultadoAcaoUso> {
+  const gestor = await exigirGestor(CAMINHO);
+  const dados = z.object({ id, paga: z.boolean() }).safeParse({ id: assinaturaDoMesId, paga });
+  if (!dados.success) return { erro: "Assinatura não encontrada." };
+  const { cotacaoDezMilesimos } = await lerConfiguracoesGestao();
+  const r = await marcarAssinaturaDoMesPaga(dados.data.id, dados.data.paga, gestor.id, {
+    cotacaoDezMilesimos,
+    hoje: hojeEmBrasilia(),
+  });
+  if (r === "nao-encontrada") return { erro: "Assinatura não encontrada." };
+  if (r === "sem-cotacao") return { erro: "Defina a cotação do dólar antes de marcar como paga." };
+  // A cobrança paga muda os Gastos e o Resultado do Financeiro e o histórico da despesa.
+  revalidatePath(CAMINHO);
+  revalidatePath("/admin/uso/financeiro");
+  revalidatePath("/admin/uso/despesas/[id]", "page");
+  return {};
+}
+
+/**
+ * Liga ou desliga o "Renova no próximo mês?". Só no mês atual: o mês seguinte é montado na virada
+ * a partir dele, e mudar um mês passado não teria efeito.
+ */
+export async function renovarNoProximoMesAcao(
+  assinaturaDoMesId: unknown,
+  renova: unknown,
+): Promise<ResultadoAcaoUso> {
+  await exigirGestor(CAMINHO);
+  const dados = z.object({ id, renova: z.boolean() }).safeParse({ id: assinaturaDoMesId, renova });
+  if (!dados.success) return { erro: "Assinatura não encontrada." };
+  const linha = await buscarAssinaturaDoMes(dados.data.id);
+  if (!linha) return { erro: "Assinatura não encontrada." };
+  if (linha.mes !== periodoDoMes("atual").diaInicio) {
+    return { erro: "Só dá para mudar a renovação no mês atual." };
+  }
+  await definirRenovacaoDoMes(dados.data.id, dados.data.renova);
+  revalidatePath(CAMINHO);
+  return {};
 }

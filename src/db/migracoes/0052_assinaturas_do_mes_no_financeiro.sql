@@ -1,0 +1,3 @@
+ALTER TABLE "assinaturas_do_mes" ADD COLUMN "cobranca_id" uuid;--> statement-breakpoint
+ALTER TABLE "assinaturas_do_mes" ADD CONSTRAINT "assinaturas_do_mes_cobranca_id_cobrancas_despesa_id_fk" FOREIGN KEY ("cobranca_id") REFERENCES "public"."cobrancas_despesa"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "assinaturas_do_mes_cobranca_id_index" ON "assinaturas_do_mes" USING btree ("cobranca_id");

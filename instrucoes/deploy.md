@@ -37,6 +37,7 @@ Passo a passo para colocar o ClicouAí no ar. O código já está pronto para es
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Erros no Sentry |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | Envio dos source maps no build (opcional, mas ajuda a ler os erros) |
 | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | Domínio próprio das lojas |
+| `VERCEL_API_TOKEN` (e `VERCEL_TEAM_ID`, `VERCEL_DIA_DO_CICLO`) | Quadro "Uso da Vercel" no Painel de uso (opcional; ver "Uso da Vercel no Painel de uso" abaixo). Sem ele, o quadro diz "não configurado" |
 | `REKOGNITION_REGIAO`, `REKOGNITION_ACCESS_KEY_ID`, `REKOGNITION_SECRET_ACCESS_KEY` | Busca por selfie (Amazon Rekognition). Região `sa-east-1`. Sem elas, a busca responde "indisponível" em produção. **Não use `AWS_REGION`, `AWS_ACCESS_KEY_ID` nem `AWS_SECRET_ACCESS_KEY`**: na Vercel esses nomes são da plataforma (a região da função e credenciais temporárias que não valem na sua conta), e o app não os lê. O usuário IAM precisa só de `rekognition:CreateCollection`, `rekognition:IndexFaces`, `rekognition:SearchFacesByImage` e `rekognition:DeleteCollection` (o job `/api/jobs/colecoes` apaga a coleção de evento parado; sem ela, o job só registra `AccessDeniedException` e não arquiva nada), e `rekognition:DeleteFaces`, opcional, e `rekognition:DetectText` (leitura do número de peito; sem ela, a leitura falha com `AccessDeniedException` e o painel avisa), mais `freetier:GetAccountPlanState`, só leitura, para o quadro de créditos da AWS no Painel de uso (item 6, "Créditos da AWS no Painel de uso"). Ligue também o opt-out de serviços de IA da AWS ([seguranca.md](seguranca.md), item 20). Opcional: `REKOGNITION_SEMELHANCA` (padrão 90), `REKOGNITION_PREFIXO` (padrão `clicouai`) e `REKOGNITION_TEXTO_CONFIANCA` (confiança mínima da leitura do número de peito, de 50 a 99; padrão 85). Se a busca falhar, o log da função mostra o nome do erro da AWS (ex.: `UnrecognizedClientException` = chave errada; `AccessDeniedException` = falta permissão) |
 | `RESEND_API_KEY`, `EMAIL_REMETENTE` | E-mails (confirmação de conta, entrega, lembrete do Pix, aviso de venda). O domínio do remetente precisa estar verificado no Resend, então use `clicouai.com` (já comprado; o Resend não verifica `vercel.app`) e verifique-o lá antes de cadastrar as variáveis. Para teste local, `onboarding@resend.dev` só entrega ao e-mail da conta do Resend; não usar em produção |
 | `NEXT_PUBLIC_EMAIL_PRIVACIDADE` | E-mail do encarregado de dados na política de privacidade |
@@ -129,6 +130,19 @@ O quadro "Créditos AWS" em `/admin/uso` lê o plano da conta na API Free Tier d
 ```
 
 Nada muda nas variáveis nem no deploy. A leitura fica guardada por 1 hora (por poucos minutos quando falha, para a permissão nova aparecer logo). Sem a permissão, o quadro avisa "sem permissão `freetier:GetAccountPlanState`" e o log da função mostra `[creditos-aws] sem permissão`; o resto do painel não é afetado. A AWS informa só o restante: o total (US$ 100 por padrão) fica em **Cotação do dólar, limites de e-mail e créditos da AWS**, no próprio painel; se a conta ganhar os créditos extras das atividades do plano, ajuste ali.
+
+### Uso da Vercel no Painel de uso
+
+O quadro "Uso da Vercel" em `/admin/uso` lê o gasto do ciclo atual na API oficial de cobrança da Vercel (`GET https://api.vercel.com/v1/billing/charges`, formato FOCUS; [documentação](https://vercel.com/docs/rest-api/billing/list-focus-billing-charges)). A Vercel não tem token só de leitura: o menor escopo que alcança a cobrança é o do **time** (token de projeto é recusado em recursos do time). Para limitar o estrago se o token vazar, crie-o, se possível, com uma conta que tenha só o papel **Billing** no time (a API aceita Owner, Member, Developer, Security, Billing e Viewer Enterprise) e com validade.
+
+1. Na Vercel, com a conta pessoal selecionada no canto superior esquerdo, abra **Account Settings → Tokens** (https://vercel.com/account/tokens).
+2. Nome: `clicouai-painel-de-uso`. Em **Scope**, escolha o time do projeto e depois **All Projects** (token do time; não use **Full Account**).
+3. Escolha a validade (ex.: 1 ano; anote a data para trocar antes) e clique em **Create**. Copie o valor (começa com `vcp_`): ele aparece só uma vez.
+4. No projeto da Vercel, **Settings → Environment Variables**, crie `VERCEL_API_TOKEN` só em **Production**, marcado como **Sensitive**. Com token do time, `VERCEL_TEAM_ID` não é necessário (a Vercel deduz o time); se ele já existir para o domínio das lojas, tudo bem.
+5. Opcional: `VERCEL_DIA_DO_CICLO` (1 a 28) se o ciclo de cobrança do Pro não começa no dia 1 (veja em **Team Settings → Billing**). Padrão: dia 1, em UTC.
+6. Faça um novo deploy (as variáveis só valem em deploy novo).
+
+A leitura fica guardada por 5 minutos (1 minuto quando falha). Token errado, vencido ou sem permissão aparece no quadro como "indisponível (`HTTP 403`)" e no log da função como `[uso-vercel] a Vercel recusou a leitura 403`; o token nunca vai para o log. Para trocar o token, crie outro, atualize a variável, faça o deploy e apague o antigo em **Account Settings → Tokens**.
 
 ### Modo de manutenção
 

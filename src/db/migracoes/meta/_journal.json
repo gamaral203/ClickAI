@@ -358,6 +358,20 @@
       "when": 1793584573626,
       "tag": "0050_fila_de_rostos",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794274526911,
+      "tag": "0051_assinaturas_do_mes",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794275862875,
+      "tag": "0052_assinaturas_do_mes_no_financeiro",
+      "breakpoints": true
     }
   ]
 }
