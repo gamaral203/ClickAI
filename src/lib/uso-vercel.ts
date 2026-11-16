@@ -16,8 +16,13 @@ import "server-only";
 import { cacheLife } from "next/cache";
 
 const API = "https://api.vercel.com/v1/billing/charges";
-/** Uma Vercel lenta não pode prender o painel: o quadro mostra a falha e o resto segue. */
-const TEMPO_LIMITE_MS = 8_000;
+/**
+ * Uma Vercel lenta não pode prender o painel: o quadro mostra a falha e o resto segue. Até 8 s
+ * para chegarem os cabeçalhos; o corpo (dezenas de MB no fim do ciclo) tem até 25 s no total,
+ * contados do início do pedido.
+ */
+export const TEMPO_CABECALHOS_MS = 8_000;
+export const TEMPO_TOTAL_MS = 25_000;
 /**
  * Proteção contra resposta absurda. O corpo é lido em streaming e cada linha é somada na hora
  * (o corpo inteiro nunca fica na memória), então o limite fica bem acima do tamanho real de um
@@ -281,19 +286,25 @@ export async function consultarUsoVercel(agora: number = Date.now()): Promise<Le
       return { estado: "falha", erro: "VERCEL_TEAM_ID inválido", lidoEm };
     url.searchParams.set("teamId", time);
   }
+  // Um controlador só, abortado pelo primeiro prazo que vencer (TimeoutError, como AbortSignal.timeout).
+  const controle = new AbortController();
+  const esgotar = () => controle.abort(new DOMException("Tempo esgotado", "TimeoutError"));
+  const prazoCabecalhos = setTimeout(esgotar, TEMPO_CABECALHOS_MS);
+  const prazoTotal = setTimeout(esgotar, TEMPO_TOTAL_MS);
   try {
     const resposta = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/jsonl" },
       cache: "no-store",
       redirect: "error",
-      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
+      signal: controle.signal,
     });
+    clearTimeout(prazoCabecalhos);
     if (!resposta.ok) {
       console.error("[uso-vercel] a Vercel recusou a leitura", resposta.status);
       return { estado: "falha", erro: `HTTP ${resposta.status}`, lidoEm };
     }
     if (!resposta.body) return { estado: "falha", erro: "Resposta vazia", lidoEm };
-    // O sinal de timeout do fetch também interrompe a leitura do corpo: cobre a leitura inteira.
+    // O sinal do fetch também interrompe a leitura do corpo: o prazo total cobre a leitura inteira.
     const cobrancas = await lerCobrancasEmStreaming(resposta.body);
     return { estado: "ok", lidoEm, de, ate, ...resumirUsoVercel(cobrancas) };
   } catch (erro) {
@@ -309,6 +320,9 @@ export async function consultarUsoVercel(agora: number = Date.now()): Promise<Le
           : "Erro";
     console.error("[uso-vercel] falha ao ler o uso", nome);
     return { estado: "falha", erro: nome, lidoEm };
+  } finally {
+    clearTimeout(prazoCabecalhos);
+    clearTimeout(prazoTotal);
   }
 }
 

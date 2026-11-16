@@ -13,6 +13,8 @@ import {
   lerUsoVercel,
   RespostaGrandeDemais,
   resumirUsoVercel,
+  TEMPO_CABECALHOS_MS,
+  TEMPO_TOTAL_MS,
 } from "@/lib/uso-vercel";
 
 // Uso da Vercel no Painel de uso: leitura do JSONL FOCUS de /v1/billing/charges (fetch falso),
@@ -330,7 +332,50 @@ describe("leitura em streaming", () => {
     expect(semFim.estado.cancelado).toBe(true);
   });
 
-  it("tempo esgotado no meio da leitura vira falha", async () => {
+  it("8 s para os cabeçalhos e 25 s no total para o corpo", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubEnv("VERCEL_API_TOKEN", TOKEN);
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      // Fetch falso que respeita o sinal: sem cabeçalhos até abortar.
+      const semCabecalhos = vi.fn(
+        (_url: URL, init: RequestInit) =>
+          new Promise<Response>((_, rejeitar) =>
+            init.signal!.addEventListener("abort", () => rejeitar(init.signal!.reason)),
+          ),
+      );
+      vi.stubGlobal("fetch", semCabecalhos);
+      const p1 = consultarUsoVercel();
+      await vi.advanceTimersByTimeAsync(TEMPO_CABECALHOS_MS + 1);
+      expect(await p1).toMatchObject({ estado: "falha", erro: "Tempo esgotado" });
+
+      // Cabeçalhos na hora; o corpo segue chegando devagar depois dos 8 s e só cai nos 25 s.
+      let sinal: AbortSignal | undefined;
+      const corpoLento = vi.fn(async (_url: URL, init: RequestInit) => {
+        sinal = init.signal!;
+        const corpo = new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(new TextEncoder().encode(`${linha({ BilledCost: 1 })}\n`));
+            sinal!.addEventListener("abort", () => c.error(sinal!.reason));
+          },
+        });
+        return new Response(corpo);
+      });
+      vi.stubGlobal("fetch", corpoLento);
+      let pronto = false;
+      const p2 = consultarUsoVercel().finally(() => (pronto = true));
+      await vi.advanceTimersByTimeAsync(TEMPO_CABECALHOS_MS + 5_000);
+      expect(pronto).toBe(false);
+      expect(sinal!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(TEMPO_TOTAL_MS - TEMPO_CABECALHOS_MS - 5_000 + 1);
+      expect(await p2).toMatchObject({ estado: "falha", erro: "Tempo esgotado" });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("erro de tempo no meio da leitura vira falha", async () => {
     vi.stubEnv("VERCEL_API_TOKEN", TOKEN);
     vi.spyOn(console, "error").mockImplementation(() => {});
     const tempo = new Error("aborted");
