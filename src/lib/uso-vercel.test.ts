@@ -4,11 +4,14 @@ const cache = vi.hoisted(() => ({ cacheLife: vi.fn() }));
 vi.mock("next/cache", () => cache);
 
 import {
+  BYTES_MAXIMOS,
   cicloAtualVercel,
   consultarUsoVercel,
   CREDITO_INCLUSO_PRO_CENTAVOS,
   interpretarCobrancasVercel,
+  lerCobrancasEmStreaming,
   lerUsoVercel,
+  RespostaGrandeDemais,
   resumirUsoVercel,
 } from "@/lib/uso-vercel";
 
@@ -209,5 +212,141 @@ describe("consultarUsoVercel", () => {
     );
     await lerUsoVercel();
     expect(cache.cacheLife).toHaveBeenLastCalledWith("minutes");
+  });
+});
+
+/** Corpo em stream a partir de pedaços (bytes), puxados sob demanda; `cancelado` diz se o leitor desistiu. */
+function corpoEmPedacos(pedacos: Iterable<Uint8Array>) {
+  const it = pedacos[Symbol.iterator]();
+  const estado = { cancelado: false, lidos: 0 };
+  const corpo = new ReadableStream<Uint8Array>({
+    pull(c) {
+      const p = it.next();
+      if (p.done) c.close();
+      else {
+        estado.lidos++;
+        c.enqueue(p.value);
+      }
+    },
+    cancel() {
+      estado.cancelado = true;
+    },
+  });
+  return { corpo, estado };
+}
+
+describe("leitura em streaming", () => {
+  it("soma um corpo de mais de 8 MB em vários pedaços, com linha partida e a última sem \n", async () => {
+    const um = linha({
+      ServiceName: "Fluid Active CPU",
+      BilledCost: 0.01,
+      ConsumedQuantity: 1,
+      ConsumedUnit: "Hours",
+      Tags: { ProjectName: "x".repeat(200) },
+    });
+    const outro = linha({ ServiceName: "Fast Origin Transfer", BilledCost: "0.02" });
+    const N = 20_000;
+    const partes: string[] = [];
+    for (let i = 0; i < N; i++) partes.push(um, outro);
+    const texto = partes.join("\n"); // sem \n no fim
+    const bytes = new TextEncoder().encode(texto);
+    expect(bytes.byteLength).toBeGreaterThan(8 * 1024 * 1024);
+    // Pedaços de tamanho primo: linhas (e até caracteres) partidas entre pedaços.
+    const TAM = 65_521;
+    function* pedacos() {
+      for (let i = 0; i < bytes.byteLength; i += TAM) yield bytes.subarray(i, i + TAM);
+    }
+    const { corpo, estado } = corpoEmPedacos(pedacos());
+    expect(texto.endsWith("}")).toBe(true);
+
+    vi.stubEnv("VERCEL_API_TOKEN", TOKEN);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(corpo, { status: 200 })),
+    );
+    const r = await consultarUsoVercel();
+    expect(estado.lidos).toBeGreaterThan(100);
+    expect(r).toMatchObject({
+      estado: "ok",
+      itens: [
+        { nome: "Fast Origin Transfer", custoCentavos: N * 2, quantidade: null, unidade: null },
+        { nome: "Fluid Active CPU", custoCentavos: N, quantidade: N, unidade: "Hours" },
+      ],
+      usoCentavos: N * 3,
+      ignoradas: 0,
+    });
+  });
+
+  it("caractere de vários bytes partido entre pedaços não estraga a linha", async () => {
+    const bytes = new TextEncoder().encode(
+      `${linha({ ServiceName: "Função ç", BilledCost: 1 })}\n`,
+    );
+    const meio = bytes.indexOf(0xc3) + 1; // no meio do "ç"
+    const { corpo } = corpoEmPedacos([bytes.subarray(0, meio), bytes.subarray(meio)]);
+    const c = await lerCobrancasEmStreaming(corpo);
+    expect(c.itens).toEqual([
+      { nome: "Função ç", custoCentavos: 100, quantidade: null, unidade: null },
+    ]);
+  });
+
+  it("passou do limite de bytes: cancela a leitura e mostra 'Resposta grande demais'", async () => {
+    vi.stubEnv("VERCEL_API_TOKEN", TOKEN);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const MB = new TextEncoder().encode(
+      `${linha({ ServiceName: "X", BilledCost: 1 })}\n`.repeat(4_000),
+    );
+    const total = Math.ceil(BYTES_MAXIMOS / MB.byteLength) + 10;
+    function* pedacos() {
+      for (let i = 0; i < total; i++) yield MB;
+    }
+    const { corpo, estado } = corpoEmPedacos(pedacos());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(corpo, { status: 200 })),
+    );
+    expect(await consultarUsoVercel()).toMatchObject({
+      estado: "falha",
+      erro: "Resposta grande demais",
+    });
+    expect(estado.cancelado).toBe(true);
+    expect(estado.lidos).toBeLessThan(total);
+  });
+
+  it("passou do limite de linhas ou linha sem fim: recusa e cancela", async () => {
+    const enc = new TextEncoder();
+    const linhas = corpoEmPedacos([enc.encode(`${linha({ BilledCost: 1 })}\n`.repeat(11))]);
+    await expect(
+      lerCobrancasEmStreaming(linhas.corpo, { bytes: BYTES_MAXIMOS, linhas: 10 }),
+    ).rejects.toBeInstanceOf(RespostaGrandeDemais);
+
+    const semFim = corpoEmPedacos(
+      (function* () {
+        for (let i = 0; i < 10; i++) yield enc.encode("x".repeat(64 * 1024));
+      })(),
+    );
+    await expect(lerCobrancasEmStreaming(semFim.corpo)).rejects.toBeInstanceOf(
+      RespostaGrandeDemais,
+    );
+    expect(semFim.estado.cancelado).toBe(true);
+  });
+
+  it("tempo esgotado no meio da leitura vira falha", async () => {
+    vi.stubEnv("VERCEL_API_TOKEN", TOKEN);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const tempo = new Error("aborted");
+    tempo.name = "TimeoutError";
+    const corpo = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(`${linha({ BilledCost: 1 })}\n`));
+      },
+      pull(c) {
+        c.error(tempo);
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(corpo)),
+    );
+    expect(await consultarUsoVercel()).toMatchObject({ estado: "falha", erro: "Tempo esgotado" });
   });
 });
