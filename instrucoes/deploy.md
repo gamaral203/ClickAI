@@ -142,7 +142,7 @@ O quadro "Uso da Vercel" em `/admin/uso` lê o gasto do ciclo atual na API ofici
 5. Opcional: `VERCEL_DIA_DO_CICLO` (1 a 28) se o ciclo de cobrança do Pro não começa no dia 1 (veja em **Team Settings → Billing**). Padrão: dia 1, em UTC.
 6. Faça um novo deploy (as variáveis só valem em deploy novo).
 
-A leitura fica guardada por 5 minutos (1 minuto quando falha). Token errado, vencido ou sem permissão aparece no quadro como "indisponível (`HTTP 403`)" e no log da função como `[uso-vercel] a Vercel recusou a leitura 403`; o token nunca vai para o log. Para trocar o token, crie outro, atualize a variável, faça o deploy e apague o antigo em **Account Settings → Tokens**.
+A leitura fica guardada por 5 minutos (1 minuto quando falha). A resposta é lida em streaming, linha a linha (o ciclo já passa de 8 MB); a Vercel tem 8 s para responder e 25 s no total para mandar tudo; acima de 100 MB o quadro mostra "indisponível (Resposta grande demais)". Token errado, vencido ou sem permissão aparece no quadro como "indisponível (`HTTP 403`)" e no log da função como `[uso-vercel] a Vercel recusou a leitura 403`; o token nunca vai para o log. Para trocar o token, crie outro, atualize a variável, faça o deploy e apague o antigo em **Account Settings → Tokens**.
 
 ### Modo de manutenção
 

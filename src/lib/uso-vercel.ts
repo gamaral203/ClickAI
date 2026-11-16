@@ -16,10 +16,22 @@ import "server-only";
 import { cacheLife } from "next/cache";
 
 const API = "https://api.vercel.com/v1/billing/charges";
-/** Uma Vercel lenta não pode prender o painel: o quadro mostra a falha e o resto segue. */
-const TEMPO_LIMITE_MS = 8_000;
-/** Resposta maior que isso não é lida (um ciclo do time cabe com folga). */
-const TAMANHO_MAXIMO = 8 * 1024 * 1024;
+/**
+ * Uma Vercel lenta não pode prender o painel: o quadro mostra a falha e o resto segue. Até 8 s
+ * para chegarem os cabeçalhos; o corpo (dezenas de MB no fim do ciclo) tem até 25 s no total,
+ * contados do início do pedido.
+ */
+export const TEMPO_CABECALHOS_MS = 8_000;
+export const TEMPO_TOTAL_MS = 25_000;
+/**
+ * Proteção contra resposta absurda. O corpo é lido em streaming e cada linha é somada na hora
+ * (o corpo inteiro nunca fica na memória), então o limite fica bem acima do tamanho real de um
+ * ciclo: o JSONL tem uma linha por dia, produto, região e projeto e já passa de 8 MB.
+ */
+export const BYTES_MAXIMOS = 100 * 1024 * 1024;
+export const LINHAS_MAXIMAS = 1_000_000;
+/** Uma linha FOCUS tem poucos KB; sem "\n" por mais que isso, a resposta é recusada. */
+const LINHA_MAXIMA = 256 * 1024;
 
 /** Crédito de uso incluso no plano Pro, por ciclo, em centavos de dólar (US$ 20). */
 export const CREDITO_INCLUSO_PRO_CENTAVOS = 2_000;
@@ -74,10 +86,11 @@ function quantidade(valor: unknown): number | null {
 }
 
 /**
- * Lê o JSONL de /v1/billing/charges. Usa BilledCost (o valor que vai para a fatura) e agrupa o
- * uso por ServiceName. Nunca lança: linha que não dá para ler entra em `ignoradas`.
+ * Soma as linhas do JSONL de /v1/billing/charges uma a uma, sem guardar o corpo. Usa BilledCost
+ * (o valor que vai para a fatura) e agrupa o uso por ServiceName. Nunca lança: linha que não dá
+ * para ler entra em `ignoradas`.
  */
-export function interpretarCobrancasVercel(jsonl: string): CobrancasVercel {
+export function criarSomaCobrancasVercel() {
   const porItem = new Map<
     string,
     { micro: number; quantidade: number | null; unidade: string | null }
@@ -87,9 +100,9 @@ export function interpretarCobrancasVercel(jsonl: string): CobrancasVercel {
   let impostos = 0;
   let ignoradas = 0;
 
-  for (const bruta of jsonl.split("\n")) {
+  function somarLinha(bruta: string) {
     const texto = bruta.trim();
-    if (!texto) continue;
+    if (!texto) return;
     let linha: Record<string, unknown>;
     try {
       const lido: unknown = JSON.parse(texto);
@@ -97,13 +110,13 @@ export function interpretarCobrancasVercel(jsonl: string): CobrancasVercel {
       linha = lido as Record<string, unknown>;
     } catch {
       ignoradas++;
-      continue;
+      return;
     }
     const micro = microdolares(linha.BilledCost);
     const moeda = linha.BillingCurrency ?? "USD";
     if (micro === null || moeda !== "USD") {
       ignoradas++;
-      continue;
+      return;
     }
     switch (linha.ChargeCategory) {
       case "Usage": {
@@ -141,23 +154,83 @@ export function interpretarCobrancasVercel(jsonl: string): CobrancasVercel {
     }
   }
 
-  const itens = [...porItem.entries()]
-    .map(([nome, i]) => ({
-      nome,
-      custoCentavos: paraCentavos(i.micro),
-      quantidade: i.quantidade,
-      unidade: i.unidade,
-    }))
-    .sort((a, b) => b.custoCentavos - a.custoCentavos || a.nome.localeCompare(b.nome));
-  const usoMicro = [...porItem.values()].reduce((s, i) => s + i.micro, 0);
-  return {
-    itens,
-    usoCentavos: paraCentavos(usoMicro),
-    fixoCentavos: paraCentavos(fixo),
-    creditosEAjustesCentavos: paraCentavos(creditos),
-    impostosCentavos: paraCentavos(impostos),
-    ignoradas,
+  function resultado(): CobrancasVercel {
+    const itens = [...porItem.entries()]
+      .map(([nome, i]) => ({
+        nome,
+        custoCentavos: paraCentavos(i.micro),
+        quantidade: i.quantidade,
+        unidade: i.unidade,
+      }))
+      .sort((a, b) => b.custoCentavos - a.custoCentavos || a.nome.localeCompare(b.nome));
+    const usoMicro = [...porItem.values()].reduce((s, i) => s + i.micro, 0);
+    return {
+      itens,
+      usoCentavos: paraCentavos(usoMicro),
+      fixoCentavos: paraCentavos(fixo),
+      creditosEAjustesCentavos: paraCentavos(creditos),
+      impostosCentavos: paraCentavos(impostos),
+      ignoradas,
+    };
+  }
+
+  return { somarLinha, resultado };
+}
+
+/** Lê um JSONL que já está inteiro na memória (pequeno; a leitura da Vercel usa o streaming). */
+export function interpretarCobrancasVercel(jsonl: string): CobrancasVercel {
+  const soma = criarSomaCobrancasVercel();
+  for (const linha of jsonl.split("\n")) soma.somarLinha(linha);
+  return soma.resultado();
+}
+
+export class RespostaGrandeDemais extends Error {
+  override name = "RespostaGrandeDemais";
+}
+
+/**
+ * Lê o corpo em streaming, linha a linha: a linha partida entre pedaços espera no `resto` até o
+ * próximo, e a última sem "\n" entra no fim. Passou dos bytes, das linhas ou do tamanho de uma
+ * linha: cancela o leitor e lança RespostaGrandeDemais.
+ */
+export async function lerCobrancasEmStreaming(
+  corpo: ReadableStream<Uint8Array>,
+  limites: { bytes: number; linhas: number } = { bytes: BYTES_MAXIMOS, linhas: LINHAS_MAXIMAS },
+): Promise<CobrancasVercel> {
+  const soma = criarSomaCobrancasVercel();
+  const leitor = corpo.getReader();
+  const decodificador = new TextDecoder();
+  let resto = "";
+  let bytes = 0;
+  let linhas = 0;
+  const somar = (linha: string) => {
+    if (++linhas > limites.linhas) throw new RespostaGrandeDemais();
+    soma.somarLinha(linha);
   };
+  try {
+    for (;;) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > limites.bytes) throw new RespostaGrandeDemais();
+      resto += decodificador.decode(value, { stream: true });
+      let inicio = 0;
+      for (let fim = resto.indexOf("\n"); fim !== -1; fim = resto.indexOf("\n", inicio)) {
+        somar(resto.slice(inicio, fim));
+        inicio = fim + 1;
+      }
+      resto = resto.slice(inicio);
+      if (resto.length > LINHA_MAXIMA) throw new RespostaGrandeDemais();
+    }
+    resto += decodificador.decode();
+    if (resto) somar(resto);
+    return soma.resultado();
+  } catch (erro) {
+    await leitor.cancel().catch(() => {});
+    throw erro;
+  } finally {
+    leitor.releaseLock();
+  }
 }
 
 /** Uso contra o crédito incluso do Pro: quanto do crédito já foi e o que passou (on-demand). */
@@ -213,33 +286,32 @@ export async function consultarUsoVercel(agora: number = Date.now()): Promise<Le
       return { estado: "falha", erro: "VERCEL_TEAM_ID inválido", lidoEm };
     url.searchParams.set("teamId", time);
   }
+  // Um controlador só, abortado pelo primeiro prazo que vencer (TimeoutError, como AbortSignal.timeout).
+  const controle = new AbortController();
+  const esgotar = () => controle.abort(new DOMException("Tempo esgotado", "TimeoutError"));
+  const prazoCabecalhos = setTimeout(esgotar, TEMPO_CABECALHOS_MS);
+  const prazoTotal = setTimeout(esgotar, TEMPO_TOTAL_MS);
   try {
     const resposta = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/jsonl" },
       cache: "no-store",
       redirect: "error",
-      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
+      signal: controle.signal,
     });
+    clearTimeout(prazoCabecalhos);
     if (!resposta.ok) {
       console.error("[uso-vercel] a Vercel recusou a leitura", resposta.status);
       return { estado: "falha", erro: `HTTP ${resposta.status}`, lidoEm };
     }
-    const tamanho = Number(resposta.headers.get("content-length"));
-    if (Number.isFinite(tamanho) && tamanho > TAMANHO_MAXIMO) {
-      return { estado: "falha", erro: "Resposta grande demais", lidoEm };
-    }
-    const texto = await resposta.text();
-    if (texto.length > TAMANHO_MAXIMO) {
-      return { estado: "falha", erro: "Resposta grande demais", lidoEm };
-    }
-    return {
-      estado: "ok",
-      lidoEm,
-      de,
-      ate,
-      ...resumirUsoVercel(interpretarCobrancasVercel(texto)),
-    };
+    if (!resposta.body) return { estado: "falha", erro: "Resposta vazia", lidoEm };
+    // O sinal do fetch também interrompe a leitura do corpo: o prazo total cobre a leitura inteira.
+    const cobrancas = await lerCobrancasEmStreaming(resposta.body);
+    return { estado: "ok", lidoEm, de, ate, ...resumirUsoVercel(cobrancas) };
   } catch (erro) {
+    if (erro instanceof RespostaGrandeDemais) {
+      console.error("[uso-vercel] resposta grande demais");
+      return { estado: "falha", erro: "Resposta grande demais", lidoEm };
+    }
     const nome =
       erro instanceof Error && (erro.name === "TimeoutError" || erro.name === "AbortError")
         ? "Tempo esgotado"
@@ -248,6 +320,9 @@ export async function consultarUsoVercel(agora: number = Date.now()): Promise<Le
           : "Erro";
     console.error("[uso-vercel] falha ao ler o uso", nome);
     return { estado: "falha", erro: nome, lidoEm };
+  } finally {
+    clearTimeout(prazoCabecalhos);
+    clearTimeout(prazoTotal);
   }
 }
 
